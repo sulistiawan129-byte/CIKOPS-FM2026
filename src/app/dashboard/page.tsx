@@ -10071,7 +10071,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
-  const LABELS_PER_PAGE = 9;
+  const LABELS_PER_PAGE = 12;
   const pages: string[] = [];
   for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
     const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
@@ -10084,17 +10084,17 @@ function printGiftLabels(regs: GiftRegistration[]) {
       <head>
         <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
         <style>
-          @page { size: A4; margin: 8mm; }
+          @page { size: A4 portrait; margin: 8mm; }
           * { box-sizing: border-box; }
           body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
-          .page { page-break-after: always; }
-          .page:last-child { page-break-after: auto; }
+          .page { page-break-after: always; break-after: page; }
+          .page:last-child { page-break-after: auto; break-after: auto; }
           .grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 66mm); gap: 4mm;
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
           }
           .label {
             border: 1.5px solid #dbe4f0; border-radius: 10px; padding: 8px 10px;
-            page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
+            page-break-inside: avoid; break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
             box-shadow: 0 1px 3px rgba(15,40,71,0.08);
           }
           .noLabel { font-size: 7px; color: #94a3b8; font-weight: 800; letter-spacing: 0.08em; text-align: center; }
