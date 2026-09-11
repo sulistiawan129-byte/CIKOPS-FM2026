@@ -10031,7 +10031,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
     return a.sequenceNo.localeCompare(b.sequenceNo);
   });
 
-  const labelsHtml = sorted.map((r) => {
+  const labelHtmls = sorted.map((r) => {
     // Filter TEGAS — cuma slot yang benar-benar ada isinya yang dicetak.
     // Termasuk skip karakter Unicode Replacement (U+FFFD / "�") yang
     // muncul kalau CSV sumbernya disimpan dengan encoding selain UTF-8
@@ -10063,7 +10063,19 @@ function printGiftLabels(regs: GiftRegistration[]) {
         <div class="meta">${r.lokasiPengambilan || "-"}</div>
         ${sizesHtml}
       </div>`;
-  }).join("");
+  });
+
+  // Bagi label jadi HALAMAN eksplisit, 12 per halaman (3 kolom x 4
+  // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
+  // grid panjang secara otomatis (beberapa browser tidak konsisten
+  // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
+  const LABELS_PER_PAGE = 12;
+  const pages: string[] = [];
+  for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
+    const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
+    pages.push(`<div class="page"><div class="grid">${chunk}</div></div>`);
+  }
+  const pagesHtml = pages.join("");
 
   w.document.write(`
     <html>
@@ -10073,8 +10085,10 @@ function printGiftLabels(regs: GiftRegistration[]) {
           @page { size: A4; margin: 8mm; }
           * { box-sizing: border-box; }
           body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
+          .page { page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
           .grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 66mm; gap: 4mm;
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
           }
           .label {
             border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 7px 9px;
@@ -10102,7 +10116,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
         </style>
       </head>
       <body>
-        <div class="grid">${labelsHtml}</div>
+        ${pagesHtml}
       </body>
     </html>
   `);
