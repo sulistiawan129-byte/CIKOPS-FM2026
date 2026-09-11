@@ -10468,6 +10468,7 @@ w.focus();
 setTimeout(() => {
   w.print();
 }, 500);
+}
 
 
 function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
