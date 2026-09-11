@@ -198,14 +198,19 @@ export default function GiftLookupPage() {
                 </table>
 
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
                 {(() => {
                   const filledSizes = reg.selections.filter((s) => !isBlankSlotValue(s.variant));
                   return (
                     <div style={{ marginBottom: 24 }}>
-                      <div style={{ background: "#eef2fb", borderRadius: 12, padding: "12px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#7c8aa0" }}>TOTAL BAJU</span>
-                        <span style={{ fontSize: 22, fontWeight: 900, color: NAVY }}>{filledSizes.length}</span>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                        <div style={{ background: "#eef2fb", borderRadius: 12, padding: "12px 16px" }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#7c8aa0", marginBottom: 2 }}>TOTAL BAJU</div>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: NAVY }}>{filledSizes.length}</div>
+                        </div>
+                        <div style={{ background: "#fff8e6", borderRadius: 12, padding: "12px 16px" }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#a87c1f", marginBottom: 2 }}>🎟️ TIKET EVENT</div>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "#a87c1f" }}>{filledSizes.length}</div>
+                        </div>
                       </div>
                       <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden" }}>
                         {filledSizes.length === 0 ? (
