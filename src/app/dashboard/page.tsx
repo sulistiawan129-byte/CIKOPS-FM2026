@@ -10013,11 +10013,13 @@ function CanteenDashboardPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
 // ════════════════════════════════════════════════════════════════
-/** Cetak label pembagian seragam — 2 kolom x 5 baris (10 label) per
+/** Cetak label pembagian seragam — 3 kolom x 5 baris (15 label) per
  *  lembar A4, diurutkan berdasarkan No. Urut, supaya kantong seragam
  *  bisa di-packing & disortir sebelum acara. Petugas pas hari-H cukup
  *  cari NIK di /gift/lookup untuk tahu No. Urut, lalu ambil kantong
- *  bernomor itu (yang sudah tersortir rapi). */
+ *  bernomor itu (yang sudah tersortir rapi). No. Urut dibuat BESAR
+ *  supaya gampang dibaca dari jauh, dan slot ukuran yang KOSONG
+ *  di-filter total (tidak ikut dicetak sama sekali).*/
 function printGiftLabels(regs: GiftRegistration[]) {
   const w = window.open("", "_blank", "width=850,height=1000");
   if (!w) return;
@@ -10030,21 +10032,29 @@ function printGiftLabels(regs: GiftRegistration[]) {
   });
 
   const labelsHtml = sorted.map((r) => {
-    const sizesHtml = r.selections
-      .filter((s) => s.variant && s.variant.trim() !== "")
-      .map((s) => `<div class="sizeRow"><span class="slotNo">${s.item}</span><span class="sizeVal">${s.variant}</span></div>`)
+    // Filter TEGAS — cuma slot yang benar-benar ada isinya yang dicetak.
+    const filledSizes = r.selections.filter(
+      (s) => s.variant != null && String(s.variant).trim() !== ""
+    );
+    const sizeRows = filledSizes
+      .map(
+        (s, i) =>
+          `<div class="sizeRow"><span class="idx">${i + 1}</span><span class="sizeVal">${s.variant}</span></div>`
+      )
       .join("");
+    const sizesHtml =
+      filledSizes.length > 0
+        ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="sizesBox">${sizeRows}</div>`
+        : `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">0</span></div>`;
+
     return `
       <div class="label">
-        <div class="labelTop">
-          <div>
-            <div class="noLabel">NO. URUT</div>
-            <div class="noValue">${r.sequenceNo || "-"}</div>
-          </div>
-        </div>
+        <div class="noLabel">NO. URUT</div>
+        <div class="noValue">${r.sequenceNo || "-"}</div>
         <div class="nama">${r.nama}</div>
-        <div class="meta">${r.nik} &middot; ${r.departemen || "-"} &middot; ${r.lokasiPengambilan || "-"}</div>
-        <div class="sizesBox">${sizesHtml || '<div class="sizeRow"><span class="sizeVal">-</span></div>'}</div>
+        <div class="meta">${r.nik} &middot; ${r.departemen || "-"}</div>
+        <div class="meta">${r.lokasiPengambilan || "-"}</div>
+        ${sizesHtml}
       </div>`;
   }).join("");
 
@@ -10053,22 +10063,31 @@ function printGiftLabels(regs: GiftRegistration[]) {
       <head>
         <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
         <style>
-          @page { size: A4; margin: 10mm; }
+          @page { size: A4; margin: 8mm; }
           * { box-sizing: border-box; }
           body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
           .label {
-            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 10px 12px;
-            page-break-inside: avoid; min-height: 52mm;
+            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 8px 10px;
+            page-break-inside: avoid;
           }
-          .labelTop { margin-bottom: 6px; }
-          .noLabel { font-size: 9px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
-          .noValue { font-size: 30px; font-weight: 900; line-height: 1; color: #0f2847; }
-          .nama { font-weight: 800; font-size: 15px; margin-bottom: 2px; }
-          .meta { font-size: 11px; color: #64748b; margin-bottom: 8px; }
-          .sizesBox { border-top: 1px solid #e2e8f0; padding-top: 6px; }
-          .sizeRow { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
-          .slotNo { color: #64748b; }
+          .noLabel { font-size: 8px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
+          .noValue { font-size: 40px; font-weight: 900; line-height: 1; color: #0f2847; margin-bottom: 4px; }
+          .nama { font-weight: 800; font-size: 13px; margin-bottom: 1px; }
+          .meta { font-size: 9.5px; color: #64748b; line-height: 1.3; }
+          .totalRow {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #eef2fb; border-radius: 6px; padding: 5px 8px; margin: 6px 0 4px;
+            font-size: 10px; font-weight: 700; color: #7c8aa0;
+          }
+          .totalVal { font-size: 15px; font-weight: 900; color: #0f2847; }
+          .sizesBox { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
+          .sizeRow {
+            display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px;
+            border-bottom: 1px solid #f1f5f9;
+          }
+          .sizeRow:last-child { border-bottom: none; }
+          .idx { color: #94a3b8; font-weight: 700; }
           .sizeVal { font-weight: 800; }
           @media print { .label { border-color: #cbd5e1; } }
         </style>
@@ -10082,6 +10101,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
   w.focus();
   setTimeout(() => w.print(), 400);
 }
+
 
 function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const { lang, t } = useLang();
