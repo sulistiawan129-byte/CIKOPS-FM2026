@@ -6,6 +6,21 @@ import type { GiftEvent, GiftRegistration } from "@/lib/types";
 const NAVY = "#0F2847";
 const NAVY_LIGHT = "#1F44B8";
 
+/** Cek apakah nilai sebuah "slot" harus dianggap KOSONG — bukan cuma
+ *  string kosong "", tapi juga karakter Unicode Replacement (U+FFFD,
+ *  tampil sebagai "�") yang muncul kalau file CSV sumbernya disimpan
+ *  dengan encoding selain UTF-8 (byte yang tidak valid otomatis
+ *  diganti jadi karakter ini saat dibaca browser). Tanpa pengecekan
+ *  ini, sel yang sebenarnya kosong di Excel malah kelihatan "ada
+ *  isinya" karena bukan string kosong murni. */
+function isBlankSlotValue(v: string | null | undefined): boolean {
+  if (v == null) return true;
+  const t = v.trim();
+  if (t === "") return true;
+  // seluruh isi cuma terdiri dari replacement character (satu atau lebih)
+  return /^\uFFFD+$/.test(t);
+}
+
 export default function GiftLookupPage() {
   const [events, setEvents] = useState<GiftEvent[]>([]);
   const [eventId, setEventId] = useState("");
@@ -185,7 +200,7 @@ export default function GiftLookupPage() {
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
                 {(() => {
-                  const filledSizes = reg.selections.filter((s) => s.variant && s.variant.trim() !== "");
+                  const filledSizes = reg.selections.filter((s) => !isBlankSlotValue(s.variant));
                   return (
                     <div style={{ marginBottom: 24 }}>
                       <div style={{ background: "#eef2fb", borderRadius: 12, padding: "12px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
