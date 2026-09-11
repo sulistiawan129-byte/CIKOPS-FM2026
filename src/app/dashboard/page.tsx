@@ -52,6 +52,8 @@ import {
   updateGiftEvent,
   deleteGiftEvent,
   bulkImportGiftRegistrations,
+  unclaimGiftRegistration,
+  claimGift,
   getGiftRegistrations,
   getTasksByDate,
   getTasksByRange,
@@ -10069,197 +10071,50 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
-const LABELS_PER_PAGE = 12;
-const pages: string[] = [];
+  const LABELS_PER_PAGE = 12;
+  const pages: string[] = [];
+  for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
+    const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
+    pages.push(`<div class="page"><div class="grid">${chunk}</div></div>`);
+  }
+  const pagesHtml = pages.join("");
 
-for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
-  const chunk = labelHtmls
-    .slice(i, i + LABELS_PER_PAGE)
-    .join("");
-
-  pages.push(`
-    <div class="page">
-      <div class="grid">
-        ${chunk}
-      </div>
-    </div>
-  `);
-}
-
-const pagesHtml = pages.join("");
   w.document.write(`
     <html>
       <head>
         <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
         <style>
-    @page {
-  size: A4 portrait;
-  margin: 8mm;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
-  color: #0f2847;
-}
-
-.page {
-  width: 100%;
-  height: 281mm; /* 297 - 8mm top - 8mm bottom */
-  page-break-after: always;
-  break-after: page;
-  overflow: hidden;
-}
-
-.page:last-child {
-  page-break-after: auto;
-  break-after: auto;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(4, 66mm);
-  gap: 4mm;
-
-  width: 100%;
-  height: 276mm;
-}
-
-.label {
-  border: 1.5px dashed #94a3b8;
-  border-radius: 8px;
-  padding: 7px 9px;
-
-  page-break-inside: avoid;
-  break-inside: avoid;
-
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.noLabel {
-  font-size: 7px;
-  color: #94a3b8;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-.noValue {
-  font-size: 45px;
-  font-weight: 900;
-  line-height: 1;
-  color: #0f2847;
-  margin-bottom: 2px;
-}
-
-.nama {
-  font-weight: 800;
-  font-size: 11.5px;
-  margin-bottom: 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.meta {
-  font-size: 8px;
-  color: #64748b;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.totalRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  background: #eef2fb;
-  border-radius: 5px;
-  padding: 3px 7px;
-  margin: 4px 0 3px;
-
-  font-size: 8.5px;
-  font-weight: 700;
-  color: #7c8aa0;
-  flex-shrink: 0;
-}
-
-.totalVal {
-  font-size: 12px;
-  font-weight: 900;
-  color: #0f2847;
-}
-
-.sizesBox {
-  border: 1px solid #e2e8f0;
-  border-radius: 5px;
-  overflow: hidden;
-  flex: 1;
-  min-height: 0;
-}
-
-.sizeRow {
-  display: flex;
-  justify-content: space-between;
-
-  font-size: 9.5px;
-  padding: 1.5px 7px;
-
-  border-bottom: 1px solid #f1f5f9;
-  line-height: 1.4;
-}
-
-.sizeRow:last-child {
-  border-bottom: none;
-}
-
-.idx {
-  color: #94a3b8;
-  font-weight: 700;
-}
-
-.sizeVal {
-  font-weight: 800;
-}
-
-@media print {
-  .page {
-    width: 194mm;
-    height: 281mm;
-    page-break-after: always;
-    break-after: page;
-  }
-
-  .page:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-
-  .grid {
-    width: 194mm;
-    height: 276mm;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(4, 66mm);
-    gap: 4mm;
-  }
-
-  .label {
-    border-color: #cbd5e1;
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-}
+          @page { size: A4; margin: 8mm; }
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
+          .page { page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
+          .grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
+          }
+          .label {
+            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 7px 9px;
+            page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
+          }
+          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
+          .noValue { font-size: 32px; font-weight: 900; line-height: 1; color: #0f2847; margin-bottom: 2px; }
+          .nama { font-weight: 800; font-size: 11.5px; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .meta { font-size: 8px; color: #64748b; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .totalRow {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #eef2fb; border-radius: 5px; padding: 3px 7px; margin: 4px 0 3px;
+            font-size: 8.5px; font-weight: 700; color: #7c8aa0; flex-shrink: 0;
+          }
+          .totalVal { font-size: 12px; font-weight: 900; color: #0f2847; }
+          .sizesBox { border: 1px solid #e2e8f0; border-radius: 5px; overflow: hidden; flex: 1; min-height: 0; }
+          .sizeRow {
+            display: flex; justify-content: space-between; font-size: 9.5px; padding: 1.5px 7px;
+            border-bottom: 1px solid #f1f5f9; line-height: 1.4;
+          }
+          .sizeRow:last-child { border-bottom: none; }
+          .idx { color: #94a3b8; font-weight: 700; }
+          .sizeVal { font-weight: 800; }
+          @media print { .label { border-color: #cbd5e1; } }
         </style>
       </head>
       <body>
@@ -10405,6 +10260,85 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     }
   }
 
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  /** Ubah status klaim — bisa dua arah, jaga-jaga kalau petugas salah
+   *  tandai (misal kepencet, atau salah cari NIK di /gift/lookup). */
+  async function handleToggleClaim(r: GiftRegistration) {
+    setTogglingId(r.id);
+    try {
+      if (r.claimed) {
+        await unclaimGiftRegistration(r.id);
+      } else {
+        await claimGift(r.id, "Admin (Dashboard)");
+      }
+      if (regEvent) setRegs(await getGiftRegistrations(regEvent.id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal mengubah status.");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  /** Ringkasan KPI untuk dashboard event: total peserta, breakdown
+   *  jumlah baju per ukuran (digabung dari semua peserta), dan status
+   *  klaim. Karakter kosong/rusak (replacement char) tidak dihitung. */
+  const giftKpis = useMemo(() => {
+    const sizeCounts = new Map<string, number>();
+    for (const r of regs) {
+      for (const s of r.selections) {
+        if (s.variant == null) continue;
+        const t = String(s.variant).trim();
+        if (t === "" || /^\uFFFD+$/.test(t)) continue;
+        sizeCounts.set(t, (sizeCounts.get(t) ?? 0) + 1);
+      }
+    }
+    const sizeBreakdown = Array.from(sizeCounts.entries()).sort((a, b) => b[1] - a[1]);
+    const claimedCount = regs.filter((r) => r.claimed).length;
+    return {
+      total: regs.length,
+      claimedCount,
+      notClaimedCount: regs.length - claimedCount,
+      totalBaju: sizeBreakdown.reduce((s, [, c]) => s + c, 0),
+      sizeBreakdown,
+    };
+  }, [regs]);
+
+  const giftReportExportPicker = useExportLanguagePicker((format, exportLang) => {
+    if (!regEvent) return;
+    const opts = {
+      lang: exportLang,
+      titleId: `Laporan Pembagian — ${regEvent.name}`, titleEn: `Distribution Report — ${regEvent.name}`,
+      filename: `Laporan_Pembagian_${regEvent.name.replace(/\s+/g, "_")}`,
+      kpis: [
+        { labelId: "Total Peserta", labelEn: "Total Participants", value: giftKpis.total },
+        { labelId: "Total Baju", labelEn: "Total Items", value: giftKpis.totalBaju },
+        { labelId: "Sudah Diambil", labelEn: "Claimed", value: giftKpis.claimedCount },
+        { labelId: "Belum Diambil", labelEn: "Not Claimed", value: giftKpis.notClaimedCount },
+      ],
+      breakdowns: [
+        {
+          titleId: "Jumlah Baju per Ukuran", titleEn: "Items by Size",
+          valueLabelId: "Jumlah", valueLabelEn: "Count",
+          items: giftKpis.sizeBreakdown.map(([size, count]) => ({ label: size, value: count })),
+        },
+      ],
+      tableTitleId: "Daftar Peserta", tableTitleEn: "Participant List",
+      tableRows: regs,
+      tableColumns: [
+        { key: "no", labelId: "No", labelEn: "No", get: (r: GiftRegistration) => r.sequenceNo },
+        { key: "nama", labelId: "Nama", labelEn: "Name", get: (r: GiftRegistration) => r.nama },
+        { key: "nik", labelId: "NIK", labelEn: "NIK", get: (r: GiftRegistration) => r.nik },
+        { key: "dept", labelId: "Departemen", labelEn: "Department", get: (r: GiftRegistration) => r.departemen },
+        { key: "lokasi", labelId: "Lokasi", labelEn: "Location", get: (r: GiftRegistration) => r.lokasiPengambilan },
+        { key: "status", labelId: "Status", labelEn: "Status", get: (r: GiftRegistration) => (r.claimed ? "Sudah Diambil" : "Belum Diambil") },
+      ] as ReportColumn<GiftRegistration>[],
+    };
+    if (format === "csv") exportSummaryCsv(opts);
+    else if (format === "excel") exportSummaryExcel(opts);
+    else exportSummaryPdf(opts);
+  });
+
   function addItem() { setFormItems(prev => [...prev, { name: "", variants: [] }]); }
   function removeItem(i: number) { setFormItems(prev => prev.filter((_, idx) => idx !== i)); }
   function setItemName(i: number, name: string) { setFormItems(prev => prev.map((it, idx) => idx === i ? { ...it, name } : it)); }
@@ -10453,14 +10387,52 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>{regs.length} peserta</span>
         {regEvent.mode === "lookup" && regs.length > 0 && (
-          <button
-            onClick={() => printGiftLabels(regs)}
-            style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-          >
-            🖨️ Cetak Label
-          </button>
+          <>
+            <ReportExportButtons onExport={giftReportExportPicker.requestExport} disabled={regs.length === 0} />
+            <button
+              onClick={() => printGiftLabels(regs)}
+              style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+            >
+              🖨️ Cetak Label
+            </button>
+          </>
         )}
       </div>
+
+      {regEvent.mode === "lookup" && regs.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+          <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 4 }}>JUMLAH PESERTA</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "var(--t1)" }}>{giftKpis.total}</div>
+          </div>
+          <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 4 }}>TOTAL BAJU</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "var(--t1)" }}>{giftKpis.totalBaju}</div>
+          </div>
+          <div style={{ background: "rgba(34,197,94,0.1)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)", marginBottom: 4 }}>✅ SUDAH DIAMBIL</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "var(--green)" }}>{giftKpis.claimedCount}</div>
+          </div>
+          <div style={{ background: "rgba(234,179,8,0.1)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#eab308", marginBottom: 4 }}>⏳ BELUM DIAMBIL</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#eab308" }}>{giftKpis.notClaimedCount}</div>
+          </div>
+        </div>
+      )}
+
+      {regEvent.mode === "lookup" && giftKpis.sizeBreakdown.length > 0 && (
+        <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 10 }}>JUMLAH BAJU PER UKURAN</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {giftKpis.sizeBreakdown.map(([size, count]) => (
+              <div key={size} style={{ background: "var(--surface)", border: "1px solid var(--border2)", borderRadius: 10, padding: "8px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{size}</span>
+                <span style={{ fontSize: 13, fontWeight: 900, color: "var(--brand)" }}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {regEvent.mode === "lookup" && (
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
@@ -10502,7 +10474,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "var(--bg2)" }}>
-                {["NIK", "Nama", "Departemen", "Email", "Item", "Status", "Terdaftar"].map(h => (
+                {["NIK", "Nama", "Departemen", "Email", "Item", "Status", "Terdaftar", "Aksi"].map(h => (
                   <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "var(--t3)", fontSize: 11, textTransform: "uppercase", borderBottom: "1px solid var(--border)" }}>{h}</th>
                 ))}
               </tr>
@@ -10529,11 +10501,28 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   <td style={{ padding: "10px 12px", color: "var(--t3)", fontSize: 11 }}>
                     {new Date(r.registeredAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                   </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <button
+                      onClick={() => handleToggleClaim(r)}
+                      disabled={togglingId === r.id}
+                      title={r.claimed ? "Batalkan status — kembalikan jadi Belum Diambil" : "Tandai manual sebagai Sudah Diambil"}
+                      style={{
+                        fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--border2)",
+                        background: "var(--surface)", color: "var(--t2)", cursor: togglingId === r.id ? "default" : "pointer",
+                        opacity: togglingId === r.id ? 0.5 : 1, whiteSpace: "nowrap",
+                      }}
+                    >
+                      {togglingId === r.id ? "..." : r.claimed ? "↩️ Batalkan" : "✅ Tandai"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {giftReportExportPicker.pending && (
+        <LanguagePickerModal key={giftReportExportPicker.pending} format={giftReportExportPicker.pending} onConfirm={giftReportExportPicker.confirm} onClose={giftReportExportPicker.cancel} />
       )}
     </div>
   );
