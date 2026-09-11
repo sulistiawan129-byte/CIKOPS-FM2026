@@ -2182,6 +2182,18 @@ export async function claimGift(registrationId: string, claimedBy: string): Prom
   if (!data) throw new Error("Sudah diklaim sebelumnya oleh pihak lain.");
 }
 
+/** Batalkan status "sudah diambil" — jaga-jaga kalau petugas salah
+ *  tandai. HANYA dipanggil dari Dashboard (admin, sudah login), BUKAN
+ *  dari halaman publik /gift/lookup — makanya ini update tabel
+ *  langsung (bukan RPC security-definer), memanfaatkan policy
+ *  "gift_reg_update_authenticated" yang sudah ada. */
+export async function unclaimGiftRegistration(registrationId: string): Promise<void> {
+  const { error } = await supabase.from("gift_registrations")
+    .update({ claimed: false, claimed_at: null, claimed_by: null })
+    .eq("id", registrationId);
+  if (error) throw error;
+}
+
 /** Import bulk data karyawan + barang (mode "lookup") dari Excel/CSV,
  *  dipanggil dari Dashboard (admin, sudah login) — bukan dari halaman
  *  publik. Satu baris = satu karyawan, dengan array selections berisi
