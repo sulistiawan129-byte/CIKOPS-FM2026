@@ -10033,9 +10033,16 @@ function printGiftLabels(regs: GiftRegistration[]) {
 
   const labelsHtml = sorted.map((r) => {
     // Filter TEGAS — cuma slot yang benar-benar ada isinya yang dicetak.
-    const filledSizes = r.selections.filter(
-      (s) => s.variant != null && String(s.variant).trim() !== ""
-    );
+    // Termasuk skip karakter Unicode Replacement (U+FFFD / "�") yang
+    // muncul kalau CSV sumbernya disimpan dengan encoding selain UTF-8
+    // (sel kosong di Excel jadi ke-decode sebagai karakter aneh ini,
+    // bukan string kosong murni — makanya perlu dicek eksplisit).
+    const filledSizes = r.selections.filter((s) => {
+      if (s.variant == null) return false;
+      const t = String(s.variant).trim();
+      if (t === "") return false;
+      return !/^\uFFFD+$/.test(t);
+    });
     const sizeRows = filledSizes
       .map(
         (s, i) =>
@@ -10195,7 +10202,11 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       const selections: GiftSelection[] = [];
       for (const slot of slotCols) {
         const val = cols[slot.i] ?? "";
-        if (val === "") continue; // slot kosong -> dilewati
+        // Slot kosong ATAU cuma berisi Unicode Replacement Character
+        // ("�", U+FFFD) — muncul kalau file CSV disimpan dengan encoding
+        // selain UTF-8, sel kosong di Excel jadi ke-decode jadi karakter
+        // ini alih-alih string kosong murni. Keduanya dilewati.
+        if (val === "" || /^\uFFFD+$/.test(val)) continue;
         selections.push({ item: slot.header, variant: val, qty: 1 });
       }
 
@@ -10341,7 +10352,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   <td style={{ padding: "10px 12px", color: "var(--t2)" }}>{r.departemen}</td>
                   <td style={{ padding: "10px 12px", color: "var(--t3)", fontSize: 12 }}>{r.email}</td>
                   <td style={{ padding: "10px 12px" }}>
-                    {r.selections.map(s => (
+                    {r.selections.filter(s => s.variant != null && String(s.variant).trim() !== "" && !/^\uFFFD+$/.test(String(s.variant).trim())).map(s => (
                       <span key={s.item} style={{ fontSize: 11, background: "var(--bg2)", borderRadius: 6, padding: "2px 8px", marginRight: 4, whiteSpace: "nowrap" }}>
                         {s.item}{s.variant ? ` (${s.variant})` : ""}
                       </span>
