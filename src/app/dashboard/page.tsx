@@ -51,6 +51,7 @@ import {
   createGiftEvent,
   updateGiftEvent,
   deleteGiftEvent,
+  bulkImportGiftRegistrations,
   getGiftRegistrations,
   getTasksByDate,
   getTasksByRange,
@@ -110,7 +111,7 @@ import {
   updateGasStation,
   deleteGasStation,
 } from "@/lib/api";
-import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, AtkItem, AtkRequest, AtkRestock, AgendaEvent, Announcement } from "@/lib/types";
+import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, GiftSelection, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, AtkItem, AtkRequest, AtkRestock, AgendaEvent, Announcement } from "@/lib/types";
 import { computeCanteenKPI } from "@/lib/types";
 import { exportTandaTerima } from "@/lib/tandaTerima";
 import { buildRincianRows } from "@/lib/claimRecap";
@@ -10028,8 +10029,14 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const [formName, setFormName] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [formStatus, setFormStatus] = useState<"open" | "closed">("open");
+  const [formMode, setFormMode] = useState<"self_register" | "lookup">("self_register");
   const [formItems, setFormItems] = useState<GiftItemDef[]>([{ name: "", variants: [] }]);
   const [variantInput, setVariantInput] = useState<Record<number, string>>({});
+
+  // Import CSV (mode lookup)
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ inserted: number; duplicates: string[] } | null>(null);
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -10041,20 +10048,97 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   useEffect(() => { load(); }, [load]);
 
   function openCreate() {
-    setFormName(""); setFormDesc(""); setFormStatus("open");
+    setFormName(""); setFormDesc(""); setFormStatus("open"); setFormMode("self_register");
     setFormItems([{ name: "", variants: [] }]); setVariantInput({});
     setEditTarget(null); setView("create");
   }
 
   function openEdit(ev: GiftEvent) {
     setFormName(ev.name); setFormDesc(ev.description ?? "");
-    setFormStatus(ev.status); setFormItems(ev.items.map(i => ({ ...i, variants: [...i.variants] })));
+    setFormStatus(ev.status); setFormMode(ev.mode);
+    setFormItems(ev.items.map(i => ({ ...i, variants: [...i.variants] })));
     setVariantInput({}); setEditTarget(ev); setView("edit");
   }
 
   async function openRegistrations(ev: GiftEvent) {
     setRegEvent(ev); setView("registrations"); setRegsLoading(true);
+    setCsvFile(null); setImportResult(null);
     try { setRegs(await getGiftRegistrations(ev.id)); } catch { setRegs([]); } finally { setRegsLoading(false); }
+  }
+
+  /** Parse CSV kolom: NIK, Nama, Departemen, Email, Item, Varian, Jumlah
+   *  Satu NIK bisa muncul di beberapa baris (satu baris = satu barang) —
+   *  otomatis digabung jadi satu registrasi per NIK. */
+  /** Parser CSV FLEKSIBEL untuk format sheet Family Day / pembagian
+   *  seragam: satu BARIS = satu orang (bukan satu barang). Kolom yang
+   *  "dikenal" (No, Nama, NIK, Departemen, Lokasi) dibaca langsung;
+   *  SISA KOLOM APAPUN NAMANYA otomatis dianggap "slot" — nama kolom
+   *  itu sendiri jadi label (mis. "1".."9"), isinya jadi ukuran yang
+   *  diterima. Slot yang kosong dilewati otomatis. */
+  function parseGiftCsv(text: string): { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[] {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+    if (lines.length < 2) return [];
+    const rawHeader = lines[0].split(",").map((h) => h.trim());
+    const headerLower = rawHeader.map((h) => h.toLowerCase());
+
+    const findCol = (...aliases: string[]) => headerLower.findIndex((h) => aliases.includes(h));
+    const iNo = findCol("no", "nomor");
+    const iNama = findCol("nama", "nama lengkap", "nama lengkap karyawan");
+    const iNik = findCol("nik", "nik/global id karyawan", "nik/global id", "global id");
+    const iDept = findCol("departemen", "department");
+    const iLokasi = findCol("lokasi pengambilan", "lokasi");
+    const iEmail = findCol("email");
+
+    if (iNik === -1 || iNama === -1) {
+      throw new Error("Header CSV wajib punya kolom Nama dan NIK/Global ID (nama kolom lain bebas — semua kolom selain No/Nama/NIK/Departemen/Lokasi/Email otomatis dianggap slot ukuran).");
+    }
+
+    const knownCols = new Set([iNo, iNama, iNik, iDept, iLokasi, iEmail].filter((i) => i !== -1));
+    const slotCols = rawHeader.map((h, i) => ({ header: h, i })).filter(({ i }) => !knownCols.has(i) && rawHeader[i] !== "");
+
+    const results: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[] = [];
+    for (const line of lines.slice(1)) {
+      const cols = line.split(",").map((c) => c.trim());
+      const nik = cols[iNik] ?? "";
+      if (!nik) continue;
+
+      const selections: GiftSelection[] = [];
+      for (const slot of slotCols) {
+        const val = cols[slot.i] ?? "";
+        if (val === "") continue; // slot kosong -> dilewati
+        selections.push({ item: slot.header, variant: val, qty: 1 });
+      }
+
+      results.push({
+        nik,
+        nama: cols[iNama] ?? "",
+        departemen: iDept !== -1 ? (cols[iDept] ?? "") : "",
+        email: iEmail !== -1 ? cols[iEmail] : undefined,
+        sequenceNo: iNo !== -1 ? (cols[iNo] ?? "") : "",
+        lokasiPengambilan: iLokasi !== -1 ? (cols[iLokasi] ?? "") : "",
+        selections,
+      });
+    }
+    return results;
+  }
+
+  async function handleImportCsv() {
+    if (!csvFile || !regEvent) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const text = await csvFile.text();
+      const rows = parseGiftCsv(text);
+      if (rows.length === 0) { alert("Tidak ada data valid di file CSV."); return; }
+      const result = await bulkImportGiftRegistrations(regEvent.id, rows);
+      setImportResult(result);
+      setRegs(await getGiftRegistrations(regEvent.id));
+      setCsvFile(null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal mengimpor CSV.");
+    } finally {
+      setImporting(false);
+    }
   }
 
   function addItem() { setFormItems(prev => [...prev, { name: "", variants: [] }]); }
@@ -10073,10 +10157,10 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   async function handleSave() {
     if (!formName.trim()) { alert("Nama event wajib diisi."); return; }
     const validItems = formItems.filter(i => i.name.trim());
-    if (validItems.length === 0) { alert("Minimal satu item harus diisi."); return; }
+    if (formMode === "self_register" && validItems.length === 0) { alert("Minimal satu item harus diisi."); return; }
     setSaving(true);
     try {
-      const payload = { name: formName.trim(), description: formDesc.trim(), items: validItems, status: formStatus };
+      const payload = { name: formName.trim(), description: formDesc.trim(), items: validItems, status: formStatus, mode: formMode };
       if (editTarget) { await updateGiftEvent(editTarget.id, payload); }
       else { await createGiftEvent(payload); }
       await load(); setView("list");
@@ -10105,6 +10189,35 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>{regs.length} peserta</span>
       </div>
+
+      {regEvent.mode === "lookup" && (
+        <div style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 6 }}>📥 Import Data dari CSV</div>
+          <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 12 }}>
+            Kolom wajib: <code>Nama</code>, <code>NIK/Global ID</code>. Kolom opsional yang dikenali: <code>No, Departemen, Lokasi Pengambilan, Email</code>. <strong>Kolom lain apapun namanya</strong> (misal <code>1, 2, 3...9</code>) otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12, color: "var(--t2)" }} />
+            <button
+              onClick={handleImportCsv}
+              disabled={!csvFile || importing}
+              style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: !csvFile || importing ? "default" : "pointer", opacity: !csvFile || importing ? 0.6 : 1 }}
+            >
+              {importing ? "Mengimpor..." : "Import"}
+            </button>
+          </div>
+          {importResult && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--t2)" }}>
+              ✅ {importResult.inserted} data berhasil ditambahkan.
+              {importResult.duplicates.length > 0 && (
+                <div style={{ color: "var(--orange-text)", marginTop: 4 }}>
+                  ⚠️ {importResult.duplicates.length} NIK dilewati karena sudah ada di event ini: {importResult.duplicates.join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {regsLoading ? (
         <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>Memuat...</div>
       ) : regs.length === 0 ? (
@@ -10178,6 +10291,18 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             <option value="closed">🔴 Tutup</option>
           </select>
         </div>
+        <div>
+          <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>MODE PROJECT</label>
+          <select value={formMode} onChange={e => setFormMode(e.target.value as "self_register" | "lookup")} className={styles.formSelect} style={{ width: "auto" }}>
+            <option value="self_register">📝 Karyawan Daftar Sendiri</option>
+            <option value="lookup">📥 Import Data (Admin) — cari by NIK</option>
+          </select>
+          <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 5 }}>
+            {formMode === "lookup"
+              ? "Karyawan tidak perlu daftar apapun — cukup kasih NIK ke petugas, semua detail muncul otomatis."
+              : "Karyawan mengisi form pendaftaran sendiri dan memilih item yang diinginkan."}
+          </div>
+        </div>
       </div>
 
       {/* Items */}
@@ -10231,10 +10356,11 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       </div>
 
       {/* Links */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 20 }}>
         {[
-          { label: "🔗 Link Pendaftaran Karyawan", url: `${baseUrl}/gift`, desc: "Bagikan ke karyawan" },
-          { label: "🔑 Link Verifikasi Petugas", url: `${baseUrl}/gift/verify`, desc: "Khusus petugas pengambilan" },
+          { label: "🔗 Link Pendaftaran Karyawan", url: `${baseUrl}/gift`, desc: "Bagikan ke karyawan (mode Daftar Sendiri)" },
+          { label: "🔑 Link Verifikasi Petugas", url: `${baseUrl}/gift/verify`, desc: "Cek passcode — mode Daftar Sendiri" },
+          { label: "🔍 Link Cari by NIK", url: `${baseUrl}/gift/lookup`, desc: "Cek data via NIK — mode Import Data" },
         ].map(l => (
           <div key={l.url} style={{ background: "var(--bg2)", borderRadius: 12, padding: "12px 14px", border: "1px solid var(--border2)" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t2)", marginBottom: 6 }}>{l.label}</div>
@@ -10265,6 +10391,9 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                     <span style={{ fontWeight: 800, fontSize: 15, color: "var(--t1)" }}>{ev.name}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 999, background: ev.status === "open" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)", color: ev.status === "open" ? "var(--green)" : "var(--red)" }}>
                       {ev.status === "open" ? "BUKA" : "TUTUP"}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 999, background: "var(--bg2)", color: "var(--t3)" }}>
+                      {ev.mode === "lookup" ? "📥 Import Data" : "📝 Daftar Sendiri"}
                     </span>
                   </div>
                   {ev.description && <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 6 }}>{ev.description}</div>}
