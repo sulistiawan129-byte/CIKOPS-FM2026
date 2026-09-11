@@ -183,16 +183,33 @@ export default function GiftLookupPage() {
                 </table>
 
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
                 {(() => {
                   const filledSizes = reg.selections.filter((s) => s.variant && s.variant.trim() !== "");
                   return (
-                    <div style={{ display: "grid", gridTemplateColumns: filledSizes.length > 1 ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 24 }}>
-                      {filledSizes.map((s, i) => (
-                        <div key={i} style={{ background: "#eef2fb", borderRadius: 14, padding: "16px", textAlign: "center" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#7c8aa0", marginBottom: 4 }}>{s.item}</div>
-                          <div style={{ fontSize: 26, fontWeight: 900, color: NAVY_LIGHT }}>{s.variant}</div>
-                        </div>
-                      ))}
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ background: "#eef2fb", borderRadius: 12, padding: "12px 16px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#7c8aa0" }}>TOTAL BAJU</span>
+                        <span style={{ fontSize: 22, fontWeight: 900, color: NAVY }}>{filledSizes.length}</span>
+                      </div>
+                      <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden" }}>
+                        {filledSizes.length === 0 ? (
+                          <div style={{ padding: 16, textAlign: "center", color: "#94a3b8", fontSize: 14 }}>-</div>
+                        ) : (
+                          filledSizes.map((s, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center",
+                                borderBottom: i < filledSizes.length - 1 ? "1px solid #eef2f9" : "none",
+                              }}
+                            >
+                              <span style={{ fontSize: 15, color: "#7c8aa0", fontWeight: 700 }}>{i + 1}</span>
+                              <span style={{ fontSize: 18, fontWeight: 800, color: NAVY }}>{s.variant}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
