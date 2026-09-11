@@ -37,7 +37,7 @@ export default function GiftPage() {
   const [emailSent, setEmailSent] = useState(false);
 
   useEffect(() => {
-    getGiftEvents(true).then(setEvents).finally(() => setLoading(false));
+    getGiftEvents(true).then((all) => setEvents(all.filter((e) => e.mode === "self_register"))).finally(() => setLoading(false));
   }, []);
 
   function selectEvent(ev: GiftEvent) {
