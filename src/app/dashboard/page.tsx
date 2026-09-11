@@ -10053,7 +10053,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
       .join("");
     const sizesHtml =
       filledSizes.length > 0
-        ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="sizesBox">${sizeRows}</div>`
+        ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="ticketRow">🎟️ Tiket Event: <b>${filledSizes.length}</b></div><div class="sizesBox">${sizeRows}</div>`
         : `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">0</span></div>`;
 
     return `
@@ -10107,6 +10107,8 @@ function printGiftLabels(regs: GiftRegistration[]) {
             font-size: 8.5px; font-weight: 800; color: #7c8aa0; flex-shrink: 0;
           }
           .totalRow span:first-child { background: #eef2fb; display: flex; align-items: center; padding: 0 8px; letter-spacing: 0.04em; }
+          .ticketRow { font-size: 8px; color: #a87c1f; font-weight: 700; margin-bottom: 4px; flex-shrink: 0; }
+          .ticketRow b { font-size: 9.5px; }
           .totalVal {
             font-size: 13px; font-weight: 900; color: #fff; background: #0f2847;
             padding: 4px 12px; display: flex; align-items: center; justify-content: center; min-width: 26px;
@@ -10323,6 +10325,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       kpis: [
         { labelId: "Total Peserta", labelEn: "Total Participants", value: giftKpis.total },
         { labelId: "Total Baju", labelEn: "Total Items", value: giftKpis.totalBaju },
+        { labelId: "Total Tiket Event", labelEn: "Total Event Tickets", value: giftKpis.totalBaju },
         { labelId: "Sudah Diambil", labelEn: "Claimed", value: giftKpis.claimedCount },
         { labelId: "Belum Diambil", labelEn: "Not Claimed", value: giftKpis.notClaimedCount },
       ],
@@ -10418,6 +10421,10 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 4 }}>TOTAL BAJU</div>
             <div style={{ fontSize: 26, fontWeight: 900, color: "var(--t1)" }}>{giftKpis.totalBaju}</div>
+          </div>
+          <div style={{ background: "rgba(234,179,8,0.08)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#a87c1f", marginBottom: 4 }}>🎟️ TIKET EVENT</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#a87c1f" }}>{giftKpis.totalBaju}</div>
           </div>
           <div style={{ background: "rgba(34,197,94,0.1)", borderRadius: 14, padding: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)", marginBottom: 4 }}>✅ SUDAH DIAMBIL</div>
