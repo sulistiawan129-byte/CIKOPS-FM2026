@@ -10069,50 +10069,197 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
-  const LABELS_PER_PAGE = 12;
-  const pages: string[] = [];
-  for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
-    const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
-    pages.push(`<div class="page"><div class="grid">${chunk}</div></div>`);
-  }
-  const pagesHtml = pages.join("");
+const LABELS_PER_PAGE = 12;
+const pages: string[] = [];
 
+for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
+  const chunk = labelHtmls
+    .slice(i, i + LABELS_PER_PAGE)
+    .join("");
+
+  pages.push(`
+    <div class="page">
+      <div class="grid">
+        ${chunk}
+      </div>
+    </div>
+  `);
+}
+
+const pagesHtml = pages.join("");
   w.document.write(`
     <html>
       <head>
         <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
         <style>
-          @page { size: A4; margin: 8mm; }
-          * { box-sizing: border-box; }
-          body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
-          .page { page-break-after: always; }
-          .page:last-child { page-break-after: auto; }
-          .grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
-          }
-          .label {
-            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 7px 9px;
-            page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
-          }
-          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
-          .noValue { font-size: 32px; font-weight: 900; line-height: 1; color: #0f2847; margin-bottom: 2px; }
-          .nama { font-weight: 800; font-size: 11.5px; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .meta { font-size: 8px; color: #64748b; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .totalRow {
-            display: flex; justify-content: space-between; align-items: center;
-            background: #eef2fb; border-radius: 5px; padding: 3px 7px; margin: 4px 0 3px;
-            font-size: 8.5px; font-weight: 700; color: #7c8aa0; flex-shrink: 0;
-          }
-          .totalVal { font-size: 12px; font-weight: 900; color: #0f2847; }
-          .sizesBox { border: 1px solid #e2e8f0; border-radius: 5px; overflow: hidden; flex: 1; min-height: 0; }
-          .sizeRow {
-            display: flex; justify-content: space-between; font-size: 9.5px; padding: 1.5px 7px;
-            border-bottom: 1px solid #f1f5f9; line-height: 1.4;
-          }
-          .sizeRow:last-child { border-bottom: none; }
-          .idx { color: #94a3b8; font-weight: 700; }
-          .sizeVal { font-weight: 800; }
-          @media print { .label { border-color: #cbd5e1; } }
+         @page {
+  size: A4 portrait;
+  margin: 8mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  color: #0f2847;
+}
+
+.page {
+  width: 100%;
+  height: 281mm; /* 297 - 8mm top - 8mm bottom */
+  page-break-after: always;
+  break-after: page;
+  overflow: hidden;
+}
+
+.page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 66mm);
+  gap: 4mm;
+
+  width: 100%;
+  height: 276mm;
+}
+
+.label {
+  border: 1.5px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 7px 9px;
+
+  page-break-inside: avoid;
+  break-inside: avoid;
+
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.noLabel {
+  font-size: 7px;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.noValue {
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+  color: #0f2847;
+  margin-bottom: 2px;
+}
+
+.nama {
+  font-weight: 800;
+  font-size: 11.5px;
+  margin-bottom: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 8px;
+  color: #64748b;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  background: #eef2fb;
+  border-radius: 5px;
+  padding: 3px 7px;
+  margin: 4px 0 3px;
+
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #7c8aa0;
+  flex-shrink: 0;
+}
+
+.totalVal {
+  font-size: 12px;
+  font-weight: 900;
+  color: #0f2847;
+}
+
+.sizesBox {
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.sizeRow {
+  display: flex;
+  justify-content: space-between;
+
+  font-size: 9.5px;
+  padding: 1.5px 7px;
+
+  border-bottom: 1px solid #f1f5f9;
+  line-height: 1.4;
+}
+
+.sizeRow:last-child {
+  border-bottom: none;
+}
+
+.idx {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.sizeVal {
+  font-weight: 800;
+}
+
+@media print {
+  .page {
+    width: 194mm;
+    height: 281mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .grid {
+    width: 194mm;
+    height: 276mm;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(4, 66mm);
+    gap: 4mm;
+  }
+
+  .label {
+    border-color: #cbd5e1;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
         </style>
       </head>
       <body>
