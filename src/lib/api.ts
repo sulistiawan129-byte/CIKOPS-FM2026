@@ -2055,11 +2055,13 @@ import type { GiftEvent, GiftRegistration, GiftItemDef, GiftSelection } from "./
 interface GiftEventRow {
   id: string; name: string; description: string | null;
   items: GiftItemDef[]; status: "open" | "closed"; plant: string | null;
+  mode?: string;
   created_at: string; updated_at: string;
 }
 interface GiftRegRow {
   id: string; event_id: string; event_name: string;
   nik: string; nama: string; departemen: string; email: string;
+  sequence_no?: string; lokasi_pengambilan?: string;
   selections: GiftSelection[]; claimed: boolean;
   claimed_at: string | null; claimed_by: string | null; registered_at: string;
 }
@@ -2067,11 +2069,13 @@ interface GiftRegRow {
 function mapGiftEvent(r: GiftEventRow): GiftEvent {
   return { id: r.id, name: r.name, description: r.description,
     items: r.items ?? [], status: r.status, plant: r.plant,
+    mode: (r.mode as "self_register" | "lookup") ?? "self_register",
     createdAt: r.created_at, updatedAt: r.updated_at };
 }
 function mapGiftReg(r: GiftRegRow): GiftRegistration {
   return { id: r.id, eventId: r.event_id, eventName: r.event_name ?? "",
     nik: r.nik, nama: r.nama, departemen: r.departemen, email: r.email,
+    sequenceNo: r.sequence_no ?? "", lokasiPengambilan: r.lokasi_pengambilan ?? "",
     selections: r.selections ?? [], claimed: r.claimed,
     claimedAt: r.claimed_at, claimedBy: r.claimed_by, registeredAt: r.registered_at };
 }
@@ -2087,18 +2091,20 @@ export async function getGiftEvents(onlyOpen = false): Promise<GiftEvent[]> {
 
 export async function createGiftEvent(input: {
   name: string; description: string; items: GiftItemDef[];
-  status: "open" | "closed"; plant?: string;
-}): Promise<void> {
-  const { error } = await supabase.from("gift_events").insert({
+  status: "open" | "closed"; plant?: string; mode?: "self_register" | "lookup";
+}): Promise<string> {
+  const { data, error } = await supabase.from("gift_events").insert({
     name: input.name, description: input.description || null,
     items: input.items, status: input.status, plant: input.plant || null,
-  });
+    mode: input.mode ?? "self_register",
+  }).select("id").single();
   if (error) throw error;
+  return data.id as string;
 }
 
 export async function updateGiftEvent(id: string, input: {
   name?: string; description?: string; items?: GiftItemDef[];
-  status?: "open" | "closed"; plant?: string;
+  status?: "open" | "closed"; plant?: string; mode?: "self_register" | "lookup";
 }): Promise<void> {
   const { error } = await supabase.from("gift_events")
     .update({ ...input, updated_at: new Date().toISOString() }).eq("id", id);
@@ -2157,11 +2163,55 @@ export async function verifyGiftPasscode(passcode: string): Promise<GiftRegistra
   return mapGiftReg((data as GiftRegRow[])[0]);
 }
 
-export async function claimGift(registrationId: string, claimedBy: string): Promise<void> {
-  const { error } = await supabase.from("gift_registrations").update({
-    claimed: true,
-    claimed_at: new Date().toISOString(),
-    claimed_by: claimedBy,
-  }).eq("id", registrationId).eq("claimed", false); // guard: tidak bisa klaim dua kali
+/** Cari registrasi (mode "lookup" — admin import) berdasarkan NIK, tanpa
+ *  passcode sama sekali. Lewat RPC security definer, jadi tidak perlu
+ *  buka akses SELECT publik ke seluruh tabel gift_registrations. */
+export async function findGiftRegistrationByNik(eventId: string, nik: string): Promise<GiftRegistration | null> {
+  const { data, error } = await supabase.rpc("find_gift_registration_by_nik", { p_event_id: eventId, p_nik: nik.trim() });
   if (error) throw error;
+  if (!data || (data as GiftRegRow[]).length === 0) return null;
+  return mapGiftReg((data as GiftRegRow[])[0]);
+}
+
+/** Tandai barang sudah diambil — lewat RPC (bukan update tabel langsung),
+ *  supaya tidak perlu policy UPDATE publik yang longgar. Dipakai baik
+ *  mode "self_register" (passcode) maupun "lookup" (NIK). */
+export async function claimGift(registrationId: string, claimedBy: string): Promise<void> {
+  const { data, error } = await supabase.rpc("claim_gift_registration", { p_id: registrationId, p_claimed_by: claimedBy });
+  if (error) throw error;
+  if (!data) throw new Error("Sudah diklaim sebelumnya oleh pihak lain.");
+}
+
+/** Import bulk data karyawan + barang (mode "lookup") dari Excel/CSV,
+ *  dipanggil dari Dashboard (admin, sudah login) — bukan dari halaman
+ *  publik. Satu baris = satu karyawan, dengan array selections berisi
+ *  semua barang yang berhak diterima (termasuk qty). NIK yang sama di
+ *  event yang sama akan GAGAL (constraint unik) — dilaporkan sebagai
+ *  duplikat, bukan menimpa data lama, supaya aman dari re-import tidak sengaja. */
+export async function bulkImportGiftRegistrations(
+  eventId: string,
+  rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[]
+): Promise<{ inserted: number; duplicates: string[] }> {
+  let inserted = 0;
+  const duplicates: string[] = [];
+  for (const r of rows) {
+    const { error } = await supabase.from("gift_registrations").insert({
+      event_id: eventId,
+      nik: r.nik.trim(),
+      nama: r.nama.trim(),
+      departemen: r.departemen.trim(),
+      email: (r.email || "").trim().toLowerCase(),
+      sequence_no: r.sequenceNo || "",
+      lokasi_pengambilan: r.lokasiPengambilan || "",
+      selections: r.selections,
+      passcode_hash: null, // mode lookup tidak pakai passcode
+    });
+    if (error) {
+      if (error.code === "23505") duplicates.push(r.nik); // unique_violation (NIK sudah ada di event ini)
+      else throw error;
+    } else {
+      inserted++;
+    }
+  }
+  return { inserted, duplicates };
 }

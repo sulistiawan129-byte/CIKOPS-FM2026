@@ -472,6 +472,7 @@ export interface GiftItemDef {
 export interface GiftSelection {
   item: string;
   variant: string; // "" jika tidak ada varian
+  qty?: number; // default 1 — dipakai untuk mode import (bisa lebih dari 1 per item)
 }
 
 export interface GiftEvent {
@@ -481,6 +482,7 @@ export interface GiftEvent {
   items: GiftItemDef[];
   status: "open" | "closed";
   plant: string | null;
+  mode: "self_register" | "lookup"; // self_register: karyawan daftar sendiri; lookup: admin import, karyawan cukup kasih NIK
   createdAt: string;
   updatedAt: string;
 }
@@ -493,6 +495,8 @@ export interface GiftRegistration {
   nama: string;
   departemen: string;
   email: string;
+  sequenceNo: string; // "No" dari sheet asli — cuma dipakai mode lookup, kosong untuk mode self_register
+  lokasiPengambilan: string; // khusus mode lookup (misal beda plant/cabang pengambilan)
   selections: GiftSelection[];
   claimed: boolean;
   claimedAt: string | null;
