@@ -10089,14 +10089,14 @@ function printGiftLabels(regs: GiftRegistration[]) {
           body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
           .page { page-break-after: always; break-after: page; }
           .page:last-child { page-break-after: auto; break-after: auto; }
-          .grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
-          }
+          .grid { overflow: hidden; } /* contain floated labels */
           .label {
+            float: left; width: 62mm; height: 66mm; margin: 0 4mm 4mm 0;
             border: 1.5px solid #dbe4f0; border-radius: 10px; padding: 8px 10px;
             page-break-inside: avoid; break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
             box-shadow: 0 1px 3px rgba(15,40,71,0.08);
           }
+          .label:nth-child(3n) { margin-right: 0; }
           .noLabel { font-size: 7px; color: #94a3b8; font-weight: 800; letter-spacing: 0.08em; text-align: center; }
           .noValue { font-size: 50px; font-weight: 900; line-height: 1; color: #000; margin-bottom: 2px; letter-spacing: -0.02em; text-align: center; }
           .nama { font-weight: 800; font-size: 12px; color: #0f2847; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
