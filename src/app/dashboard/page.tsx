@@ -10071,59 +10071,190 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
-  const LABELS_PER_PAGE = 12;
-  const pages: string[] = [];
-  for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
-    const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
-    pages.push(`<div class="page"><div class="grid">${chunk}</div></div>`);
-  }
-  const pagesHtml = pages.join("");
+const LABELS_PER_PAGE = 12;
+const pages: string[] = [];
 
+for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
+  const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
+
+  pages.push(`
+    <div class="page${i > 0 ? " page-break-before" : ""}">
+      <div class="grid">
+        ${chunk}
+      </div>
+    </div>
+  `);
+}
+
+const pagesHtml = pages.join("");
   w.document.write(`
     <html>
       <head>
         <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
         <style>
-          @page { size: A4; margin: 8mm; }
-          * { box-sizing: border-box; }
-          body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
-          .page { page-break-after: always; }
-          .page:last-child { page-break-after: auto; }
-          .grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
-          }
-          .label {
-            border: 1.5px solid #dbe4f0; border-radius: 10px; padding: 8px 10px;
-            page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
-            box-shadow: 0 1px 3px rgba(15,40,71,0.08);
-          }
-          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 800; letter-spacing: 0.08em; text-align: center; }
-          .noValue { font-size: 50px; font-weight: 900; line-height: 1; color: #000; margin-bottom: 2px; letter-spacing: -0.02em; text-align: center; }
-          .nama { font-weight: 800; font-size: 12px; color: #0f2847; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .meta { font-size: 8px; color: #64748b; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .totalRow {
-            display: flex; justify-content: space-between; align-items: stretch;
-            border-radius: 6px; margin: 5px 0 4px; overflow: hidden; border: 1px solid #dbe4f0;
-            font-size: 8.5px; font-weight: 800; color: #7c8aa0; flex-shrink: 0;
-          }
-          .totalRow span:first-child { background: #eef2fb; display: flex; align-items: center; padding: 0 8px; letter-spacing: 0.04em; }
-          .totalVal {
-            font-size: 13px; font-weight: 900; color: #fff; background: #0f2847;
-            padding: 4px 12px; display: flex; align-items: center; justify-content: center; min-width: 26px;
-          }
-          .sizesBox { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; flex: 1; min-height: 0; }
-          .sizeRow {
-            display: flex; justify-content: space-between; font-size: 9px; padding: 1px 8px;
-            border-bottom: 1px solid #f1f5f9; line-height: 1.35; background: #fff;
-          }
-          .sizeRow:nth-child(even) { background: #f8faff; }
-          .sizeRow:last-child { border-bottom: none; }
-          .idx { color: #94a3b8; font-weight: 700; }
-          .sizeVal { font-weight: 800; color: #0f2847; }
-          @media print {
-            .label { box-shadow: none; }
-            .totalVal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          }
+        @page {
+  size: A4 portrait;
+  margin: 8mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  margin: 0;
+  color: #0f2847;
+}
+
+/* Jangan pakai page-break-after */
+.page {
+  margin: 0;
+  padding: 0;
+}
+
+/* Mulai halaman baru untuk page ke-2 dan seterusnya */
+.page-break-before {
+  page-break-before: always;
+  break-before: page;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 66mm);
+  gap: 4mm;
+}
+
+.label {
+  border: 1.5px solid #dbe4f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(15,40,71,0.08);
+}
+
+.noLabel {
+  font-size: 7px;
+  color: #94a3b8;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.noValue {
+  font-size: 50px;
+  font-weight: 900;
+  line-height: 1;
+  color: #000;
+  margin-bottom: 2px;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.nama {
+  font-weight: 800;
+  font-size: 12px;
+  color: #0f2847;
+  margin-bottom: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 8px;
+  color: #64748b;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  border-radius: 6px;
+  margin: 5px 0 4px;
+  overflow: hidden;
+  border: 1px solid #dbe4f0;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #7c8aa0;
+  flex-shrink: 0;
+}
+
+.totalRow span:first-child {
+  background: #eef2fb;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  letter-spacing: 0.04em;
+}
+
+.totalVal {
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  background: #0f2847;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+}
+
+.sizesBox {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.sizeRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  padding: 1px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  line-height: 1.35;
+  background: #fff;
+}
+
+.sizeRow:nth-child(even) {
+  background: #f8faff;
+}
+
+.sizeRow:last-child {
+  border-bottom: none;
+}
+
+.idx {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.sizeVal {
+  font-weight: 800;
+  color: #0f2847;
+}
+
+@media print {
+  .label {
+    box-shadow: none;
+  }
+
+  .totalVal {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
         </style>
       </head>
       <body>
