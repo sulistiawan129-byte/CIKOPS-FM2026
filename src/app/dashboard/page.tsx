@@ -10073,25 +10073,27 @@ function printGiftLabels(regs: GiftRegistration[]) {
           @page { size: A4; margin: 8mm; }
           * { box-sizing: border-box; }
           body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
-          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-          .label {
-            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 8px 10px;
-            page-break-inside: avoid;
+          .grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 66mm; gap: 4mm;
           }
-          .noLabel { font-size: 8px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
-          .noValue { font-size: 40px; font-weight: 900; line-height: 1; color: #0f2847; margin-bottom: 4px; }
-          .nama { font-weight: 800; font-size: 13px; margin-bottom: 1px; }
-          .meta { font-size: 9.5px; color: #64748b; line-height: 1.3; }
+          .label {
+            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 7px 9px;
+            page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
+          }
+          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
+          .noValue { font-size: 32px; font-weight: 900; line-height: 1; color: #0f2847; margin-bottom: 2px; }
+          .nama { font-weight: 800; font-size: 11.5px; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .meta { font-size: 8px; color: #64748b; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .totalRow {
             display: flex; justify-content: space-between; align-items: center;
-            background: #eef2fb; border-radius: 6px; padding: 5px 8px; margin: 6px 0 4px;
-            font-size: 10px; font-weight: 700; color: #7c8aa0;
+            background: #eef2fb; border-radius: 5px; padding: 3px 7px; margin: 4px 0 3px;
+            font-size: 8.5px; font-weight: 700; color: #7c8aa0; flex-shrink: 0;
           }
-          .totalVal { font-size: 15px; font-weight: 900; color: #0f2847; }
-          .sizesBox { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
+          .totalVal { font-size: 12px; font-weight: 900; color: #0f2847; }
+          .sizesBox { border: 1px solid #e2e8f0; border-radius: 5px; overflow: hidden; flex: 1; min-height: 0; }
           .sizeRow {
-            display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px;
-            border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; font-size: 9.5px; padding: 1.5px 7px;
+            border-bottom: 1px solid #f1f5f9; line-height: 1.4;
           }
           .sizeRow:last-child { border-bottom: none; }
           .idx { color: #94a3b8; font-weight: 700; }
