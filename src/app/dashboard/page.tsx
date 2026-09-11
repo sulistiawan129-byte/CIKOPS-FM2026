@@ -10071,7 +10071,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
-const LABELS_PER_PAGE = 12;
+const LABELS_PER_PAGE = 9;
 const pages: string[] = [];
 
 for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
@@ -10122,7 +10122,7 @@ body {
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(4, 66mm);
+  grid-template-rows: repeat(3, 88mm);
   gap: 4mm;
 }
 
