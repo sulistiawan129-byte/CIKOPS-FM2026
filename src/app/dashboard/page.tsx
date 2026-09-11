@@ -10048,22 +10048,28 @@ function printGiftLabels(regs: GiftRegistration[]) {
     const sizeRows = filledSizes
       .map(
         (s, i) =>
-          `<div class="sizeRow"><span class="idx">${i + 1}</span><span class="sizeVal">${s.variant}</span></div>`
+          `<div class="sizeRow ${i % 2 === 1 ? "sizeRowAlt" : ""}"><span class="idx">${i + 1}</span><span class="sizeVal">${s.variant}</span></div>`
       )
       .join("");
-    const sizesHtml =
-      filledSizes.length > 0
-        ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="sizesBox">${sizeRows}</div>`
-        : `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">0</span></div>`;
+    const sizesHtml = `
+      <div class="totalBadge">
+        <span class="totalLabel">TOTAL BAJU</span>
+        <span class="totalVal">${filledSizes.length}</span>
+      </div>
+      ${filledSizes.length > 0 ? `<div class="sizesBox">${sizeRows}</div>` : ""}`;
 
     return `
       <div class="label">
-        <div class="noLabel">NO. URUT</div>
-        <div class="noValue">${r.sequenceNo || "-"}</div>
-        <div class="nama">${r.nama}</div>
-        <div class="meta">${r.nik} &middot; ${r.departemen || "-"}</div>
-        <div class="meta">${r.lokasiPengambilan || "-"}</div>
-        ${sizesHtml}
+        <div class="labelHead">
+          <div class="noLabel">NO. URUT</div>
+          <div class="noValue">${r.sequenceNo || "-"}</div>
+          <div class="nama">${r.nama}</div>
+          <div class="meta">${r.nik} &middot; ${r.departemen || "-"}</div>
+          ${r.lokasiPengambilan ? `<div class="meta">${r.lokasiPengambilan}</div>` : ""}
+        </div>
+        <div class="labelBody">
+          ${sizesHtml}
+        </div>
       </div>`;
   });
 
@@ -10093,28 +10099,40 @@ function printGiftLabels(regs: GiftRegistration[]) {
             display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 66mm); gap: 4mm;
           }
           .label {
-            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 7px 9px;
+            border: 1.5px solid #dbe4f0; border-radius: 10px; padding: 8px 10px;
             page-break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
+            box-shadow: 0 1px 3px rgba(15,40,71,0.06);
           }
-          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
-          .noValue { font-size: 32px; font-weight: 900; line-height: 1; color: #0f2847; margin-bottom: 2px; }
-          .nama { font-weight: 800; font-size: 11.5px; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .meta { font-size: 8px; color: #64748b; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .totalRow {
-            display: flex; justify-content: space-between; align-items: center;
-            background: #eef2fb; border-radius: 5px; padding: 3px 7px; margin: 4px 0 3px;
-            font-size: 8.5px; font-weight: 700; color: #7c8aa0; flex-shrink: 0;
+          .labelHead { flex-shrink: 0; margin-bottom: 5px; }
+          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 800; letter-spacing: 0.08em; }
+          .noValue { font-size: 34px; font-weight: 900; line-height: 1; color: #000; margin-bottom: 3px; letter-spacing: -0.02em; }
+          .nama { font-weight: 800; font-size: 12px; color: #0f2847; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .meta { font-size: 8px; color: #64748b; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .labelBody { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1.5px dashed #dbe4f0; padding-top: 5px; }
+          .totalBadge {
+            display: flex; align-items: stretch; border-radius: 6px; overflow: hidden;
+            margin-bottom: 4px; flex-shrink: 0; border: 1px solid #dbe4f0;
           }
-          .totalVal { font-size: 12px; font-weight: 900; color: #0f2847; }
-          .sizesBox { border: 1px solid #e2e8f0; border-radius: 5px; overflow: hidden; flex: 1; min-height: 0; }
+          .totalLabel {
+            flex: 1; background: #eef2fb; color: #7c8aa0; font-size: 8.5px; font-weight: 800;
+            letter-spacing: 0.04em; display: flex; align-items: center; padding: 0 8px;
+          }
+          .totalVal {
+            background: #0f2847; color: #fff; font-size: 13px; font-weight: 900;
+            padding: 4px 12px; display: flex; align-items: center; justify-content: center; min-width: 28px;
+          }
+          .sizesBox { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; flex: 1; min-height: 0; }
           .sizeRow {
-            display: flex; justify-content: space-between; font-size: 9.5px; padding: 1.5px 7px;
-            border-bottom: 1px solid #f1f5f9; line-height: 1.4;
+            display: flex; justify-content: space-between; font-size: 9.5px; padding: 2px 8px;
+            line-height: 1.5; background: #fff;
           }
-          .sizeRow:last-child { border-bottom: none; }
+          .sizeRowAlt { background: #f8faff; }
           .idx { color: #94a3b8; font-weight: 700; }
-          .sizeVal { font-weight: 800; }
-          @media print { .label { border-color: #cbd5e1; } }
+          .sizeVal { font-weight: 800; color: #0f2847; }
+          @media print {
+            .label { box-shadow: none; }
+            .totalVal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
         </style>
       </head>
       <body>
