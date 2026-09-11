@@ -10072,6 +10072,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
 const LABELS_PER_PAGE = 9;
+
 const pages: string[] = [];
 
 for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
@@ -10080,7 +10081,7 @@ for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
     .join("");
 
   pages.push(`
-    <div class="page${i > 0 ? " page-break-before" : ""}">
+    <div class="page">
       <div class="grid">
         ${chunk}
       </div>
@@ -10090,257 +10091,383 @@ for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
 
 const pagesHtml = pages.join("");
 
+const w = window.open("", "_blank");
+
+if (!w) {
+  alert("Popup diblokir browser. Silakan izinkan popup untuk mencetak label.");
+  return;
+}
+
 w.document.write(`
-  <html>
-    <head>
-      <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
 
-      <style>
-        @page {
-          size: A4 portrait;
-          margin: 8mm;
-        }
+  <title>
+    Label Pembagian — ${new Date().toLocaleDateString("id-ID")}
+  </title>
 
-        * {
-          box-sizing: border-box;
-        }
+  <style>
 
-        html,
-        body {
-          margin: 0;
-          padding: 0;
-          width: 100%;
-          font-family: -apple-system, 'Segoe UI', sans-serif;
-          color: #0f2847;
-        }
+    /* =========================================================
+       PAGE SETUP
+       A4 PORTRAIT
+       ========================================================= */
 
-        /* =========================
-           PRINT PAGE
-        ========================= */
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
 
-        .page {
-          margin: 0;
-          padding: 0;
-        }
+    * {
+      box-sizing: border-box;
+    }
 
-        .page-break-before {
-          page-break-before: always;
-          break-before: page;
-        }
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #0f2847;
+    }
 
-        /* =========================
-           3 x 3 = 9 LABEL / A4
-        ========================= */
+    body {
+      background: white;
+    }
 
-        .grid {
-          display: grid;
 
-          grid-template-columns: repeat(3, 1fr);
-          grid-template-rows: repeat(3, 88mm);
+    /* =========================================================
+       PAGE
+       1 PAGE = 9 LABEL
+       ========================================================= */
 
-          column-gap: 4mm;
-          row-gap: 4mm;
+    .page {
+      width: 100%;
+      margin: 0;
+      padding: 0;
 
-          width: 100%;
-        }
+      page-break-after: always;
+      break-after: page;
+    }
 
-        /* =========================
-           LABEL
-        ========================= */
+    .page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
 
-        .label {
-          width: 100%;
-          height: 88mm;
 
-          border: 1.5px solid #dbe4f0;
-          border-radius: 10px;
-          padding: 8px 10px;
+    /* =========================================================
+       GRID
+       3 KOLOM × 3 BARIS
+       = 9 LABEL / A4
+       ========================================================= */
 
-          page-break-inside: avoid;
-          break-inside: avoid;
+    .grid {
+      display: grid;
 
-          overflow: hidden;
+      grid-template-columns: repeat(3, 1fr);
 
-          display: flex;
-          flex-direction: column;
+      /*
+        A4 usable height:
+        297mm - 8mm top - 8mm bottom = 281mm
 
-          box-shadow: 0 1px 3px rgba(15,40,71,0.08);
-        }
+        3 × 88mm = 264mm
+        2 × 4mm  =   8mm
 
-        .noLabel {
-          font-size: 7px;
-          color: #94a3b8;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-align: center;
-        }
+        Total = 272mm
 
-        .noValue {
-          font-size: 50px;
-          font-weight: 900;
-          line-height: 1;
-          color: #000;
-          margin-bottom: 2px;
-          letter-spacing: -0.02em;
-          text-align: center;
-        }
+        Masih ada ±9mm ruang aman.
+      */
 
-        .nama {
-          font-weight: 800;
-          font-size: 12px;
-          color: #0f2847;
-          margin-bottom: 1px;
+      grid-template-rows: repeat(3, 88mm);
 
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
+      column-gap: 4mm;
+      row-gap: 4mm;
 
-        .meta {
-          font-size: 8px;
-          color: #64748b;
-          line-height: 1.3;
+      width: 100%;
+    }
 
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
 
-        .totalRow {
-          display: flex;
-          justify-content: space-between;
-          align-items: stretch;
+    /* =========================================================
+       LABEL
+       UKURAN / LAYOUT ISI TETAP
+       ========================================================= */
 
-          border-radius: 6px;
-          margin: 5px 0 4px;
-          overflow: hidden;
+    .label {
+      width: 100%;
+      height: 88mm;
 
-          border: 1px solid #dbe4f0;
+      border: 1.5px solid #dbe4f0;
+      border-radius: 10px;
 
-          font-size: 8.5px;
-          font-weight: 800;
-          color: #7c8aa0;
+      padding: 8px 10px;
 
-          flex-shrink: 0;
-        }
+      page-break-inside: avoid;
+      break-inside: avoid;
 
-        .totalRow span:first-child {
-          background: #eef2fb;
+      overflow: hidden;
 
-          display: flex;
-          align-items: center;
+      display: flex;
+      flex-direction: column;
 
-          padding: 0 8px;
+      box-shadow:
+        0 1px 3px rgba(15, 40, 71, 0.08);
+    }
 
-          letter-spacing: 0.04em;
-        }
 
-        .totalVal {
-          font-size: 13px;
-          font-weight: 900;
-          color: #fff;
-          background: #0f2847;
+    /* =========================================================
+       NO URUT
+       ========================================================= */
 
-          padding: 4px 12px;
+    .noLabel {
+      font-size: 7px;
+      color: #94a3b8;
 
-          display: flex;
-          align-items: center;
-          justify-content: center;
+      font-weight: 800;
 
-          min-width: 26px;
-        }
+      letter-spacing: 0.08em;
 
-        .sizesBox {
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
+      text-align: center;
+    }
 
-          overflow: hidden;
+    .noValue {
+      font-size: 50px;
 
-          flex: 1;
-          min-height: 0;
-        }
+      font-weight: 900;
 
-        .sizeRow {
-          display: flex;
-          justify-content: space-between;
+      line-height: 1;
 
-          font-size: 9px;
-          padding: 1px 8px;
+      color: #000;
 
-          border-bottom: 1px solid #f1f5f9;
+      margin-bottom: 2px;
 
-          line-height: 1.35;
+      letter-spacing: -0.02em;
 
-          background: #fff;
-        }
+      text-align: center;
+    }
 
-        .sizeRow:nth-child(even) {
-          background: #f8faff;
-        }
 
-        .sizeRow:last-child {
-          border-bottom: none;
-        }
+    /* =========================================================
+       NAMA
+       ========================================================= */
 
-        .idx {
-          color: #94a3b8;
-          font-weight: 700;
-        }
+    .nama {
+      font-weight: 800;
 
-        .sizeVal {
-          font-weight: 800;
-          color: #0f2847;
-        }
+      font-size: 12px;
 
-        /* =========================
-           PRINT
-        ========================= */
+      color: #0f2847;
 
-        @media print {
+      margin-bottom: 1px;
 
-          html,
-          body {
-            width: 100%;
-            margin: 0;
-            padding: 0;
-          }
+      overflow: hidden;
 
-          .page {
-            page-break-after: auto;
-            break-after: auto;
-          }
+      text-overflow: ellipsis;
 
-          .page-break-before {
-            page-break-before: always;
-            break-before: page;
-          }
+      white-space: nowrap;
+    }
 
-          .label {
-            box-shadow: none;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
 
-          .totalVal {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-        }
-      </style>
-    </head>
+    /* =========================================================
+       META
+       ========================================================= */
 
-    <body>
-      ${pagesHtml}
-    </body>
-  </html>
+    .meta {
+      font-size: 8px;
+
+      color: #64748b;
+
+      line-height: 1.3;
+
+      overflow: hidden;
+
+      text-overflow: ellipsis;
+
+      white-space: nowrap;
+    }
+
+
+    /* =========================================================
+       TOTAL BAJU
+       ========================================================= */
+
+    .totalRow {
+      display: flex;
+
+      justify-content: space-between;
+
+      align-items: stretch;
+
+      border-radius: 6px;
+
+      margin: 5px 0 4px;
+
+      overflow: hidden;
+
+      border: 1px solid #dbe4f0;
+
+      font-size: 8.5px;
+
+      font-weight: 800;
+
+      color: #7c8aa0;
+
+      flex-shrink: 0;
+    }
+
+    .totalRow span:first-child {
+      background: #eef2fb;
+
+      display: flex;
+
+      align-items: center;
+
+      padding: 0 8px;
+
+      letter-spacing: 0.04em;
+    }
+
+    .totalVal {
+      font-size: 13px;
+
+      font-weight: 900;
+
+      color: #fff;
+
+      background: #0f2847;
+
+      padding: 4px 12px;
+
+      display: flex;
+
+      align-items: center;
+
+      justify-content: center;
+
+      min-width: 26px;
+    }
+
+
+    /* =========================================================
+       SIZE BOX
+       ========================================================= */
+
+    .sizesBox {
+      border: 1px solid #e2e8f0;
+
+      border-radius: 6px;
+
+      overflow: hidden;
+
+      flex: 1;
+
+      min-height: 0;
+    }
+
+
+    /* =========================================================
+       SIZE ROW
+       ========================================================= */
+
+    .sizeRow {
+      display: flex;
+
+      justify-content: space-between;
+
+      font-size: 9px;
+
+      padding: 1px 8px;
+
+      border-bottom: 1px solid #f1f5f9;
+
+      line-height: 1.35;
+
+      background: #fff;
+    }
+
+    .sizeRow:nth-child(even) {
+      background: #f8faff;
+    }
+
+    .sizeRow:last-child {
+      border-bottom: none;
+    }
+
+    .idx {
+      color: #94a3b8;
+
+      font-weight: 700;
+    }
+
+    .sizeVal {
+      font-weight: 800;
+
+      color: #0f2847;
+    }
+
+
+    /* =========================================================
+       PRINT
+       ========================================================= */
+
+    @media print {
+
+      html,
+      body {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: white;
+      }
+
+      .page {
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      .label {
+        box-shadow: none;
+
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      .totalVal {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+
+  </style>
+</head>
+
+<body>
+
+  ${pagesHtml}
+
+</body>
+</html>
 `);
 
 w.document.close();
+
 w.focus();
+
+/*
+  Beri waktu browser menyelesaikan
+  rendering sebelum print.
+*/
 
 setTimeout(() => {
   w.print();
-}, 400);
+}, 500);
 
 
 function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
