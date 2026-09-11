@@ -10154,7 +10154,7 @@ body {
 }
 
 .noValue {
-  font-size: 32px;
+  font-size: 45px;
   font-weight: 900;
   line-height: 1;
   color: #0f2847;
