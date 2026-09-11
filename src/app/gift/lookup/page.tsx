@@ -183,14 +183,19 @@ export default function GiftLookupPage() {
                 </table>
 
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
-                <div style={{ display: "grid", gridTemplateColumns: reg.selections.length > 1 ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 24 }}>
-                  {reg.selections.map((s, i) => (
-                    <div key={i} style={{ background: "#eef2fb", borderRadius: 14, padding: "16px", textAlign: "center" }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#7c8aa0", marginBottom: 4 }}>{s.item}</div>
-                      <div style={{ fontSize: 26, fontWeight: 900, color: NAVY_LIGHT }}>{s.variant}</div>
+                {(() => {
+                  const filledSizes = reg.selections.filter((s) => s.variant && s.variant.trim() !== "");
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: filledSizes.length > 1 ? "1fr 1fr" : "1fr", gap: 10, marginBottom: 24 }}>
+                      {filledSizes.map((s, i) => (
+                        <div key={i} style={{ background: "#eef2fb", borderRadius: 14, padding: "16px", textAlign: "center" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#7c8aa0", marginBottom: 4 }}>{s.item}</div>
+                          <div style={{ fontSize: 26, fontWeight: 900, color: NAVY_LIGHT }}>{s.variant}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
 
                 {!reg.claimed && !claimed ? (
                   <div>
