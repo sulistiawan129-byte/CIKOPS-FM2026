@@ -10013,6 +10013,76 @@ function CanteenDashboardPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
 // ════════════════════════════════════════════════════════════════
+/** Cetak label pembagian seragam — 2 kolom x 5 baris (10 label) per
+ *  lembar A4, diurutkan berdasarkan No. Urut, supaya kantong seragam
+ *  bisa di-packing & disortir sebelum acara. Petugas pas hari-H cukup
+ *  cari NIK di /gift/lookup untuk tahu No. Urut, lalu ambil kantong
+ *  bernomor itu (yang sudah tersortir rapi). */
+function printGiftLabels(regs: GiftRegistration[]) {
+  const w = window.open("", "_blank", "width=850,height=1000");
+  if (!w) return;
+
+  const sorted = [...regs].sort((a, b) => {
+    const na = parseInt(a.sequenceNo, 10);
+    const nb = parseInt(b.sequenceNo, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.sequenceNo.localeCompare(b.sequenceNo);
+  });
+
+  const labelsHtml = sorted.map((r) => {
+    const sizesHtml = r.selections
+      .filter((s) => s.variant && s.variant.trim() !== "")
+      .map((s) => `<div class="sizeRow"><span class="slotNo">${s.item}</span><span class="sizeVal">${s.variant}</span></div>`)
+      .join("");
+    return `
+      <div class="label">
+        <div class="labelTop">
+          <div>
+            <div class="noLabel">NO. URUT</div>
+            <div class="noValue">${r.sequenceNo || "-"}</div>
+          </div>
+        </div>
+        <div class="nama">${r.nama}</div>
+        <div class="meta">${r.nik} &middot; ${r.departemen || "-"} &middot; ${r.lokasiPengambilan || "-"}</div>
+        <div class="sizesBox">${sizesHtml || '<div class="sizeRow"><span class="sizeVal">-</span></div>'}</div>
+      </div>`;
+  }).join("");
+
+  w.document.write(`
+    <html>
+      <head>
+        <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
+        <style>
+          @page { size: A4; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+          .label {
+            border: 1.5px dashed #94a3b8; border-radius: 8px; padding: 10px 12px;
+            page-break-inside: avoid; min-height: 52mm;
+          }
+          .labelTop { margin-bottom: 6px; }
+          .noLabel { font-size: 9px; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; }
+          .noValue { font-size: 30px; font-weight: 900; line-height: 1; color: #0f2847; }
+          .nama { font-weight: 800; font-size: 15px; margin-bottom: 2px; }
+          .meta { font-size: 11px; color: #64748b; margin-bottom: 8px; }
+          .sizesBox { border-top: 1px solid #e2e8f0; padding-top: 6px; }
+          .sizeRow { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+          .slotNo { color: #64748b; }
+          .sizeVal { font-weight: 800; }
+          @media print { .label { border-color: #cbd5e1; } }
+        </style>
+      </head>
+      <body>
+        <div class="grid">${labelsHtml}</div>
+      </body>
+    </html>
+  `);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
 function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const { lang, t } = useLang();
   const [events, setEvents] = useState<GiftEvent[]>([]);
@@ -10188,6 +10258,14 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           Peserta: {regEvent.name}
         </div>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>{regs.length} peserta</span>
+        {regEvent.mode === "lookup" && regs.length > 0 && (
+          <button
+            onClick={() => printGiftLabels(regs)}
+            style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+          >
+            🖨️ Cetak Label
+          </button>
+        )}
       </div>
 
       {regEvent.mode === "lookup" && (
