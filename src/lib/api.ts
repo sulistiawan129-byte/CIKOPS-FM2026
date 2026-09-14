@@ -2118,13 +2118,29 @@ export async function deleteGiftEvent(id: string): Promise<void> {
 
 // ── Registrations ─────────────────────────────────────────────
 export async function getGiftRegistrations(eventId: string): Promise<GiftRegistration[]> {
-  const { data, error } = await supabase
-    .from("gift_registrations")
-    .select("*, gift_events(name)")
-    .eq("event_id", eventId)
-    .order("registered_at", { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as unknown[]).map((r: unknown) => {
+  // ⚠️ PENTING: Supabase membatasi otomatis 1000 baris per query.
+  // Untuk event besar (>1000 peserta, mis. pembagian seragam massal),
+  // kita HARUS paginate manual pakai .range() berulang sampai data
+  // benar-benar habis — kalau tidak, sisa peserta di atas baris ke-1000
+  // tidak akan pernah muncul di tabel admin, KPI, cetak label, maupun
+  // export laporan.
+  const PAGE_SIZE = 1000;
+  const all: unknown[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("gift_registrations")
+      .select("*, gift_events(name)")
+      .eq("event_id", eventId)
+      .order("registered_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE_SIZE) break; // halaman terakhir
+    from += PAGE_SIZE;
+  }
+  return all.map((r: unknown) => {
     const row = r as GiftRegRow & { gift_events?: { name: string } };
     return mapGiftReg({ ...row, event_name: row.gift_events?.name ?? "" });
   });
@@ -2204,10 +2220,59 @@ export async function bulkImportGiftRegistrations(
   eventId: string,
   rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[]
 ): Promise<{ inserted: number; duplicates: string[] }> {
-  let inserted = 0;
+  // ⚠️ PENTING: insert satu-per-satu akan SANGAT LAMBAT untuk data besar
+  // (ribuan baris = ribuan round-trip network, bisa 5-10 menit dan
+  // berisiko macet/timeout di tengah jalan). Sekarang pakai BATCH
+  // INSERT (per 500 baris) — jauh lebih cepat (hitungan detik).
+  //
+  // Karena 1 baris gagal (duplikat) di dalam satu batch insert akan
+  // membuat SELURUH batch itu gagal (transaksional), kita cek dulu
+  // NIK mana saja yang sudah ada di database ATAU dobel di dalam file
+  // itu sendiri, keluarkan dari daftar insert, baru batch-insert
+  // sisanya yang aman.
   const duplicates: string[] = [];
+
+  // 1) Cek NIK yang SUDAH ADA di event ini (ambil semua, dengan
+  //    pagination yang sama seperti getGiftRegistrations, supaya
+  //    tidak kena limit 1000-baris Supabase untuk event besar).
+  const existingNiks = new Set<string>();
+  {
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("gift_registrations")
+        .select("nik")
+        .eq("event_id", eventId)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      for (const r of data as { nik: string }[]) existingNiks.add(r.nik);
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+  }
+
+  // 2) Filter baris: skip yang NIK-nya sudah ada di DB, dan skip juga
+  //    NIK yang dobel DI DALAM file itu sendiri (simpan kemunculan
+  //    pertama saja).
+  const seenInFile = new Set<string>();
+  const toInsert: typeof rows = [];
   for (const r of rows) {
-    const { error } = await supabase.from("gift_registrations").insert({
+    const nik = r.nik.trim();
+    if (existingNiks.has(nik) || seenInFile.has(nik)) {
+      duplicates.push(nik);
+      continue;
+    }
+    seenInFile.add(nik);
+    toInsert.push(r);
+  }
+
+  // 3) Batch insert per 500 baris.
+  const BATCH_SIZE = 500;
+  let inserted = 0;
+  for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+    const batch = toInsert.slice(i, i + BATCH_SIZE).map((r) => ({
       event_id: eventId,
       nik: r.nik.trim(),
       nama: r.nama.trim(),
@@ -2217,13 +2282,11 @@ export async function bulkImportGiftRegistrations(
       lokasi_pengambilan: r.lokasiPengambilan || "",
       selections: r.selections,
       passcode_hash: null, // mode lookup tidak pakai passcode
-    });
-    if (error) {
-      if (error.code === "23505") duplicates.push(r.nik); // unique_violation (NIK sudah ada di event ini)
-      else throw error;
-    } else {
-      inserted++;
-    }
+    }));
+    const { error } = await supabase.from("gift_registrations").insert(batch);
+    if (error) throw error;
+    inserted += batch.length;
   }
+
   return { inserted, duplicates };
 }
