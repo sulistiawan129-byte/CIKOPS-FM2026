@@ -10015,16 +10015,26 @@ function CanteenDashboardPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
 // ════════════════════════════════════════════════════════════════
-/** Cetak label pembagian seragam — 3 kolom x 5 baris (15 label) per
- *  lembar A4, diurutkan berdasarkan No. Urut, supaya kantong seragam
- *  bisa di-packing & disortir sebelum acara. Petugas pas hari-H cukup
- *  cari NIK di /gift/lookup untuk tahu No. Urut, lalu ambil kantong
- *  bernomor itu (yang sudah tersortir rapi). No. Urut dibuat BESAR
- *  supaya gampang dibaca dari jauh, dan slot ukuran yang KOSONG
- *  di-filter total (tidak ikut dicetak sama sekali).*/
-function printGiftLabels(regs: GiftRegistration[]) {
+/** Cetak label pembagian seragam — diurutkan berdasarkan No. Urut,
+ *  supaya kantong seragam bisa di-packing & disortir sebelum acara.
+ *  Petugas pas hari-H cukup cari NIK di /gift/lookup untuk tahu No.
+ *  Urut, lalu ambil kantong bernomor itu (yang sudah tersortir rapi).
+ *  No. Urut dibuat BESAR supaya gampang dibaca dari jauh, dan slot
+ *  ukuran yang KOSONG di-filter total (tidak ikut dicetak).
+ *
+ *  layout "standard": 3 kolom x 4 baris = 12 label/lembar, kotak 66mm
+ *  (pas untuk peserta dengan baju sedikit, mis. ≤5).
+ *  layout "large": 3 kolom x 3 baris = 9 label/lembar, kotak lebih
+ *  tinggi (~88mm) — dipakai KHUSUS untuk peserta dengan baju BANYAK
+ *  (>5), supaya semua ukurannya muat, tidak kepotong lagi. */
+function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" = "standard") {
   const w = window.open("", "_blank", "width=850,height=1000");
   if (!w) return;
+
+  const perRow = 3;
+  const perPage = layout === "large" ? 9 : 12;
+  const labelHeight = layout === "large" ? "88mm" : "66mm";
+  const noValueSize = layout === "large" ? "56px" : "50px";
 
   const sorted = [...regs].sort((a, b) => {
     const na = parseInt(a.sequenceNo, 10);
@@ -10071,7 +10081,7 @@ function printGiftLabels(regs: GiftRegistration[]) {
   // baris) — dipaksa lewat kode, BUKAN mengandalkan browser membagi
   // grid panjang secara otomatis (beberapa browser tidak konsisten
   // soal ini saat print, bisa berhenti lebih awal dari seharusnya).
-  const LABELS_PER_PAGE = 12;
+  const LABELS_PER_PAGE = perPage;
   const pages: string[] = [];
   for (let i = 0; i < labelHtmls.length; i += LABELS_PER_PAGE) {
     const chunk = labelHtmls.slice(i, i + LABELS_PER_PAGE).join("");
@@ -10091,14 +10101,14 @@ function printGiftLabels(regs: GiftRegistration[]) {
           .page:last-child { page-break-after: auto; break-after: auto; }
           .grid { overflow: hidden; } /* contain floated labels */
           .label {
-            float: left; width: 62mm; height: 66mm; margin: 0 4mm 4mm 0;
+            float: left; width: 62mm; height: ${labelHeight}; margin: 0 4mm 4mm 0;
             border: 1.5px solid #dbe4f0; border-radius: 10px; padding: 8px 10px;
             page-break-inside: avoid; break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
             box-shadow: 0 1px 3px rgba(15,40,71,0.08);
           }
-          .label:nth-child(3n) { margin-right: 0; }
+          .label:nth-child(${perRow}n) { margin-right: 0; }
           .noLabel { font-size: 7px; color: #94a3b8; font-weight: 800; letter-spacing: 0.08em; text-align: center; }
-          .noValue { font-size: 50px; font-weight: 900; line-height: 1; color: #000; margin-bottom: 2px; letter-spacing: -0.02em; text-align: center; }
+          .noValue { font-size: ${noValueSize}; font-weight: 900; line-height: 1; color: #000; margin-bottom: 2px; letter-spacing: -0.02em; text-align: center; }
           .nama { font-weight: 800; font-size: 12px; color: #0f2847; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .meta { font-size: 8px; color: #64748b; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .totalRow {
@@ -10295,6 +10305,18 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   /** Ringkasan KPI untuk dashboard event: total peserta, breakdown
    *  jumlah baju per ukuran (digabung dari semua peserta), dan status
    *  klaim. Karakter kosong/rusak (replacement char) tidak dihitung. */
+  /** Jumlah slot ukuran yang benar-benar terisi untuk 1 peserta (skip
+   *  kosong/karakter rusak) — dipakai untuk filter ">5 baju". */
+  function countFilledSizes(r: GiftRegistration): number {
+    return r.selections.filter((s) => {
+      if (s.variant == null) return false;
+      const t = String(s.variant).trim();
+      return t !== "" && !/^\uFFFD+$/.test(t);
+    }).length;
+  }
+
+  const regsManyItems = useMemo(() => regs.filter((r) => countFilledSizes(r) > 5), [regs]);
+
   const giftKpis = useMemo(() => {
     const sizeCounts = new Map<string, number>();
     for (const r of regs) {
@@ -10403,11 +10425,20 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <>
             <ReportExportButtons onExport={giftReportExportPicker.requestExport} disabled={regs.length === 0} />
             <button
-              onClick={() => printGiftLabels(regs)}
+              onClick={() => printGiftLabels(regs.filter((r) => countFilledSizes(r) <= 5))}
               style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
             >
-              🖨️ Cetak Label
+              🖨️ Cetak Label (≤5 Baju)
             </button>
+            {regsManyItems.length > 0 && (
+              <button
+                onClick={() => printGiftLabels(regsManyItems, "large")}
+                title="Cetak khusus peserta dengan >5 baju, kotak diperbesar (3x3) supaya tidak kepotong"
+                style={{ background: "#a87c1f", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+              >
+                🖨️ Cetak Label &gt;5 Baju ({regsManyItems.length}) — 3×3
+              </button>
+            )}
           </>
         )}
       </div>
