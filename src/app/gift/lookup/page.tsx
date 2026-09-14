@@ -78,6 +78,16 @@ export default function GiftLookupPage() {
       setReg((prev) => (prev ? { ...prev, claimed: true } : prev));
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.");
+      // Kemungkinan besar operator LAIN sudah lebih dulu klaim NIK yang
+      // sama (3 petugas jalan bersamaan) — ambil ulang data terbaru
+      // supaya layar langsung menampilkan status SEBENARNYA, bukan
+      // status lama yang bisa bikin operator coba klik berkali-kali.
+      if (eventId) {
+        try {
+          const fresh = await findGiftRegistrationByNik(eventId, reg.nik);
+          if (fresh) setReg(fresh);
+        } catch { /* biarkan status lama kalau refresh juga gagal */ }
+      }
     } finally {
       setClaiming(false);
     }
