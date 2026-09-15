@@ -50,6 +50,7 @@ import {
   getGiftEvents,
   createGiftEvent,
   updateGiftEvent,
+  updateGiftEventActualCounts,
   deleteGiftEvent,
   bulkImportGiftRegistrations,
   unclaimGiftRegistration,
@@ -10027,6 +10028,96 @@ function CanteenDashboardPanel({ cardStyle }: { cardStyle: CSSProperties }) {
  *  layout "large": 3 kolom x 3 baris = 9 label/lembar, kotak lebih
  *  tinggi (~88mm) — dipakai KHUSUS untuk peserta dengan baju BANYAK
  *  (>5), supaya semua ukurannya muat, tidak kepotong lagi. */
+/** Kartu KPI yang bisa DIKLIK untuk langsung menerapkan filter terkait
+ *  di tabel Peserta di bawahnya — supaya tidak perlu cari-cari dropdown
+ *  filter secara manual. */
+function GiftKpiCard({
+  icon, label, value, color, bg, onClick, active,
+}: { icon: string; label: string; value: number; color: string; bg: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: bg, borderRadius: 14, padding: 16, textAlign: "left", cursor: "pointer",
+        border: active ? `2px solid ${color}` : "2px solid transparent",
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{icon} {label}</div>
+      <div style={{ fontSize: 26, fontWeight: 900, color }}>{value}</div>
+    </button>
+  );
+}
+
+/** Kartu input untuk mencatat jumlah AKTUAL (fisik yang datang) —
+ *  dibandingkan dengan jumlah KEBUTUHAN hasil hitung sistem. Kasih
+ *  peringatan visual kalau aktual < kebutuhan (kurang stok). */
+function ActualCountCard({
+  label, value, kebutuhan, onSave,
+}: { label: string; value: number | null; kebutuhan: number; onSave: (val: number | null) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value != null ? String(value) : "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const parsed = draft.trim() === "" ? null : parseInt(draft, 10);
+      await onSave(isNaN(parsed as number) ? null : parsed);
+      setEditing(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal menyimpan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const kurang = value != null && value < kebutuhan;
+
+  return (
+    <div style={{ background: kurang ? "rgba(239,68,68,0.06)" : "var(--bg2)", border: kurang ? "1px solid rgba(239,68,68,0.3)" : "1px solid var(--border2)", borderRadius: 14, padding: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 8 }}>{label}</div>
+      {editing ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="number"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            className={styles.formInput}
+            style={{ width: 100, padding: "6px 10px" }}
+          />
+          <button onClick={handleSave} disabled={saving} style={{ background: "var(--brand)", border: "none", borderRadius: 8, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+            {saving ? "..." : "Simpan"}
+          </button>
+          <button onClick={() => { setEditing(false); setDraft(value != null ? String(value) : ""); }} style={{ background: "none", border: "none", color: "var(--t3)", fontSize: 12, cursor: "pointer" }}>
+            Batal
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <div style={{ fontSize: 26, fontWeight: 900, color: kurang ? "var(--red)" : "var(--t1)" }}>{value ?? "-"}</div>
+          <div style={{ fontSize: 12, color: "var(--t3)" }}>/ {kebutuhan} kebutuhan</div>
+          <button onClick={() => setEditing(true)} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--brand)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+            ✏️ Edit
+          </button>
+        </div>
+      )}
+      {kurang && !editing && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 6, fontWeight: 700 }}>⚠️ Kurang {kebutuhan - (value ?? 0)} dari kebutuhan</div>}
+    </div>
+  );
+}
+
+/** Parse teks ukuran — kalau formatnya "size - Free Entry" (anak di
+ *  bawah 2 tahun), pisahkan ukurannya dari label "Free Entry" dan
+ *  tandai isFreeEntry=true. Slot Free Entry TETAP dapat baju, tapi
+ *  TIDAK dapat tiket event. */
+function parseGiftSize(variant: string): { size: string; isFreeEntry: boolean } {
+  const t = variant.trim();
+  const m = /^(.*?)\s*-\s*free\s*entry\s*$/i.exec(t);
+  if (m) return { size: m[1].trim(), isFreeEntry: true };
+  return { size: t, isFreeEntry: false };
+}
+
 function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" = "standard") {
   const w = window.open("", "_blank", "width=850,height=1000");
   if (!w) return;
@@ -10056,14 +10147,16 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
       return !/^\uFFFD+$/.test(t);
     });
     const sizeRows = filledSizes
-      .map(
-        (s, i) =>
-          `<div class="sizeRow"><span class="idx">${i + 1}</span><span class="sizeVal">${s.variant}</span></div>`
-      )
+      .map((s, i) => {
+        const parsed = parseGiftSize(String(s.variant));
+        const freeTag = parsed.isFreeEntry ? `<span class="freeTag">GRATIS</span>` : "";
+        return `<div class="sizeRow"><span class="idx">${i + 1}</span><span>${freeTag}<span class="sizeVal">${parsed.size}</span></span></div>`;
+      })
       .join("");
+    const ticketCount = filledSizes.filter((s) => !parseGiftSize(String(s.variant)).isFreeEntry).length;
     const sizesHtml =
       filledSizes.length > 0
-        ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="ticketRow">🎟️ Tiket Event: <b>${filledSizes.length}</b></div><div class="sizesBox">${sizeRows}</div>`
+        ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="ticketRow">🎟️ Tiket Event: <b>${ticketCount}</b></div><div class="sizesBox">${sizeRows}</div>`
         : `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">0</span></div>`;
 
     return `
@@ -10132,6 +10225,7 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
           .sizeRow:last-child { border-bottom: none; }
           .idx { color: #94a3b8; font-weight: 700; }
           .sizeVal { font-weight: 800; color: #0f2847; }
+          .freeTag { font-size: 6.5px; font-weight: 800; color: #dc2626; background: #fef2f2; padding: 1px 4px; border-radius: 4px; margin-right: 4px; }
           @media print {
             .label { box-shadow: none; }
             .totalVal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -10335,11 +10429,11 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
    *  baju yang diterima, karena 1 baju = 1 orang):
    *  1 orang = Single, 2 orang = Suami Istri, 3-9 orang = Keluarga. */
   function getGiftCategory(r: GiftRegistration): GiftCategory | null {
-    const n = countFilledSizes(r);
-    if (n === 1) return "single";
-    if (n === 2) return "couple";
-    if (n >= 3) return "family";
-    return null; // 0 baju — tidak masuk kategori manapun
+    const total = countFilledSizes(r);
+    if (total === 0) return null; // tidak ada baju sama sekali — tidak masuk kategori manapun
+    if (countChildren(r) >= 1) return "family"; // ada slot 3-9 terisi = sudah punya anak
+    if (total === 1) return "single"; // cuma slot 1 (karyawan) terisi
+    return "couple"; // slot 1+2 terisi, tidak ada anak
   }
 
   const CATEGORY_LABEL: Record<GiftCategory, { id: string; en: string; icon: string }> = {
@@ -10352,6 +10446,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const [categoryFilter, setCategoryFilter] = useState<GiftCategory | "all">("all");
   const [sizeFilter, setSizeFilter] = useState<string>("all");
   const [childrenFilter, setChildrenFilter] = useState<"all" | "0" | "1" | "2plus">("all");
+  const [claimFilter, setClaimFilter] = useState<"all" | "claimed" | "not_claimed">("all");
+  const [giftSearch, setGiftSearch] = useState("");
 
   const regsManyItems = useMemo(() => regs.filter((r) => countFilledSizes(r) > 5), [regs]);
 
@@ -10361,6 +10457,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     const categorySizeCounts: Record<GiftCategory, Map<string, number>> = { single: new Map(), couple: new Map(), family: new Map() };
     let totalChildren = 0;
     let regsWithChildren = 0;
+    let totalFreeEntry = 0;
     for (const r of regs) {
       const cat = getGiftCategory(r);
       if (cat) categoryCounts[cat]++;
@@ -10369,19 +10466,24 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       if (childCount > 0) regsWithChildren++;
       for (const s of r.selections) {
         if (s.variant == null) continue;
-        const t = String(s.variant).trim();
-        if (t === "" || /^\uFFFD+$/.test(t)) continue;
-        sizeCounts.set(t, (sizeCounts.get(t) ?? 0) + 1);
-        if (cat) categorySizeCounts[cat].set(t, (categorySizeCounts[cat].get(t) ?? 0) + 1);
+        const raw = String(s.variant).trim();
+        if (raw === "" || /^\uFFFD+$/.test(raw)) continue;
+        const parsed = parseGiftSize(raw);
+        if (parsed.isFreeEntry) totalFreeEntry++;
+        sizeCounts.set(parsed.size, (sizeCounts.get(parsed.size) ?? 0) + 1);
+        if (cat) categorySizeCounts[cat].set(parsed.size, (categorySizeCounts[cat].get(parsed.size) ?? 0) + 1);
       }
     }
     const sizeBreakdown = Array.from(sizeCounts.entries()).sort((a, b) => b[1] - a[1]);
     const claimedCount = regs.filter((r) => r.claimed).length;
+    const totalBaju = sizeBreakdown.reduce((s, [, c]) => s + c, 0);
     return {
       total: regs.length,
       claimedCount,
       notClaimedCount: regs.length - claimedCount,
-      totalBaju: sizeBreakdown.reduce((s, [, c]) => s + c, 0),
+      totalBaju,
+      totalTiket: totalBaju - totalFreeEntry, // Free Entry (anak <2 tahun) dapat baju TANPA tiket
+      totalFreeEntry,
       sizeBreakdown,
       categoryCounts,
       totalChildren,
@@ -10398,10 +10500,11 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const availableSizes = useMemo(() => giftKpis.sizeBreakdown.map(([size]) => size), [giftKpis.sizeBreakdown]);
 
   const visibleRegs = useMemo(() => {
+    const q = giftSearch.trim().toLowerCase();
     return regs.filter((r) => {
       if (categoryFilter !== "all" && getGiftCategory(r) !== categoryFilter) return false;
       if (sizeFilter !== "all") {
-        const hasSize = r.selections.some((s) => s.variant != null && String(s.variant).trim() === sizeFilter);
+        const hasSize = r.selections.some((s) => s.variant != null && parseGiftSize(String(s.variant)).size === sizeFilter);
         if (!hasSize) return false;
       }
       if (childrenFilter !== "all") {
@@ -10410,9 +10513,15 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         if (childrenFilter === "1" && n !== 1) return false;
         if (childrenFilter === "2plus" && n < 2) return false;
       }
+      if (claimFilter === "claimed" && !r.claimed) return false;
+      if (claimFilter === "not_claimed" && r.claimed) return false;
+      if (q) {
+        const hay = `${r.nama} ${r.nik} ${r.sequenceNo} ${r.departemen}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
-  }, [regs, categoryFilter, sizeFilter, childrenFilter]);
+  }, [regs, categoryFilter, sizeFilter, childrenFilter, claimFilter, giftSearch]);
 
   const giftReportExportPicker = useExportLanguagePicker((format, exportLang) => {
     if (!regEvent) return;
@@ -10423,7 +10532,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       kpis: [
         { labelId: "Total Peserta", labelEn: "Total Participants", value: giftKpis.total },
         { labelId: "Total Baju", labelEn: "Total Items", value: giftKpis.totalBaju },
-        { labelId: "Total Tiket Event", labelEn: "Total Event Tickets", value: giftKpis.totalBaju },
+        { labelId: "Total Tiket Event", labelEn: "Total Event Tickets", value: giftKpis.totalTiket },
         { labelId: "Sudah Diambil", labelEn: "Claimed", value: giftKpis.claimedCount },
         { labelId: "Belum Diambil", labelEn: "Not Claimed", value: giftKpis.notClaimedCount },
       ],
@@ -10546,59 +10655,76 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       </div>
 
       {regEvent.mode === "lookup" && regs.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
-          <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 4 }}>JUMLAH PESERTA</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "var(--t1)" }}>{giftKpis.total}</div>
-          </div>
-          <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 4 }}>TOTAL BAJU</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "var(--t1)" }}>{giftKpis.totalBaju}</div>
-          </div>
-          <div style={{ background: "rgba(234,179,8,0.08)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#a87c1f", marginBottom: 4 }}>🎟️ TIKET EVENT</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#a87c1f" }}>{giftKpis.totalBaju}</div>
-          </div>
-          <div style={{ background: "rgba(34,197,94,0.1)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)", marginBottom: 4 }}>✅ SUDAH DIAMBIL</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "var(--green)" }}>{giftKpis.claimedCount}</div>
-          </div>
-          <div style={{ background: "rgba(234,179,8,0.1)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#eab308", marginBottom: 4 }}>⏳ BELUM DIAMBIL</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#eab308" }}>{giftKpis.notClaimedCount}</div>
-          </div>
-          <div style={{ background: "rgba(99,102,241,0.08)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", marginBottom: 4 }}>👤 SINGLE</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#6366f1" }}>{giftKpis.categoryCounts.single}</div>
-          </div>
-          <div style={{ background: "rgba(236,72,153,0.08)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#ec4899", marginBottom: 4 }}>💑 SUAMI ISTRI</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#ec4899" }}>{giftKpis.categoryCounts.couple}</div>
-          </div>
-          <div style={{ background: "rgba(16,185,129,0.08)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#10b981", marginBottom: 4 }}>👨‍👩‍👧‍👦 KELUARGA</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#10b981" }}>{giftKpis.categoryCounts.family}</div>
-          </div>
-          <div style={{ background: "rgba(249,115,22,0.08)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#f97316", marginBottom: 4 }}>🧒 TOTAL ANAK</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#f97316" }}>{giftKpis.totalChildren}</div>
-          </div>
-          <div style={{ background: "rgba(249,115,22,0.08)", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#f97316", marginBottom: 4 }}>👪 PESERTA DENGAN ANAK</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#f97316" }}>{giftKpis.regsWithChildren}</div>
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 20 }}>
+          <GiftKpiCard icon="👥" label="JUMLAH KARYAWAN" value={giftKpis.total} color="var(--t1)" bg="var(--bg2)"
+            onClick={() => { setCategoryFilter("all"); setSizeFilter("all"); setChildrenFilter("all"); setClaimFilter("all"); }} />
+          <GiftKpiCard icon="🎁" label="TOTAL PESERTA (1-9)" value={giftKpis.totalBaju} color="var(--t1)" bg="var(--bg2)"
+            onClick={() => { setCategoryFilter("all"); setSizeFilter("all"); setChildrenFilter("all"); setClaimFilter("all"); }} />
+          <GiftKpiCard icon="⏳" label="BELUM DIAMBIL" value={giftKpis.notClaimedCount} color="#eab308" bg="rgba(234,179,8,0.1)"
+            onClick={() => setClaimFilter("not_claimed")} active={claimFilter === "not_claimed"} />
+          <GiftKpiCard icon="✅" label="SUDAH DIAMBIL" value={giftKpis.claimedCount} color="var(--green)" bg="rgba(34,197,94,0.1)"
+            onClick={() => setClaimFilter("claimed")} active={claimFilter === "claimed"} />
+          <GiftKpiCard icon="👤" label="KARYAWAN SINGLE (1)" value={giftKpis.categoryCounts.single} color="#6366f1" bg="rgba(99,102,241,0.08)"
+            onClick={() => setCategoryFilter("single")} active={categoryFilter === "single"} />
+          <GiftKpiCard icon="💑" label="BERKELUARGA, BELUM PUNYA ANAK (1-2)" value={giftKpis.categoryCounts.couple} color="#ec4899" bg="rgba(236,72,153,0.08)"
+            onClick={() => setCategoryFilter("couple")} active={categoryFilter === "couple"} />
+          <GiftKpiCard icon="👨‍👩‍👧‍👦" label="KELUARGA, SUDAH PUNYA ANAK (1-9)" value={giftKpis.categoryCounts.family} color="#10b981" bg="rgba(16,185,129,0.08)"
+            onClick={() => setCategoryFilter("family")} active={categoryFilter === "family"} />
+        </div>
+      )}
+
+      {regEvent.mode === "lookup" && regs.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 20 }}>
+          <ActualCountCard
+            label="TOTAL BAJU AKTUAL (Fisik yang Datang)"
+            value={regEvent.actualBajuCount}
+            kebutuhan={giftKpis.totalBaju}
+            onSave={async (val) => {
+              await updateGiftEventActualCounts(regEvent.id, { actualBajuCount: val, actualTiketCount: regEvent.actualTiketCount });
+              await load();
+              const fresh = await getGiftEvents();
+              const updated = fresh.find((e) => e.id === regEvent.id);
+              if (updated) setRegEvent(updated);
+            }}
+          />
+          <ActualCountCard
+            label="TOTAL TIKET AKTUAL (Fisik yang Datang)"
+            value={regEvent.actualTiketCount}
+            kebutuhan={giftKpis.totalTiket}
+            onSave={async (val) => {
+              await updateGiftEventActualCounts(regEvent.id, { actualBajuCount: regEvent.actualBajuCount, actualTiketCount: val });
+              await load();
+              const fresh = await getGiftEvents();
+              const updated = fresh.find((e) => e.id === regEvent.id);
+              if (updated) setRegEvent(updated);
+            }}
+          />
+        </div>
+      )}
+
+      {regEvent.mode === "lookup" && giftKpis.totalFreeEntry > 0 && (
+        <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+          🎫✕ <b>{giftKpis.totalFreeEntry}</b> baju berlabel &quot;Free Entry&quot; (anak &lt;2 tahun) — dapat baju tapi tidak dapat tiket, sudah dikurangi dari Total Tiket.
         </div>
       )}
 
       {regEvent.mode === "lookup" && giftKpis.sizeBreakdown.length > 0 && (
         <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 10 }}>JUMLAH BAJU PER UKURAN</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 10 }}>TOTAL PER UKURAN BAJU</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {giftKpis.sizeBreakdown.map(([size, count]) => (
-              <div key={size} style={{ background: "var(--surface)", border: "1px solid var(--border2)", borderRadius: 10, padding: "8px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{size}</span>
-                <span style={{ fontSize: 13, fontWeight: 900, color: "var(--brand)" }}>{count}</span>
-              </div>
+              <button
+                key={size}
+                onClick={() => setSizeFilter(sizeFilter === size ? "all" : size)}
+                style={{
+                  background: sizeFilter === size ? "var(--brand)" : "var(--surface)",
+                  border: `1px solid ${sizeFilter === size ? "var(--brand)" : "var(--border2)"}`,
+                  borderRadius: 10, padding: "8px 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 700, color: sizeFilter === size ? "#fff" : "var(--t1)" }}>{size}</span>
+                <span style={{ fontSize: 13, fontWeight: 900, color: sizeFilter === size ? "#fff" : "var(--brand)" }}>{count}</span>
+              </button>
             ))}
           </div>
         </div>
@@ -10641,6 +10767,18 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
       ) : (
         <div>
+          {regEvent.mode === "lookup" && (
+            <div style={{ position: "relative", marginBottom: 12, maxWidth: 380 }}>
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 13 }}>🔍</span>
+              <input
+                value={giftSearch}
+                onChange={(e) => setGiftSearch(e.target.value)}
+                placeholder="Cari nama, NIK, atau nomor urut..."
+                className={styles.formInput}
+                style={{ paddingLeft: 36, borderRadius: "var(--pill)" }}
+              />
+            </div>
+          )}
           {regEvent.mode === "lookup" && (
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               {([
@@ -10689,9 +10827,9 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                 <option value="1">1 Anak</option>
                 <option value="2plus">2+ Anak</option>
               </select>
-              {(categoryFilter !== "all" || sizeFilter !== "all" || childrenFilter !== "all") && (
+              {(categoryFilter !== "all" || sizeFilter !== "all" || childrenFilter !== "all" || claimFilter !== "all" || giftSearch !== "") && (
                 <button
-                  onClick={() => { setCategoryFilter("all"); setSizeFilter("all"); setChildrenFilter("all"); }}
+                  onClick={() => { setCategoryFilter("all"); setSizeFilter("all"); setChildrenFilter("all"); setClaimFilter("all"); setGiftSearch(""); }}
                   style={{ background: "none", border: "none", color: "var(--red)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
                 >
                   ✕ Reset Filter
@@ -10719,11 +10857,14 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   <td style={{ padding: "10px 12px", color: "var(--t2)" }}>{r.departemen}</td>
                   <td style={{ padding: "10px 12px", color: "var(--t3)", fontSize: 12 }}>{r.email}</td>
                   <td style={{ padding: "10px 12px" }}>
-                    {r.selections.filter(s => s.variant != null && String(s.variant).trim() !== "" && !/^\uFFFD+$/.test(String(s.variant).trim())).map(s => (
-                      <span key={s.item} style={{ fontSize: 11, background: "var(--bg2)", borderRadius: 6, padding: "2px 8px", marginRight: 4, whiteSpace: "nowrap" }}>
-                        {s.item}{s.variant ? ` (${s.variant})` : ""}
-                      </span>
-                    ))}
+                    {r.selections.filter(s => s.variant != null && String(s.variant).trim() !== "" && !/^\uFFFD+$/.test(String(s.variant).trim())).map(s => {
+                      const parsed = parseGiftSize(String(s.variant));
+                      return (
+                        <span key={s.item} style={{ fontSize: 11, background: parsed.isFreeEntry ? "#fef2f2" : "var(--bg2)", color: parsed.isFreeEntry ? "#dc2626" : "var(--t1)", borderRadius: 6, padding: "2px 8px", marginRight: 4, whiteSpace: "nowrap", fontWeight: parsed.isFreeEntry ? 700 : 400 }}>
+                          {s.item} ({parsed.size}){parsed.isFreeEntry ? " 🎫✕" : ""}
+                        </span>
+                      );
+                    })}
                   </td>
                   <td style={{ padding: "10px 12px" }}>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: r.claimed ? "rgba(34,197,94,0.12)" : "rgba(234,179,8,0.12)", color: r.claimed ? "var(--green)" : "#eab308" }}>
