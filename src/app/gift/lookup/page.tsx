@@ -124,7 +124,7 @@ export default function GiftLookupPage() {
     try {
       await claimGift(reg.id, petugas.trim());
       setClaimed(true);
-      setReg((prev) => (prev ? { ...prev, claimed: true } : prev));
+      setReg((prev) => (prev ? { ...prev, claimed: true, claimedBy: petugas, claimedAt: new Date().toISOString() } : prev));
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.");
       // Kemungkinan besar operator LAIN sudah lebih dulu klaim NIK yang
