@@ -10679,7 +10679,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             )}
             {regsWithFreeEntry.length > 0 && (
               <button
-                onClick={() => printGiftLabels(regsWithFreeEntry)}
+                onClick={() => printGiftLabels(regsWithFreeEntry, "large")}
                 title="Cetak khusus peserta yang punya slot Free Entry (anak <2 tahun)"
                 style={{ background: "#dc2626", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
               >
