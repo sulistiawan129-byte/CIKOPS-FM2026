@@ -10164,6 +10164,15 @@ function parseGiftSize(variant: string): { size: string; isFreeEntry: boolean } 
   return { size: t, isFreeEntry: false };
 }
 
+/** Jumlah TIKET yang berlaku untuk 1 peserta = "Jumlah Tiket" (kolom
+ *  eksplisit dari CSV) DIKURANGI jumlah anak <2 tahun (mereka gratis
+ *  masuk / free entry, tidak perlu tiket). Tidak pernah negatif. */
+function getEffectiveTicketCount(r: GiftRegistration): number {
+  const tiket = r.jumlahTiket ?? 0;
+  const anakBalita = r.anakDibawah2Tahun ?? 0;
+  return Math.max(0, tiket - anakBalita);
+}
+
 /** Export laporan Gift ke Excel dengan 2 SHEET terpisah:
  *  1. "Ringkasan" — KPI & breakdown (mirip laporan modul lain)
  *  2. "Data Karyawan" — 1 baris per karyawan, dengan rincian jumlah
@@ -10241,8 +10250,10 @@ async function exportGiftReportExcel2Sheets(opts: {
     L("No. Urut", "Sequence No."), "NIK", L("Nama Karyawan", "Employee Name"),
     L("Total Peserta", "Total Participants"), L("Diri Sendiri", "Self"),
     L("Pasangan", "Spouse"), L("Jumlah Anak", "Number of Children"),
+    L("Jumlah Tiket (Efektif)", "Effective Tickets"), L("Anak <2 Tahun", "Children <2yo"),
+    L("Status Kehadiran", "Attendance Status"),
     L("Departemen", "Department"), L("Lokasi Pengambilan", "Pickup Location"),
-    L("Kategori", "Category"), L("Status", "Status"),
+    L("Kategori", "Category"), L("Status Klaim", "Claim Status"),
   ];
   const headerRow = wsData.getRow(1);
   headers.forEach((h, i) => {
@@ -10265,10 +10276,13 @@ async function exportGiftReportExcel2Sheets(opts: {
     dataRow.getCell(5).value = total >= 1 ? 1 : 0;
     dataRow.getCell(6).value = pasangan;
     dataRow.getCell(7).value = anak;
-    dataRow.getCell(8).value = r.departemen;
-    dataRow.getCell(9).value = r.lokasiPengambilan;
-    dataRow.getCell(10).value = cat ? CATEGORY_LABEL[cat][opts.lang] : "-";
-    dataRow.getCell(11).value = r.claimed ? L("Sudah Diambil", "Claimed") : L("Belum Diambil", "Not Claimed");
+    dataRow.getCell(8).value = getEffectiveTicketCount(r);
+    dataRow.getCell(9).value = r.anakDibawah2Tahun ?? 0;
+    dataRow.getCell(10).value = r.statusKehadiran ?? "-";
+    dataRow.getCell(11).value = r.departemen;
+    dataRow.getCell(12).value = r.lokasiPengambilan;
+    dataRow.getCell(13).value = cat ? CATEGORY_LABEL[cat][opts.lang] : "-";
+    dataRow.getCell(14).value = r.claimed ? L("Sudah Diambil", "Claimed") : L("Belum Diambil", "Not Claimed");
   });
   wsData.columns.forEach((col) => { col.width = 18; });
   wsData.getColumn(3).width = 28; // Nama lebih lebar
@@ -10314,11 +10328,10 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
     const sizeRows = filledSizes
       .map((s, i) => {
         const parsed = parseGiftSize(String(s.variant));
-        const freeTag = parsed.isFreeEntry ? `<span class="freeTag">GRATIS</span>` : "";
-        return `<div class="sizeRow"><span class="idx">${i + 1}</span><span>${freeTag}<span class="sizeVal">${parsed.size}</span></span></div>`;
+        return `<div class="sizeRow"><span class="idx">${i + 1}</span><span class="sizeVal">${parsed.size}</span></div>`;
       })
       .join("");
-    const ticketCount = filledSizes.filter((s) => !parseGiftSize(String(s.variant)).isFreeEntry).length;
+    const ticketCount = getEffectiveTicketCount(r);
     const sizesHtml =
       filledSizes.length > 0
         ? `<div class="totalRow"><span>TOTAL BAJU</span><span class="totalVal">${filledSizes.length}</span></div><div class="ticketRow">🎟️ Tiket Event: <b>${ticketCount}</b></div><div class="sizesBox">${sizeRows}</div>`
@@ -10331,6 +10344,8 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
         <div class="nama">${r.nama}</div>
         <div class="meta">${r.nik} &middot; ${r.departemen || "-"}</div>
         <div class="meta">${r.lokasiPengambilan || "-"}</div>
+        ${r.statusKehadiran ? `<div class="statusTag">${r.statusKehadiran}</div>` : ""}
+        ${(r.anakDibawah2Tahun ?? 0) > 0 ? `<div class="toddlerNote">👶 ${r.anakDibawah2Tahun} Anak Gratis Masuk / Free Entry (&lt;2 Tahun)</div>` : ""}
         ${sizesHtml}
       </div>`;
   });
@@ -10391,6 +10406,8 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
           .idx { color: #94a3b8; font-weight: 700; }
           .sizeVal { font-weight: 800; color: #0f2847; }
           .freeTag { font-size: 6.5px; font-weight: 800; color: #dc2626; background: #fef2f2; padding: 1px 4px; border-radius: 4px; margin-right: 4px; }
+          .toddlerNote { font-size: 7.5px; font-weight: 800; color: #dc2626; margin-bottom: 3px; }
+          .statusTag { display: inline-block; font-size: 6.5px; font-weight: 800; color: #0f2847; background: #eef2fb; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px; letter-spacing: 0.03em; }
           @media print {
             .label { box-shadow: none; }
             .totalVal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -10471,7 +10488,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
    *  SISA KOLOM APAPUN NAMANYA otomatis dianggap "slot" — nama kolom
    *  itu sendiri jadi label (mis. "1".."9"), isinya jadi ukuran yang
    *  diterima. Slot yang kosong dilewati otomatis. */
-  function parseGiftCsv(text: string): { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[] {
+  function parseGiftCsv(text: string): { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[] {
     const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
     if (lines.length < 2) return [];
     const rawHeader = lines[0].split(",").map((h) => h.trim());
@@ -10484,15 +10501,24 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     const iDept = findCol("departemen", "department");
     const iLokasi = findCol("lokasi pengambilan", "lokasi");
     const iEmail = findCol("email");
+    const iTiket = findCol("jumlah tiket", "tiket");
+    const iAnakBalita = findCol("jumlah anak < 2 tahun", "anak < 2 tahun", "anak <2 tahun", "anak dibawah 2 tahun", "anak di bawah 2 tahun");
+    const iStatus = findCol("status", "status kehadiran");
 
     if (iNik === -1 || iNama === -1) {
-      throw new Error("Header CSV wajib punya kolom Nama dan NIK/Global ID (nama kolom lain bebas — semua kolom selain No/Nama/NIK/Departemen/Lokasi/Email otomatis dianggap slot ukuran).");
+      throw new Error("Header CSV wajib punya kolom Nama dan NIK/Global ID (nama kolom lain bebas — semua kolom selain No/Nama/NIK/Departemen/Lokasi/Email/Jumlah Tiket/Anak <2 Tahun otomatis dianggap slot ukuran).");
     }
 
-    const knownCols = new Set([iNo, iNama, iNik, iDept, iLokasi, iEmail].filter((i) => i !== -1));
+    const knownCols = new Set([iNo, iNama, iNik, iDept, iLokasi, iEmail, iTiket, iAnakBalita, iStatus].filter((i) => i !== -1));
     const slotCols = rawHeader.map((h, i) => ({ header: h, i })).filter(({ i }) => !knownCols.has(i) && rawHeader[i] !== "");
 
-    const results: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[] = [];
+    const parseNum = (v: string | undefined): number | null => {
+      if (v == null || v.trim() === "") return null;
+      const n = parseInt(v.trim(), 10);
+      return isNaN(n) ? null : n;
+    };
+
+    const results: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[] = [];
     for (const line of lines.slice(1)) {
       const cols = line.split(",").map((c) => c.trim());
       const nik = cols[iNik] ?? "";
@@ -10516,6 +10542,9 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         email: iEmail !== -1 ? cols[iEmail] : undefined,
         sequenceNo: iNo !== -1 ? (cols[iNo] ?? "") : "",
         lokasiPengambilan: iLokasi !== -1 ? (cols[iLokasi] ?? "") : "",
+        jumlahTiket: iTiket !== -1 ? parseNum(cols[iTiket]) : null,
+        anakDibawah2Tahun: iAnakBalita !== -1 ? parseNum(cols[iAnakBalita]) : null,
+        statusKehadiran: iStatus !== -1 ? (cols[iStatus] ?? null) : null,
         selections,
       });
     }
@@ -10595,7 +10624,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const [giftSearch, setGiftSearch] = useState("");
 
   const regsManyItems = useMemo(() => regs.filter((r) => countFilledSizes(r) > 5), [regs]);
-  const regsWithFreeEntry = useMemo(() => regs.filter((r) => r.selections.some((s) => s.variant != null && parseGiftSize(String(s.variant)).isFreeEntry)), [regs]);
+  const regsWithFreeEntry = useMemo(() => regs.filter((r) => (r.anakDibawah2Tahun ?? 0) > 0), [regs]);
 
   const giftKpis = useMemo(() => {
     const sizeCounts = new Map<string, number>();
@@ -10603,19 +10632,21 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     const categorySizeCounts: Record<GiftCategory, Map<string, number>> = { single: new Map(), couple: new Map(), family: new Map() };
     let totalChildren = 0;
     let regsWithChildren = 0;
-    let totalFreeEntry = 0;
+    let totalTiket = 0;
+    let totalAnakDibawah2 = 0;
     for (const r of regs) {
       const cat = getGiftCategory(r);
       if (cat) categoryCounts[cat]++;
       const childCount = countChildren(r);
       totalChildren += childCount;
       if (childCount > 0) regsWithChildren++;
+      totalTiket += getEffectiveTicketCount(r); // Jumlah Tiket (CSV) dikurangi Anak <2 Tahun
+      totalAnakDibawah2 += r.anakDibawah2Tahun ?? 0;
       for (const s of r.selections) {
         if (s.variant == null) continue;
         const raw = String(s.variant).trim();
         if (raw === "" || /^\uFFFD+$/.test(raw)) continue;
         const parsed = parseGiftSize(raw);
-        if (parsed.isFreeEntry) totalFreeEntry++;
         sizeCounts.set(parsed.size, (sizeCounts.get(parsed.size) ?? 0) + 1);
         if (cat) categorySizeCounts[cat].set(parsed.size, (categorySizeCounts[cat].get(parsed.size) ?? 0) + 1);
       }
@@ -10628,8 +10659,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       claimedCount,
       notClaimedCount: regs.length - claimedCount,
       totalBaju,
-      totalTiket: totalBaju - totalFreeEntry, // Free Entry (anak <2 tahun) dapat baju TANPA tiket
-      totalFreeEntry,
+      totalTiket, // sekarang murni dari kolom "Jumlah Tiket" di CSV, independen dari data baju
+      totalAnakDibawah2,
       sizeBreakdown,
       categoryCounts,
       totalChildren,
@@ -10720,11 +10751,14 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         { key: "nama", labelId: "Nama", labelEn: "Name", get: (r: GiftRegistration) => r.nama },
         { key: "nik", labelId: "NIK", labelEn: "NIK", get: (r: GiftRegistration) => r.nik },
         { key: "total_peserta", labelId: "Total Peserta", labelEn: "Total Participants", get: (r: GiftRegistration) => countFilledSizes(r), align: "right" as const },
+        { key: "jumlah_tiket", labelId: "Jumlah Tiket (Efektif)", labelEn: "Effective Tickets", get: (r: GiftRegistration) => getEffectiveTicketCount(r), align: "right" as const },
+        { key: "status_kehadiran", labelId: "Status", labelEn: "Status", get: (r: GiftRegistration) => r.statusKehadiran ?? "-" },
+        { key: "anak_dibawah_2", labelId: "Anak <2 Tahun", labelEn: "Children <2yo", get: (r: GiftRegistration) => r.anakDibawah2Tahun ?? 0, align: "right" as const },
         { key: "dept", labelId: "Departemen", labelEn: "Department", get: (r: GiftRegistration) => r.departemen },
         { key: "lokasi", labelId: "Lokasi", labelEn: "Location", get: (r: GiftRegistration) => r.lokasiPengambilan },
         { key: "kategori", labelId: "Kategori", labelEn: "Category", get: (r: GiftRegistration) => { const c = getGiftCategory(r); return c ? CATEGORY_LABEL[c].id : "-"; } },
         { key: "anak", labelId: "Jumlah Anak", labelEn: "Number of Children", get: (r: GiftRegistration) => countChildren(r), align: "right" as const },
-        { key: "status", labelId: "Status", labelEn: "Status", get: (r: GiftRegistration) => (r.claimed ? "Sudah Diambil" : "Belum Diambil") },
+        { key: "status", labelId: "Status Klaim", labelEn: "Claim Status", get: (r: GiftRegistration) => (r.claimed ? "Sudah Diambil" : "Belum Diambil") },
       ] as ReportColumn<GiftRegistration>[],
     };
     if (format === "csv") exportSummaryCsv(opts);
@@ -10810,10 +10844,10 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             {regsWithFreeEntry.length > 0 && (
               <button
                 onClick={() => printGiftLabels(regsWithFreeEntry, "large")}
-                title="Cetak khusus peserta yang punya slot Free Entry (anak <2 tahun)"
+                title="Cetak khusus peserta yang punya Anak <2 Tahun"
                 style={{ background: "#dc2626", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
               >
-                🎫✕ Cetak Label Free Entry ({regsWithFreeEntry.length})
+                👶 Cetak Label Anak &lt;2 Tahun ({regsWithFreeEntry.length})
               </button>
             )}
             <div style={{ position: "relative" }}>
@@ -10898,9 +10932,9 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
       )}
 
-      {regEvent.mode === "lookup" && giftKpis.totalFreeEntry > 0 && (
+      {regEvent.mode === "lookup" && giftKpis.totalAnakDibawah2 > 0 && (
         <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-          🎫✕ <b>{giftKpis.totalFreeEntry}</b> baju berlabel &quot;Free Entry&quot; (anak &lt;2 tahun) — dapat baju tapi tidak dapat tiket, sudah dikurangi dari Total Tiket.
+          👶 <b>{giftKpis.totalAnakDibawah2}</b> anak di bawah 2 tahun terdaftar. Jumlah Tiket dihitung dari kolom &quot;Jumlah Tiket&quot; di CSV (independen dari jumlah baju).
         </div>
       )}
 
@@ -10930,7 +10964,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 6 }}>📥 Import Data dari CSV</div>
           <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 12 }}>
-            Kolom wajib: <code>Nama</code>, <code>NIK/Global ID</code>. Kolom opsional yang dikenali: <code>No, Departemen, Lokasi Pengambilan, Email</code>. <strong>Kolom lain apapun namanya</strong> (misal <code>1, 2, 3...9</code>) otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.
+            Kolom wajib: <code>Nama</code>, <code>NIK/Global ID</code>. Kolom opsional yang dikenali: <code>No, Departemen, Lokasi Pengambilan, Email, Jumlah Tiket, Jumlah Anak &lt; 2 tahun, Status</code>. <strong>Kolom lain apapun namanya</strong> (misal <code>1, 2, 3...9</code>) otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12, color: "var(--t2)" }} />
