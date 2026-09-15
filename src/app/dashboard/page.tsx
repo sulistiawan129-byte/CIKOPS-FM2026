@@ -10600,6 +10600,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         { key: "no", labelId: "No", labelEn: "No", get: (r: GiftRegistration) => r.sequenceNo },
         { key: "nama", labelId: "Nama", labelEn: "Name", get: (r: GiftRegistration) => r.nama },
         { key: "nik", labelId: "NIK", labelEn: "NIK", get: (r: GiftRegistration) => r.nik },
+        { key: "total_peserta", labelId: "Total Peserta", labelEn: "Total Participants", get: (r: GiftRegistration) => countFilledSizes(r), align: "right" as const },
         { key: "dept", labelId: "Departemen", labelEn: "Department", get: (r: GiftRegistration) => r.departemen },
         { key: "lokasi", labelId: "Lokasi", labelEn: "Location", get: (r: GiftRegistration) => r.lokasiPengambilan },
         { key: "kategori", labelId: "Kategori", labelEn: "Category", get: (r: GiftRegistration) => { const c = getGiftCategory(r); return c ? CATEGORY_LABEL[c].id : "-"; } },
