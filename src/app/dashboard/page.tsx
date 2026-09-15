@@ -10302,11 +10302,9 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     }
   }
 
-  /** Ringkasan KPI untuk dashboard event: total peserta, breakdown
-   *  jumlah baju per ukuran (digabung dari semua peserta), dan status
-   *  klaim. Karakter kosong/rusak (replacement char) tidak dihitung. */
   /** Jumlah slot ukuran yang benar-benar terisi untuk 1 peserta (skip
-   *  kosong/karakter rusak) — dipakai untuk filter ">5 baju". */
+   *  kosong/karakter rusak) — dipakai untuk filter ">5 baju" dan
+   *  kategori Single/Suami-Istri/Keluarga. */
   function countFilledSizes(r: GiftRegistration): number {
     return r.selections.filter((s) => {
       if (s.variant == null) return false;
@@ -10315,16 +10313,67 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     }).length;
   }
 
+  /** Deteksi slot "anak" — dari pola data asli, ukuran untuk anak
+   *  ditulis dengan akhiran " A" (mis. "M A", "S A", "L A"), beda dari
+   *  ukuran dewasa biasa (mis. "M", "XL"). ⚠️ Ini ASUMSI berdasarkan
+   *  pola yang terlihat di data — mohon dikonfirmasi kalau ternyata
+   *  beda maksudnya. */
+  function isChildSize(variant: string): boolean {
+    return /\bA\s*$/i.test(variant.trim()) && variant.trim().length > 1;
+  }
+  function countChildren(r: GiftRegistration): number {
+    return r.selections.filter((s) => {
+      if (s.variant == null) return false;
+      const t = String(s.variant).trim();
+      if (t === "" || /^\uFFFD+$/.test(t)) return false;
+      return isChildSize(t);
+    }).length;
+  }
+
+  type GiftCategory = "single" | "couple" | "family";
+
+  /** Kategori berdasarkan jumlah orang dalam 1 pendaftaran (= jumlah
+   *  baju yang diterima, karena 1 baju = 1 orang):
+   *  1 orang = Single, 2 orang = Suami Istri, 3-9 orang = Keluarga. */
+  function getGiftCategory(r: GiftRegistration): GiftCategory | null {
+    const n = countFilledSizes(r);
+    if (n === 1) return "single";
+    if (n === 2) return "couple";
+    if (n >= 3) return "family";
+    return null; // 0 baju — tidak masuk kategori manapun
+  }
+
+  const CATEGORY_LABEL: Record<GiftCategory, { id: string; en: string; icon: string }> = {
+    single: { id: "Single", en: "Single", icon: "👤" },
+    couple: { id: "Suami Istri", en: "Couple", icon: "💑" },
+    family: { id: "Keluarga", en: "Family", icon: "👨‍👩‍👧‍👦" },
+  };
+
+  // ── Filter komprehensif — bisa digabung (AND): kategori + ukuran + jumlah anak ──
+  const [categoryFilter, setCategoryFilter] = useState<GiftCategory | "all">("all");
+  const [sizeFilter, setSizeFilter] = useState<string>("all");
+  const [childrenFilter, setChildrenFilter] = useState<"all" | "0" | "1" | "2plus">("all");
+
   const regsManyItems = useMemo(() => regs.filter((r) => countFilledSizes(r) > 5), [regs]);
 
   const giftKpis = useMemo(() => {
     const sizeCounts = new Map<string, number>();
+    const categoryCounts: Record<GiftCategory, number> = { single: 0, couple: 0, family: 0 };
+    const categorySizeCounts: Record<GiftCategory, Map<string, number>> = { single: new Map(), couple: new Map(), family: new Map() };
+    let totalChildren = 0;
+    let regsWithChildren = 0;
     for (const r of regs) {
+      const cat = getGiftCategory(r);
+      if (cat) categoryCounts[cat]++;
+      const childCount = countChildren(r);
+      totalChildren += childCount;
+      if (childCount > 0) regsWithChildren++;
       for (const s of r.selections) {
         if (s.variant == null) continue;
         const t = String(s.variant).trim();
         if (t === "" || /^\uFFFD+$/.test(t)) continue;
         sizeCounts.set(t, (sizeCounts.get(t) ?? 0) + 1);
+        if (cat) categorySizeCounts[cat].set(t, (categorySizeCounts[cat].get(t) ?? 0) + 1);
       }
     }
     const sizeBreakdown = Array.from(sizeCounts.entries()).sort((a, b) => b[1] - a[1]);
@@ -10335,8 +10384,36 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       notClaimedCount: regs.length - claimedCount,
       totalBaju: sizeBreakdown.reduce((s, [, c]) => s + c, 0),
       sizeBreakdown,
+      categoryCounts,
+      totalChildren,
+      regsWithChildren,
+      categorySizeBreakdown: {
+        single: Array.from(categorySizeCounts.single.entries()).sort((a, b) => b[1] - a[1]),
+        couple: Array.from(categorySizeCounts.couple.entries()).sort((a, b) => b[1] - a[1]),
+        family: Array.from(categorySizeCounts.family.entries()).sort((a, b) => b[1] - a[1]),
+      },
     };
   }, [regs]);
+
+  /** Daftar semua ukuran unik yang ada di data — untuk dropdown filter ukuran. */
+  const availableSizes = useMemo(() => giftKpis.sizeBreakdown.map(([size]) => size), [giftKpis.sizeBreakdown]);
+
+  const visibleRegs = useMemo(() => {
+    return regs.filter((r) => {
+      if (categoryFilter !== "all" && getGiftCategory(r) !== categoryFilter) return false;
+      if (sizeFilter !== "all") {
+        const hasSize = r.selections.some((s) => s.variant != null && String(s.variant).trim() === sizeFilter);
+        if (!hasSize) return false;
+      }
+      if (childrenFilter !== "all") {
+        const n = countChildren(r);
+        if (childrenFilter === "0" && n !== 0) return false;
+        if (childrenFilter === "1" && n !== 1) return false;
+        if (childrenFilter === "2plus" && n < 2) return false;
+      }
+      return true;
+    });
+  }, [regs, categoryFilter, sizeFilter, childrenFilter]);
 
   const giftReportExportPicker = useExportLanguagePicker((format, exportLang) => {
     if (!regEvent) return;
@@ -10357,6 +10434,30 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           valueLabelId: "Jumlah", valueLabelEn: "Count",
           items: giftKpis.sizeBreakdown.map(([size, count]) => ({ label: size, value: count })),
         },
+        {
+          titleId: "Jumlah Peserta per Kategori", titleEn: "Participants by Category",
+          valueLabelId: "Jumlah Peserta", valueLabelEn: "Participant Count",
+          items: [
+            { label: "👤 Single (1 orang)", value: giftKpis.categoryCounts.single },
+            { label: "💑 Suami Istri (2 orang)", value: giftKpis.categoryCounts.couple },
+            { label: "👨‍👩‍👧‍👦 Keluarga (3-9 orang)", value: giftKpis.categoryCounts.family },
+          ],
+        },
+        {
+          titleId: "Ukuran Baju — Kategori Single", titleEn: "Sizes — Single Category",
+          valueLabelId: "Jumlah", valueLabelEn: "Count",
+          items: giftKpis.categorySizeBreakdown.single.map(([size, count]) => ({ label: size, value: count })),
+        },
+        {
+          titleId: "Ukuran Baju — Kategori Suami Istri", titleEn: "Sizes — Couple Category",
+          valueLabelId: "Jumlah", valueLabelEn: "Count",
+          items: giftKpis.categorySizeBreakdown.couple.map(([size, count]) => ({ label: size, value: count })),
+        },
+        {
+          titleId: "Ukuran Baju — Kategori Keluarga", titleEn: "Sizes — Family Category",
+          valueLabelId: "Jumlah", valueLabelEn: "Count",
+          items: giftKpis.categorySizeBreakdown.family.map(([size, count]) => ({ label: size, value: count })),
+        },
       ],
       tableTitleId: "Daftar Peserta", tableTitleEn: "Participant List",
       tableRows: regs,
@@ -10366,6 +10467,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         { key: "nik", labelId: "NIK", labelEn: "NIK", get: (r: GiftRegistration) => r.nik },
         { key: "dept", labelId: "Departemen", labelEn: "Department", get: (r: GiftRegistration) => r.departemen },
         { key: "lokasi", labelId: "Lokasi", labelEn: "Location", get: (r: GiftRegistration) => r.lokasiPengambilan },
+        { key: "kategori", labelId: "Kategori", labelEn: "Category", get: (r: GiftRegistration) => { const c = getGiftCategory(r); return c ? CATEGORY_LABEL[c].id : "-"; } },
+        { key: "anak", labelId: "Jumlah Anak", labelEn: "Number of Children", get: (r: GiftRegistration) => countChildren(r), align: "right" as const },
         { key: "status", labelId: "Status", labelEn: "Status", get: (r: GiftRegistration) => (r.claimed ? "Sudah Diambil" : "Belum Diambil") },
       ] as ReportColumn<GiftRegistration>[],
     };
@@ -10465,6 +10568,26 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             <div style={{ fontSize: 11, fontWeight: 700, color: "#eab308", marginBottom: 4 }}>⏳ BELUM DIAMBIL</div>
             <div style={{ fontSize: 26, fontWeight: 900, color: "#eab308" }}>{giftKpis.notClaimedCount}</div>
           </div>
+          <div style={{ background: "rgba(99,102,241,0.08)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", marginBottom: 4 }}>👤 SINGLE</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#6366f1" }}>{giftKpis.categoryCounts.single}</div>
+          </div>
+          <div style={{ background: "rgba(236,72,153,0.08)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#ec4899", marginBottom: 4 }}>💑 SUAMI ISTRI</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#ec4899" }}>{giftKpis.categoryCounts.couple}</div>
+          </div>
+          <div style={{ background: "rgba(16,185,129,0.08)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#10b981", marginBottom: 4 }}>👨‍👩‍👧‍👦 KELUARGA</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#10b981" }}>{giftKpis.categoryCounts.family}</div>
+          </div>
+          <div style={{ background: "rgba(249,115,22,0.08)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#f97316", marginBottom: 4 }}>🧒 TOTAL ANAK</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#f97316" }}>{giftKpis.totalChildren}</div>
+          </div>
+          <div style={{ background: "rgba(249,115,22,0.08)", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#f97316", marginBottom: 4 }}>👪 PESERTA DENGAN ANAK</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#f97316" }}>{giftKpis.regsWithChildren}</div>
+          </div>
         </div>
       )}
 
@@ -10518,6 +10641,68 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <div>Belum ada yang mendaftar</div>
         </div>
       ) : (
+        <div>
+          {regEvent.mode === "lookup" && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              {([
+                ["all", `Semua (${regs.length})`],
+                ["single", `👤 Single (${giftKpis.categoryCounts.single})`],
+                ["couple", `💑 Suami Istri (${giftKpis.categoryCounts.couple})`],
+                ["family", `👨‍👩‍👧‍👦 Keluarga (${giftKpis.categoryCounts.family})`],
+              ] as [GiftCategory | "all", string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setCategoryFilter(key)}
+                  style={{
+                    padding: "7px 14px", borderRadius: "var(--pill)", border: "1px solid var(--border2)",
+                    background: categoryFilter === key ? "var(--brand)" : "var(--bg2)",
+                    color: categoryFilter === key ? "#fff" : "var(--t2)",
+                    fontWeight: 700, fontSize: 12, cursor: "pointer",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {regEvent.mode === "lookup" && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+              <select
+                value={sizeFilter}
+                onChange={(e) => setSizeFilter(e.target.value)}
+                className={styles.formSelect}
+                style={{ width: "auto", fontSize: 12.5 }}
+              >
+                <option value="all">📏 Semua Ukuran</option>
+                {availableSizes.map((size) => (
+                  <option key={size} value={size}>Ukuran: {size}</option>
+                ))}
+              </select>
+              <select
+                value={childrenFilter}
+                onChange={(e) => setChildrenFilter(e.target.value as typeof childrenFilter)}
+                className={styles.formSelect}
+                style={{ width: "auto", fontSize: 12.5 }}
+              >
+                <option value="all">🧒 Semua (Jumlah Anak)</option>
+                <option value="0">Tanpa Anak</option>
+                <option value="1">1 Anak</option>
+                <option value="2plus">2+ Anak</option>
+              </select>
+              {(categoryFilter !== "all" || sizeFilter !== "all" || childrenFilter !== "all") && (
+                <button
+                  onClick={() => { setCategoryFilter("all"); setSizeFilter("all"); setChildrenFilter("all"); }}
+                  style={{ background: "none", border: "none", color: "var(--red)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                >
+                  ✕ Reset Filter
+                </button>
+              )}
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)", fontWeight: 600 }}>
+                Menampilkan {visibleRegs.length} dari {regs.length} peserta
+              </span>
+            </div>
+          )}
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -10528,7 +10713,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
               </tr>
             </thead>
             <tbody>
-              {regs.map(r => (
+              {visibleRegs.map(r => (
                 <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "10px 12px", fontFamily: "var(--mono)", color: "var(--t2)" }}>{r.nik}</td>
                   <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--t1)" }}>{r.nama}</td>
@@ -10567,6 +10752,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
       {giftReportExportPicker.pending && (
