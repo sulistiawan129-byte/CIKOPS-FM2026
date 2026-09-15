@@ -44,9 +44,32 @@ export default function GiftLookupPage() {
   const [error, setError] = useState("");
   const [reg, setReg] = useState<GiftRegistration | null>(null);
   const [petugas, setPetugas] = useState("");
+  const [petugasInput, setPetugasInput] = useState(""); // draft saat isi form 1x di awal
+  const [showPetugasPrompt, setShowPetugasPrompt] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
   const nikInputRef = useRef<HTMLInputElement>(null);
+
+  // Nama petugas cukup diisi SEKALI per perangkat (tersimpan di
+  // localStorage) — supaya tidak perlu ketik ulang setiap kali klaim,
+  // biar prosesnya cepat pas antrian panjang.
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("gift_petugas_name") : null;
+    if (saved && saved.trim()) {
+      setPetugas(saved);
+    } else {
+      setShowPetugasPrompt(true);
+    }
+  }, []);
+
+  function savePetugasName() {
+    const name = petugasInput.trim();
+    if (!name) return;
+    localStorage.setItem("gift_petugas_name", name);
+    setPetugas(name);
+    setShowPetugasPrompt(false);
+    setTimeout(() => nikInputRef.current?.focus(), 50);
+  }
 
   useEffect(() => {
     (async () => {
@@ -62,8 +85,8 @@ export default function GiftLookupPage() {
   }, []);
 
   useEffect(() => {
-    nikInputRef.current?.focus();
-  }, []);
+    if (!showPetugasPrompt) nikInputRef.current?.focus();
+  }, [showPetugasPrompt]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -115,11 +138,56 @@ export default function GiftLookupPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#eef2f9", display: "flex", flexDirection: "column", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
-      <div style={{ background: NAVY, padding: "20px 20px 24px", textAlign: "center" }}>
+      <div style={{ background: NAVY, padding: "20px 20px 24px", textAlign: "center", position: "relative" }}>
         <img src="/logo.png" alt="CIKOPS" style={{ width: 52, height: 52, marginBottom: 10 }} />
         <div style={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Pembagian Seragam</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>Masukkan NIK untuk melihat data pengambilan</div>
+        {petugas && (
+          <div style={{ position: "absolute", top: 16, right: 16, textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>Petugas</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{petugas}</div>
+            <button
+              onClick={() => { setPetugasInput(petugas); setShowPetugasPrompt(true); }}
+              style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: 0, marginTop: 2 }}
+            >
+              Ganti
+            </button>
+          </div>
+        )}
       </div>
+
+      {showPetugasPrompt && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,40,71,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%", boxShadow: "0 12px 40px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize: 40, textAlign: "center", marginBottom: 10 }}>👋</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, textAlign: "center", marginBottom: 4 }}>Nama Petugas</div>
+            <div style={{ fontSize: 13, color: "#7c8aa0", textAlign: "center", marginBottom: 18 }}>
+              Diisi 1x saja untuk perangkat ini — tidak perlu diulang tiap kali proses pengambilan.
+            </div>
+            <input
+              type="text"
+              value={petugasInput}
+              onChange={(e) => setPetugasInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") savePetugasName(); }}
+              placeholder="Nama Anda"
+              autoFocus
+              style={{ width: "100%", padding: "14px 16px", borderRadius: 12, border: "2px solid #dbe4f0", fontSize: 16, color: NAVY, outline: "none", boxSizing: "border-box", marginBottom: 14, textAlign: "center", fontWeight: 700 }}
+            />
+            <button
+              onClick={savePetugasName}
+              disabled={!petugasInput.trim()}
+              style={{
+                width: "100%", padding: 14, borderRadius: 14, border: "none",
+                background: petugasInput.trim() ? `linear-gradient(135deg, ${NAVY}, ${NAVY_LIGHT})` : "#e5e7eb",
+                color: petugasInput.trim() ? "#fff" : "#9ca3af",
+                fontWeight: 800, fontSize: 15, cursor: petugasInput.trim() ? "pointer" : "default",
+              }}
+            >
+              Mulai
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: isWide ? "24px 24px 0" : "24px 16px 40px", width: "100%" }}>
         <div style={{ maxWidth: isWide ? "none" : 560, width: "100%", display: "flex", flexDirection: isWide ? "row" : "column", alignItems: "flex-start", gap: isWide ? 24 : 0 }}>
@@ -273,22 +341,15 @@ export default function GiftLookupPage() {
 
                     {!reg.claimed && !claimed ? (
                       <div>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.04em", marginBottom: 8 }}>NAMA PETUGAS</label>
-                        <input
-                          type="text"
-                          value={petugas}
-                          onChange={(e) => setPetugas(e.target.value)}
-                          placeholder="Nama petugas yang memproses"
-                          style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #dbe4f0", fontSize: 14, color: NAVY, outline: "none", boxSizing: "border-box", marginBottom: 10 }}
-                        />
                         <button
                           onClick={handleClaim}
-                          disabled={!petugas.trim() || claiming}
+                          disabled={claiming}
                           style={{
                             width: "100%", padding: "15px", borderRadius: 14, border: "none",
-                            background: petugas.trim() ? "linear-gradient(135deg,#16a34a,#22c55e)" : "#e5e7eb",
-                            color: petugas.trim() ? "#fff" : "#9ca3af",
-                            fontWeight: 800, fontSize: 15.5, cursor: petugas.trim() ? "pointer" : "default",
+                            background: "linear-gradient(135deg,#16a34a,#22c55e)",
+                            color: "#fff",
+                            fontWeight: 800, fontSize: 15.5, cursor: claiming ? "default" : "pointer",
+                            opacity: claiming ? 0.7 : 1,
                           }}
                         >
                           {claiming ? "Memproses..." : "✅  TANDAI SUDAH DIAMBIL"}
