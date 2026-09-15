@@ -121,8 +121,8 @@ export default function GiftLookupPage() {
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>Masukkan NIK untuk melihat data pengambilan</div>
       </div>
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px 40px", width: "100%" }}>
-        <div style={{ maxWidth: isWide ? 960 : 560, width: "100%", display: "flex", flexDirection: isWide ? "row" : "column", alignItems: "flex-start", gap: isWide ? 24 : 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: isWide ? "24px 24px 0" : "24px 16px 40px", width: "100%" }}>
+        <div style={{ maxWidth: isWide ? "none" : 560, width: "100%", display: "flex", flexDirection: isWide ? "row" : "column", alignItems: "flex-start", gap: isWide ? 24 : 0 }}>
         <div style={{ width: isWide ? 420 : "100%", flexShrink: 0 }}>
 
           {events.length > 1 && (
@@ -300,9 +300,9 @@ export default function GiftLookupPage() {
             </div>
           )}
           {!reg && isWide && (
-            <div style={{ background: "#fff", borderRadius: 24, padding: "60px 24px", textAlign: "center", color: "#a0aabb" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-              <div style={{ fontSize: 14 }}>Hasil pencarian akan muncul di sini</div>
+            <div style={{ background: "#fff", borderRadius: 24, minHeight: "calc(100vh - 220px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#a0aabb" }}>
+              <div style={{ fontSize: 48, marginBottom: 14 }}>🔍</div>
+              <div style={{ fontSize: 15 }}>Hasil pencarian akan muncul di sini</div>
             </div>
           )}
         </div>
