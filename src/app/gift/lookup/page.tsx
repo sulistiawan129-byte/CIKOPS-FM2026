@@ -201,101 +201,108 @@ export default function GiftLookupPage() {
                 </div>
               </div>
 
-              <div style={{ padding: "26px 24px" }}>
-                {reg.sequenceNo && (
-                  <div style={{ textAlign: "center", marginBottom: 22, paddingBottom: 22, borderBottom: "2px dashed #dbe4f0" }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em" }}>NO.</div>
-                    <div style={{ fontSize: 56, fontWeight: 900, color: NAVY, lineHeight: 1.1 }}>{reg.sequenceNo}</div>
-                  </div>
-                )}
+              <div style={{ padding: "20px 22px" }}>
+                <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
 
-                <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 22, fontSize: 16 }}>
-                  <tbody>
-                    {[
-                      ["Nama", reg.nama],
-                      ["NIK", reg.nik],
-                      ["Departemen", reg.departemen],
-                      ["Lokasi Pengambilan", reg.lokasiPengambilan],
-                    ].filter(([, v]) => v).map(([k, v]) => (
-                      <tr key={k} style={{ borderBottom: "1px solid #eef2f9" }}>
-                        <td style={{ padding: "10px 0", color: "#94a3b8", width: "42%" }}>{k}</td>
-                        <td style={{ padding: "10px 0", fontWeight: 700, color: NAVY }}>{v}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 12 }}>UKURAN YANG DITERIMA</div>
-                {(() => {
-                  const filledSizes = reg.selections.filter((s) => !isBlankSlotValue(s.variant));
-                  return (
-                    <div style={{ marginBottom: 24 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                        <div style={{ background: "#eef2fb", borderRadius: 12, padding: "12px 16px" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#7c8aa0", marginBottom: 2 }}>TOTAL BAJU</div>
-                          <div style={{ fontSize: 22, fontWeight: 900, color: NAVY }}>{filledSizes.length}</div>
-                        </div>
-                        <div style={{ background: "#fff8e6", borderRadius: 12, padding: "12px 16px" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#a87c1f", marginBottom: 2 }}>🎟️ TIKET EVENT</div>
-                          <div style={{ fontSize: 22, fontWeight: 900, color: "#a87c1f" }}>{filledSizes.length}</div>
-                        </div>
+                  {/* ── Sub-kolom KIRI: identitas karyawan ── */}
+                  <div style={{ flex: "1 1 260px", minWidth: 240 }}>
+                    {reg.sequenceNo && (
+                      <div style={{ textAlign: "center", marginBottom: 16, paddingBottom: 16, borderBottom: "2px dashed #dbe4f0" }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em" }}>NO.</div>
+                        <div style={{ fontSize: 42, fontWeight: 900, color: NAVY, lineHeight: 1.1 }}>{reg.sequenceNo}</div>
                       </div>
-                      <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden" }}>
-                        {filledSizes.length === 0 ? (
-                          <div style={{ padding: 16, textAlign: "center", color: "#94a3b8", fontSize: 14 }}>-</div>
-                        ) : (
-                          filledSizes.map((s, i) => (
-                            <div
-                              key={i}
-                              style={{
-                                padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                                borderBottom: i < filledSizes.length - 1 ? "1px solid #eef2f9" : "none",
-                              }}
-                            >
-                              <span style={{ fontSize: 15, color: "#7c8aa0", fontWeight: 700 }}>{i + 1}</span>
-                              <span style={{ fontSize: 18, fontWeight: 800, color: NAVY }}>{s.variant}</span>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {!reg.claimed && !claimed ? (
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.04em", marginBottom: 10 }}>NAMA PETUGAS</label>
-                    <input
-                      type="text"
-                      value={petugas}
-                      onChange={(e) => setPetugas(e.target.value)}
-                      placeholder="Nama petugas yang memproses"
-                      style={{ width: "100%", padding: "16px 18px", borderRadius: 14, border: "2px solid #dbe4f0", fontSize: 16, color: NAVY, outline: "none", boxSizing: "border-box", marginBottom: 14 }}
-                    />
-                    <button
-                      onClick={handleClaim}
-                      disabled={!petugas.trim() || claiming}
-                      style={{
-                        width: "100%", padding: "20px", borderRadius: 16, border: "none",
-                        background: petugas.trim() ? "linear-gradient(135deg,#16a34a,#22c55e)" : "#e5e7eb",
-                        color: petugas.trim() ? "#fff" : "#9ca3af",
-                        fontWeight: 800, fontSize: 19, cursor: petugas.trim() ? "pointer" : "default",
-                      }}
-                    >
-                      {claiming ? "Memproses..." : "✅  TANDAI SUDAH DIAMBIL"}
+                    )}
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                      <tbody>
+                        {[
+                          ["Nama", reg.nama],
+                          ["NIK", reg.nik],
+                          ["Departemen", reg.departemen],
+                          ["Lokasi Pengambilan", reg.lokasiPengambilan],
+                        ].filter(([, v]) => v).map(([k, v]) => (
+                          <tr key={k} style={{ borderBottom: "1px solid #eef2f9" }}>
+                            <td style={{ padding: "8px 0", color: "#94a3b8", width: "44%" }}>{k}</td>
+                            <td style={{ padding: "8px 0", fontWeight: 700, color: NAVY }}>{v}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button onClick={reset} style={{ width: "100%", marginTop: 16, padding: 13, borderRadius: 12, border: "2px solid #dbe4f0", background: "#f6f8fc", color: "#7c8aa0", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+                      Cari NIK Lain
                     </button>
                   </div>
-                ) : (
-                  <div style={{ background: "#dcfce7", borderRadius: 16, padding: "20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
-                    <div style={{ fontWeight: 800, color: "#166534", fontSize: 17 }}>Pengambilan berhasil dicatat!</div>
-                    <div style={{ color: "#4ade80", fontSize: 13, marginTop: 4 }}>NIK ini tidak bisa diambil lagi untuk program ini.</div>
-                  </div>
-                )}
 
-                <button onClick={reset} style={{ width: "100%", marginTop: 14, padding: 16, borderRadius: 14, border: "2px solid #dbe4f0", background: "#f6f8fc", color: "#7c8aa0", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-                  Cari NIK Lain
-                </button>
+                  {/* ── Sub-kolom KANAN: detail hadiah + aksi ── */}
+                  <div style={{ flex: "1.3 1 300px", minWidth: 260 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 10 }}>UKURAN YANG DITERIMA</div>
+                    {(() => {
+                      const filledSizes = reg.selections.filter((s) => !isBlankSlotValue(s.variant));
+                      return (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                            <div style={{ background: "#eef2fb", borderRadius: 12, padding: "10px 14px" }}>
+                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#7c8aa0", marginBottom: 2 }}>TOTAL BAJU</div>
+                              <div style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>{filledSizes.length}</div>
+                            </div>
+                            <div style={{ background: "#fff8e6", borderRadius: 12, padding: "10px 14px" }}>
+                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#a87c1f", marginBottom: 2 }}>🎟️ TIKET EVENT</div>
+                              <div style={{ fontSize: 20, fontWeight: 900, color: "#a87c1f" }}>{filledSizes.length}</div>
+                            </div>
+                          </div>
+                          <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden", maxHeight: 168, overflowY: "auto" }}>
+                            {filledSizes.length === 0 ? (
+                              <div style={{ padding: 14, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>-</div>
+                            ) : (
+                              filledSizes.map((s, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    padding: "9px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+                                    borderBottom: i < filledSizes.length - 1 ? "1px solid #eef2f9" : "none",
+                                  }}
+                                >
+                                  <span style={{ fontSize: 13, color: "#7c8aa0", fontWeight: 700 }}>{i + 1}</span>
+                                  <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{s.variant}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {!reg.claimed && !claimed ? (
+                      <div>
+                        <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.04em", marginBottom: 8 }}>NAMA PETUGAS</label>
+                        <input
+                          type="text"
+                          value={petugas}
+                          onChange={(e) => setPetugas(e.target.value)}
+                          placeholder="Nama petugas yang memproses"
+                          style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid #dbe4f0", fontSize: 14, color: NAVY, outline: "none", boxSizing: "border-box", marginBottom: 10 }}
+                        />
+                        <button
+                          onClick={handleClaim}
+                          disabled={!petugas.trim() || claiming}
+                          style={{
+                            width: "100%", padding: "15px", borderRadius: 14, border: "none",
+                            background: petugas.trim() ? "linear-gradient(135deg,#16a34a,#22c55e)" : "#e5e7eb",
+                            color: petugas.trim() ? "#fff" : "#9ca3af",
+                            fontWeight: 800, fontSize: 15.5, cursor: petugas.trim() ? "pointer" : "default",
+                          }}
+                        >
+                          {claiming ? "Memproses..." : "✅  TANDAI SUDAH DIAMBIL"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ background: "#dcfce7", borderRadius: 14, padding: "16px", textAlign: "center" }}>
+                        <div style={{ fontSize: 24, marginBottom: 6 }}>🎉</div>
+                        <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>Pengambilan berhasil dicatat!</div>
+                        <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>NIK ini tidak bisa diambil lagi.</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
