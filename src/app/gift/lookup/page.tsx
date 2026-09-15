@@ -46,6 +46,15 @@ function parseGiftSize(variant: string): { size: string; isFreeEntry: boolean } 
   return { size: t, isFreeEntry: false };
 }
 
+/** Jumlah TIKET yang berlaku = "Jumlah Tiket" (kolom eksplisit CSV)
+ *  DIKURANGI jumlah anak <2 tahun (gratis masuk / free entry, tidak
+ *  perlu tiket). Tidak pernah negatif. */
+function getEffectiveTicketCount(reg: { jumlahTiket: number | null; anakDibawah2Tahun: number | null }): number {
+  const tiket = reg.jumlahTiket ?? 0;
+  const anakBalita = reg.anakDibawah2Tahun ?? 0;
+  return Math.max(0, tiket - anakBalita);
+}
+
 export default function GiftLookupPage() {
   const isWide = useIsWideScreen();
   const [events, setEvents] = useState<GiftEvent[]>([]);
@@ -313,11 +322,18 @@ export default function GiftLookupPage() {
 
                   {/* ── Sub-kolom KANAN: detail hadiah + aksi ── */}
                   <div style={{ flex: "1.3 1 300px", minWidth: 260 }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 10 }}>UKURAN YANG DITERIMA</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em" }}>UKURAN YANG DITERIMA</div>
+                      {reg.statusKehadiran && (
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: NAVY, background: "#eef2fb", padding: "3px 10px", borderRadius: 999, letterSpacing: "0.02em" }}>
+                          {reg.statusKehadiran}
+                        </span>
+                      )}
+                    </div>
                     {(() => {
                       const filledSizes = reg.selections.filter((s) => !isBlankSlotValue(s.variant));
                       const parsed = filledSizes.map((s) => ({ ...s, parsed: parseGiftSize(String(s.variant)) }));
-                      const ticketCount = parsed.filter((p) => !p.parsed.isFreeEntry).length;
+                      const effectiveTiket = getEffectiveTicketCount(reg);
                       return (
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
@@ -327,9 +343,14 @@ export default function GiftLookupPage() {
                             </div>
                             <div style={{ background: "#fff8e6", borderRadius: 12, padding: "10px 14px" }}>
                               <div style={{ fontSize: 10.5, fontWeight: 700, color: "#a87c1f", marginBottom: 2 }}>🎟️ TIKET EVENT</div>
-                              <div style={{ fontSize: 20, fontWeight: 900, color: "#a87c1f" }}>{ticketCount}</div>
+                              <div style={{ fontSize: 20, fontWeight: 900, color: "#a87c1f" }}>{effectiveTiket}</div>
                             </div>
                           </div>
+                          {(reg.anakDibawah2Tahun ?? 0) > 0 && (
+                            <div style={{ background: "#fef2f2", borderRadius: 10, padding: "8px 14px", marginBottom: 8, fontSize: 12.5, fontWeight: 700, color: "#dc2626" }}>
+                              👶 {reg.anakDibawah2Tahun} Anak Gratis Masuk / Free Entry (&lt;2 Tahun)
+                            </div>
+                          )}
                           <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden", maxHeight: 168, overflowY: "auto" }}>
                             {parsed.length === 0 ? (
                               <div style={{ padding: 14, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>-</div>
@@ -343,14 +364,7 @@ export default function GiftLookupPage() {
                                   }}
                                 >
                                   <span style={{ fontSize: 13, color: "#7c8aa0", fontWeight: 700 }}>{i + 1}</span>
-                                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    {s.parsed.isFreeEntry && (
-                                      <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "2px 8px", borderRadius: 999 }}>
-                                        GRATIS · NO TIKET
-                                      </span>
-                                    )}
-                                    <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{s.parsed.size}</span>
-                                  </span>
+                                  <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{s.parsed.size}</span>
                                 </div>
                               ))
                             )}
