@@ -2056,6 +2056,7 @@ interface GiftEventRow {
   id: string; name: string; description: string | null;
   items: GiftItemDef[]; status: "open" | "closed"; plant: string | null;
   mode?: string;
+  actual_baju_count: number | null; actual_tiket_count: number | null;
   created_at: string; updated_at: string;
 }
 interface GiftRegRow {
@@ -2070,6 +2071,7 @@ function mapGiftEvent(r: GiftEventRow): GiftEvent {
   return { id: r.id, name: r.name, description: r.description,
     items: r.items ?? [], status: r.status, plant: r.plant,
     mode: (r.mode as "self_register" | "lookup") ?? "self_register",
+    actualBajuCount: r.actual_baju_count, actualTiketCount: r.actual_tiket_count,
     createdAt: r.created_at, updatedAt: r.updated_at };
 }
 function mapGiftReg(r: GiftRegRow): GiftRegistration {
@@ -2108,6 +2110,16 @@ export async function updateGiftEvent(id: string, input: {
 }): Promise<void> {
   const { error } = await supabase.from("gift_events")
     .update({ ...input, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Simpan jumlah baju/tiket AKTUAL (fisik yang datang) — diisi manual
+ *  oleh admin, dibandingkan dengan jumlah kebutuhan hasil hitung
+ *  sistem dari data peserta. */
+export async function updateGiftEventActualCounts(id: string, input: { actualBajuCount: number | null; actualTiketCount: number | null }): Promise<void> {
+  const { error } = await supabase.from("gift_events")
+    .update({ actual_baju_count: input.actualBajuCount, actual_tiket_count: input.actualTiketCount, updated_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 

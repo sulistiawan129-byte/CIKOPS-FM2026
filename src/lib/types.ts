@@ -483,6 +483,8 @@ export interface GiftEvent {
   status: "open" | "closed";
   plant: string | null;
   mode: "self_register" | "lookup"; // self_register: karyawan daftar sendiri; lookup: admin import, karyawan cukup kasih NIK
+  actualBajuCount: number | null; // diisi manual admin — jumlah baju fisik yang datang
+  actualTiketCount: number | null; // diisi manual admin — jumlah tiket fisik yang datang
   createdAt: string;
   updatedAt: string;
 }
