@@ -35,6 +35,17 @@ function isBlankSlotValue(v: string | null | undefined): boolean {
   return /^\uFFFD+$/.test(t);
 }
 
+/** Parse teks ukuran — kalau formatnya "size - Free Entry" (anak di
+ *  bawah 2 tahun), pisahkan ukurannya dari label "Free Entry" dan
+ *  tandai isFreeEntry=true. Slot Free Entry TETAP dapat baju, tapi
+ *  TIDAK dapat tiket event. */
+function parseGiftSize(variant: string): { size: string; isFreeEntry: boolean } {
+  const t = variant.trim();
+  const m = /^(.*?)\s*-\s*free\s*entry\s*$/i.exec(t);
+  if (m) return { size: m[1].trim(), isFreeEntry: true };
+  return { size: t, isFreeEntry: false };
+}
+
 export default function GiftLookupPage() {
   const isWide = useIsWideScreen();
   const [events, setEvents] = useState<GiftEvent[]>([]);
@@ -305,6 +316,8 @@ export default function GiftLookupPage() {
                     <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em", marginBottom: 10 }}>UKURAN YANG DITERIMA</div>
                     {(() => {
                       const filledSizes = reg.selections.filter((s) => !isBlankSlotValue(s.variant));
+                      const parsed = filledSizes.map((s) => ({ ...s, parsed: parseGiftSize(String(s.variant)) }));
+                      const ticketCount = parsed.filter((p) => !p.parsed.isFreeEntry).length;
                       return (
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
@@ -314,23 +327,30 @@ export default function GiftLookupPage() {
                             </div>
                             <div style={{ background: "#fff8e6", borderRadius: 12, padding: "10px 14px" }}>
                               <div style={{ fontSize: 10.5, fontWeight: 700, color: "#a87c1f", marginBottom: 2 }}>🎟️ TIKET EVENT</div>
-                              <div style={{ fontSize: 20, fontWeight: 900, color: "#a87c1f" }}>{filledSizes.length}</div>
+                              <div style={{ fontSize: 20, fontWeight: 900, color: "#a87c1f" }}>{ticketCount}</div>
                             </div>
                           </div>
                           <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden", maxHeight: 168, overflowY: "auto" }}>
-                            {filledSizes.length === 0 ? (
+                            {parsed.length === 0 ? (
                               <div style={{ padding: 14, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>-</div>
                             ) : (
-                              filledSizes.map((s, i) => (
+                              parsed.map((s, i) => (
                                 <div
                                   key={i}
                                   style={{
                                     padding: "9px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                                    borderBottom: i < filledSizes.length - 1 ? "1px solid #eef2f9" : "none",
+                                    borderBottom: i < parsed.length - 1 ? "1px solid #eef2f9" : "none",
                                   }}
                                 >
                                   <span style={{ fontSize: 13, color: "#7c8aa0", fontWeight: 700 }}>{i + 1}</span>
-                                  <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{s.variant}</span>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    {s.parsed.isFreeEntry && (
+                                      <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", background: "#fef2f2", padding: "2px 8px", borderRadius: 999 }}>
+                                        GRATIS · NO TIKET
+                                      </span>
+                                    )}
+                                    <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{s.parsed.size}</span>
+                                  </span>
                                 </div>
                               ))
                             )}
