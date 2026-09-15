@@ -2063,6 +2063,7 @@ interface GiftRegRow {
   id: string; event_id: string; event_name: string;
   nik: string; nama: string; departemen: string; email: string;
   sequence_no?: string; lokasi_pengambilan?: string;
+  jumlah_tiket?: number | null; anak_dibawah_2_tahun?: number | null; status_kehadiran?: string | null;
   selections: GiftSelection[]; claimed: boolean;
   claimed_at: string | null; claimed_by: string | null; registered_at: string;
 }
@@ -2078,6 +2079,7 @@ function mapGiftReg(r: GiftRegRow): GiftRegistration {
   return { id: r.id, eventId: r.event_id, eventName: r.event_name ?? "",
     nik: r.nik, nama: r.nama, departemen: r.departemen, email: r.email,
     sequenceNo: r.sequence_no ?? "", lokasiPengambilan: r.lokasi_pengambilan ?? "",
+    jumlahTiket: r.jumlah_tiket ?? null, anakDibawah2Tahun: r.anak_dibawah_2_tahun ?? null, statusKehadiran: r.status_kehadiran ?? null,
     selections: r.selections ?? [], claimed: r.claimed,
     claimedAt: r.claimed_at, claimedBy: r.claimed_by, registeredAt: r.registered_at };
 }
@@ -2230,7 +2232,7 @@ export async function unclaimGiftRegistration(registrationId: string): Promise<v
  *  duplikat, bukan menimpa data lama, supaya aman dari re-import tidak sengaja. */
 export async function bulkImportGiftRegistrations(
   eventId: string,
-  rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; selections: GiftSelection[] }[]
+  rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[]
 ): Promise<{ inserted: number; duplicates: string[] }> {
   // ⚠️ PENTING: insert satu-per-satu akan SANGAT LAMBAT untuk data besar
   // (ribuan baris = ribuan round-trip network, bisa 5-10 menit dan
@@ -2292,6 +2294,9 @@ export async function bulkImportGiftRegistrations(
       email: (r.email || "").trim().toLowerCase(),
       sequence_no: r.sequenceNo || "",
       lokasi_pengambilan: r.lokasiPengambilan || "",
+      jumlah_tiket: r.jumlahTiket ?? null,
+      anak_dibawah_2_tahun: r.anakDibawah2Tahun ?? null,
+      status_kehadiran: r.statusKehadiran || null,
       selections: r.selections,
       passcode_hash: null, // mode lookup tidak pakai passcode
     }));

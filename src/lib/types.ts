@@ -499,6 +499,9 @@ export interface GiftRegistration {
   email: string;
   sequenceNo: string; // "No" dari sheet asli — cuma dipakai mode lookup, kosong untuk mode self_register
   lokasiPengambilan: string; // khusus mode lookup (misal beda plant/cabang pengambilan)
+  jumlahTiket: number | null; // kolom EKSPLISIT dari CSV — TIDAK dihitung dari jumlah baju
+  anakDibawah2Tahun: number | null; // kolom EKSPLISIT dari CSV — jumlah anak <2 tahun
+  statusKehadiran: string | null; // "IKUT ACARA" atau "ON DUTY" — kolom eksplisit dari CSV
   selections: GiftSelection[];
   claimed: boolean;
   claimedAt: string | null;
