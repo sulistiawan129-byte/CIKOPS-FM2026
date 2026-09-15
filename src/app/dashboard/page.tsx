@@ -10313,20 +10313,19 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     }).length;
   }
 
-  /** Deteksi slot "anak" — dari pola data asli, ukuran untuk anak
-   *  ditulis dengan akhiran " A" (mis. "M A", "S A", "L A"), beda dari
-   *  ukuran dewasa biasa (mis. "M", "XL"). ⚠️ Ini ASUMSI berdasarkan
-   *  pola yang terlihat di data — mohon dikonfirmasi kalau ternyata
-   *  beda maksudnya. */
-  function isChildSize(variant: string): boolean {
-    return /\bA\s*$/i.test(variant.trim()) && variant.trim().length > 1;
+  /** Deteksi slot "anak" — berdasarkan NOMOR SLOT/KOLOM-nya (bukan
+   *  teks ukurannya), sesuai urutan sebenarnya:
+   *  slot 1 = Karyawan, slot 2 = Suami/Istri, slot 3-9 = Anak. */
+  function isChildSlot(itemLabel: string): boolean {
+    const slotNum = parseInt(itemLabel, 10);
+    return !isNaN(slotNum) && slotNum >= 3;
   }
   function countChildren(r: GiftRegistration): number {
     return r.selections.filter((s) => {
       if (s.variant == null) return false;
       const t = String(s.variant).trim();
       if (t === "" || /^\uFFFD+$/.test(t)) return false;
-      return isChildSize(t);
+      return isChildSlot(s.item);
     }).length;
   }
 
