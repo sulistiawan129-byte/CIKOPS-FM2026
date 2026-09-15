@@ -6,6 +6,20 @@ import type { GiftEvent, GiftRegistration } from "@/lib/types";
 const NAVY = "#0F2847";
 const NAVY_LIGHT = "#1F44B8";
 
+/** Layar laptop/desktop (lebar) tampil 2 kolom sejajar (form kiri,
+ *  hasil kanan) supaya tidak perlu scroll. HP/tablet (sempit) tetap
+ *  tampilan tumpuk seperti biasa. */
+function useIsWideScreen(breakpoint = 860) {
+  const [isWide, setIsWide] = useState(false);
+  useEffect(() => {
+    function check() { setIsWide(window.innerWidth >= breakpoint); }
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isWide;
+}
+
 /** Cek apakah nilai sebuah "slot" harus dianggap KOSONG — bukan cuma
  *  string kosong "", tapi juga karakter Unicode Replacement (U+FFFD,
  *  tampil sebagai "�") yang muncul kalau file CSV sumbernya disimpan
@@ -22,6 +36,7 @@ function isBlankSlotValue(v: string | null | undefined): boolean {
 }
 
 export default function GiftLookupPage() {
+  const isWide = useIsWideScreen();
   const [events, setEvents] = useState<GiftEvent[]>([]);
   const [eventId, setEventId] = useState("");
   const [nik, setNik] = useState("");
@@ -107,7 +122,8 @@ export default function GiftLookupPage() {
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px 40px", width: "100%" }}>
-        <div style={{ maxWidth: 560, width: "100%" }}>
+        <div style={{ maxWidth: isWide ? 960 : 560, width: "100%", display: "flex", flexDirection: isWide ? "row" : "column", alignItems: "flex-start", gap: isWide ? 24 : 0 }}>
+        <div style={{ width: isWide ? 420 : "100%", flexShrink: 0 }}>
 
           {events.length > 1 && (
             <select
@@ -168,7 +184,9 @@ export default function GiftLookupPage() {
               {loading ? "Mencari..." : "🔍  CARI"}
             </button>
           </form>
+        </div>
 
+        <div style={{ flex: 1, width: "100%", minWidth: 0 }}>
           {reg && (
             <div style={{ background: "#fff", borderRadius: 24, boxShadow: "0 8px 30px rgba(15,40,71,0.1)", overflow: "hidden" }}>
               <div style={{ background: reg.claimed ? "#16a34a" : `linear-gradient(135deg, ${NAVY}, ${NAVY_LIGHT})`, padding: "20px 26px", display: "flex", alignItems: "center", gap: 14 }}>
@@ -281,6 +299,13 @@ export default function GiftLookupPage() {
               </div>
             </div>
           )}
+          {!reg && isWide && (
+            <div style={{ background: "#fff", borderRadius: 24, padding: "60px 24px", textAlign: "center", color: "#a0aabb" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+              <div style={{ fontSize: 14 }}>Hasil pencarian akan muncul di sini</div>
+            </div>
+          )}
+        </div>
         </div>
       </div>
 
