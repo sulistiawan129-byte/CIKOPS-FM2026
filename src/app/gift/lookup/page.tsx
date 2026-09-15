@@ -351,7 +351,7 @@ export default function GiftLookupPage() {
                               👶 {reg.anakDibawah2Tahun} Anak Gratis Masuk / Free Entry (&lt;2 Tahun)
                             </div>
                           )}
-                          <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden", maxHeight: 168, overflowY: "auto" }}>
+                          <div style={{ border: "1.5px solid #dbe4f0", borderRadius: 12, overflow: "hidden" }}>
                             {parsed.length === 0 ? (
                               <div style={{ padding: 14, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>-</div>
                             ) : (
