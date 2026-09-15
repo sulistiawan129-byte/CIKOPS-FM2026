@@ -10107,6 +10107,52 @@ function ActualCountCard({
   );
 }
 
+/** Jumlah slot ukuran yang benar-benar terisi untuk 1 peserta (skip
+ *  kosong/karakter rusak) — dipakai untuk filter ">5 baju" dan
+ *  kategori Single/Suami-Istri/Keluarga. */
+function countFilledSizes(r: GiftRegistration): number {
+  return r.selections.filter((s) => {
+    if (s.variant == null) return false;
+    const t = String(s.variant).trim();
+    return t !== "" && !/^\uFFFD+$/.test(t);
+  }).length;
+}
+
+/** Deteksi slot "anak" — berdasarkan NOMOR SLOT/KOLOM-nya (bukan
+ *  teks ukurannya), sesuai urutan sebenarnya:
+ *  slot 1 = Karyawan, slot 2 = Suami/Istri, slot 3-9 = Anak. */
+function isChildSlot(itemLabel: string): boolean {
+  const slotNum = parseInt(itemLabel, 10);
+  return !isNaN(slotNum) && slotNum >= 3;
+}
+function countChildren(r: GiftRegistration): number {
+  return r.selections.filter((s) => {
+    if (s.variant == null) return false;
+    const t = String(s.variant).trim();
+    if (t === "" || /^\uFFFD+$/.test(t)) return false;
+    return isChildSlot(s.item);
+  }).length;
+}
+
+type GiftCategory = "single" | "couple" | "family";
+
+/** Kategori berdasarkan jumlah orang dalam 1 pendaftaran (= jumlah
+ *  baju yang diterima, karena 1 baju = 1 orang):
+ *  1 orang = Single, 2 orang = Suami Istri, 3-9 orang = Keluarga. */
+function getGiftCategory(r: GiftRegistration): GiftCategory | null {
+  const total = countFilledSizes(r);
+  if (total === 0) return null; // tidak ada baju sama sekali — tidak masuk kategori manapun
+  if (countChildren(r) >= 1) return "family"; // ada slot 3-9 terisi = sudah punya anak
+  if (total === 1) return "single"; // cuma slot 1 (karyawan) terisi
+  return "couple"; // slot 1+2 terisi, tidak ada anak
+}
+
+const CATEGORY_LABEL: Record<GiftCategory, { id: string; en: string; icon: string }> = {
+  single: { id: "Single", en: "Single", icon: "👤" },
+  couple: { id: "Suami Istri", en: "Couple", icon: "💑" },
+  family: { id: "Keluarga", en: "Family", icon: "👨‍👩‍👧‍👦" },
+};
+
 /** Parse teks ukuran — kalau formatnya "size - Free Entry" (anak di
  *  bawah 2 tahun), pisahkan ukurannya dari label "Free Entry" dan
  *  tandai isFreeEntry=true. Slot Free Entry TETAP dapat baju, tapi
@@ -10116,6 +10162,125 @@ function parseGiftSize(variant: string): { size: string; isFreeEntry: boolean } 
   const m = /^(.*?)\s*-\s*free\s*entry\s*$/i.exec(t);
   if (m) return { size: m[1].trim(), isFreeEntry: true };
   return { size: t, isFreeEntry: false };
+}
+
+/** Export laporan Gift ke Excel dengan 2 SHEET terpisah:
+ *  1. "Ringkasan" — KPI & breakdown (mirip laporan modul lain)
+ *  2. "Data Karyawan" — 1 baris per karyawan, dengan rincian jumlah
+ *     peserta (diri sendiri, pasangan, anak) supaya bisa langsung
+ *     dipakai untuk keperluan operasional (bukan cuma ringkasan). */
+async function exportGiftReportExcel2Sheets(opts: {
+  lang: "id" | "en";
+  eventName: string;
+  filename: string;
+  kpis: { labelId: string; labelEn: string; value: string | number }[];
+  sizeBreakdown: [string, number][];
+  categoryCounts: Record<GiftCategory, number>;
+  regs: GiftRegistration[];
+}) {
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  const L = (id: string, en: string) => (opts.lang === "en" ? en : id);
+
+  // ── Sheet 1: Ringkasan ──
+  const wsSummary = wb.addWorksheet(L("Ringkasan", "Summary"));
+  let row = 1;
+  wsSummary.getCell(row, 1).value = "PT. Frisian Flag Indonesia - Plant Cikarang";
+  wsSummary.getCell(row, 1).font = { bold: true, size: 13 };
+  row++;
+  wsSummary.getCell(row, 1).value = `${L("Laporan Pembagian", "Distribution Report")} — ${opts.eventName}`;
+  wsSummary.getCell(row, 1).font = { bold: true, size: 12 };
+  row += 2;
+
+  wsSummary.getCell(row, 1).value = L("RINGKASAN", "SUMMARY");
+  wsSummary.getCell(row, 1).font = { bold: true, size: 12, color: { argb: "FF0F2847" } };
+  row++;
+  for (const k of opts.kpis) {
+    wsSummary.getCell(row, 1).value = opts.lang === "en" ? k.labelEn : k.labelId;
+    wsSummary.getCell(row, 2).value = k.value;
+    wsSummary.getCell(row, 2).font = { bold: true };
+    row++;
+  }
+  row++;
+
+  wsSummary.getCell(row, 1).value = L("Jumlah Peserta per Kategori", "Participants by Category");
+  wsSummary.getCell(row, 1).font = { bold: true, size: 11, color: { argb: "FF0F2847" } };
+  row++;
+  const catRows: [string, number][] = [
+    [L("Single (1 orang)", "Single (1 person)"), opts.categoryCounts.single],
+    [L("Suami Istri (2 orang)", "Couple (2 people)"), opts.categoryCounts.couple],
+    [L("Keluarga (3-9 orang)", "Family (3-9 people)"), opts.categoryCounts.family],
+  ];
+  for (const [label, count] of catRows) {
+    wsSummary.getCell(row, 1).value = label;
+    wsSummary.getCell(row, 2).value = count;
+    row++;
+  }
+  row++;
+
+  wsSummary.getCell(row, 1).value = L("Jumlah Baju per Ukuran", "Items by Size");
+  wsSummary.getCell(row, 1).font = { bold: true, size: 11, color: { argb: "FF0F2847" } };
+  row++;
+  const sizeHeaderRow = wsSummary.getRow(row);
+  sizeHeaderRow.getCell(1).value = L("Ukuran", "Size");
+  sizeHeaderRow.getCell(2).value = L("Jumlah", "Count");
+  sizeHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  sizeHeaderRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F2847" } };
+  sizeHeaderRow.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F2847" } };
+  row++;
+  for (const [size, count] of opts.sizeBreakdown) {
+    wsSummary.getCell(row, 1).value = size;
+    wsSummary.getCell(row, 2).value = count;
+    row++;
+  }
+  wsSummary.columns.forEach((col) => { col.width = 26; });
+
+  // ── Sheet 2: Data Karyawan ──
+  const wsData = wb.addWorksheet(L("Data Karyawan", "Employee Data"));
+  const headers = [
+    L("No. Urut", "Sequence No."), "NIK", L("Nama Karyawan", "Employee Name"),
+    L("Total Peserta", "Total Participants"), L("Diri Sendiri", "Self"),
+    L("Pasangan", "Spouse"), L("Jumlah Anak", "Number of Children"),
+    L("Departemen", "Department"), L("Lokasi Pengambilan", "Pickup Location"),
+    L("Kategori", "Category"), L("Status", "Status"),
+  ];
+  const headerRow = wsData.getRow(1);
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F2847" } };
+  });
+
+  opts.regs.forEach((r, i) => {
+    const total = countFilledSizes(r);
+    const anak = countChildren(r);
+    const pasangan = total >= 2 ? 1 : 0; // slot 2 = pasangan, sesuai urutan tetap (1=diri, 2=pasangan, 3-9=anak)
+    const cat = getGiftCategory(r);
+    const dataRow = wsData.getRow(i + 2);
+    dataRow.getCell(1).value = r.sequenceNo;
+    dataRow.getCell(2).value = r.nik;
+    dataRow.getCell(3).value = r.nama;
+    dataRow.getCell(4).value = total;
+    dataRow.getCell(5).value = total >= 1 ? 1 : 0;
+    dataRow.getCell(6).value = pasangan;
+    dataRow.getCell(7).value = anak;
+    dataRow.getCell(8).value = r.departemen;
+    dataRow.getCell(9).value = r.lokasiPengambilan;
+    dataRow.getCell(10).value = cat ? CATEGORY_LABEL[cat][opts.lang] : "-";
+    dataRow.getCell(11).value = r.claimed ? L("Sudah Diambil", "Claimed") : L("Belum Diambil", "Not Claimed");
+  });
+  wsData.columns.forEach((col) => { col.width = 18; });
+  wsData.getColumn(3).width = 28; // Nama lebih lebar
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${opts.filename}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" = "standard") {
@@ -10396,52 +10561,6 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     }
   }
 
-  /** Jumlah slot ukuran yang benar-benar terisi untuk 1 peserta (skip
-   *  kosong/karakter rusak) — dipakai untuk filter ">5 baju" dan
-   *  kategori Single/Suami-Istri/Keluarga. */
-  function countFilledSizes(r: GiftRegistration): number {
-    return r.selections.filter((s) => {
-      if (s.variant == null) return false;
-      const t = String(s.variant).trim();
-      return t !== "" && !/^\uFFFD+$/.test(t);
-    }).length;
-  }
-
-  /** Deteksi slot "anak" — berdasarkan NOMOR SLOT/KOLOM-nya (bukan
-   *  teks ukurannya), sesuai urutan sebenarnya:
-   *  slot 1 = Karyawan, slot 2 = Suami/Istri, slot 3-9 = Anak. */
-  function isChildSlot(itemLabel: string): boolean {
-    const slotNum = parseInt(itemLabel, 10);
-    return !isNaN(slotNum) && slotNum >= 3;
-  }
-  function countChildren(r: GiftRegistration): number {
-    return r.selections.filter((s) => {
-      if (s.variant == null) return false;
-      const t = String(s.variant).trim();
-      if (t === "" || /^\uFFFD+$/.test(t)) return false;
-      return isChildSlot(s.item);
-    }).length;
-  }
-
-  type GiftCategory = "single" | "couple" | "family";
-
-  /** Kategori berdasarkan jumlah orang dalam 1 pendaftaran (= jumlah
-   *  baju yang diterima, karena 1 baju = 1 orang):
-   *  1 orang = Single, 2 orang = Suami Istri, 3-9 orang = Keluarga. */
-  function getGiftCategory(r: GiftRegistration): GiftCategory | null {
-    const total = countFilledSizes(r);
-    if (total === 0) return null; // tidak ada baju sama sekali — tidak masuk kategori manapun
-    if (countChildren(r) >= 1) return "family"; // ada slot 3-9 terisi = sudah punya anak
-    if (total === 1) return "single"; // cuma slot 1 (karyawan) terisi
-    return "couple"; // slot 1+2 terisi, tidak ada anak
-  }
-
-  const CATEGORY_LABEL: Record<GiftCategory, { id: string; en: string; icon: string }> = {
-    single: { id: "Single", en: "Single", icon: "👤" },
-    couple: { id: "Suami Istri", en: "Couple", icon: "💑" },
-    family: { id: "Keluarga", en: "Family", icon: "👨‍👩‍👧‍👦" },
-  };
-
   // ── Filter komprehensif — bisa digabung (AND): kategori + ukuran + jumlah anak ──
   const [categoryFilter, setCategoryFilter] = useState<GiftCategory | "all">("all");
   const [showRangePrint, setShowRangePrint] = useState(false);
@@ -10609,7 +10728,17 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       ] as ReportColumn<GiftRegistration>[],
     };
     if (format === "csv") exportSummaryCsv(opts);
-    else if (format === "excel") exportSummaryExcel(opts);
+    else if (format === "excel") {
+      exportGiftReportExcel2Sheets({
+        lang: exportLang,
+        eventName: regEvent.name,
+        filename: `Laporan_Pembagian_${regEvent.name.replace(/\s+/g, "_")}`,
+        kpis: opts.kpis,
+        sizeBreakdown: giftKpis.sizeBreakdown,
+        categoryCounts: giftKpis.categoryCounts,
+        regs,
+      });
+    }
     else exportSummaryPdf(opts);
   });
 
