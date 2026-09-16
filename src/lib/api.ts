@@ -2203,6 +2203,15 @@ export async function findGiftRegistrationByNik(eventId: string, nik: string): P
   return mapGiftReg((data as GiftRegRow[])[0]);
 }
 
+/** Cari peserta by NAMA — bisa mengembalikan lebih dari 1 hasil
+ *  (beda dari NIK yang pasti unik), berguna kalau ada NIK yang
+ *  tertukar dengan nama orang lain di data sumber. */
+export async function findGiftRegistrationsByName(eventId: string, name: string): Promise<GiftRegistration[]> {
+  const { data, error } = await supabase.rpc("find_gift_registrations_by_name", { p_event_id: eventId, p_name: name.trim() });
+  if (error) throw error;
+  return ((data as GiftRegRow[]) ?? []).map(mapGiftReg);
+}
+
 /** Tandai barang sudah diambil — lewat RPC (bukan update tabel langsung),
  *  supaya tidak perlu policy UPDATE publik yang longgar. Dipakai baik
  *  mode "self_register" (passcode) maupun "lookup" (NIK). */
