@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { getGiftEvents, findGiftRegistrationByNik, claimGift } from "@/lib/api";
+import { getGiftEvents, findGiftRegistrationByNik, findGiftRegistrationsByName, claimGift } from "@/lib/api";
 import type { GiftEvent, GiftRegistration } from "@/lib/types";
 
 const NAVY = "#0F2847";
@@ -60,6 +60,9 @@ export default function GiftLookupPage() {
   const [events, setEvents] = useState<GiftEvent[]>([]);
   const [eventId, setEventId] = useState("");
   const [nik, setNik] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
+  const [nameResults, setNameResults] = useState<GiftRegistration[] | null>(null);
+  const [nameSearching, setNameSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [reg, setReg] = useState<GiftRegistration | null>(null);
@@ -116,6 +119,7 @@ export default function GiftLookupPage() {
     setError("");
     setReg(null);
     setClaimed(false);
+    setNameResults(null);
     try {
       const result = await findGiftRegistrationByNik(eventId, nik.trim());
       if (!result) { setError("NIK tidak ditemukan di program ini."); return; }
@@ -124,6 +128,27 @@ export default function GiftLookupPage() {
       setError("Gagal mencari data. Periksa koneksi internet.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSearchByName(e: React.FormEvent) {
+    e.preventDefault();
+    if (!eventId) { setError("Pilih program terlebih dahulu."); return; }
+    if (!nameQuery.trim()) { setError("Masukkan nama."); return; }
+    setNameSearching(true);
+    setError("");
+    setReg(null);
+    setClaimed(false);
+    setNameResults(null);
+    try {
+      const results = await findGiftRegistrationsByName(eventId, nameQuery.trim());
+      if (results.length === 0) { setError("Nama tidak ditemukan di program ini."); return; }
+      if (results.length === 1) { setReg(results[0]); return; }
+      setNameResults(results); // lebih dari 1 — biarkan operator pilih yang benar
+    } catch {
+      setError("Gagal mencari data. Periksa koneksi internet.");
+    } finally {
+      setNameSearching(false);
     }
   }
 
@@ -152,7 +177,8 @@ export default function GiftLookupPage() {
   }
 
   function reset() {
-    setNik(""); setReg(null); setError(""); setClaimed(false); setPetugas("");
+    setNik(""); setReg(null); setError(""); setClaimed(false);
+    setNameQuery(""); setNameResults(null);
     setTimeout(() => nikInputRef.current?.focus(), 50);
   }
 
@@ -233,7 +259,7 @@ export default function GiftLookupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSearch} style={{ background: "#fff", borderRadius: 24, padding: "28px 24px", boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 20 }}>
+          <form onSubmit={handleSearch} style={{ background: "#fff", borderRadius: 24, padding: "28px 24px", boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 14 }}>
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.06em", textAlign: "center", marginBottom: 14 }}>
               NIK KARYAWAN
             </label>
@@ -243,7 +269,7 @@ export default function GiftLookupPage() {
               inputMode="numeric"
               autoFocus
               value={nik}
-              onChange={(e) => { setNik(e.target.value.replace(/\D/g, "")); setError(""); setReg(null); }}
+              onChange={(e) => { setNik(e.target.value.replace(/\D/g, "")); setError(""); setReg(null); setNameResults(null); }}
               placeholder="000000"
               disabled={loading}
               style={{
@@ -253,11 +279,6 @@ export default function GiftLookupPage() {
                 boxSizing: "border-box", marginBottom: 18, transition: "border-color 0.15s ease",
               }}
             />
-            {error && (
-              <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "14px 18px", color: "#dc2626", fontSize: 15, fontWeight: 700, textAlign: "center", marginBottom: 16 }}>
-                {error}
-              </div>
-            )}
             <button
               type="submit"
               disabled={loading || !nik.trim() || !eventId}
@@ -272,6 +293,75 @@ export default function GiftLookupPage() {
               {loading ? "Mencari..." : "🔍  CARI"}
             </button>
           </form>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 14px" }}>
+            <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#a0aac0" }}>ATAU CARI BY NAMA</span>
+            <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
+          </div>
+
+          <form onSubmit={handleSearchByName} style={{ background: "#fff", borderRadius: 24, padding: "28px 24px", boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.06em", textAlign: "center", marginBottom: 14 }}>
+              NAMA KARYAWAN
+            </label>
+            <input
+              type="text"
+              value={nameQuery}
+              onChange={(e) => { setNameQuery(e.target.value); setError(""); setReg(null); setNameResults(null); }}
+              placeholder="Ketik nama..."
+              disabled={nameSearching}
+              style={{
+                width: "100%", padding: "26px 16px", borderRadius: 20, border: `3px solid ${nameQuery ? NAVY : "#dbe4f0"}`,
+                background: "#f6f8fc", fontSize: "clamp(22px, 5vw, 30px)", fontWeight: 800,
+                textAlign: "center", color: NAVY, outline: "none",
+                boxSizing: "border-box", marginBottom: 18, transition: "border-color 0.15s ease",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={nameSearching || !nameQuery.trim() || !eventId}
+              style={{
+                width: "100%", padding: "22px", borderRadius: 18, border: "none",
+                background: nameQuery.trim() && eventId ? `linear-gradient(135deg, ${NAVY}, ${NAVY_LIGHT})` : "#e5e7eb",
+                color: nameQuery.trim() && eventId ? "#fff" : "#9ca3af",
+                fontWeight: 800, fontSize: 22, cursor: nameQuery.trim() && eventId ? "pointer" : "default",
+                boxShadow: nameQuery.trim() && eventId ? "0 6px 20px rgba(15,40,71,0.3)" : "none",
+              }}
+            >
+              {nameSearching ? "Mencari..." : "🔍  CARI"}
+            </button>
+          </form>
+
+          {error && (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "14px 18px", color: "#dc2626", fontSize: 15, fontWeight: 700, textAlign: "center", marginBottom: 20 }}>
+              {error}
+            </div>
+          )}
+
+          {nameResults && nameResults.length > 1 && (
+            <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#7c8aa0", marginBottom: 12 }}>
+                {nameResults.length} orang ditemukan dengan nama serupa — pilih yang benar:
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {nameResults.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => { setReg(r); setNameResults(null); }}
+                    style={{
+                      textAlign: "left", padding: "14px 16px", borderRadius: 14, border: "2px solid #dbe4f0",
+                      background: "#f6f8fc", cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 15, color: NAVY }}>{r.nama}</div>
+                    <div style={{ fontSize: 12.5, color: "#7c8aa0", marginTop: 2 }}>
+                      NIK: {r.nik} &middot; {r.departemen || "-"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ flex: 1, width: "100%", minWidth: 0 }}>
