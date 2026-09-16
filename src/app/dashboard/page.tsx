@@ -10592,39 +10592,10 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 
   // ── Filter komprehensif — bisa digabung (AND): kategori + ukuran + jumlah anak ──
   const [categoryFilter, setCategoryFilter] = useState<GiftCategory | "all">("all");
-  const [showRangePrint, setShowRangePrint] = useState(false);
-  const [rangeInput, setRangeInput] = useState("");
-
-  /** Cetak label untuk NOMOR URUT tertentu saja — bisa berupa range
-   *  ("100-200"), daftar koma ("5,10,15"), atau campuran keduanya
-   *  ("1-3,7,20-25"). */
-  function printByNumberRange() {
-    const parts = rangeInput.split(",").map((p) => p.trim()).filter(Boolean);
-    const wanted = new Set<string>();
-    for (const part of parts) {
-      const rangeMatch = /^(\d+)\s*-\s*(\d+)$/.exec(part);
-      if (rangeMatch) {
-        const start = parseInt(rangeMatch[1], 10);
-        const end = parseInt(rangeMatch[2], 10);
-        for (let n = Math.min(start, end); n <= Math.max(start, end); n++) wanted.add(String(n));
-      } else if (/^\d+$/.test(part)) {
-        wanted.add(part);
-      }
-    }
-    if (wanted.size === 0) { alert("Format nomor tidak valid. Contoh: 100-200 atau 5,10,15"); return; }
-    const selected = regs.filter((r) => wanted.has(r.sequenceNo.trim()));
-    if (selected.length === 0) { alert("Tidak ada peserta dengan nomor urut tersebut."); return; }
-    printGiftLabels(selected);
-    setShowRangePrint(false);
-    setRangeInput("");
-  }
   const [sizeFilter, setSizeFilter] = useState<string>("all");
   const [childrenFilter, setChildrenFilter] = useState<"all" | "0" | "1" | "2plus">("all");
   const [claimFilter, setClaimFilter] = useState<"all" | "claimed" | "not_claimed">("all");
   const [giftSearch, setGiftSearch] = useState("");
-
-  const regsManyItems = useMemo(() => regs.filter((r) => countFilledSizes(r) > 5), [regs]);
-  const regsWithFreeEntry = useMemo(() => regs.filter((r) => (r.anakDibawah2Tahun ?? 0) > 0), [regs]);
 
   const giftKpis = useMemo(() => {
     const sizeCounts = new Map<string, number>();
@@ -10827,59 +10798,11 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <>
             <ReportExportButtons onExport={giftReportExportPicker.requestExport} disabled={regs.length === 0} />
             <button
-              onClick={() => printGiftLabels(regs.filter((r) => countFilledSizes(r) <= 5))}
+              onClick={() => printGiftLabels(regs, "large")}
               style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
             >
-              🖨️ Cetak Label (≤5 Baju)
+              🖨️ Cetak Label (3×3)
             </button>
-            {regsManyItems.length > 0 && (
-              <button
-                onClick={() => printGiftLabels(regsManyItems, "large")}
-                title="Cetak khusus peserta dengan >5 baju, kotak diperbesar (3x3) supaya tidak kepotong"
-                style={{ background: "#a87c1f", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              >
-                🖨️ Cetak Label &gt;5 Baju ({regsManyItems.length}) — 3×3
-              </button>
-            )}
-            {regsWithFreeEntry.length > 0 && (
-              <button
-                onClick={() => printGiftLabels(regsWithFreeEntry, "large")}
-                title="Cetak khusus peserta yang punya Anak <2 Tahun"
-                style={{ background: "#dc2626", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              >
-                👶 Cetak Label Anak &lt;2 Tahun ({regsWithFreeEntry.length})
-              </button>
-            )}
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() => setShowRangePrint((v) => !v)}
-                style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 10, padding: "8px 14px", color: "var(--t1)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              >
-                🖨️ Cetak Nomor Tertentu
-              </button>
-              {showRangePrint && (
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "var(--surface)", border: "1px solid var(--border2)", borderRadius: 12, padding: 14, boxShadow: "var(--shadow-lg)", zIndex: 50, width: 260 }}>
-                  <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 8 }}>
-                    Contoh: <code>100-200</code> atau <code>5,10,15</code> atau campuran <code>1-3,7,20-25</code>
-                  </div>
-                  <input
-                    value={rangeInput}
-                    onChange={(e) => setRangeInput(e.target.value)}
-                    placeholder="Nomor urut..."
-                    className={styles.formInput}
-                    style={{ width: "100%", marginBottom: 8 }}
-                    onKeyDown={(e) => { if (e.key === "Enter") printByNumberRange(); }}
-                    autoFocus
-                  />
-                  <button
-                    onClick={printByNumberRange}
-                    style={{ width: "100%", background: "var(--brand)", border: "none", borderRadius: 8, padding: "8px 0", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-                  >
-                    Cetak
-                  </button>
-                </div>
-              )}
-            </div>
           </>
         )}
       </div>
