@@ -337,13 +337,13 @@ export default function GiftLookupPage() {
                       return (
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                            <div style={{ background: "#eef2fb", borderRadius: 12, padding: "10px 14px" }}>
-                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#7c8aa0", marginBottom: 2 }}>TOTAL BAJU</div>
-                              <div style={{ fontSize: 20, fontWeight: 900, color: NAVY }}>{filledSizes.length}</div>
+                            <div style={{ background: "#eef2fb", borderRadius: 12, padding: "14px 16px" }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "#7c8aa0", marginBottom: 4 }}>TOTAL BAJU</div>
+                              <div style={{ fontSize: 34, fontWeight: 900, color: NAVY }}>{filledSizes.length}</div>
                             </div>
-                            <div style={{ background: "#fff8e6", borderRadius: 12, padding: "10px 14px" }}>
-                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "#a87c1f", marginBottom: 2 }}>🎟️ TIKET EVENT</div>
-                              <div style={{ fontSize: 20, fontWeight: 900, color: "#a87c1f" }}>{effectiveTiket}</div>
+                            <div style={{ background: "#fff8e6", borderRadius: 12, padding: "14px 16px" }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "#a87c1f", marginBottom: 4 }}>🎟️ TIKET EVENT</div>
+                              <div style={{ fontSize: 34, fontWeight: 900, color: "#a87c1f" }}>{effectiveTiket}</div>
                             </div>
                           </div>
                           {(reg.anakDibawah2Tahun ?? 0) > 0 && (
@@ -359,12 +359,12 @@ export default function GiftLookupPage() {
                                 <div
                                   key={i}
                                   style={{
-                                    padding: "9px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+                                    padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center",
                                     borderBottom: i < parsed.length - 1 ? "1px solid #eef2f9" : "none",
                                   }}
                                 >
-                                  <span style={{ fontSize: 13, color: "#7c8aa0", fontWeight: 700 }}>{i + 1}</span>
-                                  <span style={{ fontSize: 15, fontWeight: 800, color: NAVY }}>{s.parsed.size}</span>
+                                  <span style={{ fontSize: 18, color: "#7c8aa0", fontWeight: 800 }}>{i + 1}</span>
+                                  <span style={{ fontSize: 26, fontWeight: 900, color: NAVY }}>{s.parsed.size}</span>
                                 </div>
                               ))
                             )}
