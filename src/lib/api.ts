@@ -2057,6 +2057,7 @@ interface GiftEventRow {
   items: GiftItemDef[]; status: "open" | "closed"; plant: string | null;
   mode?: string;
   actual_baju_count: number | null; actual_tiket_count: number | null;
+  actual_stock_per_size?: Record<string, number> | null;
   created_at: string; updated_at: string;
 }
 interface GiftRegRow {
@@ -2073,6 +2074,7 @@ function mapGiftEvent(r: GiftEventRow): GiftEvent {
     items: r.items ?? [], status: r.status, plant: r.plant,
     mode: (r.mode as "self_register" | "lookup") ?? "self_register",
     actualBajuCount: r.actual_baju_count, actualTiketCount: r.actual_tiket_count,
+    actualStockPerSize: r.actual_stock_per_size ?? null,
     createdAt: r.created_at, updatedAt: r.updated_at };
 }
 function mapGiftReg(r: GiftRegRow): GiftRegistration {
@@ -2121,6 +2123,16 @@ export async function updateGiftEvent(id: string, input: {
 export async function updateGiftEventActualCounts(id: string, input: { actualBajuCount: number | null; actualTiketCount: number | null }): Promise<void> {
   const { error } = await supabase.from("gift_events")
     .update({ actual_baju_count: input.actualBajuCount, actual_tiket_count: input.actualTiketCount, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Simpan stok baju AKTUAL per ukuran (mis. {"XL": 500, "L": 300}) —
+ *  dipakai untuk hitung sisa stok otomatis (aktual dikurangi yang
+ *  sudah diambil). */
+export async function updateGiftEventStockPerSize(id: string, stockPerSize: Record<string, number>): Promise<void> {
+  const { error } = await supabase.from("gift_events")
+    .update({ actual_stock_per_size: stockPerSize, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
 }

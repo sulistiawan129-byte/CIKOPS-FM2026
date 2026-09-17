@@ -485,6 +485,7 @@ export interface GiftEvent {
   mode: "self_register" | "lookup"; // self_register: karyawan daftar sendiri; lookup: admin import, karyawan cukup kasih NIK
   actualBajuCount: number | null; // diisi manual admin — jumlah baju fisik yang datang
   actualTiketCount: number | null; // diisi manual admin — jumlah tiket fisik yang datang
+  actualStockPerSize: Record<string, number> | null; // diisi manual admin — stok fisik per ukuran, mis. {"XL": 500, "L": 300}
   createdAt: string;
   updatedAt: string;
 }
