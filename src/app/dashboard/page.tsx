@@ -51,6 +51,7 @@ import {
   createGiftEvent,
   updateGiftEvent,
   updateGiftEventActualCounts,
+  updateGiftEventStockPerSize,
   deleteGiftEvent,
   bulkImportGiftRegistrations,
   unclaimGiftRegistration,
@@ -10297,6 +10298,112 @@ async function exportGiftReportExcel2Sheets(opts: {
   URL.revokeObjectURL(url);
 }
 
+/** Kartu "Stok Baju per Ukuran" — admin isi stok fisik yang datang
+ *  UNTUK TIAP UKURAN, sistem otomatis hitung Sisa = Stok Aktual −
+ *  Jumlah yang SUDAH DIAMBIL (dari peserta claimed=true saja). */
+function StockPerSizeCard({
+  sizeBreakdown, claimedSizeCounts, actualStockPerSize, onSave,
+}: {
+  sizeBreakdown: [string, number][];
+  claimedSizeCounts: Map<string, number>;
+  actualStockPerSize: Record<string, number> | null;
+  onSave: (stock: Record<string, number>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    const initial: Record<string, string> = {};
+    for (const [size] of sizeBreakdown) {
+      const v = actualStockPerSize?.[size];
+      initial[size] = v != null ? String(v) : "";
+    }
+    setDrafts(initial);
+    setEditing(true);
+  }
+
+  async function handleSaveAll() {
+    setSaving(true);
+    try {
+      const stock: Record<string, number> = {};
+      for (const [size] of sizeBreakdown) {
+        const raw = drafts[size];
+        const n = raw != null && raw.trim() !== "" ? parseInt(raw, 10) : NaN;
+        if (!isNaN(n)) stock[size] = n;
+      }
+      await onSave(stock);
+      setEditing(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal menyimpan stok.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)" }}>STOK BAJU PER UKURAN (SISA SETELAH PEMBAGIAN)</div>
+        {!editing ? (
+          <button onClick={startEdit} style={{ background: "none", border: "none", color: "var(--brand)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+            ✏️ Isi/Edit Stok Aktual
+          </button>
+        ) : (
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", color: "var(--t3)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+              Batal
+            </button>
+            <button onClick={handleSaveAll} disabled={saving} style={{ background: "var(--brand)", border: "none", borderRadius: 8, padding: "5px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+              {saving ? "Menyimpan..." : "Simpan Semua"}
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr>
+              {["Ukuran", "Stok Aktual", "Sudah Diambil", "Sisa"].map((h, i) => (
+                <th key={h} style={{ textAlign: i === 0 ? "left" : "right", padding: "6px 10px", fontSize: 11, color: "var(--t3)", textTransform: "uppercase", borderBottom: "1px solid var(--border)" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sizeBreakdown.map(([size]) => {
+              const diambil = claimedSizeCounts.get(size) ?? 0;
+              const aktual = actualStockPerSize?.[size];
+              const sisa = aktual != null ? aktual - diambil : null;
+              return (
+                <tr key={size} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "8px 10px", fontWeight: 700, color: "var(--t1)" }}>{size}</td>
+                  <td style={{ padding: "8px 10px", textAlign: "right" }}>
+                    {editing ? (
+                      <input
+                        type="number"
+                        value={drafts[size] ?? ""}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [size]: e.target.value }))}
+                        className={styles.formInput}
+                        style={{ width: 90, padding: "4px 8px", textAlign: "right" }}
+                      />
+                    ) : (
+                      <span style={{ color: "var(--t2)" }}>{aktual ?? "-"}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "8px 10px", textAlign: "right", color: "var(--t2)" }}>{diambil}</td>
+                  <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 800, color: sisa == null ? "var(--t3)" : sisa < 0 ? "var(--red)" : "var(--green)" }}>
+                    {sisa ?? "-"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" = "standard") {
   const w = window.open("", "_blank", "width=850,height=1000");
   if (!w) return;
@@ -10599,11 +10706,13 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 
   const giftKpis = useMemo(() => {
     const sizeCounts = new Map<string, number>();
+    const claimedSizeCounts = new Map<string, number>(); // cuma dari peserta yang SUDAH mengambil
     const categoryCounts: Record<GiftCategory, number> = { single: 0, couple: 0, family: 0 };
     const categorySizeCounts: Record<GiftCategory, Map<string, number>> = { single: new Map(), couple: new Map(), family: new Map() };
     let totalChildren = 0;
     let regsWithChildren = 0;
     let totalTiket = 0;
+    let claimedTiket = 0; // tiket yang sudah "keluar" (dari peserta claimed=true)
     let totalAnakDibawah2 = 0;
     for (const r of regs) {
       const cat = getGiftCategory(r);
@@ -10611,7 +10720,9 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       const childCount = countChildren(r);
       totalChildren += childCount;
       if (childCount > 0) regsWithChildren++;
-      totalTiket += getEffectiveTicketCount(r); // Jumlah Tiket (CSV) dikurangi Anak <2 Tahun
+      const effTiket = getEffectiveTicketCount(r); // Jumlah Tiket (CSV) dikurangi Anak <2 Tahun
+      totalTiket += effTiket;
+      if (r.claimed) claimedTiket += effTiket;
       totalAnakDibawah2 += r.anakDibawah2Tahun ?? 0;
       for (const s of r.selections) {
         if (s.variant == null) continue;
@@ -10619,6 +10730,7 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         if (raw === "" || /^\uFFFD+$/.test(raw)) continue;
         const parsed = parseGiftSize(raw);
         sizeCounts.set(parsed.size, (sizeCounts.get(parsed.size) ?? 0) + 1);
+        if (r.claimed) claimedSizeCounts.set(parsed.size, (claimedSizeCounts.get(parsed.size) ?? 0) + 1);
         if (cat) categorySizeCounts[cat].set(parsed.size, (categorySizeCounts[cat].get(parsed.size) ?? 0) + 1);
       }
     }
@@ -10631,8 +10743,10 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       notClaimedCount: regs.length - claimedCount,
       totalBaju,
       totalTiket, // sekarang murni dari kolom "Jumlah Tiket" di CSV, independen dari data baju
+      claimedTiket,
       totalAnakDibawah2,
       sizeBreakdown,
+      claimedSizeCounts, // Map<ukuran, jumlah sudah diambil> — dipakai untuk hitung sisa stok
       categoryCounts,
       totalChildren,
       regsWithChildren,
@@ -10855,10 +10969,31 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
       )}
 
+      {regEvent.mode === "lookup" && regEvent.actualTiketCount != null && (
+        <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+          🎟️ Sisa Tiket saat ini: <b style={{ color: (regEvent.actualTiketCount - giftKpis.claimedTiket) < 0 ? "var(--red)" : "var(--green)" }}>{regEvent.actualTiketCount - giftKpis.claimedTiket}</b>
+          <span style={{ color: "var(--t3)" }}>({regEvent.actualTiketCount} aktual − {giftKpis.claimedTiket} sudah diambil)</span>
+        </div>
+      )}
+
       {regEvent.mode === "lookup" && giftKpis.totalAnakDibawah2 > 0 && (
         <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
           👶 <b>{giftKpis.totalAnakDibawah2}</b> anak di bawah 2 tahun terdaftar. Jumlah Tiket dihitung dari kolom &quot;Jumlah Tiket&quot; di CSV (independen dari jumlah baju).
         </div>
+      )}
+
+      {regEvent.mode === "lookup" && giftKpis.sizeBreakdown.length > 0 && (
+        <StockPerSizeCard
+          sizeBreakdown={giftKpis.sizeBreakdown}
+          claimedSizeCounts={giftKpis.claimedSizeCounts}
+          actualStockPerSize={regEvent.actualStockPerSize}
+          onSave={async (stock) => {
+            await updateGiftEventStockPerSize(regEvent.id, stock);
+            const fresh = await getGiftEvents();
+            const updated = fresh.find((e) => e.id === regEvent.id);
+            if (updated) setRegEvent(updated);
+          }}
+        />
       )}
 
       {regEvent.mode === "lookup" && giftKpis.sizeBreakdown.length > 0 && (
@@ -11013,8 +11148,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                     {r.selections.filter(s => s.variant != null && String(s.variant).trim() !== "" && !/^\uFFFD+$/.test(String(s.variant).trim())).map(s => {
                       const parsed = parseGiftSize(String(s.variant));
                       return (
-                        <span key={s.item} style={{ fontSize: 11, background: parsed.isFreeEntry ? "#fef2f2" : "var(--bg2)", color: parsed.isFreeEntry ? "#dc2626" : "var(--t1)", borderRadius: 6, padding: "2px 8px", marginRight: 4, whiteSpace: "nowrap", fontWeight: parsed.isFreeEntry ? 700 : 400 }}>
-                          {s.item} ({parsed.size}){parsed.isFreeEntry ? " 🎫✕" : ""}
+                        <span key={s.item} style={{ fontSize: 11, background: "var(--bg2)", color: "var(--t1)", borderRadius: 6, padding: "2px 8px", marginRight: 4, whiteSpace: "nowrap" }}>
+                          {s.item} ({parsed.size})
                         </span>
                       );
                     })}
