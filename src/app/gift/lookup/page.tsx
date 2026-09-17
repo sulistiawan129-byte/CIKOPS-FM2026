@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { getGiftEvents, findGiftRegistrationByNik, findGiftRegistrationsByName, claimGift } from "@/lib/api";
+import { getGiftEvents, findGiftRegistrationByNik, findGiftRegistrationsByName, findGiftRegistrationsBySequenceNo, claimGift } from "@/lib/api";
 import type { GiftEvent, GiftRegistration } from "@/lib/types";
 
 const NAVY = "#0F2847";
@@ -63,6 +63,8 @@ export default function GiftLookupPage() {
   const [nameQuery, setNameQuery] = useState("");
   const [nameResults, setNameResults] = useState<GiftRegistration[] | null>(null);
   const [nameSearching, setNameSearching] = useState(false);
+  const [noQuery, setNoQuery] = useState("");
+  const [noSearching, setNoSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [reg, setReg] = useState<GiftRegistration | null>(null);
@@ -152,6 +154,27 @@ export default function GiftLookupPage() {
     }
   }
 
+  async function handleSearchByNo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!eventId) { setError("Pilih program terlebih dahulu."); return; }
+    if (!noQuery.trim()) { setError("Masukkan No. Urut."); return; }
+    setNoSearching(true);
+    setError("");
+    setReg(null);
+    setClaimed(false);
+    setNameResults(null);
+    try {
+      const results = await findGiftRegistrationsBySequenceNo(eventId, noQuery.trim());
+      if (results.length === 0) { setError("No. Urut tidak ditemukan di program ini."); return; }
+      if (results.length === 1) { setReg(results[0]); return; }
+      setNameResults(results); // jarang terjadi, tapi jaga-jaga kalau No. Urut dobel
+    } catch {
+      setError("Gagal mencari data. Periksa koneksi internet.");
+    } finally {
+      setNoSearching(false);
+    }
+  }
+
   async function handleClaim() {
     if (!reg || !petugas.trim()) return;
     setClaiming(true);
@@ -178,7 +201,7 @@ export default function GiftLookupPage() {
 
   function reset() {
     setNik(""); setReg(null); setError(""); setClaimed(false);
-    setNameQuery(""); setNameResults(null);
+    setNameQuery(""); setNameResults(null); setNoQuery("");
     setTimeout(() => nikInputRef.current?.focus(), 50);
   }
 
@@ -332,6 +355,45 @@ export default function GiftLookupPage() {
             </button>
           </form>
 
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 14px" }}>
+            <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#a0aac0" }}>ATAU CARI BY NO. URUT</span>
+            <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
+          </div>
+
+          <form onSubmit={handleSearchByNo} style={{ background: "#fff", borderRadius: 24, padding: "28px 24px", boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.06em", textAlign: "center", marginBottom: 14 }}>
+              NO. URUT
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={noQuery}
+              onChange={(e) => { setNoQuery(e.target.value.replace(/\D/g, "")); setError(""); setReg(null); setNameResults(null); }}
+              placeholder="000"
+              disabled={noSearching}
+              style={{
+                width: "100%", padding: "26px 16px", borderRadius: 20, border: `3px solid ${noQuery ? NAVY : "#dbe4f0"}`,
+                background: "#f6f8fc", fontSize: "clamp(36px, 9vw, 56px)", fontWeight: 900, letterSpacing: "0.05em",
+                fontFamily: "monospace", textAlign: "center", color: NAVY, outline: "none",
+                boxSizing: "border-box", marginBottom: 18, transition: "border-color 0.15s ease",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={noSearching || !noQuery.trim() || !eventId}
+              style={{
+                width: "100%", padding: "22px", borderRadius: 18, border: "none",
+                background: noQuery.trim() && eventId ? `linear-gradient(135deg, ${NAVY}, ${NAVY_LIGHT})` : "#e5e7eb",
+                color: noQuery.trim() && eventId ? "#fff" : "#9ca3af",
+                fontWeight: 800, fontSize: 22, cursor: noQuery.trim() && eventId ? "pointer" : "default",
+                boxShadow: noQuery.trim() && eventId ? "0 6px 20px rgba(15,40,71,0.3)" : "none",
+              }}
+            >
+              {noSearching ? "Mencari..." : "🔍  CARI"}
+            </button>
+          </form>
+
           {error && (
             <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "14px 18px", color: "#dc2626", fontSize: 15, fontWeight: 700, textAlign: "center", marginBottom: 20 }}>
               {error}
@@ -341,7 +403,7 @@ export default function GiftLookupPage() {
           {nameResults && nameResults.length > 1 && (
             <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#7c8aa0", marginBottom: 12 }}>
-                {nameResults.length} orang ditemukan dengan nama serupa — pilih yang benar:
+                {nameResults.length} orang ditemukan — pilih yang benar:
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {nameResults.map((r) => (
