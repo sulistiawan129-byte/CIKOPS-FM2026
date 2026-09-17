@@ -2224,6 +2224,15 @@ export async function findGiftRegistrationsByName(eventId: string, name: string)
   return ((data as GiftRegRow[]) ?? []).map(mapGiftReg);
 }
 
+/** Cari peserta by NO. URUT — bisa mengembalikan lebih dari 1 hasil
+ *  (No. Urut tidak dijamin unik di database, meski biasanya unik
+ *  secara praktik). */
+export async function findGiftRegistrationsBySequenceNo(eventId: string, no: string): Promise<GiftRegistration[]> {
+  const { data, error } = await supabase.rpc("find_gift_registration_by_sequence_no", { p_event_id: eventId, p_no: no.trim() });
+  if (error) throw error;
+  return ((data as GiftRegRow[]) ?? []).map(mapGiftReg);
+}
+
 /** Tandai barang sudah diambil — lewat RPC (bukan update tabel langsung),
  *  supaya tidak perlu policy UPDATE publik yang longgar. Dipakai baik
  *  mode "self_register" (passcode) maupun "lookup" (NIK). */
