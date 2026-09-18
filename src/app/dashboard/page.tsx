@@ -54,6 +54,7 @@ import {
   updateGiftEventStockPerSize,
   deleteGiftEvent,
   bulkImportGiftRegistrations,
+  upsertGiftRegistrations,
   unclaimGiftRegistration,
   claimGift,
   getGiftRegistrations,
@@ -10556,7 +10557,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   // Import CSV (mode lookup)
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ inserted: number; duplicates: string[] } | null>(null);
+  const [importMode, setImportMode] = useState<"insert" | "update">("insert");
+  const [importResult, setImportResult] = useState<{ inserted?: number; duplicates?: string[]; processed?: number } | null>(null);
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -10626,10 +10628,14 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     };
 
     const results: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[] = [];
+    let emptyNikCounter = 0; // untuk NIK kosong — dikasih placeholder unik "0-1", "0-2", dst, supaya baris tetap ke-import (tidak di-skip diam-diam)
     for (const line of lines.slice(1)) {
       const cols = line.split(",").map((c) => c.trim());
-      const nik = cols[iNik] ?? "";
-      if (!nik) continue;
+      let nik = cols[iNik] ?? "";
+      if (!nik) {
+        emptyNikCounter++;
+        nik = `0-${emptyNikCounter}`;
+      }
 
       const selections: GiftSelection[] = [];
       for (const slot of slotCols) {
@@ -10666,8 +10672,13 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       const text = await csvFile.text();
       const rows = parseGiftCsv(text);
       if (rows.length === 0) { alert("Tidak ada data valid di file CSV."); return; }
-      const result = await bulkImportGiftRegistrations(regEvent.id, rows);
-      setImportResult(result);
+      if (importMode === "update") {
+        const result = await upsertGiftRegistrations(regEvent.id, rows);
+        setImportResult(result);
+      } else {
+        const result = await bulkImportGiftRegistrations(regEvent.id, rows);
+        setImportResult(result);
+      }
       setRegs(await getGiftRegistrations(regEvent.id));
       setCsvFile(null);
     } catch (e) {
@@ -11021,8 +11032,40 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       {regEvent.mode === "lookup" && (
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 6 }}>📥 Import Data dari CSV</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button
+              onClick={() => setImportMode("insert")}
+              style={{
+                padding: "6px 14px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                background: importMode === "insert" ? "var(--brand)" : "var(--surface)",
+                color: importMode === "insert" ? "#fff" : "var(--t2)",
+              }}
+            >
+              📥 Import Data Baru
+            </button>
+            <button
+              onClick={() => setImportMode("update")}
+              style={{
+                padding: "6px 14px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                background: importMode === "update" ? "var(--brand)" : "var(--surface)",
+                color: importMode === "update" ? "#fff" : "var(--t2)",
+              }}
+            >
+              🔄 Update Data Existing
+            </button>
+          </div>
           <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 12 }}>
-            Kolom wajib: <code>Nama</code>, <code>NIK/Global ID</code>. Kolom opsional yang dikenali: <code>No, Departemen, Lokasi Pengambilan, Email, Jumlah Tiket, Jumlah Anak &lt; 2 tahun, Status</code>. <strong>Kolom lain apapun namanya</strong> (misal <code>1, 2, 3...9</code>) otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.
+            {importMode === "update" ? (
+              <>
+                Mode <strong>Update</strong>: NIK yang <strong>sudah ada</strong> akan diperbarui (nama, ukuran, dll) dari data CSV terbaru — <strong>status "sudah/belum diambil" TIDAK berubah</strong>. NIK yang belum ada akan ditambahkan sebagai baris baru. Cocok untuk perbaiki data yang salah tanpa kehilangan progres pengambilan.
+              </>
+            ) : (
+              <>
+                Kolom wajib: <code>Nama</code>, <code>NIK/Global ID</code>. Kolom opsional yang dikenali: <code>No, Departemen, Lokasi Pengambilan, Email, Jumlah Tiket, Jumlah Anak &lt; 2 tahun, Status</code>. <strong>Kolom lain apapun namanya</strong> (misal <code>1, 2, 3...9</code>) otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.
+                <br />
+                ⚠️ Baris dengan <strong>NIK kosong</strong> tetap di-import (tidak dilewati) dengan NIK sementara <code>0-1</code>, <code>0-2</code>, dst — mohon cek &amp; perbaiki manual di tabel Peserta setelah import.
+              </>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <input type="file" accept=".csv" onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12, color: "var(--t2)" }} />
@@ -11031,16 +11074,22 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
               disabled={!csvFile || importing}
               style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: !csvFile || importing ? "default" : "pointer", opacity: !csvFile || importing ? 0.6 : 1 }}
             >
-              {importing ? "Mengimpor..." : "Import"}
+              {importing ? "Memproses..." : importMode === "update" ? "Update" : "Import"}
             </button>
           </div>
           {importResult && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--t2)" }}>
-              ✅ {importResult.inserted} data berhasil ditambahkan.
-              {importResult.duplicates.length > 0 && (
-                <div style={{ color: "var(--orange-text)", marginTop: 4 }}>
-                  ⚠️ {importResult.duplicates.length} NIK dilewati karena sudah ada di event ini: {importResult.duplicates.join(", ")}
-                </div>
+              {importResult.processed != null ? (
+                <>✅ {importResult.processed} data berhasil diperbarui/ditambahkan (status klaim tidak berubah).</>
+              ) : (
+                <>
+                  ✅ {importResult.inserted} data berhasil ditambahkan.
+                  {importResult.duplicates && importResult.duplicates.length > 0 && (
+                    <div style={{ color: "var(--orange-text)", marginTop: 4 }}>
+                      ⚠️ {importResult.duplicates.length} NIK dilewati karena sudah ada di event ini: {importResult.duplicates.join(", ")}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
