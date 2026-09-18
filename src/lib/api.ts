@@ -2150,6 +2150,16 @@ export async function getGiftRegistrations(eventId: string): Promise<GiftRegistr
   // benar-benar habis — kalau tidak, sisa peserta di atas baris ke-1000
   // tidak akan pernah muncul di tabel admin, KPI, cetak label, maupun
   // export laporan.
+  //
+  // ⚠️ PENTING JUGA: urutan HARUS stabil/deterministik. Kalau cuma
+  // pakai .order("registered_at") saja, banyak baris hasil BATCH
+  // IMPORT punya timestamp yang PERSIS SAMA — PostgreSQL tidak
+  // menjamin urutan konsisten untuk baris bertimestamp sama saat
+  // di-page per 1000 baris, sehingga ada risiko baris DUPLIKAT
+  // (muncul di 2 halaman sekaligus) atau TERLEWAT. Ini pernah
+  // menyebabkan angka "sudah diambil" per ukuran melebihi total
+  // peserta! Makanya kita tambahkan "id" sebagai kunci urutan KEDUA,
+  // supaya urutannya selalu pasti sama setiap kali query dijalankan.
   const PAGE_SIZE = 1000;
   const all: unknown[] = [];
   let from = 0;
@@ -2159,6 +2169,7 @@ export async function getGiftRegistrations(eventId: string): Promise<GiftRegistr
       .select("*, gift_events(name)")
       .eq("event_id", eventId)
       .order("registered_at", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -2279,6 +2290,9 @@ export async function bulkImportGiftRegistrations(
   // 1) Cek NIK yang SUDAH ADA di event ini (ambil semua, dengan
   //    pagination yang sama seperti getGiftRegistrations, supaya
   //    tidak kena limit 1000-baris Supabase untuk event besar).
+  //    Urutan by "id" ditambahkan supaya pagination stabil/pasti
+  //    (tanpa ini, ada risiko baris terlewat karena urutan default
+  //    tidak dijamin konsisten antar halaman query).
   const existingNiks = new Set<string>();
   {
     const PAGE_SIZE = 1000;
@@ -2288,6 +2302,7 @@ export async function bulkImportGiftRegistrations(
         .from("gift_registrations")
         .select("nik")
         .eq("event_id", eventId)
+        .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
       if (!data || data.length === 0) break;
@@ -2336,4 +2351,54 @@ export async function bulkImportGiftRegistrations(
   }
 
   return { inserted, duplicates };
+}
+
+/** Import mode "UPDATE" — dipakai untuk re-import CSV yang sudah
+ *  diperbaiki (mis. NIK-Nama yang sebelumnya salah pasangan gara-gara
+ *  kesalahan Excel), TANPA menghapus data lama.
+ *
+ *  Untuk NIK yang SUDAH ADA di event ini: nama/ukuran/departemen/dll
+ *  di-UPDATE ke data terbaru dari CSV, tapi status klaim
+ *  (claimed/claimed_at/claimed_by) TIDAK DISENTUH SAMA SEKALI —
+ *  supaya peserta yang sudah benar-benar mengambil baju tidak
+ *  "kembali" jadi belum diambil.
+ *
+ *  Untuk NIK yang BELUM ADA: di-insert seperti biasa (baris baru). */
+export async function upsertGiftRegistrations(
+  eventId: string,
+  rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[]
+): Promise<{ processed: number }> {
+  // De-duplikasi DI DALAM file itu sendiri — kalau ada NIK dobel di
+  // CSV yang sama, ambil kemunculan TERAKHIR saja (dianggap data
+  // paling baru/terkoreksi).
+  const byNik = new Map<string, typeof rows[number]>();
+  for (const r of rows) byNik.set(r.nik.trim(), r);
+  const uniqueRows = Array.from(byNik.values());
+
+  const BATCH_SIZE = 500;
+  let processed = 0;
+  for (let i = 0; i < uniqueRows.length; i += BATCH_SIZE) {
+    const batch = uniqueRows.slice(i, i + BATCH_SIZE).map((r) => ({
+      event_id: eventId,
+      nik: r.nik.trim(),
+      nama: r.nama.trim(),
+      departemen: r.departemen.trim(),
+      email: (r.email || "").trim().toLowerCase(),
+      sequence_no: r.sequenceNo || "",
+      lokasi_pengambilan: r.lokasiPengambilan || "",
+      jumlah_tiket: r.jumlahTiket ?? null,
+      anak_dibawah_2_tahun: r.anakDibawah2Tahun ?? null,
+      status_kehadiran: r.statusKehadiran || null,
+      selections: r.selections,
+      // ⚠️ SENGAJA tidak menyertakan claimed/claimed_at/claimed_by/
+      // passcode_hash di sini — kolom yang tidak disebutkan di payload
+      // upsert TIDAK ikut ter-update, nilai lama tetap dipertahankan.
+    }));
+    const { error } = await supabase.from("gift_registrations")
+      .upsert(batch, { onConflict: "event_id,nik" });
+    if (error) throw error;
+    processed += batch.length;
+  }
+
+  return { processed };
 }
