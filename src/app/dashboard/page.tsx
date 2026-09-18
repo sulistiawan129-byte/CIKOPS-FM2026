@@ -10255,7 +10255,7 @@ async function exportGiftReportExcel2Sheets(opts: {
     L("Jumlah Tiket (Efektif)", "Effective Tickets"), L("Anak <2 Tahun", "Children <2yo"),
     L("Status Kehadiran", "Attendance Status"),
     L("Departemen", "Department"), L("Lokasi Pengambilan", "Pickup Location"),
-    L("Kategori", "Category"), L("Status Klaim", "Claim Status"),
+    L("Kategori", "Category"), L("Status Klaim", "Claim Status"), L("Daftar Ukuran", "Size List"),
   ];
   const headerRow = wsData.getRow(1);
   headers.forEach((h, i) => {
@@ -10285,9 +10285,14 @@ async function exportGiftReportExcel2Sheets(opts: {
     dataRow.getCell(12).value = r.lokasiPengambilan;
     dataRow.getCell(13).value = cat ? CATEGORY_LABEL[cat][opts.lang] : "-";
     dataRow.getCell(14).value = r.claimed ? L("Sudah Diambil", "Claimed") : L("Belum Diambil", "Not Claimed");
+    dataRow.getCell(15).value = r.selections
+      .filter((s) => s.variant != null && String(s.variant).trim() !== "" && !/^\uFFFD+$/.test(String(s.variant).trim()))
+      .map((s) => parseGiftSize(String(s.variant)).size)
+      .join(", ") || "-";
   });
   wsData.columns.forEach((col) => { col.width = 18; });
   wsData.getColumn(3).width = 28; // Nama lebih lebar
+  wsData.getColumn(15).width = 30; // Daftar Ukuran perlu lebih lebar
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -10798,10 +10803,15 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 
   const giftReportExportPicker = useExportLanguagePicker((format, exportLang) => {
     if (!regEvent) return;
+    const activeFilterLabel =
+      claimFilter === "not_claimed" ? " (Belum Diambil)" :
+      claimFilter === "claimed" ? " (Sudah Diambil)" :
+      categoryFilter !== "all" ? ` (${CATEGORY_LABEL[categoryFilter].id})` :
+      sizeFilter !== "all" ? ` (Ukuran ${sizeFilter})` : "";
     const opts = {
       lang: exportLang,
-      titleId: `Laporan Pembagian — ${regEvent.name}`, titleEn: `Distribution Report — ${regEvent.name}`,
-      filename: `Laporan_Pembagian_${regEvent.name.replace(/\s+/g, "_")}`,
+      titleId: `Laporan Pembagian — ${regEvent.name}${activeFilterLabel}`, titleEn: `Distribution Report — ${regEvent.name}${activeFilterLabel}`,
+      filename: `Laporan_Pembagian_${regEvent.name.replace(/\s+/g, "_")}${activeFilterLabel.replace(/[^\w]+/g, "_")}`,
       kpis: [
         { labelId: "Total Peserta", labelEn: "Total Participants", value: giftKpis.total },
         { labelId: "Total Baju", labelEn: "Total Items", value: giftKpis.totalBaju },
@@ -10841,12 +10851,19 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         },
       ],
       tableTitleId: "Daftar Peserta", tableTitleEn: "Participant List",
-      tableRows: regs,
+      tableRows: visibleRegs,
       tableColumns: [
         { key: "no", labelId: "No", labelEn: "No", get: (r: GiftRegistration) => r.sequenceNo },
         { key: "nama", labelId: "Nama", labelEn: "Name", get: (r: GiftRegistration) => r.nama },
         { key: "nik", labelId: "NIK", labelEn: "NIK", get: (r: GiftRegistration) => r.nik },
         { key: "total_peserta", labelId: "Total Peserta", labelEn: "Total Participants", get: (r: GiftRegistration) => countFilledSizes(r), align: "right" as const },
+        {
+          key: "daftar_ukuran", labelId: "Daftar Ukuran", labelEn: "Size List",
+          get: (r: GiftRegistration) => r.selections
+            .filter((s) => s.variant != null && String(s.variant).trim() !== "" && !/^\uFFFD+$/.test(String(s.variant).trim()))
+            .map((s) => parseGiftSize(String(s.variant)).size)
+            .join(", ") || "-",
+        },
         { key: "jumlah_tiket", labelId: "Jumlah Tiket (Efektif)", labelEn: "Effective Tickets", get: (r: GiftRegistration) => getEffectiveTicketCount(r), align: "right" as const },
         { key: "status_kehadiran", labelId: "Status", labelEn: "Status", get: (r: GiftRegistration) => r.statusKehadiran ?? "-" },
         { key: "anak_dibawah_2", labelId: "Anak <2 Tahun", labelEn: "Children <2yo", get: (r: GiftRegistration) => r.anakDibawah2Tahun ?? 0, align: "right" as const },
@@ -10861,12 +10878,12 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     else if (format === "excel") {
       exportGiftReportExcel2Sheets({
         lang: exportLang,
-        eventName: regEvent.name,
+        eventName: `${regEvent.name}${activeFilterLabel}`,
         filename: `Laporan_Pembagian_${regEvent.name.replace(/\s+/g, "_")}`,
         kpis: opts.kpis,
         sizeBreakdown: giftKpis.sizeBreakdown,
         categoryCounts: giftKpis.categoryCounts,
-        regs,
+        regs: visibleRegs,
       });
     }
     else exportSummaryPdf(opts);
