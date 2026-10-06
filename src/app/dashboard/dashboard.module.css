@@ -1588,3 +1588,48 @@
   .homeHeroStat { padding: 11px 10px; }
   .homeHeroStat span { font-size: 10.5px; }
 }
+
+
+/* ───────── Back bar, TV link ───────── */
+.backBar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 14px 22px 0; padding: 0;
+}
+.backBtn {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px;
+  border-radius: 12px; border: 1px solid transparent; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 700; color: #fff;
+  background: var(--grad-brand); box-shadow: 0 8px 18px -10px var(--brand);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.backBtn:hover { transform: translateY(-1px); box-shadow: 0 12px 22px -10px var(--brand); }
+.backBtnGhost {
+  color: var(--t2); background: var(--surface); border-color: var(--border); box-shadow: none;
+  max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.backBtnGhost:hover { color: var(--t1); border-color: var(--border2); box-shadow: none; }
+.backCrumb { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; font-size: 12.5px; color: var(--t3); font-weight: 600; }
+.backCrumb b { color: var(--t1); font-weight: 800; }
+@media (max-width: 720px) {
+  .backBar { margin: 10px 14px 0; gap: 8px; }
+  .backCrumb { display: none; }
+}
+
+.tvLink {
+  display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px;
+  border-radius: 16px; text-decoration: none; color: #fff;
+  background: var(--grad-hero); box-shadow: 0 10px 22px -14px var(--brand);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.tvLink:hover { transform: translateY(-1px); box-shadow: 0 14px 26px -14px var(--brand); }
+.tvLinkIc { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(255,255,255,.2); flex-shrink: 0; }
+.tvLink b { display: block; font-size: 13px; font-weight: 800; }
+.tvLink small { display: block; font-size: 11.5px; opacity: .82; font-weight: 600; margin-top: 1px; }
+
+.heroTv {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; height: 38px; padding: 0 16px;
+  border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 800; color: #1d44d6;
+  background: #fff; box-shadow: 0 10px 22px -12px rgba(0,0,0,.45);
+  transition: transform .15s ease;
+}
+.heroTv:hover { transform: translateY(-2px); }

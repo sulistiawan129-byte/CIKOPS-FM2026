@@ -3,6 +3,7 @@ import { Space_Mono, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google"
 import "./globals.css";
 import { AppProviders } from "@/lib/providers";
 import { AuthProvider } from "@/lib/auth";
+import GlobalBack from "@/components/GlobalBack";
 
 const spaceMono = Space_Mono({
   subsets: ["latin"],
@@ -68,7 +69,10 @@ export default function RootLayout({
       </head>
       <body>
         <AppProviders>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <GlobalBack />
+            {children}
+          </AuthProvider>
         </AppProviders>
       </body>
     </html>

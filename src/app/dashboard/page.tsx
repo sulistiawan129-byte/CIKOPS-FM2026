@@ -303,7 +303,24 @@ export default function DashboardPage() {
     }
    }, [user?.id]);
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState<DashboardTab>("home");
+  const [activeTab, setActiveTabState] = useState<DashboardTab>("home");
+  // Riwayat tab → dipakai tombol "Kembali" di setiap modul.
+  const [tabHistory, setTabHistory] = useState<DashboardTab[]>([]);
+  const activeTabRef = useRef<DashboardTab>("home");
+  const setActiveTab = useCallback((next: DashboardTab) => {
+    const cur = activeTabRef.current;
+    if (next === cur) return;
+    setTabHistory((h) => (next === "home" ? [] : [...h.slice(-19), cur]));
+    activeTabRef.current = next;
+    setActiveTabState(next);
+  }, []);
+  const goBackTab = useCallback(() => {
+    const prev = tabHistory[tabHistory.length - 1] ?? "home";
+    setTabHistory((h) => h.slice(0, -1));
+    activeTabRef.current = prev;
+    setActiveTabState(prev);
+    if (prev === "home") setActiveHomeGroup(undefined);
+  }, [tabHistory]);
   const [activeHomeGroup, setActiveHomeGroup] = useState<string | undefined>(undefined);
   const [globalSearch, setGlobalSearch] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
@@ -641,6 +658,21 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           })}
         </nav>
 
+        <a
+          href="/tv-display"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.tvLink}
+          title={lang === "en" ? "Open TV display in a new tab" : "Buka tampilan TV di tab baru"}
+        >
+          <span className={styles.tvLinkIc}><Icon name="tv" size={18} /></span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <b>{lang === "en" ? "TV Display" : "Tampilan TV"}</b>
+            <small>{lang === "en" ? "Live · CIK & PRB" : "Live · CIK & PRB"}</small>
+          </span>
+          <Icon name="external" size={15} />
+        </a>
+
         <div style={{ marginTop: 8, padding: 10, borderRadius: 16, background: "var(--surface2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--grad-brand)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
             {(myProfile?.fullName || user?.email || "?").charAt(0).toUpperCase()}
@@ -750,6 +782,17 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
               <span className={styles.liveDot} /> Live
             </div>
           )}
+          <a
+            className={styles.iconBtn}
+            href="/tv-display"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="TV Display"
+            title={lang === "en" ? "Open TV display" : "Buka tampilan TV"}
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
+            <Icon name="tv" size={18} />
+          </a>
           <button
             className={styles.iconBtn}
             onClick={() => setLang(lang === "id" ? "en" : "id")}
@@ -805,6 +848,36 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 
         {/* Scrollable content area */}
         <div style={{ flex: 1, overflowY: "auto" }}>
+      {activeTab !== "home" && (() => {
+        const labelOf = (id: DashboardTab) => {
+          if (id === "home") return lang === "en" ? "Dashboard" : "Dashboard";
+          if (id === "overview") return lang === "en" ? "Overview" : "Ringkasan";
+          for (const g of NAV_GROUPS) {
+            const f = g.tabs.find((x) => x.id === id);
+            if (f) return lang === "en" ? f.labelEn : f.labelId;
+          }
+          return String(id);
+        };
+        const prev = tabHistory[tabHistory.length - 1];
+        const showPrev = prev && prev !== "home";
+        return (
+          <nav className={styles.backBar} aria-label="Navigasi kembali">
+            <button className={styles.backBtn} onClick={() => setActiveTab("home")} title={lang === "en" ? "Back to Home" : "Kembali ke Home"}>
+              <Icon name="home" size={15} strokeWidth={2.2} />
+              {lang === "en" ? "Back to Home" : "Kembali ke Home"}
+            </button>
+            {showPrev && (
+              <button className={`${styles.backBtn} ${styles.backBtnGhost}`} onClick={goBackTab} title={labelOf(prev)}>
+                <Icon name="back" size={15} strokeWidth={2.2} />
+                {labelOf(prev)}
+              </button>
+            )}
+            <span className={styles.backCrumb}>
+              <span>Home</span><span aria-hidden="true">/</span><b>{labelOf(activeTab)}</b>
+            </span>
+          </nav>
+        );
+      })()}
       {activeTab === "tasks" && (
       <div key="tasks" className={`${styles.body} tabContent`}>
         <div className={styles.statsRow}>
@@ -2830,6 +2903,11 @@ function HomeTab({
                     ? `${ongoingToday.length} task(s) are running now.${lateOngoing.length > 0 ? ` ${lateOngoing.length} need a check.` : " All on schedule."}`
                     : `${ongoingToday.length} tugas sedang berjalan.${lateOngoing.length > 0 ? ` ${lateOngoing.length} perlu dicek.` : " Semua sesuai jadwal."}`}
                 </p>
+                <a className={styles.heroTv} href="/tv-display" target="_blank" rel="noopener noreferrer">
+                  <Icon name="tv" size={16} strokeWidth={2.1} />
+                  {lang === "en" ? "Open TV Display" : "Buka Tampilan TV"}
+                  <Icon name="external" size={14} />
+                </a>
               </div>
               <div className={styles.homeHeroStats}>
                 <div className={styles.homeHeroStat}><b>{heroCount.today}</b><span>{lang === "en" ? "Tasks today" : "Tugas hari ini"}</span></div>

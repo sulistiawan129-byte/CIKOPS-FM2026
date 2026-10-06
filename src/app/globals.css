@@ -901,3 +901,21 @@ h1, h2, h3 {
 .hexBadge, .circleBadge { box-shadow: none !important; filter: none; }
 .hexBadge svg, .circleBadge svg { filter: none !important; }
 
+
+
+/* ───────── Bar Kembali / Home global (halaman mandiri) ───────── */
+.globalBack {
+  position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 8px;
+  padding: 7px max(14px, env(safe-area-inset-left)); min-height: 46px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+.gbBtn {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: 11px;
+  font: inherit; font-size: 12.5px; font-weight: 700; text-decoration: none; cursor: pointer;
+  color: var(--t1); background: var(--surface); border: 1px solid var(--border);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.gbBtn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px -10px rgba(20,40,100,.45); }
+.gbHome { color: #fff; border-color: transparent; background: var(--grad-brand); }
+@media print { .globalBack { display: none !important; } }
