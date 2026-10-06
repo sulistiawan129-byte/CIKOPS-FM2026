@@ -9,9 +9,9 @@ import Icon from "@/components/Icon";
  * Tombol "Kembali" + "Home" melayang di pojok kiri-bawah untuk semua halaman
  * mandiri (gate, request, canteen, locker, gift, dst).
  * Tidak tampil di halaman yang sudah punya navigasi sendiri:
- * dashboard (back bar per modul), tv-display (header), driver & root.
+ * dashboard (back bar per modul), dashboard-viewonly (header), driver & root.
  */
-const HIDDEN_ON = ["/dashboard", "/tv-display", "/driver"];
+const HIDDEN_ON = ["/dashboard", "/dashboard-viewonly", "/tv-display", "/driver"];
 
 export default function GlobalBack() {
   const pathname = usePathname();

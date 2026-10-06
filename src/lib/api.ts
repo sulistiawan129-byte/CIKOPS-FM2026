@@ -4,6 +4,7 @@ import type {
   Claim,
   ClaimItem,
   Driver,
+  DriverType,
   DriverTier,
   Employee,
   FuelEntry,
@@ -39,16 +40,47 @@ import type {
    MASTER DATA
 ════════════════════════════════════════════════════════════ */
 
+/** Kolom driver. Kolom migrasi 014 (driver_type, dst.) ikut di-select; bila
+ *  migrasi belum dijalankan, query diulang tanpa kolom itu supaya aplikasi
+ *  tetap jalan (semua driver dianggap operational). */
+const DRIVER_COLS_BASE = "id, nama, no_hp, avatar_emoji, aktif, tier_id, email, plant";
+const DRIVER_COLS_FULL = `${DRIVER_COLS_BASE}, driver_type, assigned_user, assigned_user_title`;
+
+function isMissingDriverTypeColumn(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "42703" || /driver_type|assigned_user/i.test(error.message || "");
+}
+
 export async function getDrivers(plant?: Plant | null): Promise<Driver[]> {
-  let q = supabase
-    .from("drivers")
-    .select("id, nama, no_hp, avatar_emoji, aktif, tier_id, email, plant")
-    .eq("aktif", true)
-    .order("nama", { ascending: true });
-  if (plant) q = q.eq("plant", plant);
-  const { data, error } = await q;
-  if (error) throw error;
-  return data ?? [];
+  const run = async (cols: string) => {
+    let q = supabase.from("drivers").select(cols).eq("aktif", true).order("nama", { ascending: true });
+    if (plant) q = q.eq("plant", plant);
+    return q;
+  };
+  let res = await run(DRIVER_COLS_FULL);
+  if (isMissingDriverTypeColumn(res.error)) res = await run(DRIVER_COLS_BASE);
+  if (res.error) throw res.error;
+  return (res.data ?? []) as unknown as Driver[];
+}
+
+/** Data untuk halaman publik /dashboard-viewonly (TANPA login).
+ *  Lewat RPC security definer (migrasi 015) karena tabel tidak bisa dibaca
+ *  anon (RLS). Kalau RPC belum dibuat, jatuh ke query langsung — itu hanya
+ *  berhasil untuk pengguna yang sedang login. */
+export async function getViewOnlySnapshot(): Promise<{ tasks: TaskDetail[]; drivers: Driver[]; vehicles: Vehicle[] }> {
+  const { data, error } = await supabase.rpc("get_viewonly_snapshot", { p_date: null });
+  if (!error && data) {
+    const d = data as { tasks?: TaskDetail[]; drivers?: Driver[]; vehicles?: Vehicle[] };
+    return { tasks: d.tasks ?? [], drivers: d.drivers ?? [], vehicles: d.vehicles ?? [] };
+  }
+  const missingFn = error?.code === "PGRST202" || error?.code === "42883" || /get_viewonly_snapshot/i.test(error?.message || "");
+  if (error && !missingFn) throw error;
+  const [tasks, drivers, vehicles] = await Promise.all([
+    getTasksByDate(todayLocalISODate()),
+    getDrivers(),
+    getVehicles(),
+  ]);
+  return { tasks, drivers, vehicles };
 }
 
 export async function getVehicles(plant?: Plant | null): Promise<Vehicle[]> {
@@ -1761,12 +1793,11 @@ export async function getActivityLog(filters?: { tableName?: string; days?: numb
 ════════════════════════════════════════════════════════════ */
 
 export async function getAllDriversFull(): Promise<Driver[]> {
-  const { data, error } = await supabase
-    .from("drivers")
-    .select("id, nama, no_hp, avatar_emoji, aktif, tier_id, email, plant")
-    .order("nama", { ascending: true });
-  if (error) throw error;
-  return data ?? [];
+  const run = (cols: string) => supabase.from("drivers").select(cols).order("nama", { ascending: true });
+  let res = await run(DRIVER_COLS_FULL);
+  if (isMissingDriverTypeColumn(res.error)) res = await run(DRIVER_COLS_BASE);
+  if (res.error) throw res.error;
+  return (res.data ?? []) as unknown as Driver[];
 }
 export interface DriverInput {
   nama: string;
@@ -1775,10 +1806,16 @@ export interface DriverInput {
   avatar_emoji: string | null;
   aktif: boolean;
   plant?: Plant;
+  driver_type?: DriverType;
+  assigned_user?: string | null;
+  assigned_user_title?: string | null;
 }
+
+const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/014_driver_type.sql di Supabase SQL Editor dulu.";
 
 export async function addDriver(input: DriverInput, initialPin?: string): Promise<Driver> {
   const { data, error } = await supabase.from("drivers").insert(input).select().single();
+  if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
   if (error) throw error;
   if (initialPin) {
     await supabase.rpc("admin_set_driver_pin", { p_driver_id: data.id, p_new_pin: initialPin });
@@ -1788,7 +1825,27 @@ export async function addDriver(input: DriverInput, initialPin?: string): Promis
 
 export async function updateDriver(id: string, input: DriverInput): Promise<void> {
   const { error } = await supabase.from("drivers").update(input).eq("id", id);
+  if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
   if (error) throw error;
+}
+
+/** Info tipe/user driver untuk aplikasi driver (lewat RPC security definer,
+ *  migrasi 014). Gagal/belum ada → dianggap operational. */
+export async function getDriverDutyInfo(
+  driverId: string
+): Promise<Pick<Driver, "driver_type" | "assigned_user" | "assigned_user_title">> {
+  try {
+    const { data, error } = await supabase.rpc("get_driver_duty_info", { p_driver_id: driverId });
+    if (error || !data || data.length === 0) return { driver_type: "operational" };
+    const r = data[0] as Pick<Driver, "driver_type" | "assigned_user" | "assigned_user_title">;
+    return {
+      driver_type: r.driver_type === "user" ? "user" : "operational",
+      assigned_user: r.assigned_user ?? null,
+      assigned_user_title: r.assigned_user_title ?? null,
+    };
+  } catch {
+    return { driver_type: "operational" };
+  }
 }
 
 export async function resetDriverPin(id: string, newPin: string): Promise<void> {

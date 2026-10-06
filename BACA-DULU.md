@@ -1,4 +1,32 @@
-# Redesign V2.3 — cara pasang
+# Redesign V2.5 — cara pasang
+
+## ⚠ LANGKAH PERTAMA (V2.5): jalankan 2 SQL di Supabase → SQL Editor
+1. `supabase/014_driver_type.sql` (kalau belum — tipe Driver Operational/User)
+2. `supabase/015_viewonly_public.sql` — **wajib agar Dashboard-ViewOnly terlihat tanpa login**
+
+## Baru di V2.5 — Dashboard-ViewOnly (tanpa login)
+- Alamat baru: **/dashboard-viewonly** (mis. https://cikops-fleet-ivory.vercel.app/dashboard-viewonly). Alamat lama /tv-display otomatis dialihkan ke sini.
+- Bisa dibuka dari perangkat mana pun tanpa login — untuk SPV/manajer. Sebelumnya kosong karena tabel tasks/drivers/vehicles tidak bisa dibaca tanpa login (RLS). Sekarang data diambil lewat fungsi database `get_viewonly_snapshot` (SECURITY DEFINER) yang hanya mengembalikan data ringkas: penugasan hari ini, nama driver + plant + tipe, nopol/jenis kendaraan. TIDAK ikut: no. HP, email, PIN/password, alasan pembatalan, klaim/overtime/dana. Tabel tetap terkunci seperti semula.
+- Nama menu/link di sistem diganti jadi **Dashboard-ViewOnly** (sidebar, ikon mata di topbar, tombol di hero Home) + tombol **Salin link** untuk dibagikan.
+- Halaman diberi lencana "VIEW ONLY" dan tidak diindeks mesin pencari (noindex).
+- Catatan keamanan: siapa pun yang memegang link bisa melihat halaman ini. Kalau nanti ingin dibatasi (mis. kunci rahasia di link), bilang saja.
+- File baru/berubah: `supabase/015_viewonly_public.sql` (baru), `src/app/dashboard-viewonly/{page,layout}.tsx` (baru; pindahan dari tv-display), `src/app/tv-display/page.tsx` (kini hanya redirect), `src/lib/api.ts`, `src/app/dashboard/page.tsx`, `src/app/dashboard/dashboard.module.css`, `src/components/{Icon,GlobalBack}.tsx`.
+
+# (sebelumnya) V2.4
+
+## ⚠ LANGKAH PERTAMA (V2.4): jalankan SQL dulu
+Buka Supabase → SQL Editor → tempel isi `supabase/014_driver_type.sql` → Run. (Aman diulang.)
+Isinya: kolom `drivers.driver_type` (operational | user), `assigned_user`, `assigned_user_title`; fungsi `get_driver_duty_info`; dan trigger yang memblokir penugasan baru ke Driver User.
+Kode sudah dibuat tahan banting: kalau SQL belum dijalankan, aplikasi tetap jalan (semua driver dianggap operational) dan tombol Simpan driver akan memberi pesan agar menjalankan migrasi.
+
+## Baru di V2.4 — Driver Operational vs Driver User
+- Master Data → Driver: pilih **Tipe Driver** (Operational / Driver User). Driver User wajib isi **Nama User** (+ jabatan opsional).
+- Driver User otomatis **ON DUTY setiap hari 08.00–16.30 WIB** (di luar jam itu OFF DUTY, otomatis juga). Status terkunci, tidak bisa diubah, dan tidak bisa dipilih di form penugasan (tampil abu-abu dengan keterangan).
+- Aplikasi driver: Driver User melihat banner status (ON DUTY/OFF DUTY, jam, **nama user-nya**) dan di tab Profil; status di strip atas berubah jadi 🔒.
+- TV: Driver User tampil sebagai baris "On Duty 🔒 — Driver User · mengantar <nama user>" (urutan paling akhir), dan tidak dihitung sebagai "Di plant"/"Di luar". KPI Driver aktif memuat rincian operasional · user.
+- File baru/berubah: `supabase/014_driver_type.sql` (baru), `src/lib/duty.ts` (baru), `src/lib/types.ts`, `src/lib/api.ts`, `src/app/dashboard/page.tsx`, `src/app/driver/page.tsx`, `src/app/driver/driver.module.css`, `src/app/tv-display/page.tsx`.
+
+# (sebelumnya) V2.3
 
 V2.3 = V2.2 + tujuan, keperluan, dan semua detail tugas di TV tampil PENUH (tanpa dipotong "…"; teks panjang dibungkus ke baris baru). Jumlah baris per halaman kini menyesuaikan panjang teks dan tinggi layar, halaman berganti otomatis. Hanya `src/app/tv-display/page.tsx` yang berubah dari V2.2.
 

@@ -48,6 +48,7 @@ const P: Record<string, ReactNode> = {
   check: <><path d="M5 12.5l4.5 4.5L19 7.5" /></>,
   external: <><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></>,
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>,
+  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
   gate: <><path d="M3 21V8l9-5 9 5v13" /><path d="M3 12h18M8 21v-9M16 21v-9" /></>,
 };
 

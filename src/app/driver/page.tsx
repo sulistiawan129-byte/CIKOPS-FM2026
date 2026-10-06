@@ -15,12 +15,14 @@ import {
   getDriverTasksToday,
   subscribeToDriverClaims,
   subscribeToTasks,
+  getDriverDutyInfo,
 } from "@/lib/api";
 import type { Claim, Driver, TaskDetail } from "@/lib/types";
 import { computeStats } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
 import { todayLocalISODate } from "@/lib/dateUtils";
+import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
 
 type Screen = "splash" | "login" | "app";
 type Tab = "today" | "history" | "claims" | "profile";
@@ -39,6 +41,18 @@ export default function DriverPanelPage() {
   const [loginBusy, setLoginBusy] = useState(false);
 
   const [loggedDriver, setLoggedDriver] = useState<Driver | null>(null);
+  const dutyNow = useNowTick();
+
+  // Tipe driver (operational / user) + nama user diambil terpisah lewat RPC
+  // (sesi login driver tidak selalu bisa SELECT langsung ke tabel drivers).
+  useEffect(() => {
+    if (!loggedDriver || loggedDriver.driver_type !== undefined) return;
+    let cancelled = false;
+    getDriverDutyInfo(loggedDriver.id).then((info) => {
+      if (!cancelled) setLoggedDriver((cur) => (cur && cur.id === loggedDriver.id ? { ...cur, ...info } : cur));
+    });
+    return () => { cancelled = true; };
+  }, [loggedDriver]);
 
   const [todayTasks, setTodayTasks] = useState<TaskDetail[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -798,13 +812,40 @@ useEffect(() => {
           <div className={styles.driverStripInfo}>
             <div className={styles.driverStripName}>{loggedDriver.nama}</div>
             <div className={styles.driverStripStatus}>
-              <span className={styles.stripDot} /> {t.online}
+              {isUserDriver(loggedDriver) ? (
+                <>🔒 {getUserDutyStatus(loggedDriver, dutyNow).onDuty ? "ON DUTY" : "OFF DUTY"} · {dutyHoursLabel}</>
+              ) : (
+                <><span className={styles.stripDot} /> {t.online}</>
+              )}
             </div>
           </div>
           <button className={styles.btnLogout} onClick={logout}>
             {t.keluar}
           </button>
         </div>
+
+        {isUserDriver(loggedDriver) && (() => {
+          const du = getUserDutyStatus(loggedDriver, dutyNow);
+          return (
+            <div className={`${styles.dutyBanner} ${du.onDuty ? styles.dutyOn : styles.dutyOff}`} role="status">
+              <div className={styles.dutyIcon}>🔒</div>
+              <div className={styles.dutyBody}>
+                <div className={styles.dutyTitle}>
+                  {du.onDuty ? "ON DUTY" : "OFF DUTY"}
+                  <span className={styles.dutyHours}>{dutyHoursLabel} WIB</span>
+                </div>
+                <div className={styles.dutyUser}>
+                  {lang === "en" ? "Your user" : "User Anda"}: <b>{du.userName || "—"}</b>{du.userTitle ? ` · ${du.userTitle}` : ""}
+                </div>
+                <div className={styles.dutyNote}>
+                  {lang === "en"
+                    ? "Status is set automatically every day and cannot be changed."
+                    : "Status diatur otomatis setiap hari dan tidak dapat diubah."}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {tab === "today" && (
           <div className={`${styles.statsStrip} ${styles.statsStripVisible}`}>
@@ -1630,11 +1671,25 @@ function ProfileTab({
           {driver.avatar_emoji || "🧑‍✈️"}
         </div>
         <div className={styles.profileName}>{driver.nama}</div>
-        <div className={styles.profileRoleLabel}>DRIVER</div>
+        <div className={styles.profileRoleLabel}>{isUserDriver(driver) ? "DRIVER USER" : "DRIVER"}</div>
       </div>
 
       <div className={styles.profileSection}>
         <div className={styles.profileSectionHeader}>{t.informasi}</div>
+        {isUserDriver(driver) && (
+          <>
+            <div className={styles.profileRow}>
+              <span className={styles.profileRowIco}>👤</span>
+              <span className={styles.profileRowLabel}>User</span>
+              <span className={styles.profileRowVal}>{driver.assigned_user || "-"}{driver.assigned_user_title ? ` · ${driver.assigned_user_title}` : ""}</span>
+            </div>
+            <div className={styles.profileRow}>
+              <span className={styles.profileRowIco}>🔒</span>
+              <span className={styles.profileRowLabel}>Status</span>
+              <span className={styles.profileRowVal}>ON DUTY {dutyHoursLabel} WIB</span>
+            </div>
+          </>
+        )}
         <div className={styles.profileRow}>
           <span className={styles.profileRowIco}>📱</span>
           <span className={styles.profileRowLabel}>{t.noHp}</span>

@@ -118,6 +118,8 @@ import {
 } from "@/lib/api";
 import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, GiftSelection, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, AtkItem, AtkRequest, AtkRestock, AgendaEvent, Announcement } from "@/lib/types";
 import { computeCanteenKPI } from "@/lib/types";
+import type { DriverType } from "@/lib/types";
+import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
 import { exportTandaTerima } from "@/lib/tandaTerima";
 import { buildRincianRows } from "@/lib/claimRecap";
 import { exportWeeklyRecapToExcel, exportWeeklyRecapToPdf } from "@/lib/weeklyRecapExport";
@@ -659,16 +661,16 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         </nav>
 
         <a
-          href="/tv-display"
+          href="/dashboard-viewonly"
           target="_blank"
           rel="noopener noreferrer"
           className={styles.tvLink}
-          title={lang === "en" ? "Open TV display in a new tab" : "Buka tampilan TV di tab baru"}
+          title={lang === "en" ? "Open Dashboard-ViewOnly in a new tab (no login needed)" : "Buka Dashboard-ViewOnly di tab baru (tanpa login)"}
         >
-          <span className={styles.tvLinkIc}><Icon name="tv" size={18} /></span>
+          <span className={styles.tvLinkIc}><Icon name="eye" size={18} /></span>
           <span style={{ flex: 1, minWidth: 0 }}>
-            <b>{lang === "en" ? "TV Display" : "Tampilan TV"}</b>
-            <small>{lang === "en" ? "Live · CIK & PRB" : "Live · CIK & PRB"}</small>
+            <b>Dashboard-ViewOnly</b>
+            <small>{lang === "en" ? "No login · view only" : "Tanpa login · lihat saja"}</small>
           </span>
           <Icon name="external" size={15} />
         </a>
@@ -784,14 +786,14 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           )}
           <a
             className={styles.iconBtn}
-            href="/tv-display"
+            href="/dashboard-viewonly"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="TV Display"
-            title={lang === "en" ? "Open TV display" : "Buka tampilan TV"}
+            aria-label="Dashboard-ViewOnly"
+            title={lang === "en" ? "Open Dashboard-ViewOnly" : "Buka Dashboard-ViewOnly"}
             style={{ textDecoration: "none", color: "inherit" }}
           >
-            <Icon name="tv" size={18} />
+            <Icon name="eye" size={18} />
           </a>
           <button
             className={styles.iconBtn}
@@ -2054,7 +2056,9 @@ function CreateTaskModal({
                   <select className={`${styles.formSelect} premiumInput`} value={driverId} onChange={(e) => setDriverId(e.target.value)}>
                     <option value="">Pilih driver</option>
                     {filteredDrivers.map((d) => (
-                      <option key={d.id} value={d.id}>{d.nama}</option>
+                      isUserDriver(d)
+                        ? <option key={d.id} value={d.id} disabled>{d.nama} — Driver User (On Duty{d.assigned_user ? ` · ${d.assigned_user}` : ""})</option>
+                        : <option key={d.id} value={d.id}>{d.nama}</option>
                     ))}
                   </select>
                 </div>
@@ -2692,6 +2696,7 @@ function HomeTab({
   setActiveGroupId: (id: string | undefined) => void;
 }) {
   const { lang } = useLang();
+  const [viewLinkCopied, setViewLinkCopied] = useState(false);
   const visibleGroups = NAV_GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((t) => canAccessTab(myProfile, t.id)) })).filter((g) => g.tabs.length > 0);
   const filteredGroup = activeGroupId ? visibleGroups.find((g) => g.id === activeGroupId) : undefined;
 
@@ -2903,11 +2908,28 @@ function HomeTab({
                     ? `${ongoingToday.length} task(s) are running now.${lateOngoing.length > 0 ? ` ${lateOngoing.length} need a check.` : " All on schedule."}`
                     : `${ongoingToday.length} tugas sedang berjalan.${lateOngoing.length > 0 ? ` ${lateOngoing.length} perlu dicek.` : " Semua sesuai jadwal."}`}
                 </p>
-                <a className={styles.heroTv} href="/tv-display" target="_blank" rel="noopener noreferrer">
-                  <Icon name="tv" size={16} strokeWidth={2.1} />
-                  {lang === "en" ? "Open TV Display" : "Buka Tampilan TV"}
+                <div className={styles.heroTvRow}>
+                <a className={styles.heroTv} href="/dashboard-viewonly" target="_blank" rel="noopener noreferrer">
+                  <Icon name="eye" size={16} strokeWidth={2.1} />
+                  Dashboard-ViewOnly
                   <Icon name="external" size={14} />
                 </a>
+                <button
+                  type="button"
+                  className={styles.heroTvCopy}
+                  onClick={() => {
+                    const url = `${window.location.origin}/dashboard-viewonly`;
+                    navigator.clipboard?.writeText(url).then(
+                      () => { setViewLinkCopied(true); setTimeout(() => setViewLinkCopied(false), 2000); },
+                      () => window.prompt(lang === "en" ? "Copy this link:" : "Salin link ini:", url),
+                    );
+                  }}
+                  title={lang === "en" ? "Copy the public link to share with SPV/managers" : "Salin link publik untuk dibagikan ke SPV/manajer"}
+                >
+                  <Icon name={viewLinkCopied ? "check" : "copy"} size={15} strokeWidth={2.2} />
+                  {viewLinkCopied ? (lang === "en" ? "Link copied" : "Link tersalin") : (lang === "en" ? "Copy link" : "Salin link")}
+                </button>
+                </div>
               </div>
               <div className={styles.homeHeroStats}>
                 <div className={styles.homeHeroStat}><b>{heroCount.today}</b><span>{lang === "en" ? "Tasks today" : "Tugas hari ini"}</span></div>
@@ -9394,6 +9416,10 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
   const [formAktif, setFormAktif] = useState(true);
   const [formPin, setFormPin] = useState("");
   const [formPlant, setFormPlant] = useState<Plant>("CIK");
+  const [formType, setFormType] = useState<DriverType>("operational");
+  const [formUser, setFormUser] = useState("");
+  const [formUserTitle, setFormUserTitle] = useState("");
+  const dutyNow = useNowTick();
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Driver | null>(null);
 
@@ -9444,22 +9470,24 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
      setEditing(null);
     setFormNama(""); setFormPhone(""); setFormEmail(""); setFormAvatar(AVATAR_EMOJIS[0]); setFormAktif(true); setFormPin("");
    setFormPlant("CIK");
+    setFormType("operational"); setFormUser(""); setFormUserTitle("");
     setShowForm(true);
   }
    function openEdit(d: Driver) {
   setEditing(d);
  setFormNama(d.nama); setFormPhone(d.no_hp || ""); setFormEmail(d.email || ""); setFormAvatar(d.avatar_emoji || AVATAR_EMOJIS[0]); setFormAktif(d.aktif); setFormPin("");
    setFormPlant(d.plant || "CIK");
+   setFormType(d.driver_type === "user" ? "user" : "operational"); setFormUser(d.assigned_user || ""); setFormUserTitle(d.assigned_user_title || "");
    setShowForm(true);
  }
 
-  const canSave = formNama.trim() !== "" && (!!editing || formPin.length >= 4);
+  const canSave = formNama.trim() !== "" && (!!editing || formPin.length >= 4) && (formType !== "user" || formUser.trim() !== "");
 
   async function handleSave() {
     if (!canSave) return;
     setSaving(true);
     try {
-      const payload: DriverInput = { nama: formNama.trim(), no_hp: formPhone.trim() || null, email: formEmail.trim() || null, avatar_emoji: formAvatar, aktif: formAktif, plant: formPlant };
+      const payload: DriverInput = { nama: formNama.trim(), no_hp: formPhone.trim() || null, email: formEmail.trim() || null, avatar_emoji: formAvatar, aktif: formAktif, plant: formPlant, driver_type: formType, assigned_user: formType === "user" ? formUser.trim() : null, assigned_user_title: formType === "user" ? (formUserTitle.trim() || null) : null };
       if (editing) await updateDriver(editing.id, payload);
       else await addDriver(payload, formPin);
       setShowForm(false);
@@ -9516,7 +9544,23 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
     </span>
   </div>
                 <div style={{ fontSize: 13, color: "var(--t3)" }}>{d.no_hp || "-"} {d.email ? `· ${d.email}` : ""}</div>
+                {isUserDriver(d) && (() => {
+                  const du = getUserDutyStatus(d, dutyNow);
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: "var(--pill)", background: du.onDuty ? "var(--green-soft)" : "var(--surface2)", color: du.onDuty ? "var(--green)" : "var(--t3)", border: `1px solid ${du.onDuty ? "var(--green)" : "var(--border2)"}` }}>
+                        🔒 {du.onDuty ? "ON DUTY" : "OFF DUTY"} · {dutyHoursLabel}
+                      </span>
+                      <span style={{ fontSize: 12.5, color: "var(--t2)" }}>
+                        {lang === "en" ? "User" : "User"}: <b style={{ color: "var(--t1)" }}>{du.userName || "—"}</b>{du.userTitle ? ` · ${du.userTitle}` : ""}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
+              <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: "var(--pill)", background: isUserDriver(d) ? "var(--purple-soft, var(--surface2))" : "var(--brand-soft, var(--surface2))", color: isUserDriver(d) ? "var(--purple)" : "var(--brand)", whiteSpace: "nowrap" }}>
+                {isUserDriver(d) ? "DRIVER USER" : "OPERATIONAL"}
+              </span>
               <div style={{ fontSize: 13, color: "var(--t3)", minWidth: 90 }}>
                 {tiers.find((tr) => tr.id === d.tier_id)?.name || (lang === "en" ? "No tier" : "Tanpa tier")}
               </div>
@@ -9585,6 +9629,45 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
         </button>
       ))}
      </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label>{lang === "en" ? "DRIVER TYPE" : "TIPE DRIVER"} *</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {([["operational", "Operational", lang === "en" ? "Takes task assignments" : "Menerima penugasan"], ["user", "Driver User", lang === "en" ? "Dedicated to one user" : "Khusus untuk 1 user"]] as [DriverType, string, string][]).map(([val, title, sub]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setFormType(val)}
+                      style={{
+                        flex: 1, padding: "9px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                        border: formType === val ? "1px solid var(--brand)" : "1px solid var(--border2)",
+                        background: formType === val ? "var(--bg2)" : "transparent",
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: 13, color: formType === val ? "var(--brand)" : "var(--t2)" }}>{title}</div>
+                      <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{sub}</div>
+                    </button>
+                  ))}
+                </div>
+                {formType === "user" && (
+                  <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: "var(--bg2)", border: "1px solid var(--border2)" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div>
+                        <label>{lang === "en" ? "USER NAME" : "NAMA USER"} *</label>
+                        <input className={styles.formInput} value={formUser} onChange={(e) => setFormUser(e.target.value)} placeholder={lang === "en" ? "Who this driver serves" : "Siapa yang diantar"} />
+                      </div>
+                      <div>
+                        <label>{lang === "en" ? "TITLE / NOTE" : "JABATAN / KET."}</label>
+                        <input className={styles.formInput} value={formUserTitle} onChange={(e) => setFormUserTitle(e.target.value)} placeholder="Plant Director" />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55, color: "var(--t2)" }}>
+                      🔒 {lang === "en"
+                        ? `Automatically ON DUTY every day ${dutyHoursLabel} (WIB). Status is locked and this driver can't be given operational task assignments.`
+                        : `Otomatis ON DUTY setiap hari pukul ${dutyHoursLabel} WIB. Status terkunci dan driver ini tidak bisa ditugaskan ke penugasan operasional.`}
+                    </div>
+                  </div>
+                )}
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label>{lang === "en" ? "NAME" : "NAMA"} *</label>
