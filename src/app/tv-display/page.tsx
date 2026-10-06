@@ -1,52 +1,66 @@
 "use client";
 
 /**
- * /tv-display — layar publik TANPA LOGIN untuk TV kantor.
- * Split 2 kolom: CIKARANG (kiri) & PASAR REBO (kanan).
+ * /tv-display — layar publik TANPA LOGIN untuk TV kantor ("Driver Operations").
  *
- * Prinsip tampilan
- * - Data TIDAK ditampilkan mentah. Semua teks lewat "formatter" (titleCase,
- *   shortName, plate, elapsed, dst.) supaya nama ALL-CAPS, spasi ganda, plat
- *   tanpa spasi, atau tujuan huruf kecil semua tetap tampil rapi.
- * - Semua ukuran memakai rem dan root font-size mengikuti ukuran layar
- *   (min(vw, vh)), jadi proporsinya sama di TV 1080p, 4K, maupun laptop.
- * - Daftar tugas dipaginasi otomatis (4 kartu / halaman, ganti tiap 10 detik)
- *   sehingga TV tidak perlu scroll dan tidak ada kartu terpotong.
+ * Susunan layar (atas → bawah)
+ *   1. Header: brand, LIVE, layar penuh, tema, jam besar
+ *   2. 6 KPI (garis warna di atas kartu)
+ *   3. 3 kolom: Plant Cikarang | Plant Pasar Rebo | Tugas Berikutnya
+ *      → daftar DRIVER per plant, tiap baris = status driver saat ini
+ *   4. Baris bawah: Progres hari ini | Gate Lintas-Plant | Perlu Perhatian
+ *   5. Bar GATE berjalan (marquee) untuk pergerakan lintas-plant
  *
- * Skala tipografi (rem; 1rem ≈ 17px di layar 1920×1080) — hanya 7 level:
- *   2.6  /800  angka KPI & persen progres
- *   2.0  /800  nama plant
- *   1.5  /800  judul header, jam
- *   1.2  /800  nama driver, nama tujuan
- *   1.0  /500  isi (keperluan)
- *   0.88 /600  meta (plat, waktu, requestor)
- *   0.78 /800  label huruf kapital, chip, badge
+ * Data tidak ditampilkan mentah: semua teks lewat formatter (titleCase,
+ * shortName, plate, fmtDur, …). Semua ukuran memakai rem dan root font-size
+ * mengikuti layar (min(vw, vh)) sehingga proporsional di TV 1080p/4K/laptop.
+ * Daftar yang panjang dipaginasi otomatis (5 baris, ganti tiap 10 dtk).
  *
- * Sumber data: getTasksByDate / getDrivers / getVehicles (RLS anon sudah
- * terbuka). Panel "Gate Lintas-Plant" diturunkan dari tasks hari ini:
- *   - Masuk dari PRB  = plant PRB, ON GOING, tujuan mengandung "cik/cikarang"
- *   - Keluar dari CIK = plant CIK, ON GOING
- * Polling 15 detik.
+ * Skala tipografi (rem; 1rem ≈ 17px di 1920×1080):
+ *   3.0 display  angka KPI
+ *   2.6 display  jam
+ *   1.35 display judul panel (kapital, renggang)
+ *   1.15 display nama driver / nama tujuan
+ *   1.0  body    keterangan
+ *   0.85 mono    meta (plat, waktu)
+ *   0.75 label   kapital kecil, chip
+ *
+ * Sumber data: getTasksByDate / getDrivers / getVehicles (RLS anon terbuka),
+ * polling 15 dtk. Gate lintas-plant diturunkan dari tasks hari ini:
+ *   Masuk dari PRB  = plant PRB, ON GOING, tujuan mengandung "cik/cikarang"
+ *   Keluar dari CIK = plant CIK, ON GOING
  */
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import { Chakra_Petch, Inter } from "next/font/google";
 import Icon from "@/components/Icon";
 import { getTasksByDate, getDrivers, getVehicles } from "@/lib/api";
 import type { TaskDetail, Driver, Vehicle, Plant } from "@/lib/types";
 
+const display = Chakra_Petch({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+  display: "swap",
+});
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 const POLL_MS = 15000;
-const PER_PAGE = 4;
+const PER_PAGE = 5;
 const ROTATE_MS = 10000;
+const LATE_MIN = 120;
 const THEME_KEY = "cikops_tv_theme";
 
 /* ───────────────────────── formatter ───────────────────────── */
 
 function localDateStr(d = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 const KEEP_UPPER = new Set([
@@ -68,7 +82,6 @@ function titleCase(input?: string | null): string {
     .join(" ");
 }
 
-/** Kalimat: huruf pertama kapital, sisanya tetap kecuali teks ALL-CAPS. */
 function sentence(input?: string | null): string {
   const s = (input ?? "").replace(/\s+/g, " ").trim();
   if (!s) return "";
@@ -77,25 +90,23 @@ function sentence(input?: string | null): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-/** "BUDI SANTOSO WIJAYA" → "Budi Santoso" */
 function shortName(name?: string | null): string {
   const t = titleCase(name);
   if (!t) return "Belum ditentukan";
   return t.split(" ").slice(0, 2).join(" ");
 }
 
-/** "B1234XYZ" → "B 1234 XYZ" */
 function plate(nopol?: string | null): string {
   const s = (nopol ?? "").replace(/\s+/g, "").toUpperCase();
   const m = s.match(/^([A-Z]{1,2})(\d{1,4})([A-Z]{0,3})$/);
   return m ? [m[1], m[2], m[3]].filter(Boolean).join(" ") : (nopol ?? "").trim() || "—";
 }
 
-function initials(name: string | null): string {
+function initials(name?: string | null): string {
   const t = titleCase(name);
   if (!t) return "?";
-  const parts = t.split(" ");
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+  const p = t.split(" ");
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
 function fmtTime(iso: string | null): string {
@@ -108,7 +119,6 @@ function elapsedMins(iso: string | null): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
-/** 85 → "1j 25m", 40 → "40 mnt" */
 function fmtDur(mins: number): string {
   if (mins < 60) return `${mins} mnt`;
   const h = Math.floor(mins / 60);
@@ -120,13 +130,14 @@ function agoLabel(d: Date | null, nowTick: number): string {
   if (!d) return "memuat…";
   const s = Math.max(0, Math.round((nowTick - d.getTime()) / 1000));
   if (s < 5) return "baru saja";
-  if (s < 60) return `${s} dtk lalu`;
-  return `${Math.round(s / 60)} mnt lalu`;
+  if (s < 60) return `${s} dtk`;
+  return `${Math.round(s / 60)} mnt`;
 }
 
 const PLANT_NAME: Record<Plant, string> = { CIK: "Cikarang", PRB: "Pasar Rebo" };
+const startOf = (t: TaskDetail) => t.accepted_at ?? t.created_at;
 
-/* ───────────────────────── data hooks ───────────────────────── */
+/* ───────────────────────── data ───────────────────────── */
 
 interface Snapshot { tasks: TaskDetail[]; drivers: Driver[]; vehicles: Vehicle[] }
 
@@ -159,38 +170,50 @@ function usePlantSnapshot() {
   return { data, error, loadedAt };
 }
 
-const STATUS_RANK: Record<string, number> = { "ON GOING": 0, ASSIGNED: 1, DONE: 2 };
+type State = "long" | "go" | "wait" | "idle" | "done";
+interface Row { driver: Driver; task: TaskDetail | null; state: State }
 
-function usePlantSlice(snapshot: Snapshot | null, plant: Plant) {
+const STATE_RANK: Record<State, number> = { long: 0, go: 1, wait: 2, idle: 3, done: 4 };
+const TASK_RANK: Record<string, number> = { "ON GOING": 0, ASSIGNED: 1, DONE: 2 };
+
+function pickTask(list: TaskDetail[]): TaskDetail | null {
+  if (!list.length) return null;
+  return [...list].sort((a, b) => {
+    const r = (TASK_RANK[a.status] ?? 9) - (TASK_RANK[b.status] ?? 9);
+    if (r !== 0) return r;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  })[0];
+}
+
+function stateOf(t: TaskDetail | null): State {
+  if (!t) return "idle";
+  if (t.status === "ON GOING") return elapsedMins(startOf(t)) > LATE_MIN ? "long" : "go";
+  if (t.status === "ASSIGNED") return "wait";
+  return "done";
+}
+
+/** Satu baris per driver aktif di plant, lengkap dengan status terkini. */
+function useDriverRows(snapshot: Snapshot | null, plant: Plant) {
   return useMemo(() => {
-    const empty = {
-      tasks: [] as TaskDetail[], driverCount: 0, vehicleCount: 0,
-      ongoing: 0, done: 0, total: 0, standby: [] as Driver[],
-    };
-    if (!snapshot) return empty;
-    const tasks = snapshot.tasks
-      .filter((t) => t.plant === plant && t.status !== "CANCELLED")
-      .sort((a, b) => {
-        const r = (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9);
-        if (r !== 0) return r;
-        // yang paling lama berjalan tampil duluan
-        return new Date(a.accepted_at ?? a.created_at).getTime() - new Date(b.accepted_at ?? b.created_at).getTime();
-      });
-    const drivers = snapshot.drivers.filter((d) => d.plant === plant && d.aktif);
-    const busy = new Set(tasks.filter((t) => t.status === "ON GOING").map((t) => t.driver_id));
-    return {
-      tasks,
-      driverCount: drivers.length,
-      vehicleCount: snapshot.vehicles.filter((v) => v.plant === plant && v.aktif).length,
-      ongoing: tasks.filter((t) => t.status === "ON GOING").length,
-      done: tasks.filter((t) => t.status === "DONE").length,
-      total: tasks.length,
-      standby: drivers.filter((d) => !busy.has(d.id)),
-    };
+    if (!snapshot) return { rows: [] as Row[], out: 0 };
+    const byDriver = new Map<string, TaskDetail[]>();
+    for (const t of snapshot.tasks) {
+      if (t.status === "CANCELLED" || !t.driver_id) continue;
+      const arr = byDriver.get(t.driver_id) ?? [];
+      arr.push(t);
+      byDriver.set(t.driver_id, arr);
+    }
+    const rows: Row[] = snapshot.drivers
+      .filter((d) => d.plant === plant && d.aktif)
+      .map((d) => {
+        const task = pickTask(byDriver.get(d.id) ?? []);
+        return { driver: d, task, state: stateOf(task) };
+      })
+      .sort((a, b) => STATE_RANK[a.state] - STATE_RANK[b.state] || a.driver.nama.localeCompare(b.driver.nama));
+    return { rows, out: rows.filter((r) => r.state === "go" || r.state === "long").length };
   }, [snapshot, plant]);
 }
 
-/** Halaman otomatis berganti; klik titik untuk lompat (timer di-reset). */
 function useRotator(pages: number, ms: number) {
   const [page, setPage] = useState(0);
   const [stamp, setStamp] = useState(0);
@@ -205,85 +228,230 @@ function useRotator(pages: number, ms: number) {
 
 /* ───────────────────────── komponen ───────────────────────── */
 
-function ProgressRing({ pct }: { pct: number }) {
-  const r = 26, c = 2 * Math.PI * r;
+function Dots({ pages, page, jump }: { pages: number; page: number; jump: (i: number) => void }) {
+  if (pages <= 1) return null;
   return (
-    <div className="ring">
-      <svg viewBox="0 0 64 64" width="100%" height="100%">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="7" />
-        <circle
-          cx="32" cy="32" r={r} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} transform="rotate(-90 32 32)"
-          style={{ transition: "stroke-dashoffset .8s ease" }}
-        />
-      </svg>
-      <div className="ring-txt"><b>{pct}%</b><small>selesai</small></div>
+    <div className="dots" aria-label="Halaman">
+      {Array.from({ length: pages }).map((_, i) => (
+        <button key={i} className={i === page ? "on" : ""} onClick={() => jump(i)} aria-label={`Halaman ${i + 1}`} />
+      ))}
     </div>
   );
 }
 
-function TaskCard({ t, delay }: { t: TaskDetail; delay: number }) {
-  const going = t.status === "ON GOING";
-  const done = t.status === "DONE";
-  const started = t.accepted_at ?? t.created_at;
-  const mins = going ? elapsedMins(started) : 0;
-  const long = going && mins > 120;
-  const tone = done ? "done" : going ? (long ? "long" : "go") : "wait";
-  const main = sentence(t.perihal) || sentence(t.jenis_pekerjaan) || "—";
-  const tag = t.perihal && t.jenis_pekerjaan ? titleCase(t.jenis_pekerjaan) : "";
-
-  let timeLine: string;
-  if (going) timeLine = `Berangkat ${fmtTime(started)} · ${fmtDur(mins)}`;
-  else if (done) timeLine = `Selesai ${fmtTime(t.completed_at)}`;
-  else timeLine = `Ditugaskan ${fmtTime(t.created_at)}`;
-
+function Kpi({ tone, label, value, unit, sub }: { tone: string; label: string; value: number | string; unit?: string; sub: string }) {
   return (
-    <article className={`tcard ${tone}`} style={{ animationDelay: `${delay}ms` }}>
-      <header className="tc-top">
-        <div className="av">{initials(t.driver_nama)}</div>
-        <div className="tc-who">
-          <div className="nm">{shortName(t.driver_nama)}</div>
-          <div className="vh">
-            <span className="plate">{plate(t.kendaraan)}</span>
-          </div>
+    <div className={`kpi t-${tone}`}>
+      <div className="k-lbl">{label}</div>
+      <div className="k-num">{value}{unit && <span className="k-unit">{unit}</span>}</div>
+      <div className="k-sub">{sub}</div>
+    </div>
+  );
+}
+
+const CHIP: Record<State, string> = { long: "Perlu dicek", go: "Di jalan", wait: "Menunggu", idle: "Standby", done: "Selesai" };
+
+/* ── Paginasi berbasis ukuran: tujuan & keperluan SELALU tampil penuh ──
+ * Baris tidak dipotong (tanpa "…"); teks panjang dibungkus ke baris baru.
+ * Halaman disusun dengan memperkirakan tinggi tiap baris (jumlah baris teks)
+ * lalu mengisi sampai tinggi area tersedia, sisanya pindah ke halaman berikut. */
+
+/** Ukuran elemen dalam rem (mengikuti root font-size layar). */
+function useBox(ref: React.RefObject<HTMLElement | null>) {
+  const [box, setBox] = useState({ w: 38, h: 24 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      setBox({ w: el.clientWidth / rem, h: el.clientHeight / rem });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return box;
+}
+
+const linesFor = (text: string, perLine: number) => Math.max(1, Math.ceil(text.length / Math.max(12, perLine)));
+
+/** Perkiraan tinggi baris (rem). */
+function estimateHeight(dest: string, purpose: string, hasTask: boolean, widthRem: number): number {
+  const inner = widthRem - 6.6; // padding + avatar + gap
+  const perLine = inner / 0.62; // lebar rata-rata 1 huruf ±0.62rem (aman)
+  if (!hasTask) return 4.5;
+  return 1.35 + 1.55 + linesFor(dest, perLine - 2) * 1.5 + (purpose ? linesFor(purpose, perLine) * 1.45 : 0) + 1.5;
+}
+
+function pack<T>(items: T[], heightOf: (x: T) => number, budget: number, gap = 0.5): T[][] {
+  const pages: T[][] = [];
+  let cur: T[] = [];
+  let used = 0;
+  for (const it of items) {
+    const h = heightOf(it);
+    const add = (cur.length ? gap : 0) + h;
+    if (cur.length && used + add > budget) {
+      pages.push(cur);
+      cur = [it];
+      used = h;
+    } else {
+      cur.push(it);
+      used += add;
+    }
+  }
+  if (cur.length) pages.push(cur);
+  return pages.length ? pages : [[]];
+}
+
+function rowTexts(r: Row) {
+  const t = r.task;
+  return {
+    dest: t ? titleCase(t.tujuan) || "—" : "",
+    purpose: t ? sentence(t.perihal) || sentence(t.jenis_pekerjaan) : "",
+  };
+}
+
+function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number }) {
+  const t = r.task;
+  const { dest, purpose } = rowTexts(r);
+  let meta = "";
+  if (!t) meta = "Belum keluar plant hari ini";
+  else if (r.state === "go" || r.state === "long") meta = `${plate(t.kendaraan)} · berangkat ${fmtTime(startOf(t))} · ${fmtDur(elapsedMins(startOf(t)))}`;
+  else if (r.state === "wait") meta = `${plate(t.kendaraan)} · ditugaskan ${fmtTime(t.created_at)}`;
+  else meta = `${plate(t.kendaraan)} · selesai ${fmtTime(t.completed_at)}`;
+  const chip = r.state === "idle" ? `Standby di ${PLANT_NAME[plant]}` : CHIP[r.state];
+  return (
+    <div className={`drow s-${r.state}`} style={{ animationDelay: `${delay}ms` }}>
+      <div className="av">{initials(r.driver.nama)}</div>
+      <div className="d-main">
+        <div className="d-top">
+          <div className="d-name">{shortName(r.driver.nama)}</div>
+          <span className="chip">{(r.state === "go" || r.state === "long") && <i className="pdot" />}{chip}</span>
         </div>
-        <span className={`chip ${tone}`}>
-          {going && <i className="pdot" />}
-          {done ? "Selesai" : going ? (long ? "Perlu dicek" : "Di jalan") : "Menunggu"}
-        </span>
-      </header>
-
-      <div className="tc-route">
-        <span className="rt-from"><i className="rt-a" />{PLANT_NAME[t.plant]}</span>
-        <span className="rt-bar"><Icon name="arrow" size={14} strokeWidth={2.4} /></span>
-        <span className="rt-to" title={titleCase(t.tujuan)}><Icon name="pin" size={15} strokeWidth={2.3} /><span>{titleCase(t.tujuan) || "—"}</span></span>
+        {t ? (
+          <>
+            <div className="d-dest"><Icon name="pin" size={14} strokeWidth={2.4} /><b>{dest}</b></div>
+            {purpose && <div className="d-purpose">{purpose}</div>}
+            <div className="d-meta">{meta}</div>
+          </>
+        ) : (
+          <div className="d-purpose idle">Tidak ada tugas terjadwal <span className="d-meta inline">· {meta}</span></div>
+        )}
       </div>
+    </div>
+  );
+}
 
-      <div className="tc-purpose" title={main}>{tag && <em>{tag}</em>}{main}</div>
+function PlantColumn({ plant, snapshot }: { plant: Plant; snapshot: Snapshot | null }) {
+  const { rows, out } = useDriverRows(snapshot, plant);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const box = useBox(boxRef);
+  const pagesArr = useMemo(
+    () => pack(rows, (r) => { const x = rowTexts(r); return estimateHeight(x.dest, x.purpose, !!r.task, box.w); }, box.h - 0.6),
+    [rows, box.w, box.h],
+  );
+  const { page, jump } = useRotator(pagesArr.length, ROTATE_MS);
+  const visible = pagesArr[page] ?? [];
+  return (
+    <section className={`panel col p-${plant.toLowerCase()}`}>
+      <header className="p-head">
+        <h2>Plant {PLANT_NAME[plant]}</h2>
+        <span className="p-meta">{rows.length - out} di plant · {out} di luar</span>
+      </header>
+      <div className="rows" ref={boxRef}>
+        <div className="rows-in" key={`${plant}-${page}`}>
+          {visible.length === 0 && <div className="none">Belum ada driver aktif di plant ini.</div>}
+          {visible.map((r, i) => <DriverRow key={r.driver.id} r={r} plant={plant} delay={i * 60} />)}
+        </div>
+      </div>
+      <Dots pages={pagesArr.length} page={page} jump={jump} />
+    </section>
+  );
+}
 
-      <footer className="tc-foot">
-        <span className="tm"><Icon name="clock" size={14} strokeWidth={2.2} />{timeLine}</span>
-        <span className="rq">
-          {titleCase(t.requestor) ? `Req. ${shortName(t.requestor)}` : ""}
-        </span>
-      </footer>
-    </article>
+function UpcomingColumn({ upcoming, done }: { upcoming: TaskDetail[]; done: number }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const box = useBox(boxRef);
+  const pagesArr = useMemo(
+    () => pack(upcoming, (t) => estimateHeight(titleCase(t.tujuan) || "—", sentence(t.perihal) || sentence(t.jenis_pekerjaan), true, box.w - 4), box.h - 0.6),
+    [upcoming, box.w, box.h],
+  );
+  const { page, jump } = useRotator(pagesArr.length, ROTATE_MS);
+  const visible = pagesArr[page] ?? [];
+  return (
+    <section className="panel col up">
+      <header className="p-head">
+        <h2>Tugas Berikutnya</h2>
+        <span className="p-meta">{upcoming.length} tersisa · {done} selesai</span>
+      </header>
+      <div className="rows" ref={boxRef}>
+        <div className="rows-in" key={`up-${page}`}>
+          {visible.length === 0 && <div className="none">Tidak ada tugas tersisa hari ini.</div>}
+          {visible.map((t, i) => (
+            <div className="urow" key={t.id} style={{ animationDelay: `${i * 60}ms` }}>
+              <div className="u-time">{fmtTime(t.created_at)}</div>
+              <div className="d-main">
+                <div className="d-top">
+                  <div className="d-name">{shortName(t.driver_nama)}</div>
+                  <span className={`ptag ${t.plant === "CIK" ? "cik" : "prb"}`}>{t.plant}</span>
+                </div>
+                <div className="d-dest"><Icon name="pin" size={14} strokeWidth={2.4} /><b>{titleCase(t.tujuan) || "—"}</b></div>
+                <div className="d-purpose">{sentence(t.perihal) || sentence(t.jenis_pekerjaan) || "—"}</div>
+                <div className="d-meta">{plate(t.kendaraan)} · req. {shortName(t.requestor)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Dots pages={pagesArr.length} page={page} jump={jump} />
+    </section>
+  );
+}
+
+function ProgressPanel({ done, going, wait }: { done: number; going: number; wait: number }) {
+  const total = done + going + wait;
+  const pct = total ? done / total : 0;
+  const r = 44, c = 2 * Math.PI * r;
+  return (
+    <section className="panel prog">
+      <header className="p-head"><h2>Progres Tugas Hari Ini</h2></header>
+      <div className="prog-body">
+        <div className="ring">
+          <svg viewBox="0 0 110 110" width="100%" height="100%">
+            <defs>
+              <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#34d399" /><stop offset="1" stopColor="#22d3ee" />
+              </linearGradient>
+            </defs>
+            <circle cx="55" cy="55" r={r} fill="none" stroke="var(--track)" strokeWidth="10" />
+            <circle
+              cx="55" cy="55" r={r} fill="none" stroke="url(#rg)" strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={c} strokeDashoffset={c * (1 - pct)} transform="rotate(-90 55 55)"
+              style={{ transition: "stroke-dashoffset .9s ease" }}
+            />
+          </svg>
+          <div className="ring-txt"><b>{done}/{total}</b><small>selesai</small></div>
+        </div>
+        <ul className="legend">
+          <li><i style={{ background: "var(--green)" }} /><b>{done}</b><span>Selesai</span></li>
+          <li><i style={{ background: "var(--blue)" }} /><b>{going}</b><span>Sedang jalan</span></li>
+          <li><i style={{ background: "var(--amber)" }} /><b>{wait}</b><span>Belum diterima</span></li>
+        </ul>
+      </div>
+    </section>
   );
 }
 
 function GateRow({ t, dir }: { t: TaskDetail; dir: "in" | "out" }) {
-  const started = t.accepted_at ?? t.created_at;
   return (
-    <div className="gate-row">
-      <div className="gic">{initials(t.driver_nama)}</div>
-      <div className="gbody">
-        <div className="g1">{shortName(t.driver_nama)}</div>
-        <div className="g2">
-          <span className="plate sm">{plate(t.kendaraan)}</span>
-          {dir === "out" ? `ke ${titleCase(t.tujuan) || "—"}` : sentence(t.perihal || t.jenis_pekerjaan) || "—"}
-        </div>
+    <div className={`g-row ${dir}`}>
+      <div className="av sm">{initials(t.driver_nama)}</div>
+      <div className="d-main">
+        <div className="d-name sm">{shortName(t.driver_nama)}</div>
+        <div className="g-text"><span className="plate">{plate(t.kendaraan)}</span> {dir === "out" ? `ke ${titleCase(t.tujuan) || "—"}` : sentence(t.perihal || t.jenis_pekerjaan) || "—"}</div>
       </div>
-      <div className="gtime">{fmtTime(started)}</div>
+      <div className="g-time">{fmtTime(startOf(t))}</div>
     </div>
   );
 }
@@ -292,105 +460,48 @@ function GatePanel({ masuk, keluar }: { masuk: TaskDetail[]; keluar: TaskDetail[
   const MAX = 2;
   return (
     <section className="panel gate">
-      <div className="panel-head">
-        <span className="ph-ic"><Icon name="gate" size={18} /></span>
-        <h3>Gate Lintas-Plant</h3>
-        <span className="live-chip"><i className="pdot" />live</span>
-      </div>
-      <div className="gate-cols">
-        <div className="gate-col in">
-          <h4><span className="cnt">{masuk.length}</span>Driver PRB masuk Cikarang{masuk.length > MAX && <span className="g-more">+{masuk.length - MAX} lagi</span>}</h4>
-          {masuk.length === 0 && <div className="g-empty">Tidak ada driver PRB di Cikarang</div>}
+      <header className="p-head">
+        <h2>Gate Lintas-Plant</h2>
+        <span className="p-meta live"><i className="pdot" />live</span>
+      </header>
+      <div className="g-cols">
+        <div className="g-col in">
+          <h4><span className="cnt">{masuk.length}</span>Driver PRB masuk Cikarang{masuk.length > MAX && <em>+{masuk.length - MAX} lagi</em>}</h4>
+          {masuk.length === 0 && <div className="none sm">Tidak ada driver PRB di Cikarang</div>}
           {masuk.slice(0, MAX).map((t) => <GateRow key={t.id} t={t} dir="in" />)}
-
         </div>
-        <div className="gate-col out">
-          <h4><span className="cnt">{keluar.length}</span>Driver CIK sedang keluar{keluar.length > MAX && <span className="g-more">+{keluar.length - MAX} lagi</span>}</h4>
-          {keluar.length === 0 && <div className="g-empty">Semua driver CIK ada di plant</div>}
+        <div className="g-col out">
+          <h4><span className="cnt">{keluar.length}</span>Driver CIK sedang keluar{keluar.length > MAX && <em>+{keluar.length - MAX} lagi</em>}</h4>
+          {keluar.length === 0 && <div className="none sm">Semua driver CIK ada di plant</div>}
           {keluar.slice(0, MAX).map((t) => <GateRow key={t.id} t={t} dir="out" />)}
-
         </div>
       </div>
     </section>
   );
 }
 
-function StandbyPanel({ drivers }: { drivers: Driver[] }) {
-  const MAX = 8;
+interface Alert { tone: "red" | "amber" | "blue"; title: string; sub: string }
+
+function AttentionPanel({ alerts }: { alerts: Alert[] }) {
   return (
-    <section className="panel standby">
-      <div className="panel-head">
-        <span className="ph-ic"><Icon name="users" size={18} /></span>
-        <h3>Driver Standby di Plant</h3>
-        <span className="live-chip"><i className="pdot" />{drivers.length} siap</span>
-      </div>
-      {drivers.length === 0 ? (
-        <div className="g-empty">Semua driver sedang bertugas</div>
+    <section className="panel attn">
+      <header className="p-head"><h2>Perlu Perhatian</h2>{alerts.length > 0 && <span className="p-meta warn">{alerts.length} item</span>}</header>
+      {alerts.length === 0 ? (
+        <div className="ok">
+          <span className="ok-ic"><Icon name="check" size={26} strokeWidth={2.6} /></span>
+          <div><b>Semua normal</b><small>Tidak ada yang perlu ditindaklanjuti</small></div>
+        </div>
       ) : (
-        <div className="sb-grid">
-          {drivers.slice(0, MAX).map((d) => (
-            <div className="sb-chip" key={d.id}>
-              <span className="sb-av">{initials(d.nama)}</span>
-              {shortName(d.nama)}
+        <div className="alerts">
+          {alerts.slice(0, 3).map((a, i) => (
+            <div className={`alert ${a.tone}`} key={i}>
+              <span className="a-ic"><Icon name="alert" size={18} strokeWidth={2.2} /></span>
+              <div><b>{a.title}</b><small>{a.sub}</small></div>
             </div>
           ))}
-          {drivers.length > MAX && <div className="sb-chip more">+{drivers.length - MAX}</div>}
         </div>
       )}
     </section>
-  );
-}
-
-function PlantSide({
-  plant, snapshot, extra,
-}: { plant: Plant; snapshot: Snapshot | null; extra: React.ReactNode }) {
-  const s = usePlantSlice(snapshot, plant);
-  const pages = Math.max(1, Math.ceil(s.tasks.length / PER_PAGE));
-  const { page, jump } = useRotator(pages, ROTATE_MS);
-  const visible = s.tasks.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
-  const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-
-  return (
-    <div className={`side ${plant === "CIK" ? "cik" : "prb"}`}>
-      <div className="banner">
-        <div className="bn-l">
-          <div className="bn-code">Plant {plant}</div>
-          <h2>{PLANT_NAME[plant]}</h2>
-          <div className="bn-sub"><b>{s.total}</b> penugasan · <b>{s.done}</b> selesai</div>
-        </div>
-        <ProgressRing pct={pct} />
-        <div className="kpis">
-          <div className="kpi"><div className="k-num">{s.driverCount}</div><div className="k-lbl">Driver aktif</div></div>
-          <div className="kpi"><div className="k-num">{s.vehicleCount}</div><div className="k-lbl">Kendaraan</div></div>
-          <div className="kpi hot"><div className="k-num">{s.ongoing}</div><div className="k-lbl">Belum kembali</div></div>
-        </div>
-      </div>
-
-      <div className="sec-head">
-        <span>Penugasan Hari Ini</span>
-        {pages > 1 && (
-          <div className="dots" role="tablist" aria-label="Halaman">
-            {Array.from({ length: pages }).map((_, i) => (
-              <button key={i} className={i === page ? "on" : ""} onClick={() => jump(i)} aria-label={`Halaman ${i + 1}`} />
-            ))}
-            <span className="pg">{page + 1}/{pages}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="tgrid" key={`${plant}-${page}`}>
-        {visible.length === 0 ? (
-          <div className="empty">
-            <Icon name="tasks" size={34} strokeWidth={1.6} />
-            <div>Belum ada penugasan hari ini</div>
-          </div>
-        ) : (
-          visible.map((t, i) => <TaskCard key={t.id} t={t} delay={i * 80} />)
-        )}
-      </div>
-
-      {extra}
-    </div>
   );
 }
 
@@ -402,7 +513,7 @@ export default function TvDisplayPage() {
   const [clockDate, setClockDate] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -422,8 +533,8 @@ export default function TvDisplayPage() {
   useEffect(() => {
     const tick = () => {
       const d = new Date();
-      setClock(`${String(d.getHours()).padStart(2, "0")}.${String(d.getMinutes()).padStart(2, "0")}.${String(d.getSeconds()).padStart(2, "0")}`);
-      setClockDate(d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
+      setClock(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`);
+      setClockDate(d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "short", year: "numeric" }));
       setNowTick(Date.now());
     };
     tick();
@@ -442,28 +553,42 @@ export default function TvDisplayPage() {
     else pageRef.current?.requestFullscreen?.().catch(() => {});
   }, []);
 
-  const gate = useMemo(() => {
-    if (!data) return { masuk: [] as TaskDetail[], keluar: [] as TaskDetail[] };
+  const cik = useDriverRows(data, "CIK");
+  const prb = useDriverRows(data, "PRB");
+
+  const m = useMemo(() => {
+    const tasks = (data?.tasks ?? []).filter((t) => t.status !== "CANCELLED");
+    const going = tasks.filter((t) => t.status === "ON GOING");
+    const assigned = tasks.filter((t) => t.status === "ASSIGNED");
+    const done = tasks.filter((t) => t.status === "DONE");
+    const masuk = going.filter((t) => t.plant === "PRB" && /cik|cikarang/i.test(t.tujuan || ""));
+    const keluar = going.filter((t) => t.plant === "CIK");
+    const late = going.filter((t) => elapsedMins(startOf(t)) > LATE_MIN);
+    const stale = assigned.filter((t) => elapsedMins(t.created_at) > 30);
+    const alerts: Alert[] = [
+      ...late.map((t): Alert => ({ tone: "red", title: `${shortName(t.driver_nama)} sudah ${fmtDur(elapsedMins(startOf(t)))} di luar`, sub: `${plate(t.kendaraan)} · ke ${titleCase(t.tujuan) || "—"}` })),
+      ...stale.map((t): Alert => ({ tone: "amber", title: `${shortName(t.driver_nama)} belum berangkat`, sub: `Ditugaskan ${fmtDur(elapsedMins(t.created_at))} lalu · ${titleCase(t.tujuan) || "—"}` })),
+    ];
+    const allRows = [...cik.rows, ...prb.rows];
+    const activeDrivers = allRows.length;
+    const out = allRows.filter((r) => r.state === "go" || r.state === "long").length;
     return {
-      masuk: data.tasks.filter((t) => t.plant === "PRB" && t.status === "ON GOING" && /cik|cikarang/i.test(t.tujuan || "")),
-      keluar: data.tasks.filter((t) => t.plant === "CIK" && t.status === "ON GOING"),
+      going, assigned, done, masuk, keluar, alerts, activeDrivers, out,
+      totalDrivers: data?.drivers.length ?? 0,
+      ready: allRows.filter((r) => r.state === "idle").length,
+      vehiclesActive: (data?.vehicles ?? []).filter((v) => v.aktif).length,
+      total: tasks.length,
+      upcoming: [...assigned].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
     };
-  }, [data]);
+  }, [data, cik.rows, prb.rows]);
 
-  const prbStandby = usePlantSlice(data, "PRB").standby;
-
-  const ticker = useMemo(() => {
-    const items: string[] = [];
-    if (data) {
-      const late = data.tasks.filter((t) => t.status === "ON GOING" && elapsedMins(t.accepted_at ?? t.created_at) > 120).length;
-      if (late) items.push(`${late} tugas sudah berjalan lebih dari 2 jam — mohon dicek`);
-      if (gate.masuk.length) items.push(`${gate.masuk.length} driver PRB sedang berada di area Cikarang`);
-      if (gate.keluar.length) items.push(`${gate.keluar.length} driver CIK sedang bertugas di luar plant`);
-    }
-    if (!items.length) items.push("Semua penugasan berjalan normal");
-    items.push("Gunakan helm & sabuk pengaman — keselamatan nomor satu");
-    return items;
-  }, [data, gate]);
+  const gateEvents = useMemo(() => {
+    const ev: string[] = [];
+    m.masuk.forEach((t) => ev.push(`↙ MASUK · ${shortName(t.driver_nama)} (PRB) ke Cikarang · ${plate(t.kendaraan)} · ${fmtTime(startOf(t))}`));
+    m.keluar.forEach((t) => ev.push(`↗ KELUAR · ${shortName(t.driver_nama)} (CIK) → ${titleCase(t.tujuan) || "—"} · ${plate(t.kendaraan)} · ${fmtTime(startOf(t))}`));
+    if (!ev.length) ev.push("Belum ada pergerakan gate lintas-plant saat ini");
+    return ev;
+  }, [m.masuk, m.keluar]);
 
   return (
     <>
@@ -473,240 +598,235 @@ export default function TvDisplayPage() {
       `}</style>
       <style jsx>{`
         .page {
-          --bg: #eef3fc; --surface: #ffffff; --surface2: #f5f8fe; --line: #dfe7f5;
-          --t1: #0d1a36; --t2: #44537a; --t3: #7886a8;
-          --blue: #2d5bff; --blue2: #1d44d6; --teal: #0fb5a4; --teal2: #0b8f82;
-          --amber: #f59e0b; --amber-bg: #fff4dc; --green: #16a34a; --green-bg: #e3f7ea;
-          --red-bg: #ffe9e6; --red: #e5484d;
-          --shadow: 0 1px 2px rgba(20,40,100,.06), 0 14px 32px -16px rgba(30,60,160,.25);
-          --blob1: rgba(45,91,255,.14); --blob2: rgba(15,181,164,.12);
-          display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-          font-family: var(--font-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif;
-          color: var(--t1);
+          --bg: #050b1c; --card: rgba(12,22,48,.88); --card2: rgba(20,34,70,.7); --line: rgba(120,150,255,.14);
+          --t1: #f2f6ff; --t2: #b3c0e3; --t3: #7384ad; --track: rgba(255,255,255,.08);
+          --blue: #4d8dff; --green: #34d399; --cyan: #22d3ee; --amber: #fbbf24; --purple: #a78bfa; --red: #fb7185;
+          --grid: rgba(120,150,255,.055);
+          display: flex; flex-direction: column; gap: .9rem; height: 100vh; overflow: hidden; padding: 1.1rem 1.6rem .9rem;
+          font-family: var(--font-inter), system-ui, sans-serif; color: var(--t1);
           background:
-            radial-gradient(60rem 36rem at 8% -10%, var(--blob1), transparent 60%),
-            radial-gradient(54rem 34rem at 96% 108%, var(--blob2), transparent 60%),
+            radial-gradient(60rem 30rem at 12% -12%, rgba(77,141,255,.18), transparent 60%),
+            radial-gradient(50rem 28rem at 100% 110%, rgba(34,211,238,.1), transparent 60%),
+            linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
+            linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
             var(--bg);
         }
-        .page.dark {
-          --bg: #070d1d; --surface: #0f1932; --surface2: #15213f; --line: rgba(255,255,255,.1);
-          --t1: #f4f7ff; --t2: #b4c0e0; --t3: #7f8db3;
-          --amber-bg: rgba(245,158,11,.16); --green-bg: rgba(34,197,94,.16); --red-bg: rgba(229,72,77,.18);
-          --shadow: 0 14px 34px -16px rgba(0,0,0,.65);
-          --blob1: rgba(45,91,255,.22); --blob2: rgba(15,181,164,.14);
+        .page.light {
+          --bg: #eef3fc; --card: rgba(255,255,255,.94); --card2: #f3f7fe; --line: #dbe4f5;
+          --t1: #0d1a36; --t2: #44537a; --t3: #7886a8; --track: #e3eaf8;
+          --blue: #2d5bff; --green: #12a572; --cyan: #0fa3b8; --amber: #d98a06; --purple: #7c5cf0; --red: #e5484d;
+          --grid: rgba(45,91,255,.05);
+          background:
+            radial-gradient(60rem 30rem at 12% -12%, rgba(45,91,255,.14), transparent 60%),
+            radial-gradient(50rem 28rem at 100% 110%, rgba(15,181,164,.12), transparent 60%),
+            linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
+            linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
+            var(--bg);
         }
+        .disp { font-family: var(--font-display), var(--font-inter), sans-serif; }
 
         /* ───── header ───── */
-        .top {
-          display: flex; align-items: center; justify-content: space-between; gap: 1.2rem;
-          padding: 0.95rem 2rem; flex-shrink: 0; position: relative; overflow: hidden; color: #fff;
-          background: linear-gradient(115deg, #1639c4 0%, #2d5bff 52%, #4d8bff 100%);
-          box-shadow: 0 10px 30px -14px rgba(29,68,214,.7);
-        }
-        .top::before {
-          content: ""; position: absolute; inset: 0; pointer-events: none;
-          background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.16) 50%, transparent 65%);
-          transform: translateX(-120%); animation: shine 7s ease-in-out infinite;
-        }
-        @keyframes shine { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
-        .brand { display: flex; align-items: center; gap: 1rem; position: relative; }
-        .logo { width: 3.1rem; height: 3.1rem; border-radius: 1rem; background: #fff; display: grid; place-items: center; box-shadow: 0 6px 18px -6px rgba(0,0,0,.4); }
-        .logo img { width: 74%; height: 74%; object-fit: contain; }
-        .brand h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; line-height: 1.1; }
-        .brand .sub { font-size: .88rem; font-weight: 600; opacity: .82; margin-top: .25rem; }
-        .tools { display: flex; align-items: center; gap: .8rem; position: relative; }
-        .live {
-          display: inline-flex; align-items: center; gap: .5rem; font-size: .78rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-          background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); padding: .45rem .9rem; border-radius: 999px;
-        }
-        .live .ago { text-transform: none; letter-spacing: 0; font-weight: 600; opacity: .85; }
-        :global(.ibtn) {
-          height: 2.5rem; min-width: 2.5rem; padding: 0 .75rem; border-radius: .85rem; display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
-          background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.32); color: #fff; cursor: pointer; text-decoration: none;
-          font: inherit; font-size: .88rem; font-weight: 700; transition: background .15s, transform .15s;
-        }
-        :global(.ibtn:hover) { background: rgba(255,255,255,.28); transform: translateY(-1px); }
+        .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-shrink: 0; }
+        .brand { display: flex; align-items: center; gap: .9rem; }
+        .logo { width: 3rem; height: 3rem; border-radius: .95rem; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 0 1.4rem rgba(77,141,255,.35); }
+        .logo img { width: 76%; height: 76%; object-fit: contain; }
+        .b-name { font-family: var(--font-display), sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: .04em; line-height: 1; }
+        .b-name sup { font-size: .9rem; color: var(--cyan); margin-left: .15rem; }
+        .b-sep { width: 1px; height: 1.8rem; background: var(--line); }
+        .b-sub { font-family: var(--font-display), sans-serif; font-size: 1.1rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--t2); }
+        .tools { display: flex; align-items: center; gap: .6rem; margin-left: 1rem; }
+        .live { display: inline-flex; align-items: center; gap: .5rem; height: 2.1rem; padding: 0 .9rem; border-radius: 999px; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 55%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); }
+        .live .ago { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--t3); }
+        :global(.tbtn) { height: 2.1rem; padding: 0 .85rem; border-radius: .7rem; display: inline-flex; align-items: center; gap: .45rem; font: inherit; font-size: .8rem; font-weight: 700; color: var(--t1); text-decoration: none; cursor: pointer; background: var(--card2); border: 1px solid var(--line); transition: transform .15s, border-color .15s; }
+        :global(.tbtn:hover) { transform: translateY(-1px); border-color: var(--blue); }
         .page.fs :global(.hide-fs) { display: none; }
-        .clock { text-align: right; padding-left: .6rem; }
-        .clock .time { font-family: var(--font-jetbrains-mono), monospace; font-size: 1.5rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-        .clock .date { font-size: .88rem; font-weight: 600; opacity: .82; margin-top: .3rem; }
-        .err { background: var(--amber-bg); color: var(--amber); font-size: .88rem; font-weight: 700; padding: .5rem 2rem; flex-shrink: 0; }
+        .clock { text-align: right; }
+        .clock .time { font-family: var(--font-display), sans-serif; font-size: 2.6rem; font-weight: 700; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+        .clock .date { font-size: .9rem; font-weight: 500; color: var(--t2); margin-top: .25rem; }
+        .err { flex-shrink: 0; padding: .45rem .9rem; border-radius: .7rem; font-size: .85rem; font-weight: 600; color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); }
 
-        /* ───── split ───── */
-        .split { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1.3rem; padding: 1.3rem 1.6rem 1rem; }
-        :global(.side) { display: flex; flex-direction: column; gap: .95rem; min-height: 0; min-width: 0; }
-        :global(.side.cik) { --acc: var(--blue); --acc2: var(--blue2); --accbg: linear-gradient(120deg, #1d44d6, #2d5bff 60%, #5b8cff); }
-        :global(.side.prb) { --acc: var(--teal); --acc2: var(--teal2); --accbg: linear-gradient(120deg, #0a8d80, #0fb5a4 60%, #3fd6c4); }
+        /* ───── KPI ───── */
+        .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .8rem; flex-shrink: 0; }
+        :global(.kpi) { --c: var(--blue); padding: .8rem 1rem .75rem; border-radius: .95rem; background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--c); box-shadow: 0 14px 30px -20px rgba(0,0,0,.7); }
+        :global(.kpi.t-green) { --c: var(--green); } :global(.kpi.t-cyan) { --c: var(--cyan); }
+        :global(.kpi.t-amber) { --c: var(--amber); } :global(.kpi.t-purple) { --c: var(--purple); }
+        :global(.k-lbl) { font-size: .75rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        :global(.k-num) { font-family: var(--font-display), sans-serif; font-size: 3rem; font-weight: 700; line-height: 1.05; margin: .15rem 0 .1rem; color: var(--c); font-variant-numeric: tabular-nums; }
+        :global(.k-unit) { font-size: 1.3rem; font-weight: 600; color: var(--t3); margin-left: .35rem; }
+        :global(.k-sub) { font-size: .85rem; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        :global(.banner) {
-          display: flex; align-items: center; gap: 1.2rem; padding: 1rem 1.4rem; border-radius: 1.4rem; color: #fff;
-          background: var(--accbg); box-shadow: 0 16px 32px -18px var(--acc2); position: relative; overflow: hidden; flex-shrink: 0;
+        /* ───── panel umum ───── */
+        .mid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: .9rem; }
+        :global(.panel) { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: .85rem 1rem; border-radius: 1rem; background: var(--card); border: 1px solid var(--line); box-shadow: 0 14px 30px -22px rgba(0,0,0,.7); }
+        :global(.p-head) { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; margin-bottom: .6rem; flex-shrink: 0; }
+        :global(.p-head h2) { margin: 0; font-family: var(--font-display), sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+        :global(.p-meta) { font-size: .85rem; font-weight: 500; color: var(--t3); white-space: nowrap; }
+        :global(.p-meta.live) { display: inline-flex; align-items: center; gap: .4rem; color: var(--green); font-weight: 800; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+        :global(.p-meta.warn) { color: var(--amber); font-weight: 700; }
+        :global(.p-cik) { box-shadow: inset 0 3px 0 var(--blue), 0 14px 30px -22px rgba(0,0,0,.7); }
+        :global(.p-prb) { box-shadow: inset 0 3px 0 var(--cyan), 0 14px 30px -22px rgba(0,0,0,.7); }
+        :global(.up) { box-shadow: inset 0 3px 0 var(--purple), 0 14px 30px -22px rgba(0,0,0,.7); }
+
+        :global(.rows) { flex: 1; min-height: 0; overflow: hidden; }
+        :global(.rows-in) { display: flex; flex-direction: column; gap: .5rem; }
+        @keyframes row-in { from { opacity: 0; transform: translateX(.8rem); } to { opacity: 1; transform: none; } }
+        :global(.none) { display: grid; place-items: center; min-height: 6rem; color: var(--t3); font-size: 1rem; border: 1px dashed var(--line); border-radius: .8rem; }
+        :global(.none.sm) { font-size: .85rem; border: none; padding: .8rem 0; justify-content: start; }
+        :global(.dots) { display: flex; justify-content: center; gap: .4rem; padding-top: .55rem; flex-shrink: 0; }
+        :global(.dots button) { width: .55rem; height: .55rem; padding: 0; border: none; border-radius: 999px; background: var(--track); cursor: pointer; transition: all .25s; }
+        :global(.dots button.on) { width: 1.6rem; background: var(--blue); }
+
+        /* ───── baris driver ───── */
+        :global(.drow), :global(.urow) {
+          --tone: var(--green);
+          display: flex; align-items: flex-start; gap: .8rem; min-width: 0; padding: .65rem .9rem;
+          border-radius: .8rem; border: 1px solid color-mix(in srgb, var(--tone) 34%, transparent);
+          background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 11%, transparent), color-mix(in srgb, var(--tone) 3%, transparent));
+          animation: row-in .45s ease both;
         }
-        :global(.banner)::after { content: ""; position: absolute; right: -3rem; top: -5rem; width: 14rem; height: 14rem; border-radius: 50%; background: rgba(255,255,255,.1); pointer-events: none; }
-        :global(.bn-l) { min-width: 0; z-index: 1; }
-        :global(.bn-code) { font-size: .78rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
-        :global(.banner h2) { margin: .2rem 0 .3rem; font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; white-space: nowrap; }
-        :global(.bn-sub) { font-size: .88rem; font-weight: 600; opacity: .92; white-space: nowrap; }
-        :global(.bn-sub b) { font-weight: 800; }
-        :global(.ring) { position: relative; width: 4.9rem; height: 4.9rem; flex-shrink: 0; z-index: 1; }
-        :global(.ring-txt) { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
-        :global(.ring-txt b) { font-size: 1.2rem; font-weight: 800; }
-        :global(.ring-txt small) { font-size: .78rem; font-weight: 700; opacity: .85; margin-top: .2rem; }
-
-        :global(.kpis) { margin-left: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; z-index: 1; }
-        :global(.kpi) {
-          padding: .65rem .95rem; border-radius: 1rem; min-width: 7.4rem;
-          background: rgba(255,255,255,.17); border: 1px solid rgba(255,255,255,.3); backdrop-filter: blur(4px);
-        }
-        :global(.k-num) { font-size: 2.6rem; font-weight: 800; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-        :global(.k-lbl) { font-size: .78rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; opacity: .88; margin-top: .3rem; white-space: nowrap; }
-        :global(.kpi.hot) { background: #fff; border-color: #fff; color: var(--acc2); }
-        :global(.kpi.hot .k-lbl) { opacity: 1; }
-
-        :global(.sec-head) { display: flex; align-items: center; justify-content: space-between; font-size: .78rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--t2); flex-shrink: 0; margin-top: .1rem; }
-        :global(.sec-head > span) { display: inline-flex; align-items: center; gap: .55rem; }
-        :global(.sec-head > span)::before { content: ""; width: .35rem; height: 1.1rem; border-radius: 3px; background: var(--acc); }
-        :global(.dots) { display: inline-flex; align-items: center; gap: .4rem; }
-        :global(.dots button) { width: .6rem; height: .6rem; padding: 0; border-radius: 999px; border: none; background: var(--line); cursor: pointer; transition: all .25s; }
-        :global(.dots button.on) { width: 1.7rem; background: var(--acc); }
-        :global(.pg) { font-family: var(--font-jetbrains-mono), monospace; font-size: .78rem; font-weight: 700; color: var(--t3); margin-left: .35rem; letter-spacing: 0; }
-
-        /* ───── task cards: grid 2×2, tinggi seragam ───── */
-        :global(.tgrid) { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: .8rem; }
-        @keyframes card-in { from { opacity: 0; transform: translateY(.7rem) scale(.985); } to { opacity: 1; transform: none; } }
-        :global(.tcard) {
-          --tone: var(--blue);
-          position: relative; min-height: 0; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: .5rem;
-          padding: .9rem 1.1rem .8rem; border-radius: 1.2rem; background: var(--surface); border: 1px solid var(--line);
-          box-shadow: var(--shadow); overflow: hidden; animation: card-in .5s ease both; transition: transform .2s, box-shadow .2s;
-        }
-        :global(.tcard)::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: .32rem; background: var(--tone); }
-        :global(.tcard:hover) { transform: translateY(-3px); }
-        :global(.tcard.go) { --tone: var(--green); }
-        :global(.tcard.long) { --tone: var(--red); }
-        :global(.tcard.wait) { --tone: var(--amber); }
-        :global(.tcard.done) { --tone: var(--t3); }
-        :global(.tcard.done) { opacity: .82; }
-        :global(.tc-top) { display: flex; align-items: center; gap: .7rem; }
-        :global(.av) { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-size: .88rem; font-weight: 800; color: #fff; background: var(--accbg); }
-        :global(.tc-who) { min-width: 0; flex: 1; }
-        :global(.nm) { font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        :global(.vh) { display: flex; align-items: center; gap: .5rem; margin-top: .25rem; min-width: 0; }
-        :global(.plate) { font-family: var(--font-jetbrains-mono), monospace; font-size: .88rem; font-weight: 700; padding: .12rem .5rem; border-radius: .4rem; background: var(--surface2); border: 1px solid var(--line); white-space: nowrap; color: var(--t1); }
-        :global(.plate.sm) { margin-right: .45rem; font-size: .78rem; padding: .05rem .4rem; }
-        :global(.jenis) { font-size: .88rem; font-weight: 600; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        :global(.chip) { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; padding: .35rem .7rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
-        :global(.chip.go) { background: var(--green-bg); color: var(--green); }
-        :global(.chip.long) { background: var(--red-bg); color: var(--red); }
-        :global(.chip.wait) { background: var(--amber-bg); color: var(--amber); }
-        :global(.chip.done) { background: var(--surface2); color: var(--t3); }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); } 70% { box-shadow: 0 0 0 .5rem transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+        :global(.drow.s-go) { --tone: var(--blue); } :global(.drow.s-long) { --tone: var(--red); }
+        :global(.drow.s-wait) { --tone: var(--amber); } :global(.drow.s-idle) { --tone: var(--green); }
+        :global(.drow.s-done) { --tone: var(--t3); }
+        :global(.urow) { --tone: var(--purple); }
+        :global(.av) { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-family: var(--font-display), sans-serif; font-size: .9rem; font-weight: 700; color: #04122e; background: linear-gradient(140deg, #6cc4ff, #3a86ff); }
+        :global(.av.sm) { width: 2.1rem; height: 2.1rem; font-size: .78rem; }
+        :global(.d-main) { min-width: 0; flex: 1; }
+        :global(.d-top) { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+        :global(.d-name) { font-family: var(--font-display), sans-serif; font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; line-height: 1.2; }
+        :global(.d-name.sm) { font-size: 1rem; }
+        :global(.d-dest) { display: flex; align-items: flex-start; gap: .4rem; margin-top: .25rem; font-size: 1.05rem; line-height: 1.35; color: var(--t1); }
+        :global(.d-dest svg) { color: var(--tone); flex-shrink: 0; margin-top: .2rem; }
+        :global(.d-dest b) { font-weight: 700; overflow-wrap: anywhere; }
+        :global(.d-purpose) { margin-top: .15rem; font-size: 1rem; line-height: 1.4; color: var(--t2); overflow-wrap: anywhere; }
+        :global(.d-purpose.idle) { margin-top: .25rem; }
+        :global(.chip) { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--tone); white-space: nowrap; flex-shrink: 0; }
+        :global(.d-meta) { margin-top: .3rem; font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--t3); }
+        :global(.d-meta.inline) { margin: 0; font-size: .85rem; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); } 70% { box-shadow: 0 0 0 .45rem transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
         :global(.pdot) { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; display: inline-block; animation: pulse 1.6s infinite; }
 
-        :global(.tc-route) { display: flex; align-items: center; gap: .6rem; padding: .55rem .8rem; border-radius: .9rem; background: var(--surface2); min-width: 0; }
-        :global(.rt-from) { display: inline-flex; align-items: center; gap: .45rem; font-size: .88rem; font-weight: 600; color: var(--t3); white-space: nowrap; flex-shrink: 0; }
-        :global(.rt-a) { width: .6rem; height: .6rem; border-radius: 50%; border: .18rem solid var(--tone); background: var(--surface); display: inline-block; }
-        :global(.rt-bar) { flex: 0 0 auto; color: var(--tone); display: grid; place-items: center; opacity: .8; }
-        :global(.rt-to) { display: flex; align-items: center; gap: .4rem; min-width: 0; flex: 1; font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
-        :global(.rt-to svg) { color: var(--tone); flex-shrink: 0; }
-        :global(.rt-to span) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
-        :global(.tc-purpose) { font-size: 1rem; font-weight: 500; color: var(--t2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        :global(.tc-foot) { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .88rem; font-weight: 600; color: var(--t3); }
-        :global(.tm) { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; color: var(--t2); }
-        :global(.rq) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-        :global(.tc-purpose em) { font-style: normal; font-size: .78rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: .12rem .5rem; margin-right: .55rem; border-radius: .4rem; background: color-mix(in srgb, var(--acc) 12%, transparent); color: var(--acc); vertical-align: .08em; }
-        :global(.empty) { grid-column: 1 / -1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .7rem; color: var(--t3); font-size: 1.2rem; font-weight: 700; border: 2px dashed var(--line); border-radius: 1.2rem; }
+        :global(.u-time) { font-family: var(--font-display), sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--purple); width: 3.6rem; flex-shrink: 0; font-variant-numeric: tabular-nums; line-height: 1.2; }
+        :global(.ptag) { font-size: .75rem; font-weight: 800; letter-spacing: .1em; padding: .25rem .6rem; border-radius: .5rem; flex-shrink: 0; }
+        :global(.ptag.cik) { color: var(--blue); background: color-mix(in srgb, var(--blue) 16%, transparent); }
+        :global(.ptag.prb) { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 16%, transparent); }
 
-        /* ───── panel gate / standby ───── */
-        :global(.panel) { flex-shrink: 0; height: 12.8rem; padding: 1rem 1.2rem; border-radius: 1.3rem; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
-        :global(.panel-head) { display: flex; align-items: center; gap: .65rem; margin-bottom: .7rem; }
-        :global(.ph-ic) { width: 2rem; height: 2rem; border-radius: .7rem; display: grid; place-items: center; color: #fff; background: var(--accbg); }
-        :global(.panel-head h3) { margin: 0; flex: 1; font-size: .88rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-        :global(.live-chip) { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--green); }
-        :global(.gate-cols) { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        :global(.gate-col) { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
-        :global(.gate-col + .gate-col) { border-left: 1px solid var(--line); padding-left: 1rem; }
-        :global(.gate-col h4) { margin: 0 0 .35rem; display: flex; align-items: center; gap: .55rem; font-size: .78rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-        :global(.gate-col.in h4) { color: var(--teal2); }
-        :global(.gate-col.out h4) { color: var(--amber); }
-        :global(.cnt) { min-width: 1.5rem; height: 1.5rem; padding: 0 .35rem; border-radius: .5rem; display: inline-grid; place-items: center; font-size: .88rem; letter-spacing: 0; color: #fff; background: var(--teal); }
-        :global(.gate-col.out .cnt) { background: var(--amber); }
-        :global(.gate-row) { display: flex; align-items: center; gap: .65rem; padding: .3rem 0; }
-        :global(.gic) { width: 1.9rem; height: 1.9rem; border-radius: 50%; display: grid; place-items: center; font-size: .78rem; font-weight: 800; color: #fff; flex-shrink: 0; background: var(--teal); }
-        :global(.gate-col.out .gic) { background: var(--amber); }
-        :global(.gbody) { min-width: 0; flex: 1; }
-        :global(.g1) { font-size: 1rem; font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        :global(.g2) { font-size: .88rem; font-weight: 500; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
-        :global(.gtime) { font-family: var(--font-jetbrains-mono), monospace; font-size: .88rem; font-weight: 700; color: var(--t2); flex-shrink: 0; }
-        :global(.g-empty) { font-size: .88rem; font-weight: 600; color: var(--t3); padding: .5rem 0; }
-        :global(.g-more) { margin-left: auto; font-size: .78rem; font-weight: 800; color: var(--t3); letter-spacing: .03em; text-transform: none; }
-        :global(.sb-grid) { display: flex; flex-wrap: wrap; align-content: flex-start; gap: .55rem; }
-        :global(.sb-chip) { display: inline-flex; align-items: center; gap: .5rem; padding: .3rem .85rem .3rem .35rem; border-radius: 999px; background: var(--surface2); border: 1px solid var(--line); font-size: .88rem; font-weight: 700; }
-        :global(.sb-chip.more) { padding: .3rem .85rem; color: var(--t3); }
-        :global(.sb-av) { width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center; font-size: .78rem; font-weight: 800; color: #fff; background: var(--teal); }
+        /* ───── baris bawah ───── */
+        .bottom { flex-shrink: 0; min-height: 13.4rem; display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: .9rem; }
+        :global(.prog-body) { flex: 1; min-height: 0; display: flex; align-items: center; gap: 1.6rem; padding: 0 .4rem; }
+        :global(.ring) { position: relative; height: 100%; max-height: 8.6rem; aspect-ratio: 1; flex-shrink: 0; }
+        :global(.ring-txt) { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        :global(.ring-txt b) { font-family: var(--font-display), sans-serif; font-size: 1.6rem; font-weight: 700; line-height: 1; }
+        :global(.ring-txt small) { font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--t3); margin-top: .3rem; }
+        :global(.legend) { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+        :global(.legend li) { display: flex; align-items: center; gap: .7rem; }
+        :global(.legend i) { width: .6rem; height: .6rem; border-radius: 3px; }
+        :global(.legend b) { font-family: var(--font-display), sans-serif; font-size: 1.7rem; font-weight: 700; min-width: 2.2rem; line-height: 1; }
+        :global(.legend span) { font-size: 1rem; color: var(--t2); }
 
-        /* ───── ticker ───── */
-        .ticker { flex-shrink: 0; display: flex; align-items: stretch; background: var(--surface); border-top: 1px solid var(--line); overflow: hidden; }
-        .t-flag { display: flex; align-items: center; gap: .55rem; padding: .7rem 1.4rem; color: #fff; font-size: .78rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; background: linear-gradient(120deg, #f59e0b, #f97316); }
-        .t-track { flex: 1; overflow: hidden; display: flex; align-items: center; mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
-        .t-roll { display: flex; width: max-content; animation: roll 38s linear infinite; }
+        :global(.g-cols) { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        :global(.g-col) { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .3rem; overflow: hidden; }
+        :global(.g-col + .g-col) { border-left: 1px solid var(--line); padding-left: 1rem; }
+        :global(.g-col h4) { margin: 0 0 .15rem; display: flex; align-items: center; gap: .55rem; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+        :global(.g-col h4 em) { margin-left: auto; font-style: normal; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--t3); }
+        :global(.g-col.in h4) { color: var(--green); } :global(.g-col.out h4) { color: var(--amber); }
+        :global(.cnt) { min-width: 1.5rem; height: 1.5rem; padding: 0 .35rem; display: inline-grid; place-items: center; border-radius: .5rem; font-family: var(--font-display), sans-serif; font-size: .9rem; letter-spacing: 0; color: #04122e; background: var(--green); }
+        :global(.g-col.out .cnt) { background: var(--amber); }
+        :global(.g-row) { --tone: var(--green); display: flex; align-items: flex-start; gap: .65rem; min-width: 0; }
+        :global(.g-row.out) { --tone: var(--amber); }
+        :global(.g-row .av) { background: var(--tone); }
+                :global(.g-text) { margin-top: .1rem; font-size: .9rem; line-height: 1.5; color: var(--t2); overflow-wrap: anywhere; }
+        :global(.plate) { margin-right: .3rem; font-family: var(--font-jetbrains-mono), monospace; font-size: .8rem; font-weight: 700; padding: .05rem .4rem; border-radius: .35rem; background: var(--card2); border: 1px solid var(--line); color: var(--t1); flex-shrink: 0; }
+        :global(.g-time) { font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--t2); flex-shrink: 0; }
+
+        :global(.ok) { flex: 1; display: flex; align-items: center; gap: 1rem; }
+        :global(.ok-ic) { width: 3.6rem; height: 3.6rem; border-radius: 50%; display: grid; place-items: center; color: #04122e; background: var(--green); box-shadow: 0 0 1.6rem color-mix(in srgb, var(--green) 55%, transparent); }
+        :global(.ok b), :global(.alert b) { display: block; font-family: var(--font-display), sans-serif; font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; }
+        :global(.ok small), :global(.alert small) { display: block; font-size: .9rem; color: var(--t2); margin-top: .15rem; }
+        :global(.alerts) { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .45rem; overflow: hidden; }
+        :global(.alert) { --tone: var(--red); display: flex; align-items: center; gap: .7rem; padding: .45rem .7rem; border-radius: .7rem; border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent); background: color-mix(in srgb, var(--tone) 11%, transparent); }
+        :global(.alert.amber) { --tone: var(--amber); }
+        :global(.alert .a-ic) { color: var(--tone); display: grid; flex-shrink: 0; }
+        :global(.alert b) { font-size: 1rem; }
+        :global(.alert small) { font-size: .85rem; margin-top: 0; }
+
+        /* ───── GATE ticker ───── */
+        .ticker { flex-shrink: 0; display: flex; align-items: stretch; border-radius: .8rem; overflow: hidden; background: var(--card); border: 1px solid var(--line); }
+        .t-flag { display: flex; align-items: center; padding: 0 1.1rem; font-family: var(--font-display), sans-serif; font-size: .95rem; font-weight: 700; letter-spacing: .16em; color: #fff; background: linear-gradient(120deg, #2d6bff, #4d8dff); }
+        .t-track { flex: 1; overflow: hidden; display: flex; align-items: center; padding: .55rem 0; mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent); }
+        .t-roll { display: flex; width: max-content; animation: roll 40s linear infinite; }
         .t-set { display: flex; gap: 3rem; padding-right: 3rem; white-space: nowrap; }
-        .t-set span { display: inline-flex; align-items: center; gap: .6rem; font-size: 1rem; font-weight: 600; color: var(--t2); }
-        .t-set i { width: .45rem; height: .45rem; border-radius: 50%; background: var(--amber); }
+        .t-set span { font-size: 1rem; font-weight: 600; color: var(--t2); }
+
         @keyframes roll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
         @media (max-width: 900px) {
-          .page { height: auto; min-height: 100vh; overflow: auto; }
-          .top { flex-wrap: wrap; padding: 1rem; }
-          .split { grid-template-columns: 1fr; }
-          :global(.tgrid) { grid-template-columns: 1fr; grid-template-rows: none; }
-          :global(.gate-cols) { grid-template-columns: 1fr; }
-          :global(.panel) { height: auto; }
+          .page { height: auto; min-height: 100vh; overflow: auto; padding: .8rem; }
+          .top { flex-wrap: wrap; }
+          .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .mid { grid-template-columns: 1fr; }
+          :global(.drow), :global(.urow) { padding: .6rem .8rem; }
+          .bottom { grid-template-columns: 1fr; height: auto; }
+          :global(.g-cols) { grid-template-columns: 1fr; }
         }
-        @media (prefers-reduced-motion: reduce) { .top::before, .t-roll { animation: none; } :global(.tcard) { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .t-roll { animation: none; } :global(.drow), :global(.urow) { animation: none; } }
       `}</style>
 
-      <div className={`page${theme === "dark" ? " dark" : ""}${isFullscreen ? " fs" : ""}`} ref={pageRef}>
+      <div className={`page ${display.variable} ${inter.variable}${theme === "light" ? " light" : ""}${isFullscreen ? " fs" : ""}`} ref={pageRef}>
         <header className="top">
           <div className="brand">
             <div className="logo"><img src="/logo.png" alt="CIKOPS" /></div>
-            <div>
-              <h1>CIKOPS Fleet — Status Penugasan</h1>
-              <div className="sub">PT Frisian Flag Indonesia · Plant Cikarang &amp; Pasar Rebo</div>
+            <div className="b-name">CIKOPS-FM<sup>+</sup></div>
+            <div className="b-sep" />
+            <div className="b-sub">Driver Operations</div>
+            <div className="tools">
+              <span className="live"><i className="pdot" />Live<span className="ago">· {agoLabel(loadedAt, nowTick)}</span></span>
+              <button type="button" className="tbtn" onClick={toggleFullscreen}>
+                <Icon name={isFullscreen ? "shrink" : "expand"} size={15} />{isFullscreen ? "Keluar penuh" : "Layar penuh"}
+              </button>
+              <button type="button" className="tbtn" onClick={toggleTheme} aria-label="Ganti tema" title="Ganti tema">
+                <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+              </button>
+              <Link href="/dashboard" className="tbtn hide-fs" title="Kembali ke Dashboard">
+                <Icon name="back" size={15} strokeWidth={2.3} />Dashboard
+              </Link>
             </div>
           </div>
-          <div className="tools">
-            <Link href="/dashboard" className="ibtn hide-fs" title="Kembali ke Dashboard">
-              <Icon name="back" size={16} strokeWidth={2.3} />Dashboard
-            </Link>
-            <span className="live"><i className="pdot" />Live<span className="ago">· {agoLabel(loadedAt, nowTick)}</span></span>
-            <button type="button" className="ibtn" onClick={toggleTheme} title="Ganti tema" aria-label="Ganti tema">
-              <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
-            </button>
-            <button type="button" className="ibtn" onClick={toggleFullscreen} title={isFullscreen ? "Keluar layar penuh" : "Layar penuh"} aria-label="Layar penuh">
-              <Icon name={isFullscreen ? "shrink" : "expand"} size={17} />
-            </button>
-            <div className="clock">
-              <div className="time">{clock || "--.--.--"}</div>
-              <div className="date">{clockDate}</div>
-            </div>
+          <div className="clock">
+            <div className="time">{clock || "--:--:--"}</div>
+            <div className="date">{clockDate} · Plant CIK &amp; PRB</div>
           </div>
         </header>
 
         {error && <div className="err">Gagal memuat data terbaru: {error} — menampilkan data terakhir yang berhasil dimuat.</div>}
 
-        <main className="split">
-          <PlantSide plant="CIK" snapshot={data} extra={<GatePanel masuk={gate.masuk} keluar={gate.keluar} />} />
-          <PlantSide plant="PRB" snapshot={data} extra={<StandbyPanel drivers={prbStandby} />} />
+        <section className="kpis">
+          <Kpi tone="blue" label="Driver aktif" value={m.activeDrivers} sub={`dari ${m.totalDrivers} driver`} />
+          <Kpi tone="green" label="Di plant" value={m.activeDrivers - m.out} sub={`${m.ready} siap berangkat`} />
+          <Kpi tone="cyan" label="Di luar · bertugas" value={m.out} sub="sedang di perjalanan" />
+          <Kpi tone="amber" label="Menunggu berangkat" value={m.assigned.length} sub="belum diterima driver" />
+          <Kpi tone="purple" label="Kendaraan keluar" value={m.going.length} sub={`dari ${m.vehiclesActive} unit aktif`} />
+          <Kpi tone="blue" label="Tugas hari ini" value={m.done.length} unit={`/ ${m.total}`} sub={`${m.going.length} sedang berjalan`} />
+        </section>
+
+        <main className="mid">
+          <PlantColumn plant="CIK" snapshot={data} />
+          <PlantColumn plant="PRB" snapshot={data} />
+          <UpcomingColumn upcoming={m.upcoming} done={m.done.length} />
         </main>
 
+        <section className="bottom">
+          <ProgressPanel done={m.done.length} going={m.going.length} wait={m.assigned.length} />
+          <GatePanel masuk={m.masuk} keluar={m.keluar} />
+          <AttentionPanel alerts={m.alerts} />
+        </section>
+
         <footer className="ticker">
-          <div className="t-flag"><Icon name="megaphone" size={16} strokeWidth={2.2} />Info</div>
+          <div className="t-flag">GATE</div>
           <div className="t-track">
             <div className="t-roll">
               {[0, 1].map((k) => (
                 <div className="t-set" key={k} aria-hidden={k === 1}>
-                  {ticker.map((item, i) => <span key={i}><i />{item}</span>)}
+                  {gateEvents.map((e, i) => <span key={i}>{e}</span>)}
                 </div>
               ))}
             </div>

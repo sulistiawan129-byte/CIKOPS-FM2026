@@ -1,4 +1,10 @@
-# Redesign V2.1 — cara pasang
+# Redesign V2.3 — cara pasang
+
+V2.3 = V2.2 + tujuan, keperluan, dan semua detail tugas di TV tampil PENUH (tanpa dipotong "…"; teks panjang dibungkus ke baris baru). Jumlah baris per halaman kini menyesuaikan panjang teks dan tinggi layar, halaman berganti otomatis. Hanya `src/app/tv-display/page.tsx` yang berubah dari V2.2.
+
+
+V2.2 = V2.1 + TV display bergaya "Driver Operations" (mengikuti referensi): tema gelap berpola grid, font display Chakra Petch (judul/angka/nama) + Inter (isi) + JetBrains Mono (meta), 6 KPI bergaris warna, kolom driver per plant (Cikarang | Pasar Rebo | Tugas Berikutnya), baris bawah Progres | Gate Lintas-Plant | Perlu Perhatian, dan bar GATE berjalan. Hanya `src/app/tv-display/page.tsx` yang berubah dari V2.1. Font dimuat khusus di halaman TV lewat next/font (tidak membebani halaman lain). Tema terang tetap ada lewat tombol di header.
+
 
 V2.1 = V2 + TV display baru, link TV di sistem, dan tombol kembali di semua modul/halaman. Paket ini lengkap (menggantikan REDESIGN-V2.zip).
 
