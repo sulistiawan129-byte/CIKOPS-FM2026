@@ -67,20 +67,72 @@ export async function getDrivers(plant?: Plant | null): Promise<Driver[]> {
  *  Lewat RPC security definer (migrasi 015) karena tabel tidak bisa dibaca
  *  anon (RLS). Kalau RPC belum dibuat, jatuh ke query langsung — itu hanya
  *  berhasil untuk pengguna yang sedang login. */
-export async function getViewOnlySnapshot(): Promise<{ tasks: TaskDetail[]; drivers: Driver[]; vehicles: Vehicle[] }> {
+export interface ViewOnlyGateLog {
+  id: string;
+  nopol: string;
+  jenis: string;
+  driverName: string;
+  plant: Plant;
+  tujuan: string;
+  timeOut: string | null;
+  timeIn: string | null;
+  status: "OUT" | "IN" | "DONE";
+  createdAt: string;
+}
+
+/** Gate dari log Security Gate (bukan dari status tugas). Dipakai kalau
+ *  snapshot belum memuat 'gate' (migrasi 016 belum dijalankan). */
+async function gateFallback(): Promise<{ gate: ViewOnlyGateLog[]; gateReady: boolean }> {
+  try {
+    const rows = await getGateLogsPublic(todayLocalISODate());
+    return {
+      gateReady: true,
+      gate: rows.map((r) => ({
+        id: r.id, nopol: r.nopol, jenis: r.jenis, driverName: r.driverName, plant: r.plant,
+        tujuan: r.tujuan, timeOut: r.timeOut, timeIn: r.timeIn, status: r.status, createdAt: r.createdAt,
+      })),
+    };
+  } catch {
+    return { gate: [], gateReady: false };
+  }
+}
+
+export async function getViewOnlySnapshot(): Promise<{
+  tasks: TaskDetail[]; drivers: Driver[]; vehicles: Vehicle[]; gate: ViewOnlyGateLog[]; gateReady: boolean;
+}> {
   const { data, error } = await supabase.rpc("get_viewonly_snapshot", { p_date: null });
   if (!error && data) {
-    const d = data as { tasks?: TaskDetail[]; drivers?: Driver[]; vehicles?: Vehicle[] };
-    return { tasks: d.tasks ?? [], drivers: d.drivers ?? [], vehicles: d.vehicles ?? [] };
+    const d = data as {
+      tasks?: TaskDetail[]; drivers?: Driver[]; vehicles?: Vehicle[];
+      gate?: Array<{
+        id: string; nopol: string | null; jenis: string | null; driver_name: string | null; plant: Plant;
+        tujuan: string | null; time_out: string | null; time_in: string | null;
+        status: "OUT" | "IN" | "DONE"; created_at: string;
+      }>;
+    };
+    const base = { tasks: d.tasks ?? [], drivers: d.drivers ?? [], vehicles: d.vehicles ?? [] };
+    if (Array.isArray(d.gate)) {
+      return {
+        ...base,
+        gateReady: true,
+        gate: d.gate.map((g) => ({
+          id: g.id, nopol: g.nopol ?? "-", jenis: g.jenis ?? "-", driverName: g.driver_name ?? "-",
+          plant: g.plant, tujuan: g.tujuan ?? "", timeOut: g.time_out, timeIn: g.time_in,
+          status: g.status, createdAt: g.created_at,
+        })),
+      };
+    }
+    return { ...base, ...(await gateFallback()) };
   }
   const missingFn = error?.code === "PGRST202" || error?.code === "42883" || /get_viewonly_snapshot/i.test(error?.message || "");
   if (error && !missingFn) throw error;
-  const [tasks, drivers, vehicles] = await Promise.all([
+  const [tasks, drivers, vehicles, g] = await Promise.all([
     getTasksByDate(todayLocalISODate()),
     getDrivers(),
     getVehicles(),
+    gateFallback(),
   ]);
-  return { tasks, drivers, vehicles };
+  return { tasks, drivers, vehicles, ...g };
 }
 
 export async function getVehicles(plant?: Plant | null): Promise<Vehicle[]> {

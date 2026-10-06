@@ -27,16 +27,18 @@
  *   0.75 label   kapital kecil, chip
  *
  * Sumber data: getViewOnlySnapshot() → RPC get_viewonly_snapshot (hanya data
- * ringkas & aman, tanpa no. HP/email/PIN), polling 15 dtk. Gate lintas-plant diturunkan dari tasks hari ini:
- *   Masuk dari PRB  = plant PRB, ON GOING, tujuan mengandung "cik/cikarang"
- *   Keluar dari CIK = plant CIK, ON GOING
+ * ringkas & aman, tanpa no. HP/email/PIN), polling 15 dtk.
+ * GATE hanya dari log Security Gate (vehicle_gate_logs; Armada → Gate), BUKAN dari status tugas:
+ *   Driver PRB di Cikarang = log plant PRB yang belum DONE (masuk gate, belum keluar)
+ *   Driver CIK di luar     = log plant CIK yang belum DONE (keluar gate, belum kembali)
+ * Angka "bertugas" (ON GOING) hanya menandakan tugas berjalan, bukan posisi fisik.
  */
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Chakra_Petch, Inter } from "next/font/google";
 import Icon from "@/components/Icon";
-import { getViewOnlySnapshot } from "@/lib/api";
+import { getViewOnlySnapshot, type ViewOnlyGateLog } from "@/lib/api";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
 import type { TaskDetail, Driver, Vehicle, Plant } from "@/lib/types";
 
@@ -137,7 +139,7 @@ const startOf = (t: TaskDetail) => t.accepted_at ?? t.created_at;
 
 /* ───────────────────────── data ───────────────────────── */
 
-interface Snapshot { tasks: TaskDetail[]; drivers: Driver[]; vehicles: Vehicle[] }
+interface Snapshot { tasks: TaskDetail[]; drivers: Driver[]; vehicles: Vehicle[]; gate: ViewOnlyGateLog[]; gateReady: boolean }
 
 function usePlantSnapshot() {
   const [data, setData] = useState<Snapshot | null>(null);
@@ -146,8 +148,7 @@ function usePlantSnapshot() {
 
   const load = useCallback(async () => {
     try {
-      const { tasks, drivers, vehicles } = await getViewOnlySnapshot();
-      setData({ tasks, drivers, vehicles });
+      setData(await getViewOnlySnapshot());
       setError(null);
       setLoadedAt(new Date());
     } catch (e) {
@@ -251,7 +252,7 @@ function Kpi({ tone, label, value, unit, sub }: { tone: string; label: string; v
   );
 }
 
-const CHIP: Record<State, string> = { long: "Perlu dicek", go: "Di jalan", wait: "Menunggu", idle: "Standby", done: "Selesai", duty: "On Duty", off: "Off Duty" };
+const CHIP: Record<State, string> = { long: "Perlu dicek", go: "Bertugas", wait: "Menunggu", idle: "Standby", done: "Selesai", duty: "On Duty", off: "Off Duty" };
 
 /* ── Paginasi berbasis ukuran: tujuan & keperluan SELALU tampil penuh ──
  * Baris tidak dipotong (tanpa "…"); teks panjang dibungkus ke baris baru.
@@ -318,11 +319,11 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
   const t = r.task;
   const { dest, purpose } = rowTexts(r);
   let meta = "";
-  if (!t) meta = "Belum keluar plant hari ini";
-  else if (r.state === "go" || r.state === "long") meta = `${plate(t.kendaraan)} · berangkat ${fmtTime(startOf(t))} · ${fmtDur(elapsedMins(startOf(t)))}`;
+  if (!t) meta = "Belum ada tugas hari ini";
+  else if (r.state === "go" || r.state === "long") meta = `${plate(t.kendaraan)} · mulai ${fmtTime(startOf(t))} · ${fmtDur(elapsedMins(startOf(t)))}`;
   else if (r.state === "wait") meta = `${plate(t.kendaraan)} · ditugaskan ${fmtTime(t.created_at)}`;
   else meta = `${plate(t.kendaraan)} · selesai ${fmtTime(t.completed_at)}`;
-  const chip = r.state === "idle" ? `Standby di ${PLANT_NAME[plant]}` : CHIP[r.state];
+  const chip = r.state === "idle" ? "Standby" : CHIP[r.state];
   if (r.state === "duty" || r.state === "off") {
     const du = getUserDutyStatus(r.driver);
     return (
@@ -377,7 +378,7 @@ function PlantColumn({ plant, snapshot }: { plant: Plant; snapshot: Snapshot | n
     <section className={`panel col p-${plant.toLowerCase()}`}>
       <header className="p-head">
         <h2>Plant {PLANT_NAME[plant]}</h2>
-        <span className="p-meta">{rows.length - userCount - out} di plant · {out} di luar{userCount > 0 ? ` · ${userCount} user` : ""}</span>
+        <span className="p-meta">{rows.length - userCount - out} standby · {out} bertugas{userCount > 0 ? ` · ${userCount} user` : ""}</span>
       </header>
       <div className="rows" ref={boxRef}>
         <div className="rows-in" key={`${plant}-${page}`}>
@@ -455,7 +456,7 @@ function ProgressPanel({ done, going, wait }: { done: number; going: number; wai
         </div>
         <ul className="legend">
           <li><i style={{ background: "var(--green)" }} /><b>{done}</b><span>Selesai</span></li>
-          <li><i style={{ background: "var(--blue)" }} /><b>{going}</b><span>Sedang jalan</span></li>
+          <li><i style={{ background: "var(--blue)" }} /><b>{going}</b><span>Sedang bertugas</span></li>
           <li><i style={{ background: "var(--amber)" }} /><b>{wait}</b><span>Belum diterima</span></li>
         </ul>
       </div>
@@ -463,39 +464,43 @@ function ProgressPanel({ done, going, wait }: { done: number; going: number; wai
   );
 }
 
-function GateRow({ t, dir }: { t: TaskDetail; dir: "in" | "out" }) {
+function GateRow({ g, dir }: { g: ViewOnlyGateLog; dir: "in" | "out" }) {
   return (
     <div className={`g-row ${dir}`}>
-      <div className="av sm">{initials(t.driver_nama)}</div>
+      <div className="av sm">{initials(g.driverName)}</div>
       <div className="d-main">
-        <div className="d-name sm">{shortName(t.driver_nama)}</div>
-        <div className="g-text"><span className="plate">{plate(t.kendaraan)}</span> {dir === "out" ? `ke ${titleCase(t.tujuan) || "—"}` : sentence(t.perihal || t.jenis_pekerjaan) || "—"}</div>
+        <div className="d-name sm">{shortName(g.driverName)}</div>
+        <div className="g-text"><span className="plate">{plate(g.nopol)}</span> {dir === "out" ? `ke ${titleCase(g.tujuan) || "—"}` : sentence(g.tujuan) || "—"}</div>
       </div>
-      <div className="g-time">{fmtTime(startOf(t))}</div>
+      <div className="g-time">{fmtTime(dir === "out" ? g.timeOut : g.timeIn)}</div>
     </div>
   );
 }
 
-function GatePanel({ masuk, keluar }: { masuk: TaskDetail[]; keluar: TaskDetail[] }) {
+function GatePanel({ masuk, keluar, ready }: { masuk: ViewOnlyGateLog[]; keluar: ViewOnlyGateLog[]; ready: boolean }) {
   const MAX = 2;
   return (
     <section className="panel gate">
       <header className="p-head">
-        <h2>Gate Lintas-Plant</h2>
+        <h2>Gate Security</h2>
         <span className="p-meta live"><i className="pdot" />live</span>
       </header>
+      {!ready ? (
+        <div className="none sm">Data gate belum tersedia — jalankan migrasi 016.</div>
+      ) : (
       <div className="g-cols">
         <div className="g-col in">
-          <h4><span className="cnt">{masuk.length}</span>Driver PRB masuk Cikarang{masuk.length > MAX && <em>+{masuk.length - MAX} lagi</em>}</h4>
+          <h4><span className="cnt">{masuk.length}</span>Driver PRB di Cikarang{masuk.length > MAX && <em>+{masuk.length - MAX} lagi</em>}</h4>
           {masuk.length === 0 && <div className="none sm">Tidak ada driver PRB di Cikarang</div>}
-          {masuk.slice(0, MAX).map((t) => <GateRow key={t.id} t={t} dir="in" />)}
+          {masuk.slice(0, MAX).map((g) => <GateRow key={g.id} g={g} dir="in" />)}
         </div>
         <div className="g-col out">
-          <h4><span className="cnt">{keluar.length}</span>Driver CIK sedang keluar{keluar.length > MAX && <em>+{keluar.length - MAX} lagi</em>}</h4>
+          <h4><span className="cnt">{keluar.length}</span>Driver CIK di luar plant{keluar.length > MAX && <em>+{keluar.length - MAX} lagi</em>}</h4>
           {keluar.length === 0 && <div className="none sm">Semua driver CIK ada di plant</div>}
-          {keluar.slice(0, MAX).map((t) => <GateRow key={t.id} t={t} dir="out" />)}
+          {keluar.slice(0, MAX).map((g) => <GateRow key={g.id} g={g} dir="out" />)}
         </div>
       </div>
+      )}
     </section>
   );
 }
@@ -581,12 +586,14 @@ export default function TvDisplayPage() {
     const going = tasks.filter((t) => t.status === "ON GOING");
     const assigned = tasks.filter((t) => t.status === "ASSIGNED");
     const done = tasks.filter((t) => t.status === "DONE");
-    const masuk = going.filter((t) => t.plant === "PRB" && /cik|cikarang/i.test(t.tujuan || ""));
-    const keluar = going.filter((t) => t.plant === "CIK");
+    const gate = data?.gate ?? [];
+    const gateReady = data?.gateReady ?? false;
+    const masuk = gate.filter((g) => g.plant === "PRB" && g.status !== "DONE");
+    const keluar = gate.filter((g) => g.plant === "CIK" && g.status !== "DONE");
     const late = going.filter((t) => elapsedMins(startOf(t)) > LATE_MIN);
     const stale = assigned.filter((t) => elapsedMins(t.created_at) > 30);
     const alerts: Alert[] = [
-      ...late.map((t): Alert => ({ tone: "red", title: `${shortName(t.driver_nama)} sudah ${fmtDur(elapsedMins(startOf(t)))} di luar`, sub: `${plate(t.kendaraan)} · ke ${titleCase(t.tujuan) || "—"}` })),
+      ...late.map((t): Alert => ({ tone: "red", title: `${shortName(t.driver_nama)} sudah ${fmtDur(elapsedMins(startOf(t)))} bertugas`, sub: `${plate(t.kendaraan)} · ke ${titleCase(t.tujuan) || "—"}` })),
       ...stale.map((t): Alert => ({ tone: "amber", title: `${shortName(t.driver_nama)} belum berangkat`, sub: `Ditugaskan ${fmtDur(elapsedMins(t.created_at))} lalu · ${titleCase(t.tujuan) || "—"}` })),
     ];
     const allRows = [...cik.rows, ...prb.rows];
@@ -595,7 +602,7 @@ export default function TvDisplayPage() {
     const activeDrivers = allRows.length;
     const out = opRows.filter((r) => r.state === "go" || r.state === "long").length;
     return {
-      going, assigned, done, masuk, keluar, alerts, activeDrivers, out, opCount: opRows.length, userRows,
+      going, assigned, done, masuk, keluar, gate, gateReady, alerts, activeDrivers, out, opCount: opRows.length, userRows,
       totalDrivers: data?.drivers.length ?? 0,
       ready: allRows.filter((r) => r.state === "idle").length,
       vehiclesActive: (data?.vehicles ?? []).filter((v) => v.aktif).length,
@@ -605,12 +612,23 @@ export default function TvDisplayPage() {
   }, [data, cik.rows, prb.rows]);
 
   const gateEvents = useMemo(() => {
-    const ev: string[] = [];
-    m.masuk.forEach((t) => ev.push(`↙ MASUK · ${shortName(t.driver_nama)} (PRB) ke Cikarang · ${plate(t.kendaraan)} · ${fmtTime(startOf(t))}`));
-    m.keluar.forEach((t) => ev.push(`↗ KELUAR · ${shortName(t.driver_nama)} (CIK) → ${titleCase(t.tujuan) || "—"} · ${plate(t.kendaraan)} · ${fmtTime(startOf(t))}`));
-    if (!ev.length) ev.push("Belum ada pergerakan gate lintas-plant saat ini");
-    return ev;
-  }, [m.masuk, m.keluar]);
+    const ev: { at: number; text: string }[] = [];
+    const add = (iso: string | null, text: string) => { if (iso) ev.push({ at: new Date(iso).getTime(), text: `${text} · ${fmtTime(iso)}` }); };
+    for (const g of m.gate) {
+      const who = `${shortName(g.driverName)} (${g.plant}) · ${plate(g.nopol)}`;
+      if (g.plant === "CIK") {
+        add(g.timeOut, `↗ KELUAR · ${who} → ${titleCase(g.tujuan) || "—"}`);
+        add(g.timeIn, `↙ KEMBALI · ${who}`);
+      } else {
+        add(g.timeIn, `↙ MASUK CIK · ${who}${g.tujuan ? ` · ${titleCase(g.tujuan)}` : ""}`);
+        add(g.timeOut, `↗ KELUAR CIK · ${who}`);
+      }
+    }
+    ev.sort((a, b) => b.at - a.at);
+    const list = ev.slice(0, 14).map((e) => e.text);
+    if (!list.length) list.push(data?.gateReady === false ? "Data gate security belum tersedia" : "Belum ada pergerakan di gate hari ini");
+    return list;
+  }, [m.gate, data?.gateReady]);
 
   return (
     <>
@@ -826,10 +844,10 @@ export default function TvDisplayPage() {
 
         <section className="kpis">
           <Kpi tone="blue" label="Driver aktif" value={m.activeDrivers} sub={`${m.opCount} operasional · ${m.userRows} user`} />
-          <Kpi tone="green" label="Di plant" value={m.opCount - m.out} sub={`${m.ready} siap berangkat`} />
-          <Kpi tone="cyan" label="Di luar · bertugas" value={m.out} sub="sedang di perjalanan" />
+          <Kpi tone="green" label="Standby" value={m.opCount - m.out} sub={`${m.ready} belum ada tugas`} />
+          <Kpi tone="cyan" label="Sedang bertugas" value={m.out} sub="tugas ON GOING" />
           <Kpi tone="amber" label="Menunggu berangkat" value={m.assigned.length} sub="belum diterima driver" />
-          <Kpi tone="purple" label="Kendaraan keluar" value={m.going.length} sub={`dari ${m.vehiclesActive} unit aktif`} />
+          <Kpi tone="purple" label="Di luar gate" value={m.gateReady ? m.keluar.length : "–"} sub={`kendaraan CIK · ${m.vehiclesActive} unit aktif`} />
           <Kpi tone="blue" label="Tugas hari ini" value={m.done.length} unit={`/ ${m.total}`} sub={`${m.going.length} sedang berjalan`} />
         </section>
 
@@ -841,7 +859,7 @@ export default function TvDisplayPage() {
 
         <section className="bottom">
           <ProgressPanel done={m.done.length} going={m.going.length} wait={m.assigned.length} />
-          <GatePanel masuk={m.masuk} keluar={m.keluar} />
+          <GatePanel masuk={m.masuk} keluar={m.keluar} ready={m.gateReady} />
           <AttentionPanel alerts={m.alerts} />
         </section>
 

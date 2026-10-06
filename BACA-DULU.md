@@ -1,4 +1,16 @@
-# Redesign V2.5 — cara pasang
+# Redesign V2.6 — cara pasang
+
+## ⚠ LANGKAH PERTAMA (V2.6): jalankan 1 SQL lagi di Supabase → SQL Editor
+`supabase/016_viewonly_gate.sql` (sesudah 014 & 015) — menambahkan data GATE ke fungsi `get_viewonly_snapshot`.
+
+## Baru di V2.6 — Gate dari Security Gate, bukan dari tugas
+- Panel "Gate Security", ticker GATE, dan KPI "Di luar gate" kini membaca log petugas security (`vehicle_gate_logs`, Armada → Gate / halaman /gate).
+- Driver PRB di Cikarang = log PRB belum selesai; Driver CIK di luar plant = log CIK belum selesai. Tugas ON GOING tidak lagi mengubah gate.
+- Angka dari status tugas diganti nama: "Sedang bertugas", "Standby", chip "Bertugas" (bukan posisi fisik).
+- Tanpa 016, panel gate memakai log publik hari ini bila tersedia; jika tidak, tampil "belum tersedia".
+
+---
+# (V2.5) cara pasang
 
 ## ⚠ LANGKAH PERTAMA (V2.5): jalankan 2 SQL di Supabase → SQL Editor
 1. `supabase/014_driver_type.sql` (kalau belum — tipe Driver Operational/User)
