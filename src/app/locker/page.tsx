@@ -390,7 +390,7 @@ const outerWrap: CSSProperties = {
   justifyContent: "center",
   alignItems: "flex-start",
   padding: "24px 0",
-  background: "linear-gradient(160deg, var(--navy) 0%, var(--brand2) 55%, var(--brand) 100%)",
+  background: "var(--grad-hero)",
   position: "relative",
   overflow: "hidden",
 };
@@ -410,7 +410,7 @@ const appCard: CSSProperties = {
 };
 
 const topbar: CSSProperties = {
-  background: "linear-gradient(135deg, var(--navy), #123a6b)",
+  background: "var(--grad-hero)",
   padding: "20px 20px 18px",
   display: "flex",
   alignItems: "center",

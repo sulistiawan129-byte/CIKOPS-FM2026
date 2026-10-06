@@ -161,6 +161,7 @@ import CanteenTab from "./CanteenTab";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
+import Icon from "@/components/Icon";
 
 function todayStr() {
   return toLocalISODate(new Date());
@@ -244,44 +245,6 @@ const NAV_GROUPS: NavGroup[] = [
 
 /** Hook sederhana untuk deteksi viewport mobile vs desktop, dipakai untuk
  *  memilih presentasi yang berbeda (tabel di PC, kartu di HP) dari data yang sama. */
-/** Tombol ikon ramping untuk sidebar desktop — tampilkan label sebagai
- *  tooltip kecil saat hover, supaya sidebar tetap sempit tapi tidak
- *  kehilangan kejelasan tentang menu apa yang diwakili tiap ikon. */
-function SidebarIconButton({ icon, label, active, onClick, danger }: { icon: string; label: string; active: boolean; onClick: () => void; danger?: boolean }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <div style={{ position: "relative", width: "100%", display: "flex", justifyContent: "center" }}>
-      <button
-        onClick={onClick}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        title={label}
-        style={{
-          width: 46, height: 46, borderRadius: 14, border: "none", cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-          background: active ? "var(--accent-solid)" : "transparent",
-          color: danger ? "var(--red)" : active ? "var(--accent-solid-text)" : "var(--t2)",
-          transition: "background 0.15s ease",
-        }}
-      >
-        {icon}
-      </button>
-      {hover && (
-        <div
-          style={{
-            position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
-            background: "var(--t1)", color: "var(--surface)", fontSize: 12, fontWeight: 700,
-            padding: "6px 12px", borderRadius: 8, whiteSpace: "nowrap", zIndex: 400, pointerEvents: "none",
-            boxShadow: "var(--shadow-lg)",
-          }}
-        >
-          {label}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function useIsMobile(breakpoint = 860) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -602,7 +565,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh", gap: isMobile ? 0 : 18, padding: isMobile ? 0 : 16, alignItems: "flex-start" }}>
       {/* Mobile sidebar backdrop */}
       {isMobile && sidebarOpen && (
         <div
@@ -611,143 +574,110 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         />
       )}
 
-      {/* ── Sidebar ── */}
+      {/* ── Sidebar (floating, berlabel) ── */}
       <aside
         className="premiumChrome"
         style={{
-          width: isMobile ? 240 : 72,
+          width: 256,
           flexShrink: 0,
-          background: "var(--surface)",
-          borderRight: "1px solid var(--border)",
           display: "flex",
           flexDirection: "column",
-          alignItems: isMobile ? "stretch" : "center",
           position: isMobile ? "fixed" : "sticky",
-          top: 0,
-          left: isMobile ? (sidebarOpen ? 0 : -260) : "auto",
-          height: "100vh",
+          top: isMobile ? 0 : 16,
+          left: isMobile ? (sidebarOpen ? 0 : -290) : "auto",
+          height: isMobile ? "100vh" : "calc(100vh - 32px)",
+          borderRadius: isMobile ? "0 26px 26px 0" : 26,
           zIndex: 300,
           transition: "left 0.25s ease",
+          padding: "18px 12px 12px",
         }}
       >
-        <div style={{ display: "flex", alignItems: isMobile ? "center" : "column", flexDirection: isMobile ? "row" : "column", gap: 10, padding: isMobile ? "18px" : "18px 0 14px" }}>
-          <img src="/logo.png" alt="CIKOPS" style={{ width: 38, height: 38, filter: "drop-shadow(0 4px 10px rgba(47,95,224,0.35))" }} />
-          {isMobile && (
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>{t.appName}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span className={liveConnected ? styles.livePulseDot : undefined} style={liveConnected ? undefined : { width: 7, height: 7, borderRadius: "50%", background: "var(--t3)" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: liveConnected ? "var(--green)" : "var(--t3)", letterSpacing: "0.02em" }}>
-                  {liveConnected ? "LIVE" : (lang === "en" ? "Connecting…" : "Menyambungkan…")}
-                </span>
-              </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "2px 8px 14px" }}>
+          <img src="/logo.png" alt="CIKOPS" style={{ width: 40, height: 40, objectFit: "contain" }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", letterSpacing: "-0.01em" }}>{t.appName}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span className={liveConnected ? styles.livePulseDot : undefined} style={liveConnected ? undefined : { width: 7, height: 7, borderRadius: "50%", background: "var(--t3)" }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: liveConnected ? "var(--green-text)" : "var(--t3)", letterSpacing: "0.04em" }}>
+                {liveConnected ? "LIVE" : (lang === "en" ? "Connecting…" : "Menyambungkan…")}
+              </span>
             </div>
-          )}
+          </div>
         </div>
 
-        {isMobile ? (
-          // ── Mobile: drawer sementara, jadi daftar lengkap dengan label tidak masalah ──
-          <nav style={{ flex: 1, overflowY: "auto", padding: "10px 10px" }}>
-            <button
-              className={`navItem ${activeTab === "home" ? "navItemActive" : ""}`}
-              onClick={() => { setActiveTab("home"); setActiveHomeGroup(undefined); setSidebarOpen(false); }}
-            >
-              <span>🏠</span>
-              {lang === "id" ? "Dashboard" : "Dashboard"}
-            </button>
-            <button
-              className={`navItem ${activeTab === "overview" ? "navItemActive" : ""}`}
-              onClick={() => { setActiveTab("overview"); setSidebarOpen(false); }}
-              style={{ marginBottom: 16 }}
-            >
-              <span>📊</span>
-              {lang === "id" ? "Ringkasan" : "Overview"}
-            </button>
-            {NAV_GROUPS.map((group) => {
-              const visibleTabs = group.tabs.filter((tabItem) => canAccessTab(myProfile, tabItem.id));
-              if (visibleTabs.length === 0) return null;
-              return (
-                <div key={group.id}>
-                  <div className="navSectionLabel">{lang === "id" ? group.labelId : group.labelEn}</div>
-                  {visibleTabs.map((tabItem) => (
-                    <button
-                      key={tabItem.id}
-                      className={`navItem ${activeTab === tabItem.id ? "navItemActive" : ""}`}
-                      onClick={() => { setActiveTab(tabItem.id); setSidebarOpen(false); }}
-                    >
-                      <span>{tabItem.icon}</span>
-                      {lang === "id" ? tabItem.labelId : tabItem.labelEn}
-                    </button>
-                  ))}
-                </div>
-              );
-            })}
-          </nav>
-        ) : (
-          // ── Desktop: rail ikon ramping — panjangnya TETAP walau modul bertambah,
-          // karena cuma nampilkan kategori (4), bukan setiap tab satu-satu (15+).
-          // Navigasi detail per-modul dilakukan lewat Halaman Utama (kartu ikon).
-          <nav style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "4px 0" }}>
-            <SidebarIconButton
-              icon="🏠"
-              label={lang === "id" ? "Dashboard" : "Dashboard"}
-              active={activeTab === "home"}
-              onClick={() => { setActiveTab("home"); setActiveHomeGroup(undefined); }}
-            />
-            <SidebarIconButton
-              icon="📊"
-              label={lang === "id" ? "Ringkasan" : "Overview"}
-              active={activeTab === "overview"}
-              onClick={() => setActiveTab("overview")}
-            />
-            <div style={{ width: 32, height: 1, background: "var(--border)", margin: "8px 0" }} />
-            {NAV_GROUPS.map((group) => {
-              const visibleTabs = group.tabs.filter((tabItem) => canAccessTab(myProfile, tabItem.id));
-              if (visibleTabs.length === 0) return null;
-              const groupActive = activeTab === "home" ? activeHomeGroup === group.id : visibleTabs.some((tb) => tb.id === activeTab);
-              return (
-                <SidebarIconButton
-                  key={group.id}
-                  icon={group.icon}
-                  label={lang === "id" ? group.labelId : group.labelEn}
-                  active={groupActive}
-                  onClick={() => { setActiveTab("home"); setActiveHomeGroup(group.id); }}
-                />
-              );
-            })}
-          </nav>
-        )}
+        <nav style={{ flex: 1, overflowY: "auto", padding: "2px 2px 8px", minHeight: 0 }}>
+          <button
+            className={`navItem ${activeTab === "home" ? "navItemActive" : ""}`}
+            onClick={() => { setActiveTab("home"); setActiveHomeGroup(undefined); setSidebarOpen(false); }}
+          >
+            <span><Icon name="home" /></span>
+            Dashboard
+          </button>
+          <button
+            className={`navItem ${activeTab === "overview" ? "navItemActive" : ""}`}
+            onClick={() => { setActiveTab("overview"); setSidebarOpen(false); }}
+          >
+            <span><Icon name="overview" /></span>
+            {lang === "id" ? "Ringkasan" : "Overview"}
+          </button>
+          {NAV_GROUPS.map((group) => {
+            const visibleTabs = group.tabs.filter((tabItem) => canAccessTab(myProfile, tabItem.id));
+            if (visibleTabs.length === 0) return null;
+            return (
+              <div key={group.id}>
+                <div className="navSectionLabel">{lang === "id" ? group.labelId : group.labelEn}</div>
+                {visibleTabs.map((tabItem) => (
+                  <button
+                    key={tabItem.id}
+                    className={`navItem ${activeTab === tabItem.id ? "navItemActive" : ""}`}
+                    onClick={() => { setActiveTab(tabItem.id); setSidebarOpen(false); }}
+                  >
+                    <span><Icon name={tabItem.id} /></span>
+                    {lang === "id" ? tabItem.labelId : tabItem.labelEn}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </nav>
 
-        <div style={{ padding: isMobile ? "10px" : "10px 0 16px", borderTop: isMobile ? "1px solid var(--border)" : "none", width: "100%", display: "flex", justifyContent: "center" }}>
-          {isMobile ? (
-            <button
-              onClick={() => signOut()}
-              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 14px", borderRadius: 10, border: "none", background: "transparent", color: "var(--red)", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "var(--font)" }}
-            >
-              🚪 {t.actionSignOut}
-            </button>
-          ) : (
-            <SidebarIconButton icon="🚪" label={t.actionSignOut} active={false} onClick={() => signOut()} danger />
-          )}
+        <div style={{ marginTop: 8, padding: 10, borderRadius: 16, background: "var(--surface2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--grad-brand)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
+            {(myProfile?.fullName || user?.email || "?").charAt(0).toUpperCase()}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {myProfile?.fullName || user?.email?.split("@")[0] || "-"}
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--t3)" }}>{myProfile?.role === "admin" ? "Admin" : "GA Manager"}</div>
+          </div>
+          <button
+            onClick={() => signOut()}
+            title={t.actionSignOut}
+            aria-label={t.actionSignOut}
+            style={{ width: 34, height: 34, borderRadius: 11, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--red)", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}
+          >
+            <Icon name="logout" size={16} />
+          </button>
         </div>
       </aside>
 
       {/* ── Main content wrapper ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {/* Topbar */}
-        <div className="premiumChrome" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)", position: "sticky", top: 0, zIndex: 100 }}>
+        <div className="premiumChrome" style={{ display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "10px 14px" : "10px 16px", borderRadius: isMobile ? 0 : 20, marginBottom: isMobile ? 0 : 18, position: "sticky", top: isMobile ? 0 : 16, zIndex: 100 }}>
           {isMobile && (
-            <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--t1)" }}>
-              ☰
+            <button onClick={() => setSidebarOpen(true)} aria-label="Menu" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t1)", display: "grid", placeItems: "center" }}>
+              <Icon name="menu" size={22} />
             </button>
           )}
           {!isMobile && (
             <div ref={searchBoxRef} style={{ flex: 1, position: "relative", maxWidth: 400 }}>
-              <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--navy)", opacity: 0.55, fontSize: 13 }}>🔍</span>
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", display: "grid", placeItems: "center" }}><Icon name="search" size={16} /></span>
               <input
                 placeholder={lang === "en" ? "Search menu, data, or module..." : "Cari menu, data, atau modul..."}
                 className={styles.formInput}
-                style={{ borderRadius: "var(--pill)", paddingLeft: 36, background: "#ffffff", color: "var(--navy)", border: "1.5px solid rgba(255,255,255,0.25)" }}
+                style={{ borderRadius: 14, paddingLeft: 40 }}
                 value={globalSearch}
                 onChange={(e) => { setGlobalSearch(e.target.value); setShowSearchDropdown(true); }}
                 onFocus={() => setShowSearchDropdown(true)}
@@ -755,9 +685,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
               {showSearchDropdown && globalSearch.trim() !== "" && (
                 <div
                   style={{
-                    position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "#ffffff", border: "1px solid #e1e7f1", borderRadius: 14, boxShadow: "var(--shadow-lg)", maxHeight: 360, overflowY: "auto", zIndex: 200,
-                    // reset variabel warna ke normal — dropdown ini nested di dalam .premiumChrome (navy), jadi perlu "keluar" dari cascade itu
-                    ["--t1" as string]: "#0f2847", ["--t2" as string]: "#435773", ["--t3" as string]: "#7c8aa0", ["--bg2" as string]: "#eef2f9", ["--border" as string]: "#e1e7f1",
+                    position: "absolute", top: "calc(100% + 8px)", left: 0, right: 0, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "var(--shadow-lg)", maxHeight: 360, overflowY: "auto", zIndex: 200,
                   } as CSSProperties}
                 >
                   {menuSearchResults.length === 0 && dataSearchResults.length === 0 ? (
@@ -830,11 +758,11 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           >
             {lang === "id" ? "EN" : "ID"}
           </button>
-          <button className={styles.iconBtn} onClick={toggleTheme}>
-            {theme === "dark" ? "☀️" : "🌙"}
+          <button className={styles.iconBtn} onClick={toggleTheme} aria-label="Theme">
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={18} />
           </button>
           <button className={styles.iconBtn} aria-label="Notifications" title={lang === "en" ? "Notifications" : "Notifikasi"}>
-            🔔
+            <Icon name="bell" size={18} />
           </button>
           {activeTab === "tasks" && (
             <>
@@ -844,7 +772,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
                 aria-label="Laporan & Analytics"
                 title="Laporan & Analytics"
               >
-                📊
+                <Icon name="reports" size={18} />
               </button>
               <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
                 {isMobile ? "+ Tugaskan" : "+ Tugaskan Driver"}
@@ -2098,7 +2026,21 @@ function CreateTaskModal({
                     className={`${styles.formInput} premiumInput`}
                     placeholder="Contoh: Kantor Cabang Selatan"
                     value={tujuan}
-                    onChange={(e) => setTujuan(e.target.value)}
+                    onChange={(e) => setTujuan(e.target.value.replace(/[\r\n]+/g, " "))}
+                    onPaste={(e) => {
+                      // Cegah newline mentah masuk lewat paste (mis. copy alamat
+                      // multi-baris dari WhatsApp/Notes). Newline di sini pernah
+                      // menyebabkan email notifikasi tugas tampil sebagai kode
+                      // MIME mentah di Gmail, karena field ini ikut membentuk
+                      // baris header Subject di email. Input satu baris seperti
+                      // ini memang tidak seharusnya berisi newline.
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData("text").replace(/[\r\n]+/g, " ");
+                      const el = e.currentTarget;
+                      const start = el.selectionStart ?? tujuan.length;
+                      const end = el.selectionEnd ?? tujuan.length;
+                      setTujuan(tujuan.slice(0, start) + pasted + tujuan.slice(end));
+                    }}
                   />
                 </div>
 
@@ -2467,7 +2409,7 @@ function CalendarWidget({ events, onPickDate, selectedDate }: { events: AgendaEv
 /* ════════════════════════════════════════════════════════════
    WIDGET — Agenda Mendatang
 ════════════════════════════════════════════════════════════ */
-const AGENDA_COLORS: Record<string, string> = { blue: "var(--brand)", green: "var(--green)", orange: "var(--orange)", red: "var(--red)", purple: "#8b5cf6" };
+const AGENDA_COLORS: Record<string, string> = { blue: "var(--brand)", green: "var(--green)", orange: "var(--orange)", red: "var(--red)", purple: "var(--purple)" };
 
 function AgendaWidget({
   events, onAdd, onDelete, filterDate, onClearFilter,
@@ -2568,26 +2510,29 @@ function AgendaWidget({
 ════════════════════════════════════════════════════════════ */
 function QuickActionsWidget({ setActiveTab }: { setActiveTab: (t: DashboardTab) => void }) {
   const { lang } = useLang();
-  const actions: { icon: string; labelId: string; labelEn: string; tab: DashboardTab; color: string }[] = [
-    { icon: "🗂️", labelId: "Permintaan Baru", labelEn: "New Request", tab: "employeerequests", color: "#fde8ec" },
-    { icon: "📈", labelId: "Laporan Cepat", labelEn: "Quick Report", tab: "reports", color: "#e8effd" },
-    { icon: "🚗", labelId: "Tambah Armada", labelEn: "Add Vehicle", tab: "vehicles", color: "#e6f7ee" },
-    { icon: "🧾", labelId: "Pengajuan Klaim", labelEn: "Submit Claim", tab: "claims", color: "#eaf4ff" },
+  const actions: { icon: string; labelId: string; labelEn: string; tab: DashboardTab; tone: string }[] = [
+    { icon: "employeerequests", labelId: "Permintaan Baru", labelEn: "New Request", tab: "employeerequests", tone: "facility" },
+    { icon: "reports", labelId: "Laporan Cepat", labelEn: "Quick Report", tab: "reports", tone: "fleet" },
+    { icon: "vehicles", labelId: "Tambah Armada", labelEn: "Add Vehicle", tab: "vehicles", tone: "fleet" },
+    { icon: "claims", labelId: "Pengajuan Klaim", labelEn: "Submit Claim", tab: "claims", tone: "finance" },
   ];
   return (
     <div className="neonCard" style={{ padding: 18 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)", marginBottom: 14 }}>{lang === "en" ? "Quick Actions" : "Aksi Cepat"}</div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", marginBottom: 14 }}>{lang === "en" ? "Quick Actions" : "Aksi Cepat"}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {actions.map((a) => (
-          <button
-            key={a.tab}
-            onClick={() => setActiveTab(a.tab)}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 10px", borderRadius: 12, border: "1px solid var(--border2)", background: a.color, cursor: "pointer", textAlign: "left" }}
-          >
-            <span style={{ fontSize: 17 }}>{a.icon}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f2847", lineHeight: 1.25 }}>{lang === "id" ? a.labelId : a.labelEn}</span>
-          </button>
-        ))}
+        {actions.map((a) => {
+          const tn = GROUP_TONE[a.tone] ?? GROUP_TONE.system;
+          return (
+            <button
+              key={a.tab}
+              onClick={() => setActiveTab(a.tab)}
+              className={styles.quickAction}
+            >
+              <span className={styles.quickActionIcon} style={{ background: tn.bg, color: tn.fg }}><Icon name={a.icon} size={17} /></span>
+              <span className={styles.quickActionLabel}>{lang === "id" ? a.labelId : a.labelEn}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -2645,6 +2590,23 @@ function AnnouncementWidget({ announcements, onAdd, canManage }: { announcements
    Aksi Cepat, Pengumuman). Konten "Ringkasan" (KPI detail lama)
    tetap ada terpisah, tidak diganti.
 ════════════════════════════════════════════════════════════ */
+const GROUP_TONE: Record<string, { fg: string; bg: string }> = {
+  fleet: { fg: "var(--brand)", bg: "var(--accent-soft)" },
+  finance: { fg: "var(--green-text)", bg: "var(--green-soft)" },
+  facility: { fg: "var(--orange-text)", bg: "var(--orange-soft)" },
+  system: { fg: "var(--t2)", bg: "var(--bg2)" },
+};
+
+function initialsOf(name: string): string {
+  const parts = (name || "?").trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+function fmtClock(iso: string | null): string {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
+
 function HomeTab({
   setActiveTab,
   myProfile,
@@ -2658,13 +2620,15 @@ function HomeTab({
 }) {
   const { lang } = useLang();
   const visibleGroups = NAV_GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((t) => canAccessTab(myProfile, t.id)) })).filter((g) => g.tabs.length > 0);
-  const cardColors = ["#EEF3FF", "#E8F8F2", "#FFF1EC", "#F5F0FF", "#FFF8E6", "#EFFAF6"];
-
   const filteredGroup = activeGroupId ? visibleGroups.find((g) => g.id === activeGroupId) : undefined;
 
   const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<string | null>(null);
+  const [weekTasks, setWeekTasks] = useState<TaskDetail[]>([]);
+  const [gateLogs, setGateLogs] = useState<VehicleGateLog[]>([]);
+  const [gateLoadedAt, setGateLoadedAt] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [kpi, setKpi] = useState<{
     claimWeekTotal: number;
     tasksToday: number;
@@ -2687,12 +2651,46 @@ function HomeTab({
   useEffect(() => { loadWidgets(); }, [loadWidgets]);
 
   useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Tugas 7 hari terakhir (untuk grafik) — mengikuti plant scope akun.
+  useEffect(() => {
+    (async () => {
+      try {
+        const from = new Date();
+        from.setDate(from.getDate() - 6);
+        setWeekTasks(await getTasksByRange(toLocalISODate(from), todayStr(), myProfile?.plantScope ?? null));
+      } catch (e) {
+        console.warn("Gagal memuat tugas 7 hari:", e);
+      }
+    })();
+  }, [myProfile?.plantScope]);
+
+  // Aktivitas gate hari ini, ditarik ulang tiap 20 detik.
+  useEffect(() => {
+    let alive = true;
+    async function loadGate() {
+      try {
+        const d = todayStr();
+        const logs = await getVehicleGateLogs({ plant: myProfile?.plantScope ?? null, dateFrom: d, dateTo: d });
+        if (alive) { setGateLogs(logs); setGateLoadedAt(Date.now()); }
+      } catch (e) {
+        console.warn("Gagal memuat aktivitas gate:", e);
+      }
+    }
+    loadGate();
+    const id = setInterval(loadGate, 20000);
+    return () => { alive = false; clearInterval(id); };
+  }, [myProfile?.plantScope]);
+
+  useEffect(() => {
     (async () => {
       try {
         const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
+        const todayS = now.toISOString().slice(0, 10);
         const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        // Senin s/d hari ini minggu berjalan
         const dow = (now.getDay() + 6) % 7; // Senin = 0
         const monday = new Date(now);
         monday.setDate(now.getDate() - dow);
@@ -2700,7 +2698,7 @@ function HomeTab({
 
         const [claims, tasksToday, canteenMonth, kantongCik, kantongPrb, vehicles, drivers] = await Promise.all([
           getClaims(),
-          getTasksByRange(todayStr, todayStr, null),
+          getTasksByRange(todayS, todayS, null),
           getCanteenReportsForMonth(monthStr),
           getCurrentKantong("CIK").catch(() => null),
           getCurrentKantong("PRB").catch(() => null),
@@ -2709,14 +2707,12 @@ function HomeTab({
         ]);
 
         const claimWeekTotal = claims
-          .filter((c) => c.submissionDate >= mondayStr && c.submissionDate <= todayStr)
+          .filter((c) => c.submissionDate >= mondayStr && c.submissionDate <= todayS)
           .reduce((s, c) => s + c.total, 0);
-
-        const canteenToday = canteenMonth.find((r) => r.reportDate === todayStr);
+        const canteenToday = canteenMonth.find((r) => r.reportDate === todayS);
         const canteenTodayTotal = canteenToday
           ? canteenToday.snackOrder.reduce((a, b) => a + b, 0) + canteenToday.mealOrder.reduce((a, b) => a + b, 0)
           : 0;
-
         const opBudgetAvailable = (kantongCik?.cashAvailable ?? 0) + (kantongPrb?.cashAvailable ?? 0);
 
         setKpi({
@@ -2758,88 +2754,246 @@ function HomeTab({
     }
   }
 
-  function renderCard(tabItem: NavTab, i: number) {
+  // ── Turunan data untuk hero, grafik, donut ──
+  const today = todayStr();
+  const activeWeek = weekTasks.filter((t) => t.status !== "CANCELLED");
+  const todayTasks = activeWeek.filter((t) => t.tanggal === today);
+  const ongoingToday = todayTasks.filter((t) => t.status === "ON GOING");
+  const lateOngoing = ongoingToday.filter((t) => {
+    const started = t.accepted_at ?? t.created_at;
+    return started && nowTick - new Date(started).getTime() > 2 * 60 * 60 * 1000;
+  });
+  const vehiclesOut = new Set(ongoingToday.map((t) => t.vehicle_id).filter(Boolean)).size;
+  const vehiclesTotal = kpi?.vehiclesActive ?? 0;
+  const vehiclesFree = Math.max(0, vehiclesTotal - vehiclesOut);
+
+  const dayKeys: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dayKeys.push(toLocalISODate(d));
+  }
+  const chartData = dayKeys.map((k) => ({
+    key: k,
+    label: new Date(k + "T00:00:00").toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { weekday: "short" }),
+    cik: activeWeek.filter((t) => t.tanggal === k && t.plant === "CIK").length,
+    prb: activeWeek.filter((t) => t.tanggal === k && t.plant === "PRB").length,
+  }));
+  const chartMax = Math.max(4, ...chartData.map((d) => Math.max(d.cik, d.prb)));
+
+  const hour = new Date(nowTick).getHours();
+  const greet =
+    lang === "en"
+      ? hour < 11 ? "Good morning" : hour < 15 ? "Good afternoon" : hour < 18 ? "Good evening" : "Good night"
+      : hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 18 ? "Selamat sore" : "Selamat malam";
+  const firstName = (myProfile?.fullName || "").split(" ")[0] || "Admin";
+  const dateLabel = new Date(nowTick).toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  const heroCount = { today: useCountUp(todayTasks.length), going: useCountUp(ongoingToday.length), out: useCountUp(vehiclesOut) };
+  const gateAgo = gateLoadedAt ? Math.max(0, Math.round((nowTick - gateLoadedAt) / 1000)) : null;
+
+  function renderCard(tabItem: NavTab, groupId: string) {
+    const tone = GROUP_TONE[groupId] ?? GROUP_TONE.system;
     return (
-      <button
-        key={tabItem.id}
-        onClick={() => setActiveTab(tabItem.id)}
-        className="statPop"
-        style={{
-          textAlign: "left", cursor: "pointer", border: "1px solid var(--border2)", borderRadius: "var(--r2)",
-          padding: 20, display: "flex", flexDirection: "column", gap: 12, background: "var(--surface)",
-        }}
-      >
-        <div style={{ width: 52, height: 52, borderRadius: 16, background: cardColors[i % cardColors.length], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>
-          {tabItem.icon}
-        </div>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", marginBottom: 3 }}>{lang === "id" ? tabItem.labelId : tabItem.labelEn}</div>
-          <div style={{ fontSize: 12, color: "var(--t3)", lineHeight: 1.4 }}>{lang === "id" ? tabItem.descId : tabItem.descEn}</div>
-        </div>
+      <button key={tabItem.id} onClick={() => setActiveTab(tabItem.id)} className={styles.moduleCard}>
+        <span className={styles.moduleIcon} style={{ background: tone.bg, color: tone.fg }}>
+          <Icon name={tabItem.id} size={22} />
+        </span>
+        <span className={styles.moduleText}>
+          <span className={styles.moduleName}>{lang === "id" ? tabItem.labelId : tabItem.labelEn}</span>
+          <span className={styles.moduleDesc}>{lang === "id" ? tabItem.descId : tabItem.descEn}</span>
+        </span>
+        <span className={styles.moduleArrow}><Icon name="arrow" size={16} /></span>
       </button>
     );
   }
 
+  const donutR = 46;
+  const donutC = 2 * Math.PI * donutR;
+  const donutTotal = Math.max(1, vehiclesTotal);
+  const outLen = (vehiclesOut / donutTotal) * donutC;
+  const freeLen = (vehiclesFree / donutTotal) * donutC;
+  const readyPct = vehiclesTotal > 0 ? Math.round((vehiclesFree / vehiclesTotal) * 100) : 0;
+
   return (
-    <div style={{ padding: 28, display: "grid", gridTemplateColumns: "1fr 320px", gap: 26, alignItems: "start" }}>
-      {/* ── Kolom kiri: sapaan, KPI, Modul Utama ── */}
-      <div style={{ minWidth: 0 }}>
+    <div className={styles.homeLayout}>
+      <div className={styles.homeMain}>
         {!filteredGroup && (
           <>
-            <div style={{ marginBottom: 6, fontSize: 24, fontWeight: 800, color: "var(--t1)" }}>
-              {lang === "en" ? "Hi" : "Halo"}, {(myProfile?.fullName || "").split(" ")[0] || "Admin"}! 👋
-            </div>
-            <div style={{ fontSize: 13.5, color: "var(--t3)", marginBottom: 26 }}>
-              {lang === "en" ? "Welcome back to CIKOPS-FM. Manage operations more easily." : "Selamat datang kembali di CIKOPS-FM. Kelola operasional dengan lebih mudah."}
-            </div>
+            {/* ── Hero ── */}
+            <section className={`heroGlow ${styles.homeHero}`}>
+              <div className={styles.homeHeroText}>
+                <span className={styles.homeHeroEyebrow}><span className={styles.homeHeroDot} />{dateLabel}</span>
+                <h1 className={styles.homeHeroTitle}>{greet}, {firstName}.</h1>
+                <p className={styles.homeHeroSub}>
+                  {lang === "en"
+                    ? `${ongoingToday.length} task(s) are running now.${lateOngoing.length > 0 ? ` ${lateOngoing.length} need a check.` : " All on schedule."}`
+                    : `${ongoingToday.length} tugas sedang berjalan.${lateOngoing.length > 0 ? ` ${lateOngoing.length} perlu dicek.` : " Semua sesuai jadwal."}`}
+                </p>
+              </div>
+              <div className={styles.homeHeroStats}>
+                <div className={styles.homeHeroStat}><b>{heroCount.today}</b><span>{lang === "en" ? "Tasks today" : "Tugas hari ini"}</span></div>
+                <div className={styles.homeHeroStat}><b>{heroCount.going}</b><span>{lang === "en" ? "Running" : "Sedang jalan"}</span></div>
+                <div className={styles.homeHeroStat}><b>{heroCount.out}</b><span>{lang === "en" ? "Vehicles out" : "Kendaraan keluar"}</span></div>
+              </div>
+            </section>
 
+            {/* ── KPI ── */}
             {kpi && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 34 }}>
-                <HomeKpiCard icon="🧾" iconBg="#e8effd" labelId="Total Klaim Minggu Ini" labelEn="Claims This Week" value={kpi.claimWeekTotal} isCurrency />
-                <HomeKpiCard icon="🗂️" iconBg="#fdeeea" labelId="Tugas Driver Hari Ini" labelEn="Driver Tasks Today" value={kpi.tasksToday} />
-                <HomeKpiCard icon="🍱" iconBg="#e6f7ee" labelId="Rekap Kantin Hari Ini" labelEn="Canteen Today" value={kpi.canteenTodayTotal} />
-                <HomeKpiCard icon="💰" iconBg="#fff6e0" labelId="Budget Operasional" labelEn="Operational Budget" value={kpi.opBudgetAvailable} isCurrency />
-                <HomeKpiCard icon="🚗" iconBg="#f1eaff" labelId="Kendaraan & Driver Tersedia" labelEn="Vehicles & Drivers Available" value={kpi.vehiclesActive} subValue={kpi.driversActive} subLabelId="Driver" subLabelEn="Drivers" />
+              <div className={styles.homeKpiGrid}>
+                <HomeKpiCard icon="claims" tone="fleet" labelId="Total Klaim Minggu Ini" labelEn="Claims This Week" value={kpi.claimWeekTotal} isCurrency />
+                <HomeKpiCard icon="tasks" tone="fleet" labelId="Tugas Driver Hari Ini" labelEn="Driver Tasks Today" value={kpi.tasksToday} />
+                <HomeKpiCard icon="canteen" tone="facility" labelId="Rekap Kantin Hari Ini" labelEn="Canteen Today" value={kpi.canteenTodayTotal} />
+                <HomeKpiCard icon="opfund" tone="finance" labelId="Budget Operasional" labelEn="Operational Budget" value={kpi.opBudgetAvailable} isCurrency />
+                <HomeKpiCard icon="vehicles" tone="fleet" labelId="Kendaraan & Driver Aktif" labelEn="Active Vehicles & Drivers" value={kpi.vehiclesActive} subValue={kpi.driversActive} subLabelId="Driver" subLabelEn="Drivers" />
               </div>
             )}
+
+            {/* ── Grafik + Gate ── */}
+            <div className={styles.homeSplit}>
+              <section className={styles.homeCard}>
+                <div className={styles.homeCardHead}>
+                  <div>
+                    <h3>{lang === "en" ? "Tasks per day" : "Tugas per hari"}</h3>
+                    <small>{lang === "en" ? "Last 7 days" : "7 hari terakhir"}</small>
+                  </div>
+                  <div className={styles.homeLegend}>
+                    <span><i style={{ background: "var(--brand)" }} />Cikarang</span>
+                    <span><i style={{ background: "var(--gold)" }} />Pasar Rebo</span>
+                  </div>
+                </div>
+                <svg viewBox="0 0 560 220" className={styles.homeChart} role="img" aria-label={lang === "en" ? "Tasks per day by plant" : "Tugas per hari per plant"}>
+                  {[0, 1, 2, 3].map((g) => {
+                    const y = 10 + (220 - 10 - 28) * (1 - g / 3);
+                    return (
+                      <g key={g}>
+                        <line x1="28" x2="560" y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 5" />
+                        <text x="0" y={y + 4} fontSize="11" fill="var(--t3)">{Math.round((chartMax * g) / 3)}</text>
+                      </g>
+                    );
+                  })}
+                  {chartData.map((d, i) => {
+                    const slot = (560 - 28) / chartData.length;
+                    const bw = (slot * 0.64) / 2;
+                    const x0 = 28 + i * slot + slot * 0.18;
+                    const h1 = (d.cik / chartMax) * (220 - 10 - 28);
+                    const h2 = (d.prb / chartMax) * (220 - 10 - 28);
+                    const isToday = d.key === today;
+                    return (
+                      <g key={d.key}>
+                        <rect x={x0} y={220 - 28 - h1} width={bw} height={h1} rx="5" fill="var(--brand)" opacity={isToday ? 1 : 0.8} />
+                        <rect x={x0 + bw + 3} y={220 - 28 - h2} width={bw} height={h2} rx="5" fill="var(--gold)" opacity={isToday ? 1 : 0.8} />
+                        <text x={28 + i * slot + slot / 2} y={212} textAnchor="middle" fontSize="11" fill={isToday ? "var(--t1)" : "var(--t3)"} fontWeight={isToday ? 700 : 500}>{d.label}</text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </section>
+
+              <section className={styles.homeCard}>
+                <div className={styles.homeCardHead}>
+                  <div>
+                    <h3>{lang === "en" ? "Gate activity" : "Aktivitas gate"}</h3>
+                    <small>{gateAgo === null ? (lang === "en" ? "Loading…" : "Memuat…") : gateAgo < 5 ? (lang === "en" ? "Updated just now" : "Diperbarui baru saja") : `${lang === "en" ? "Updated" : "Diperbarui"} ${gateAgo} ${lang === "en" ? "s ago" : "dtk lalu"}`}</small>
+                  </div>
+                  <span className="neonBadgePill"><span className="dot" />Live</span>
+                </div>
+                <div className={styles.homeFeed}>
+                  {gateLogs.length === 0 && (
+                    <div className={styles.homeEmpty}>{lang === "en" ? "No gate movement today." : "Belum ada pergerakan gate hari ini."}</div>
+                  )}
+                  {gateLogs.slice(0, 6).map((g) => {
+                    const out = g.status === "OUT";
+                    return (
+                      <div className={styles.homeFeedRow} key={g.id}>
+                        <span className={styles.homeAvatar}>{initialsOf(g.driverName)}</span>
+                        <span className={styles.homeFeedText}>
+                          <b>{g.driverName}</b>
+                          <small>{g.nopol} · {g.plant}{g.tujuan ? ` → ${g.tujuan}` : ""}</small>
+                        </span>
+                        <span className={`${styles.homeTag} ${out ? styles.homeTagOut : styles.homeTagIn}`}>
+                          {out ? (lang === "en" ? "Out" : "Keluar") : g.status === "IN" ? (lang === "en" ? "In" : "Masuk") : (lang === "en" ? "Done" : "Selesai")} · {fmtClock(out ? g.timeOut : g.timeIn ?? g.timeOut)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+
+            {/* ── Armada + plant ── */}
+            <div className={styles.homeTrio}>
+              <section className={styles.homeCard}>
+                <div className={styles.homeCardHead}><h3>{lang === "en" ? "Fleet status" : "Status armada"}</h3><small>{vehiclesTotal} unit</small></div>
+                <div className={styles.homeDonutWrap}>
+                  <svg viewBox="0 0 120 120" width="132" height="132" role="img" aria-label={lang === "en" ? "Fleet status" : "Status armada"}>
+                    <circle cx="60" cy="60" r={donutR} fill="none" stroke="var(--bg2)" strokeWidth="14" />
+                    {vehiclesOut > 0 && <circle cx="60" cy="60" r={donutR} fill="none" stroke="var(--brand)" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, outLen - 4)} ${donutC - outLen + 4}`} transform="rotate(-90 60 60)" />}
+                    {vehiclesFree > 0 && <circle cx="60" cy="60" r={donutR} fill="none" stroke="var(--gold)" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, freeLen - 4)} ${donutC - freeLen + 4}`} strokeDashoffset={-outLen} transform="rotate(-90 60 60)" />}
+                    <text x="60" y="58" textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--t1)">{readyPct}%</text>
+                    <text x="60" y="73" textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--t3)">{lang === "en" ? "ready" : "siap pakai"}</text>
+                  </svg>
+                  <div className={styles.homeDonutLegend}>
+                    <div><i style={{ background: "var(--brand)" }} />{lang === "en" ? "On duty" : "Bertugas"}<b>{vehiclesOut}</b></div>
+                    <div><i style={{ background: "var(--gold)" }} />{lang === "en" ? "Available" : "Tersedia"}<b>{vehiclesFree}</b></div>
+                  </div>
+                </div>
+              </section>
+
+              <section className={styles.homeCard}>
+                <div className={styles.homeCardHead}><h3>{lang === "en" ? "Load per plant" : "Beban per plant"}</h3><small>{lang === "en" ? "tasks today" : "tugas hari ini"}</small></div>
+                {(["CIK", "PRB"] as const).map((pl) => {
+                  const all = todayTasks.filter((t) => t.plant === pl).length;
+                  const going = ongoingToday.filter((t) => t.plant === pl).length;
+                  const maxAll = Math.max(1, todayTasks.filter((t) => t.plant === "CIK").length, todayTasks.filter((t) => t.plant === "PRB").length);
+                  return (
+                    <div key={pl} className={styles.homePlantRow}>
+                      <div className={styles.homePlantHead}><b>{pl === "CIK" ? "Cikarang" : "Pasar Rebo"}</b><span>{going} {lang === "en" ? "running" : "jalan"} / {all}</span></div>
+                      <div className={styles.homeBar}><i style={{ width: `${(all / maxAll) * 100}%`, background: pl === "CIK" ? "var(--grad-brand)" : "linear-gradient(90deg, var(--gold), var(--gold2))" }} /></div>
+                    </div>
+                  );
+                })}
+              </section>
+
+              <section className={styles.homeCard}>
+                <div className={styles.homeCardHead}><h3>{lang === "en" ? "Needs attention" : "Perlu perhatian"}</h3><small>{lateOngoing.length}</small></div>
+                <div className={styles.homeFeed}>
+                  {lateOngoing.length === 0 && <div className={styles.homeEmpty}>{lang === "en" ? "Nothing needs a check right now." : "Tidak ada yang perlu dicek saat ini."}</div>}
+                  {lateOngoing.slice(0, 4).map((t) => (
+                    <div className={styles.homeFeedRow} key={t.id}>
+                      <span className={`${styles.homeAvatar} ${styles.homeAvatarWarn}`}><Icon name="clock" size={16} /></span>
+                      <span className={styles.homeFeedText}>
+                        <b>{t.driver_nama ?? "-"}</b>
+                        <small>{t.tujuan} · {Math.round((nowTick - new Date(t.accepted_at ?? t.created_at).getTime()) / 3600000)} {lang === "en" ? "h" : "jam"}</small>
+                      </span>
+                      <span className={`${styles.homeTag} ${styles.homeTagOut}`}>{lang === "en" ? "Check" : "Cek"}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
           </>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span>{filteredGroup ? filteredGroup.icon : "🧩"}</span>
-            {filteredGroup ? (lang === "id" ? filteredGroup.labelId : filteredGroup.labelEn) : (lang === "en" ? "Main Modules" : "Modul Utama")}
-          </div>
+        {/* ── Modul ── */}
+        <div className={styles.homeSectionHead}>
+          <h2>{filteredGroup ? (lang === "id" ? filteredGroup.labelId : filteredGroup.labelEn) : (lang === "en" ? "Modules" : "Modul")}</h2>
           {filteredGroup && (
-            <button
-              onClick={() => setActiveGroupId(undefined)}
-              style={{ padding: "7px 14px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", background: "var(--bg2)", color: "var(--t2)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-            >
-              ← {lang === "en" ? "All Modules" : "Semua Modul"}
+            <button onClick={() => setActiveGroupId(undefined)} className={styles.homeBack}>
+              <Icon name="back" size={14} /> {lang === "en" ? "All modules" : "Semua modul"}
             </button>
           )}
         </div>
-
-        {filteredGroup ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, 200px)", gap: 16 }}>
-            {filteredGroup.tabs.map((tabItem, i) => renderCard(tabItem, i))}
+        {(filteredGroup ? [filteredGroup] : visibleGroups).map((group) => (
+          <div key={group.id} className={styles.homeGroup}>
+            {!filteredGroup && <div className={styles.homeGroupLabel}>{lang === "id" ? group.labelId : group.labelEn}</div>}
+            <div className={styles.moduleGrid}>{group.tabs.map((tabItem) => renderCard(tabItem, group.id))}</div>
           </div>
-        ) : (
-          visibleGroups.map((group) => (
-            <div key={group.id} style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t3)", marginBottom: 12, display: "flex", alignItems: "center", gap: 7 }}>
-                <span>{group.icon}</span> {lang === "id" ? group.labelId : group.labelEn}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, 200px)", gap: 16 }}>
-                {group.tabs.map((tabItem, i) => renderCard(tabItem, i))}
-              </div>
-            </div>
-          ))
-        )}
+        ))}
       </div>
 
-      {/* ── Kolom kanan: Kalender, Agenda, Aksi Cepat, Pengumuman ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+      {/* ── Kolom kanan ── */}
+      <div className={styles.homeSide}>
         <CalendarWidget events={agendaEvents} selectedDate={selectedAgendaDate} onPickDate={(d) => setSelectedAgendaDate(d === selectedAgendaDate ? null : d)} />
         <AgendaWidget events={agendaEvents} onAdd={handleAddAgenda} onDelete={handleDeleteAgenda} filterDate={selectedAgendaDate} onClearFilter={() => setSelectedAgendaDate(null)} />
         <QuickActionsWidget setActiveTab={setActiveTab} />
@@ -2850,29 +3004,26 @@ function HomeTab({
 }
 
 function HomeKpiCard({
-  icon, iconBg, labelId, labelEn, value, isCurrency, subValue, subLabelId, subLabelEn,
+  icon, tone, labelId, labelEn, value, isCurrency, subValue, subLabelId, subLabelEn,
 }: {
-  icon: string; iconBg: string; labelId: string; labelEn: string; value: number;
+  icon: string; tone: string; labelId: string; labelEn: string; value: number;
   isCurrency?: boolean; subValue?: number; subLabelId?: string; subLabelEn?: string;
 }) {
   const { lang } = useLang();
   const animated = useCountUp(value);
   const animatedSub = useCountUp(subValue ?? 0);
+  const tn = GROUP_TONE[tone] ?? GROUP_TONE.fleet;
   const displayValue = isCurrency ? `Rp ${animated.toLocaleString("id-ID")}` : animated.toLocaleString("id-ID");
   return (
-    <div className="statPop" style={{ borderRadius: "var(--r2)", padding: 18, background: "var(--surface)", border: "1px solid var(--border2)", display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{ width: 44, height: 44, borderRadius: 12, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{icon}</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--t3)", marginBottom: 2 }}>{lang === "id" ? labelId : labelEn}</div>
-        <div style={{ fontSize: isCurrency ? 17 : 22, fontWeight: 800, color: "var(--t1)", fontFamily: "var(--mono)" }}>
-          {displayValue}
-          {subValue !== undefined && (
-            <span style={{ fontSize: 13, color: "var(--t3)", fontWeight: 600 }}>
-              {" "}/ {animatedSub} {lang === "id" ? subLabelId : subLabelEn}
-            </span>
-          )}
-        </div>
+    <div className={styles.homeKpi}>
+      <span className={styles.homeKpiIcon} style={{ background: tn.bg, color: tn.fg }}><Icon name={icon} size={20} /></span>
+      <div className={styles.homeKpiValue} style={{ fontSize: isCurrency ? 22 : 30 }}>
+        {displayValue}
+        {subValue !== undefined && (
+          <small> / {animatedSub} {lang === "id" ? subLabelId : subLabelEn}</small>
+        )}
       </div>
+      <div className={styles.homeKpiLabel}>{lang === "id" ? labelId : labelEn}</div>
     </div>
   );
 }
@@ -5290,7 +5441,7 @@ function LoginScreen() {
             flex: "0 0 44%",
             position: "relative",
             overflow: "hidden",
-            background: "linear-gradient(160deg, #0d2b52 0%, var(--brand2) 55%, var(--brand) 100%)",
+            background: "var(--grad-hero)",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
@@ -8290,7 +8441,7 @@ function printRequestReceipt(params: {
   const refNo = `REQ-${new Date(params.createdAt).toISOString().slice(0, 10).replace(/-/g, "")}-${params.refId.slice(0, 6).toUpperCase()}`;
   const rows = params.lines
     .filter((l) => l.value)
-    .map((l) => `<tr><td style="padding:5px 0;color:#7c8aa0;width:38%;vertical-align:top;">${l.label}</td><td style="padding:5px 0;font-weight:700;color:#0f2847;">: ${l.value}</td></tr>`)
+    .map((l) => `<tr><td style="padding:5px 0;color:#7886a8;width:38%;vertical-align:top;">${l.label}</td><td style="padding:5px 0;font-weight:700;color:#0d1a36;">: ${l.value}</td></tr>`)
     .join("");
   const origin = window.location.origin;
   w.document.write(`
@@ -8299,51 +8450,51 @@ function printRequestReceipt(params: {
         <title>Bukti Permintaan — ${refNo}</title>
         <style>
           @page { margin: 16mm; }
-          body { font-family: -apple-system, 'Segoe UI', sans-serif; color: #0f2847; margin: 0; }
-          .wrap { max-width: 480px; margin: 0 auto; border: 1px solid #dbe4f0; border-radius: 14px; overflow: hidden; }
+          body { font-family: -apple-system, 'Segoe UI', sans-serif; color: #0d1a36; margin: 0; }
+          .wrap { max-width: 480px; margin: 0 auto; border: 1px solid #cfd9ee; border-radius: 14px; overflow: hidden; }
           table { width: 100%; border-collapse: collapse; }
-          .lbl { font-size: 11px; font-weight: 800; color: #7c8aa0; letter-spacing: 0.06em; }
+          .lbl { font-size: 11px; font-weight: 800; color: #7886a8; letter-spacing: 0.06em; }
         </style>
       </head>
       <body>
         <div class="wrap">
-          <div style="padding:24px 28px 18px;border-bottom:3px solid #0f2847;display:flex;align-items:center;gap:14px;">
-            <div style="width:56px;height:56px;border-radius:10px;background:#0f2847;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+          <div style="padding:24px 28px 18px;border-bottom:3px solid #0d1a36;display:flex;align-items:center;gap:14px;">
+            <div style="width:56px;height:56px;border-radius:10px;background:#0d1a36;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
               <img src="${origin}/logo.png" alt="CIKOPS" style="width:80%;height:80%;object-fit:contain;" />
             </div>
             <div>
-              <div style="font-size:15.5px;font-weight:800;color:#0f2847;line-height:1.3;">${RECEIPT_COMPANY_NAME}</div>
-              <div style="font-size:12.5px;color:#435773;font-weight:600;">${RECEIPT_SYSTEM_NAME}</div>
-              <div style="font-size:11px;color:#94a3b8;">Departemen Facility Management</div>
+              <div style="font-size:15.5px;font-weight:800;color:#0d1a36;line-height:1.3;">${RECEIPT_COMPANY_NAME}</div>
+              <div style="font-size:12.5px;color:#44537a;font-weight:600;">${RECEIPT_SYSTEM_NAME}</div>
+              <div style="font-size:11px;color:#7886a8;">Departemen Facility Management</div>
             </div>
           </div>
 
-          <div style="padding:18px 28px 14px;text-align:center;background:#f8fafc;">
-            <div style="font-size:15px;font-weight:800;color:#0f2847;letter-spacing:0.04em;">BUKTI PERMINTAAN</div>
-            <div style="font-size:11.5px;color:#7c8aa0;font-family:monospace;margin-top:3px;">No. ${refNo}</div>
+          <div style="padding:18px 28px 14px;text-align:center;background:#f6f9ff;">
+            <div style="font-size:15px;font-weight:800;color:#0d1a36;letter-spacing:0.04em;">BUKTI PERMINTAAN</div>
+            <div style="font-size:11.5px;color:#7886a8;font-family:monospace;margin-top:3px;">No. ${refNo}</div>
           </div>
 
           <div style="padding:20px 28px;">
             <table style="margin-bottom:16px;font-size:13px;">
-              <tr><td style="padding:5px 0;color:#7c8aa0;width:38%;">Tanggal Pengajuan</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
-              <tr><td style="padding:5px 0;color:#7c8aa0;">Jenis Permintaan</td><td style="padding:5px 0;font-weight:700;">: ${params.typeLabel}</td></tr>
-              <tr><td style="padding:5px 0;color:#7c8aa0;">Nama Pemohon</td><td style="padding:5px 0;font-weight:700;">: ${params.employeeName}</td></tr>
-              <tr><td style="padding:5px 0;color:#7c8aa0;">Departemen</td><td style="padding:5px 0;font-weight:700;">: ${params.department || "-"}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;width:38%;">Tanggal Pengajuan</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">Jenis Permintaan</td><td style="padding:5px 0;font-weight:700;">: ${params.typeLabel}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">Nama Pemohon</td><td style="padding:5px 0;font-weight:700;">: ${params.employeeName}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">Departemen</td><td style="padding:5px 0;font-weight:700;">: ${params.department || "-"}</td></tr>
             </table>
 
-            <div class="lbl" style="border-top:1px solid #eef2f9;padding-top:14px;margin-bottom:8px;">DETAIL PERMINTAAN</div>
+            <div class="lbl" style="border-top:1px solid #eef3fc;padding-top:14px;margin-bottom:8px;">DETAIL PERMINTAAN</div>
             <table style="margin-bottom:22px;font-size:13px;">${rows}</table>
 
-            <div style="border-top:1px dashed #dbe4f0;padding-top:16px;display:flex;justify-content:flex-end;">
+            <div style="border-top:1px dashed #cfd9ee;padding-top:16px;display:flex;justify-content:flex-end;">
               <div style="text-align:center;min-width:170px;">
-                <div style="font-size:11px;color:#7c8aa0;margin-bottom:46px;">Diterima &amp; diproses oleh,</div>
-                <div style="font-size:13.5px;font-weight:800;color:#0f2847;border-top:1px solid #0f2847;padding-top:4px;">${RECEIPT_ADMIN_NAME}</div>
-                <div style="font-size:11.5px;color:#7c8aa0;">${RECEIPT_ADMIN_DEPARTMENT}</div>
+                <div style="font-size:11px;color:#7886a8;margin-bottom:46px;">Diterima &amp; diproses oleh,</div>
+                <div style="font-size:13.5px;font-weight:800;color:#0d1a36;border-top:1px solid #0d1a36;padding-top:4px;">${RECEIPT_ADMIN_NAME}</div>
+                <div style="font-size:11.5px;color:#7886a8;">${RECEIPT_ADMIN_DEPARTMENT}</div>
               </div>
             </div>
           </div>
 
-          <div style="text-align:center;padding:10px 0;font-size:10px;color:#a0aabb;border-top:1px solid #eef2f9;">
+          <div style="text-align:center;padding:10px 0;font-size:10px;color:#a0aabb;border-top:1px solid #eef3fc;">
             Dokumen ini digenerate otomatis oleh sistem ${RECEIPT_SYSTEM_NAME}
           </div>
         </div>
@@ -10482,31 +10633,31 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
         <style>
           @page { size: A4 portrait; margin: 8mm; }
           * { box-sizing: border-box; }
-          body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0f2847; }
+          body { font-family: -apple-system, 'Segoe UI', sans-serif; margin: 0; color: #0d1a36; }
           .page { page-break-after: always; break-after: page; }
           .page:last-child { page-break-after: auto; break-after: auto; }
           .grid { overflow: hidden; } /* contain floated labels */
           .label {
             float: left; width: 62mm; height: ${labelHeight}; margin: 0 4mm 4mm 0;
-            border: 1.5px solid #dbe4f0; border-radius: 10px; padding: 8px 10px;
+            border: 1.5px solid #cfd9ee; border-radius: 10px; padding: 8px 10px;
             page-break-inside: avoid; break-inside: avoid; overflow: hidden; display: flex; flex-direction: column;
             box-shadow: 0 1px 3px rgba(15,40,71,0.08);
           }
           .label:nth-child(${perRow}n) { margin-right: 0; }
-          .noLabel { font-size: 7px; color: #94a3b8; font-weight: 800; letter-spacing: 0.08em; text-align: center; }
+          .noLabel { font-size: 7px; color: #7886a8; font-weight: 800; letter-spacing: 0.08em; text-align: center; }
           .noValue { font-size: ${noValueSize}; font-weight: 900; line-height: 1; color: #000; margin-bottom: 2px; letter-spacing: -0.02em; text-align: center; }
-          .nama { font-weight: 800; font-size: 12px; color: #0f2847; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .meta { font-size: 8px; color: #64748b; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .nama { font-weight: 800; font-size: 12px; color: #0d1a36; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .meta { font-size: 8px; color: #44537a; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .totalRow {
             display: flex; justify-content: space-between; align-items: stretch;
-            border-radius: 6px; margin: 5px 0 4px; overflow: hidden; border: 1px solid #dbe4f0;
-            font-size: 8.5px; font-weight: 800; color: #7c8aa0; flex-shrink: 0;
+            border-radius: 6px; margin: 5px 0 4px; overflow: hidden; border: 1px solid #cfd9ee;
+            font-size: 8.5px; font-weight: 800; color: #7886a8; flex-shrink: 0;
           }
           .totalRow span:first-child { background: #eef2fb; display: flex; align-items: center; padding: 0 8px; letter-spacing: 0.04em; }
           .ticketRow { font-size: 8px; color: #a87c1f; font-weight: 700; margin-bottom: 4px; flex-shrink: 0; }
           .ticketRow b { font-size: 9.5px; }
           .totalVal {
-            font-size: 13px; font-weight: 900; color: #fff; background: #0f2847;
+            font-size: 13px; font-weight: 900; color: #fff; background: #0d1a36;
             padding: 4px 12px; display: flex; align-items: center; justify-content: center; min-width: 26px;
           }
           .sizesBox { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; flex: 1; min-height: 0; }
@@ -10516,11 +10667,11 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
           }
           .sizeRow:nth-child(even) { background: #f8faff; }
           .sizeRow:last-child { border-bottom: none; }
-          .idx { color: #94a3b8; font-weight: 700; }
-          .sizeVal { font-weight: 800; color: #0f2847; }
+          .idx { color: #7886a8; font-weight: 700; }
+          .sizeVal { font-weight: 800; color: #0d1a36; }
           .freeTag { font-size: 6.5px; font-weight: 800; color: #dc2626; background: #fef2f2; padding: 1px 4px; border-radius: 4px; margin-right: 4px; }
           .toddlerNote { font-size: 7.5px; font-weight: 800; color: #dc2626; margin-bottom: 3px; }
-          .statusTag { display: inline-block; font-size: 6.5px; font-weight: 800; color: #0f2847; background: #eef2fb; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px; letter-spacing: 0.03em; }
+          .statusTag { display: inline-block; font-size: 6.5px; font-weight: 800; color: #0d1a36; background: #eef2fb; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px; letter-spacing: 0.03em; }
           @media print {
             .label { box-shadow: none; }
             .totalVal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

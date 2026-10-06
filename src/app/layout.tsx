@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Mono, Inter, JetBrains_Mono } from "next/font/google";
+import { Space_Mono, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/lib/providers";
 import { AuthProvider } from "@/lib/auth";
@@ -11,10 +11,10 @@ const spaceMono = Space_Mono({
   display: "swap",
 });
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-inter",
+  variable: "--font-jakarta",
   display: "swap",
 });
 
@@ -45,7 +45,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#2F5FE0",
+  themeColor: "#2D5BFF",
 };
 // Applies the saved theme to <html> BEFORE React hydrates, so there's no
 // flash of the wrong theme on load. Reads the same "cikops_theme" key
@@ -62,7 +62,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className={`${spaceMono.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="id" className={`${spaceMono.variable} ${jakarta.variable} ${jetbrainsMono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

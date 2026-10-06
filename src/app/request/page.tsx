@@ -16,14 +16,14 @@ const inputStyle: CSSProperties = {
   width: "100%",
   padding: "13px 15px",
   borderRadius: 12,
-  border: "1.5px solid #e1e7f1",
-  background: "#f6f8fc",
+  border: "1.5px solid #e1e8f5",
+  background: "#eef3fc",
   fontSize: 14.5,
-  color: "#0f2847",
+  color: "#0d1a36",
   fontFamily: "inherit",
   outline: "none",
 };
-const labelStyle: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#435773", marginBottom: 6, display: "block", letterSpacing: "0.02em" };
+const labelStyle: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#44537a", marginBottom: 6, display: "block", letterSpacing: "0.02em" };
 
 function todayLabel(): string {
   return new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
@@ -172,26 +172,26 @@ export default function RequestPage() {
     const kindLabel = receipt.kind === "DRIVER" ? "Request Driver / Kendaraan" : receipt.kind === "PRINTER" ? "Permintaan Kuota Printer" : "Permintaan Lainnya";
     const refNo = `REQ-${new Date(receipt.createdAt).toISOString().slice(0, 10).replace(/-/g, "")}-${receipt.refId.slice(0, 6).toUpperCase()}`;
     return (
-      <div style={{ minHeight: "100vh", background: "#eef2f9", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: "#eef3fc", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
         <div style={{ width: "100%", maxWidth: 480 }}>
-          <div id="receipt-print-area" style={{ background: "#fff", borderRadius: 14, boxShadow: "0 10px 40px rgba(15,40,71,0.12)", overflow: "hidden", border: "1px solid #dbe4f0" }}>
+          <div id="receipt-print-area" style={{ background: "#fff", borderRadius: 14, boxShadow: "0 10px 40px rgba(15,40,71,0.12)", overflow: "hidden", border: "1px solid #cfd9ee" }}>
 
             {/* ── Kop surat ── */}
-            <div style={{ padding: "24px 28px 18px", borderBottom: "3px solid #0f2847", display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 56, height: 56, borderRadius: 10, background: "#0f2847", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+            <div style={{ padding: "24px 28px 18px", borderBottom: "3px solid #0d1a36", display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 10, background: "#0d1a36", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
                 <img src="/logo.png" alt="CIKOPS" style={{ width: "80%", height: "80%", objectFit: "contain" }} />
               </div>
               <div>
-                <div style={{ fontSize: 15.5, fontWeight: 800, color: "#0f2847", lineHeight: 1.3 }}>{COMPANY_NAME}</div>
-                <div style={{ fontSize: 12.5, color: "#435773", fontWeight: 600 }}>{SYSTEM_NAME}</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>Departemen Facility Management</div>
+                <div style={{ fontSize: 15.5, fontWeight: 800, color: "#0d1a36", lineHeight: 1.3 }}>{COMPANY_NAME}</div>
+                <div style={{ fontSize: 12.5, color: "#44537a", fontWeight: 600 }}>{SYSTEM_NAME}</div>
+                <div style={{ fontSize: 11, color: "#7886a8" }}>Departemen Facility Management</div>
               </div>
             </div>
 
             {/* ── Judul dokumen ── */}
-            <div style={{ padding: "18px 28px 14px", textAlign: "center", background: "#f8fafc" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#0f2847", letterSpacing: "0.04em" }}>BUKTI PERMINTAAN</div>
-              <div style={{ fontSize: 11.5, color: "#7c8aa0", fontFamily: "monospace", marginTop: 3 }}>No. {refNo}</div>
+            <div style={{ padding: "18px 28px 14px", textAlign: "center", background: "#f6f9ff" }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#0d1a36", letterSpacing: "0.04em" }}>BUKTI PERMINTAAN</div>
+              <div style={{ fontSize: 11.5, color: "#7886a8", fontFamily: "monospace", marginTop: 3 }}>No. {refNo}</div>
             </div>
 
             <div style={{ padding: "20px 28px" }}>
@@ -199,63 +199,63 @@ export default function RequestPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 16 }}>
                 <tbody>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7c8aa0", width: "38%" }}>Tanggal Pengajuan</td>
-                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0f2847" }}>: {new Date(receipt.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8", width: "38%" }}>Tanggal Pengajuan</td>
+                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {new Date(receipt.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7c8aa0" }}>Jenis Permintaan</td>
-                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0f2847" }}>: {kindLabel}</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8" }}>Jenis Permintaan</td>
+                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {kindLabel}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7c8aa0" }}>Nama Pemohon</td>
-                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0f2847" }}>: {receipt.employeeName}</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8" }}>Nama Pemohon</td>
+                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {receipt.employeeName}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7c8aa0" }}>Departemen</td>
-                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0f2847" }}>: {receipt.department || "-"}</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8" }}>Departemen</td>
+                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {receipt.department || "-"}</td>
                   </tr>
                 </tbody>
               </table>
 
               {/* ── Detail permintaan ── */}
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.06em", marginBottom: 8, borderTop: "1px solid #eef2f9", paddingTop: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#7886a8", letterSpacing: "0.06em", marginBottom: 8, borderTop: "1px solid #eef3fc", paddingTop: 14 }}>
                 DETAIL PERMINTAAN
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 18 }}>
                 <tbody>
                   {receipt.lines.map((l) => (
                     <tr key={l.label}>
-                      <td style={{ padding: "5px 0", color: "#7c8aa0", width: "38%", verticalAlign: "top" }}>{l.label}</td>
-                      <td style={{ padding: "5px 0", fontWeight: 700, color: "#0f2847" }}>: {l.value}</td>
+                      <td style={{ padding: "5px 0", color: "#7886a8", width: "38%", verticalAlign: "top" }}>{l.label}</td>
+                      <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {l.value}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              <div style={{ textAlign: "center", padding: "10px 0", background: "#fdf1e0", borderRadius: 8, fontSize: 12, fontWeight: 700, color: "#b25700", letterSpacing: "0.03em", marginBottom: 22 }}>
+              <div style={{ textAlign: "center", padding: "10px 0", background: "#fdf1d6", borderRadius: 8, fontSize: 12, fontWeight: 700, color: "#a35f00", letterSpacing: "0.03em", marginBottom: 22 }}>
                 STATUS: MENUNGGU DIPROSES
               </div>
 
               {/* ── Blok administrator / penanggung jawab ── */}
-              <div style={{ borderTop: "1px dashed #dbe4f0", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ borderTop: "1px dashed #cfd9ee", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
                 <div style={{ textAlign: "center", minWidth: 170 }}>
-                  <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 46 }}>Diterima &amp; diproses oleh,</div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0f2847", borderTop: "1px solid #0f2847", paddingTop: 4 }}>{ADMIN_NAME}</div>
-                  <div style={{ fontSize: 11.5, color: "#7c8aa0" }}>{ADMIN_DEPARTMENT}</div>
+                  <div style={{ fontSize: 11, color: "#7886a8", marginBottom: 46 }}>Diterima &amp; diproses oleh,</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0d1a36", borderTop: "1px solid #0d1a36", paddingTop: 4 }}>{ADMIN_NAME}</div>
+                  <div style={{ fontSize: 11.5, color: "#7886a8" }}>{ADMIN_DEPARTMENT}</div>
                 </div>
               </div>
             </div>
 
-            <div style={{ textAlign: "center", padding: "10px 0", fontSize: 10, color: "#a0aabb", borderTop: "1px solid #eef2f9" }}>
+            <div style={{ textAlign: "center", padding: "10px 0", fontSize: 10, color: "#a0aabb", borderTop: "1px solid #eef3fc" }}>
               Dokumen ini digenerate otomatis oleh sistem {SYSTEM_NAME}
             </div>
           </div>
 
           <div className="no-print" style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button onClick={resetAll} style={{ flex: 1, padding: 14, borderRadius: 14, border: "1.5px solid #dbe4f0", background: "#fff", color: "#435773", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            <button onClick={resetAll} style={{ flex: 1, padding: 14, borderRadius: 14, border: "1.5px solid #cfd9ee", background: "#fff", color: "#44537a", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               Kirim Permintaan Lain
             </button>
-            <button onClick={() => window.print()} style={{ flex: 1, padding: 14, borderRadius: 14, border: "none", background: "linear-gradient(135deg,#2f5fe0,#1f44b8)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            <button onClick={() => window.print()} style={{ flex: 1, padding: 14, borderRadius: 14, border: "none", background: "linear-gradient(135deg,#2d5bff,#1d44d6)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               🖨️ Cetak Bukti
 
             </button>
@@ -276,18 +276,18 @@ export default function RequestPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #0a1930, #0f2847)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system, 'Segoe UI', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #0a1930, #0d1a36)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system, 'Segoe UI', sans-serif" }}>
       <div style={{ width: "100%", maxWidth: 480, background: "#ffffff", borderRadius: 24, padding: 30, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
         <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#0f2847", border: "2px solid #2f5fe0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", overflow: "hidden" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#0d1a36", border: "2px solid #2d5bff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", overflow: "hidden" }}>
             <img src="/logo.png" alt="CIKOPS" style={{ width: "78%", height: "78%", objectFit: "contain" }} />
           </div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: "#0f2847" }}>Form Permintaan Karyawan</div>
-          <div style={{ fontSize: 13, color: "#7c8aa0", marginTop: 3 }}>CIKOPS FLEET — Facility Management</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: "#0d1a36" }}>Form Permintaan Karyawan</div>
+          <div style={{ fontSize: 13, color: "#7886a8", marginTop: 3 }}>CIKOPS FLEET — Facility Management</div>
         </div>
 
         {error && (
-          <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fbe9e8", color: "#e0483f", fontSize: 12.5, marginBottom: 16, wordBreak: "break-word", fontFamily: "monospace", lineHeight: 1.5 }}>{error}</div>
+          <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fde5e6", color: "#e5484d", fontSize: 12.5, marginBottom: 16, wordBreak: "break-word", fontFamily: "monospace", lineHeight: 1.5 }}>{error}</div>
         )}
 
         {/* Jenis Permintaan */}
@@ -305,12 +305,12 @@ export default function RequestPage() {
                 onClick={() => setKind(val)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, textAlign: "left",
-                  border: kind === val ? "2px solid #2f5fe0" : "1.5px solid #e1e7f1",
+                  border: kind === val ? "2px solid #2d5bff" : "1.5px solid #e1e8f5",
                   background: kind === val ? "#eef3ff" : "#fff", cursor: "pointer",
                 }}
               >
                 <span style={{ fontSize: 20 }}>{icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: kind === val ? "#1f44b8" : "#0f2847" }}>{label}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: kind === val ? "#1d44d6" : "#0d1a36" }}>{label}</span>
               </button>
             ))}
           </div>
@@ -332,14 +332,14 @@ export default function RequestPage() {
           </div>
         </div>
 
-        <div style={{ height: 1, background: "#eef2f9", margin: "0 0 18px" }} />
+        <div style={{ height: 1, background: "#eef3fc", margin: "0 0 18px" }} />
 
         {/* Field dinamis per jenis */}
         {kind === "DRIVER" && (
           <>
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>TANGGAL PENGAJUAN</label>
-              <div style={{ ...inputStyle, color: "#7c8aa0", background: "#eef1f7" }}>{todayLabel()} (Otomatis)</div>
+              <div style={{ ...inputStyle, color: "#7886a8", background: "#eef1f7" }}>{todayLabel()} (Otomatis)</div>
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>TANGGAL EVENT / ACARA *</label>
@@ -368,7 +368,7 @@ export default function RequestPage() {
           <>
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>TANGGAL PENGAJUAN</label>
-              <div style={{ ...inputStyle, color: "#7c8aa0", background: "#eef1f7" }}>{todayLabel()} (Otomatis)</div>
+              <div style={{ ...inputStyle, color: "#7886a8", background: "#eef1f7" }}>{todayLabel()} (Otomatis)</div>
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>PILIHAN *</label>
@@ -378,7 +378,7 @@ export default function RequestPage() {
                     key={act}
                     type="button"
                     onClick={() => setPrintAction(act)}
-                    style={{ flex: 1, padding: "12px", borderRadius: 12, fontWeight: 700, fontSize: 13.5, cursor: "pointer", border: printAction === act ? "2px solid #2f5fe0" : "1.5px solid #e1e7f1", background: printAction === act ? "#eef3ff" : "#fff", color: printAction === act ? "#1f44b8" : "#0f2847" }}
+                    style={{ flex: 1, padding: "12px", borderRadius: 12, fontWeight: 700, fontSize: 13.5, cursor: "pointer", border: printAction === act ? "2px solid #2d5bff" : "1.5px solid #e1e8f5", background: printAction === act ? "#eef3ff" : "#fff", color: printAction === act ? "#1d44d6" : "#0d1a36" }}
                   >
                     {act === "RESET_KUOTA" ? "Reset Kuota" : "Tambah Kuota"}
                   </button>
@@ -391,19 +391,19 @@ export default function RequestPage() {
                 {printerLocations.length === 0 ? (
                   <div style={{ ...inputStyle, color: "#a0aabb", fontSize: 13 }}>Memuat daftar area...</div>
                 ) : (
-                  <div style={{ border: "1.5px solid #e1e7f1", borderRadius: 12, maxHeight: 220, overflowY: "auto" }}>
+                  <div style={{ border: "1.5px solid #e1e8f5", borderRadius: 12, maxHeight: 220, overflowY: "auto" }}>
                     {printerLocations.map((loc) => (
                       <label
                         key={loc}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer", borderBottom: "1px solid #f2f5fa" }}
                       >
-                        <input type="checkbox" checked={selectedAreas.includes(loc)} onChange={() => toggleArea(loc)} style={{ width: 16, height: 16, accentColor: "#2f5fe0" }} />
-                        <span style={{ fontSize: 14, color: "#0f2847", fontWeight: 600 }}>{loc}</span>
+                        <input type="checkbox" checked={selectedAreas.includes(loc)} onChange={() => toggleArea(loc)} style={{ width: 16, height: 16, accentColor: "#2d5bff" }} />
+                        <span style={{ fontSize: 14, color: "#0d1a36", fontWeight: 600 }}>{loc}</span>
                       </label>
                     ))}
                   </div>
                 )}
-                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 6 }}>Bisa pilih lebih dari 1 area — tiap area akan dicatat sebagai permintaan terpisah.</div>
+                <div style={{ fontSize: 11.5, color: "#7886a8", marginTop: 6 }}>Bisa pilih lebih dari 1 area — tiap area akan dicatat sebagai permintaan terpisah.</div>
               </div>
             ) : (
               <>
@@ -432,7 +432,7 @@ export default function RequestPage() {
           disabled={!canSubmit}
           style={{
             width: "100%", padding: 15, borderRadius: 14, border: "none",
-            background: canSubmit ? "linear-gradient(135deg,#2f5fe0,#1f44b8)" : "#e1e7f1",
+            background: canSubmit ? "linear-gradient(135deg,#2d5bff,#1d44d6)" : "#e1e8f5",
             color: canSubmit ? "#fff" : "#a0aabb", fontWeight: 800, fontSize: 16,
             cursor: canSubmit ? "pointer" : "not-allowed",
             boxShadow: canSubmit ? "0 10px 24px rgba(47,95,224,0.3)" : "none",

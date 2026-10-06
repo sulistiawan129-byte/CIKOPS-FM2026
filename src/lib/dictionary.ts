@@ -297,7 +297,7 @@ export const DICT: Record<Lang, Dict> = {
 
     // Admin/GA Login (new)
     loginTitle: "Masuk Admin/GA",
-    loginSubtitle: "loginSubtitle:CIKOPS-FM System",
+    loginSubtitle: "Sistem CIKOPS-FM",
     loginEmail: "Email",
     loginPassword: "Kata Sandi",
     loginButton: "Masuk",

@@ -218,7 +218,7 @@ export default function CanteenPublicPage() {
 
 const outerWrap: CSSProperties = {
   minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "24px 0",
-  background: "linear-gradient(160deg, var(--navy) 0%, var(--brand2) 55%, var(--brand) 100%)",
+  background: "var(--grad-hero)",
   position: "relative", overflow: "hidden",
 };
 const appCard: CSSProperties = {
@@ -227,7 +227,7 @@ const appCard: CSSProperties = {
   display: "flex", flexDirection: "column", position: "relative", zIndex: 2,
 };
 const topbar: CSSProperties = {
-  background: "linear-gradient(135deg, var(--navy), #123a6b)", padding: "20px 20px 18px",
+  background: "var(--grad-hero)", padding: "20px 20px 18px",
   display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
 };
 const bottomBar: CSSProperties = {

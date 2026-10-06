@@ -14,8 +14,8 @@ type Mode = "light" | "dark";
 const PAGE_SIZE = 6;
 
 const PLANT_THEME = {
-  CIK: { main: "#2f5fe0", soft: "#e8edff", softDark: "rgba(61,123,255,0.15)", text: "#2f5fe0", textDark: "#8ab4ff" },
-  PRB: { main: "#e08a1a", soft: "#fdf1e0", softDark: "rgba(255,179,64,0.15)", text: "#b25700", textDark: "#ffc873" },
+  CIK: { main: "#2d5bff", soft: "#e8edff", softDark: "rgba(61,123,255,0.15)", text: "#2d5bff", textDark: "#8ab4ff" },
+  PRB: { main: "#ec9a17", soft: "#fdf1d6", softDark: "rgba(255,179,64,0.15)", text: "#a35f00", textDark: "#ffc873" },
 } as const;
 
 interface Palette {
@@ -27,40 +27,40 @@ interface Palette {
 }
 const PALETTE: Record<Mode, Palette> = {
   light: {
-    bg: "#eef2f9",
+    bg: "#eef3fc",
     headerBg: "#ffffff",
-    headerBorder: "#e7ecf5",
-    textPrimary: "#0f2847",
-    textSecondary: "#64748b",
-    textMuted: "#94a3b8",
+    headerBorder: "#e1e8f5",
+    textPrimary: "#0d1a36",
+    textSecondary: "#44537a",
+    textMuted: "#7886a8",
     cardBg: "#ffffff",
-    cardBorder: "#e7ecf5",
-    inputBg: "#f8fafc",
-    inputBorder: "#dbe4f0",
-    inputText: "#0f2847",
-    tableHeadBg: "#f8fafc",
+    cardBorder: "#e1e8f5",
+    inputBg: "#f6f9ff",
+    inputBorder: "#cfd9ee",
+    inputText: "#0d1a36",
+    tableHeadBg: "#f6f9ff",
     tableRowBorder: "#eef1f7",
-    tableRowHover: "#f8fafc",
+    tableRowHover: "#f6f9ff",
     pillBg: "#f1f5f9",
-    pillBgActive: "#0f2847",
+    pillBgActive: "#0d1a36",
   },
   dark: {
-    bg: "#0a1120",
-    headerBg: "#0f1b30",
+    bg: "#070d1d",
+    headerBg: "#0f1932",
     headerBorder: "rgba(255,255,255,0.08)",
-    textPrimary: "#f1f5fb",
+    textPrimary: "#eef3ff",
     textSecondary: "rgba(226,234,248,0.6)",
     textMuted: "rgba(226,234,248,0.4)",
-    cardBg: "#101d34",
+    cardBg: "#0f1932",
     cardBorder: "rgba(255,255,255,0.08)",
     inputBg: "rgba(255,255,255,0.04)",
     inputBorder: "rgba(255,255,255,0.12)",
-    inputText: "#f1f5fb",
+    inputText: "#eef3ff",
     tableHeadBg: "rgba(255,255,255,0.03)",
     tableRowBorder: "rgba(255,255,255,0.06)",
     tableRowHover: "rgba(255,255,255,0.03)",
     pillBg: "rgba(255,255,255,0.06)",
-    pillBgActive: "#2f5fe0",
+    pillBgActive: "#2d5bff",
   },
 };
 
@@ -267,11 +267,11 @@ export default function GatePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: P.bg, fontFamily: "-apple-system,'Segoe UI',sans-serif", transition: "background 0.25s ease", display: "flex", flexDirection: "column" }}>
-      <div style={{ height: 10, background: "linear-gradient(90deg, #1f44b8, #2f5fe0, #5b8cff, #2f5fe0, #1f44b8)", flexShrink: 0 }} />
+      <div style={{ height: 10, background: "linear-gradient(90deg, #1d44d6, #2d5bff, #5b8cff, #2d5bff, #1d44d6)", flexShrink: 0 }} />
       {/* Header */}
       <div style={{ background: P.headerBg, borderBottom: `1px solid ${P.headerBorder}`, padding: "16px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#0f2847", border: "2px solid #2f5fe0", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#0d1a36", border: "2px solid #2d5bff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
             <img src="/logo.png" alt="CIKOPS" style={{ width: "78%", height: "78%", objectFit: "contain" }} />
           </div>
           <div>
@@ -321,7 +321,7 @@ export default function GatePage() {
         {/* ── FORM (lebih besar — fokus utama halaman) ── */}
         <div style={{ background: P.cardBg, borderRadius: 20, border: `1.5px solid ${selectedVehicle ? activePlant.main : P.cardBorder}`, padding: 34, position: "sticky", top: 24, boxShadow: mode === "light" ? "0 4px 24px rgba(15,40,71,0.06)" : "0 4px 24px rgba(0,0,0,0.3)", transition: "border-color 0.25s ease" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 26 }}>
-            <div style={{ width: 46, height: 46, borderRadius: 14, background: mode === "light" ? "#e8edff" : "rgba(47,95,224,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#2f5fe0", fontWeight: 800 }}>+</div>
+            <div style={{ width: 46, height: 46, borderRadius: 14, background: mode === "light" ? "#e8edff" : "rgba(47,95,224,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#2d5bff", fontWeight: 800 }}>+</div>
             <div>
               <div style={{ fontSize: 19, fontWeight: 800, color: P.textPrimary }}>Catat Kendaraan</div>
               <div style={{ fontSize: 12.5, color: P.textMuted }}>Input data untuk akses gate.</div>
@@ -329,7 +329,7 @@ export default function GatePage() {
           </div>
 
           {error && (
-            <div style={{ padding: "13px 16px", borderRadius: 12, background: "#fbe9e8", color: "#e0483f", fontSize: 13.5, fontWeight: 600, marginBottom: 18 }}>{error}</div>
+            <div style={{ padding: "13px 16px", borderRadius: 12, background: "#fde5e6", color: "#e5484d", fontSize: 13.5, fontWeight: 600, marginBottom: 18 }}>{error}</div>
           )}
 
           <div style={{ marginBottom: 20 }}>
@@ -374,7 +374,7 @@ export default function GatePage() {
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <label style={{ ...labelStyle, marginBottom: 0 }}>DRIVER *</label>
-              <button type="button" onClick={() => setUseManualDriver((v) => !v)} style={{ background: "none", border: "none", color: "#2f5fe0", fontSize: 12.5, fontWeight: 800, cursor: "pointer", padding: 0 }}>
+              <button type="button" onClick={() => setUseManualDriver((v) => !v)} style={{ background: "none", border: "none", color: "#2d5bff", fontSize: 12.5, fontWeight: 800, cursor: "pointer", padding: 0 }}>
                 {useManualDriver ? "Pilih dari daftar" : "Kelola Driver"}
               </button>
             </div>
@@ -382,8 +382,8 @@ export default function GatePage() {
               <input value={driverManual} onChange={(e) => setDriverManual(e.target.value)} placeholder="Nama driver" style={inputStyle} />
             ) : (
               <select value={driverId} onChange={(e) => setDriverId(e.target.value)} style={inputStyle}>
-                <option value="" style={{ background: "#ffffff", color: "#0f2847" }}>-- Pilih Driver --</option>
-                {drivers.map((d) => <option key={d.id} value={d.id} style={{ background: "#ffffff", color: "#0f2847" }}>{d.nama}</option>)}
+                <option value="" style={{ background: "#ffffff", color: "#0d1a36" }}>-- Pilih Driver --</option>
+                {drivers.map((d) => <option key={d.id} value={d.id} style={{ background: "#ffffff", color: "#0d1a36" }}>{d.nama}</option>)}
               </select>
             )}
           </div>
@@ -403,7 +403,7 @@ export default function GatePage() {
             disabled={!canSubmit}
             style={{
               width: "100%", padding: 18, borderRadius: 14, border: "none",
-              background: canSubmit ? "linear-gradient(135deg,#2f5fe0,#1f44b8)" : (mode === "light" ? "#e1e7f1" : "rgba(255,255,255,0.06)"),
+              background: canSubmit ? "linear-gradient(135deg,#2d5bff,#1d44d6)" : (mode === "light" ? "#e1e8f5" : "rgba(255,255,255,0.06)"),
               color: canSubmit ? "#fff" : P.textMuted, fontWeight: 800, fontSize: 16,
               cursor: canSubmit ? "pointer" : "not-allowed",
               boxShadow: canSubmit ? "0 10px 24px rgba(47,95,224,0.3)" : "none",
@@ -494,7 +494,7 @@ export default function GatePage() {
                           </span>
                         </td>
                         <td style={{ padding: "16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9, border: `1.5px solid ${mode === "light" ? "#dbe4f0" : "rgba(255,255,255,0.12)"}`, fontSize: 12, fontWeight: 700, color: P.textSecondary, marginRight: 6 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9, border: `1.5px solid ${mode === "light" ? "#cfd9ee" : "rgba(255,255,255,0.12)"}`, fontSize: 12, fontWeight: 700, color: P.textSecondary, marginRight: 6 }}>
                             ✓ Check-In
                           </span>
                           <button
@@ -502,9 +502,9 @@ export default function GatePage() {
                             disabled={done || busyLogId === l.id}
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9,
-                              border: `1.5px solid ${done ? (mode === "light" ? "#dbe4f0" : "rgba(255,255,255,0.12)") : "#e08a1a"}`,
-                              background: done ? "transparent" : (mode === "light" ? "#fdf1e0" : "rgba(255,179,64,0.12)"),
-                              color: done ? P.textMuted : "#b25700",
+                              border: `1.5px solid ${done ? (mode === "light" ? "#cfd9ee" : "rgba(255,255,255,0.12)") : "#ec9a17"}`,
+                              background: done ? "transparent" : (mode === "light" ? "#fdf1d6" : "rgba(255,179,64,0.12)"),
+                              color: done ? P.textMuted : "#a35f00",
                               fontSize: 12, fontWeight: 700,
                               cursor: done ? "default" : busyLogId === l.id ? "wait" : "pointer",
                             }}
@@ -528,7 +528,7 @@ export default function GatePage() {
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={pageSafe === 1} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${P.tableRowBorder}`, background: P.cardBg, color: P.textSecondary, cursor: pageSafe === 1 ? "default" : "pointer" }}>‹</button>
                 {Array.from({ length: totalPages }).slice(0, 5).map((_, i) => (
-                  <button key={i} onClick={() => setPage(i + 1)} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: pageSafe === i + 1 ? "#2f5fe0" : "transparent", color: pageSafe === i + 1 ? "#fff" : P.textSecondary, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{i + 1}</button>
+                  <button key={i} onClick={() => setPage(i + 1)} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: pageSafe === i + 1 ? "#2d5bff" : "transparent", color: pageSafe === i + 1 ? "#fff" : P.textSecondary, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{i + 1}</button>
                 ))}
                 <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={pageSafe === totalPages} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${P.tableRowBorder}`, background: P.cardBg, color: P.textSecondary, cursor: pageSafe === totalPages ? "default" : "pointer" }}>›</button>
               </div>
@@ -536,7 +536,7 @@ export default function GatePage() {
           )}
         </div>
       </div>
-      <div style={{ height: 10, background: "linear-gradient(90deg, #1f44b8, #2f5fe0, #5b8cff, #2f5fe0, #1f44b8)", flexShrink: 0 }} />
+      <div style={{ height: 10, background: "linear-gradient(90deg, #1d44d6, #2d5bff, #5b8cff, #2d5bff, #1d44d6)", flexShrink: 0 }} />
     </div>
   );
 }
