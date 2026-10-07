@@ -1,3 +1,15 @@
+# Redesign V2.7 — modul Klaim
+
+Tidak ada SQL baru. Cukup ganti file, lalu deploy.
+
+## Baru di V2.7
+- Form klaim: pilih driver lewat chip (ada kolom cari), kategori berikon, nominal dengan hasil hitung langsung, tombol +10rb/+20rb/+50rb/+100rb, Enter menambah baris, dan struk pratinjau di kanan yang terisi saat mengetik.
+- Daftar klaim: ringkasan total dengan bar komposisi kategori (klik untuk memfilter), dikelompokkan per minggu kerja, kartu bisa dibuka untuk melihat rincian.
+- Rekap mingguan: ditambah kolom komposisi. Karangan bunga: kartu dengan saklar status.
+- Logika simpan, email, push, dan ekspor (Tanda Terima, Excel, PDF, CSV) tidak diubah.
+- File baru: src/app/dashboard/ClaimsUI.tsx dan claims.module.css; diubah: src/app/dashboard/page.tsx (hanya ClaimsTab).
+
+---
 # Redesign V2.6 — cara pasang
 
 ## ⚠ LANGKAH PERTAMA (V2.6): jalankan 1 SQL lagi di Supabase → SQL Editor

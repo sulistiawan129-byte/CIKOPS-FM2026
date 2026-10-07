@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import styles from "./dashboard.module.css";
+import cs from "./claims.module.css";
+import { ClaimsHero, ClaimCard, WeekHeader, ViewSwitch, PeriodSwitch, RecapBar, ClaimForm, WreathCard, CLAIM_CATS, catLabel } from "./ClaimsUI";
 import { ModalPortal } from "@/components/ModalPortal";
 import { TabErrorBoundary } from "@/components/TabErrorBoundary";
 import { ReportExportButtons, LanguagePickerModal, useExportLanguagePicker, ReportRangePicker, defaultReportRange } from "@/components/ReportControls";
@@ -4226,6 +4228,13 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
   const [exportingRecap, setExportingRecap] = useState(false);
   const [exportingWeeklyRecap, setExportingWeeklyRecap] = useState<"excel" | "pdf" | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "weekly" | "wreath">("list");
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ name: string; total: number } | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   // ── Karangan Bunga Duka Cita ──
   const [wreaths, setWreaths] = useState<Wreath[]>([]);
@@ -4397,6 +4406,7 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
         note,
       });
       setShowForm(false);
+      setNotice({ name: drivers.find((d) => d.id === formDriverId)?.nama || "-", total: grandTotal });
       await load();
 
       // Best-effort email notifications — driver gets a friendly
@@ -4491,173 +4501,184 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
     }
   }
 
-  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "var(--t2)",
-    marginBottom: 5,
-    display: "block",
-  };
-  const tagStyle = (color: string): CSSProperties => ({
-    display: "inline-block",
-    fontSize: 13,
-    fontWeight: 700,
-    padding: "2px 9px",
-    borderRadius: 6,
-    color,
-    borderLeft: `2px solid ${color}`,
-    background: "var(--bg2)",
-  });
-   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: viewMode === "wreath" ? "none" : "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <select
-            value={driverFilter}
-            onChange={(e) => setDriverFilter(e.target.value)}
-            className={styles.formSelect}
-            style={{ ...inputStyle, width: "auto", minWidth: 160 }}
-          >
-            <option value="all">{lang === "en" ? "All Drivers" : "Semua Driver"}</option>
-            {drivers.map((d) => (
-              <option key={d.id} value={d.id}>{d.nama}</option>
-            ))}
-          </select>
+  const en = lang === "en";
+  const periodLabel = weeklyRecapPeriodLabel();
+  const typeOrder = [...CLAIM_CATS as readonly string[], ...Array.from(new Set(filtered.flatMap((c) => c.items.map((i) => i.type)))).filter((x) => !(CLAIM_CATS as readonly string[]).includes(x))];
+  const byType = typeOrder.map((type) => ({
+    type,
+    amount: filtered.reduce((s, c) => s + c.items.filter((i) => i.type === type).reduce((a, i) => a + i.total, 0), 0),
+  }));
+  const typeFiltered = typeFilter ? filtered.filter((c) => c.items.some((i) => i.type === typeFilter)) : filtered;
+  const groups = useMemo(() => {
+    const sorted = typeFiltered.slice().sort((a, b) => (a.periodDate < b.periodDate ? 1 : a.periodDate > b.periodDate ? -1 : (a.submittedAt < b.submittedAt ? 1 : -1)));
+    const map = new Map<string, { label: string; items: Claim[]; total: number }>();
+    for (const c of sorted) {
+      const key = `${c.periodDate.slice(0, 7)}-W${weekOfMonth(c.periodDate)}`;
+      const g = map.get(key) ?? { label: weekRangeOf(c.periodDate, lang).label, items: [], total: 0 };
+      g.items.push(c);
+      g.total += c.total;
+      map.set(key, g);
+    }
+    return [...map.entries()];
+  }, [typeFiltered, lang]);
+  let formWeek = "";
+  try { formWeek = periodDate ? weekRangeOf(periodDate, lang).label : ""; } catch { formWeek = ""; }
+  const driverOptions = drivers.map((d) => ({ id: d.id, nama: d.nama }));
 
-          <div style={{ display: "flex", borderRadius: "var(--pill)", border: "1px solid var(--border2)", padding: 3, gap: 2 }}>
-            {(["all", "week", "date"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setPeriodMode(m)}
-                className="tabPill"
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "var(--pill)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  background: periodMode === m ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent",
-                  color: periodMode === m ? "#fff" : "var(--t2)",
-                }}
-              >
-                {m === "all" ? (lang === "en" ? "All Time" : "Semua") : m === "week" ? (lang === "en" ? "Per Week" : "Per Minggu") : (lang === "en" ? "Per Date" : "Per Tanggal")}
-              </button>
-            ))}
-          </div>
+  return (
+    <div className={cs.root}>
+      {notice && (
+        <div className={cs.notice} role="status">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m8 12.5 2.8 2.8L16 9.5" /></svg>
+          <span>{en ? "Claim submitted for" : "Klaim terkirim untuk"} <b>{notice.name}</b> · Rp {fmtRp(notice.total)}</span>
+        </div>
+      )}
+      {error && <div className={`${cs.notice} ${cs.noticeErr}`} role="alert">{error}</div>}
 
-          {periodMode !== "all" && (
-            <input
-              type="date"
-              className={styles.formInput}
-              style={{ ...inputStyle, width: "auto" }}
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+      <ViewSwitch
+        value={viewMode}
+        onChange={setViewMode}
+        options={[
+          { key: "list", label: en ? "Claims" : "Daftar klaim" },
+          { key: "weekly", label: en ? "Weekly recap" : "Rekap mingguan" },
+          { key: "wreath", label: en ? "Condolence wreaths" : "Karangan bunga duka cita", icon: <span aria-hidden="true">💐</span> },
+        ]}
+      />
+
+      {viewMode !== "wreath" && (
+        <div className={cs.top}>
+          <div className={cs.filters}>
+            <select className={cs.select} value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} aria-label="Driver">
+              <option value="all">{en ? "All drivers" : "Semua driver"}</option>
+              {drivers.map((d) => (<option key={d.id} value={d.id}>{d.nama}</option>))}
+            </select>
+            <PeriodSwitch
+              value={periodMode}
+              onChange={setPeriodMode}
+              labels={[en ? "All time" : "Semua", en ? "By week" : "Per minggu", en ? "By date" : "Per tanggal"]}
             />
-          )}
-          {periodMode === "week" && (
-            <span style={{ fontSize: 13.5, color: "var(--t3)", fontWeight: 600 }}>
-              {weekRangeOf(filterDate, lang).label}
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {periodMode === "week" && filtered.length > 0 && (
-            <button
-              onClick={handleExportRecap}
-              disabled={exportingRecap}
-              style={{ padding: "9px 16px", borderRadius: "var(--pill)", border: "1px solid var(--green)", background: "var(--green-soft)", color: "var(--green)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-              title={lang === "en" ? "Export official Finance recap format (CSV)" : "Export format rekap resmi Finance (CSV)"}
-            >
-              ⬇ {exportingRecap ? "..." : (lang === "en" ? "Export Tanda Terima" : "Export Tanda Terima")}
+            {periodMode !== "all" && (
+              <input type="date" className={cs.dateIn} value={filterDate} onChange={(e) => setFilterDate(e.target.value)} aria-label={en ? "Filter date" : "Tanggal filter"} />
+            )}
+            {periodMode === "week" && <span className={cs.weekNote}>{weekRangeOf(filterDate, lang).label}</span>}
+          </div>
+          <div className={cs.actions}>
+            {periodMode === "week" && filtered.length > 0 && (
+              <button className={`${cs.btn} ${cs.btnGreen}`} onClick={handleExportRecap} disabled={exportingRecap} title={en ? "Export official Finance recap format (CSV)" : "Export format rekap resmi Finance (CSV)"}>
+                ⬇ {exportingRecap ? "..." : "Export Tanda Terima"}
+              </button>
+            )}
+            <button className={cs.primary} onClick={openAdd}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              {en ? "New claim" : "Buat klaim"}
             </button>
-          )}
-          <button className="pillBtn" onClick={openAdd}>
-            + {lang === "en" ? "New Claim" : "Buat Klaim"}
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <button
-          onClick={() => setViewMode("list")}
-          style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "list" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "list" ? "#fff" : "var(--t2)" }}
-        >
-          {lang === "en" ? "List" : "Daftar"}
-        </button>
-        <button
-          onClick={() => setViewMode("weekly")}
-          style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "weekly" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "weekly" ? "#fff" : "var(--t2)" }}
-        >
-          {lang === "en" ? "Weekly Recap" : "Rekap Mingguan"}
-        </button>
-        <button
-          onClick={() => setViewMode("wreath")}
-          style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "wreath" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "wreath" ? "#fff" : "var(--t2)" }}
-        >
-          💐 {lang === "en" ? "Condolence Wreaths" : "Karangan Bunga Duka Cita"}
-        </button>
-      </div>
+      {viewMode === "list" && (
+        <>
+          <ClaimsHero
+            lang={lang}
+            total={totalFiltered}
+            count={filtered.length}
+            drivers={uniqueDriversFiltered}
+            byType={byType}
+            activeType={typeFilter}
+            onType={setTypeFilter}
+            totalValue={animatedTotalFiltered}
+            countValue={animatedClaimsCount}
+            driversValue={animatedActiveDriversClaims}
+            periodLabel={periodLabel}
+          />
+          {loading ? (
+            <div className={cs.skel}><i /><i /><i /></div>
+          ) : typeFiltered.length === 0 ? (
+            <div className={cs.empty}>
+              <span className={cs.emptyIc} aria-hidden="true">🧾</span>
+              <b>{filtered.length === 0 ? (en ? "No claims in this view" : "Belum ada klaim di tampilan ini") : (en ? "No claim has this category" : "Tidak ada klaim dengan kategori ini")}</b>
+              <p>{filtered.length === 0 ? (en ? "Change the filters, or add the first claim." : "Ubah filter di atas, atau buat klaim pertama.") : (en ? "Clear the category filter to see everything again." : "Hapus filter kategori untuk melihat semuanya lagi.")}</p>
+              {filtered.length === 0
+                ? <button className={cs.primary} onClick={openAdd}>{en ? "New claim" : "Buat klaim"}</button>
+                : <button className={cs.btn} onClick={() => setTypeFilter(null)}>{en ? "Clear filter" : "Hapus filter"}</button>}
+            </div>
+          ) : (
+            <div className={cs.list}>
+              {groups.map(([key, g]) => (
+                <div key={key} style={{ display: "contents" }}>
+                  <WeekHeader label={g.label} count={g.items.length} total={g.total} lang={lang} />
+                  {g.items.map((c) => (
+                    <ClaimCard
+                      key={c.id}
+                      claim={c}
+                      open={expandedId === c.id}
+                      onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                      onDelete={() => setConfirmDelete(c)}
+                      lang={lang}
+                      typeFilter={typeFilter}
+                      weekText={weekRangeOf(c.periodDate, lang).label}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {viewMode === "weekly" && (
-        <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 18px 0" }}>
-            <button
-              onClick={() => handleExportWeeklyRecap("excel")}
-              disabled={exportingWeeklyRecap !== null || weeklyRecap.rows.length === 0}
-              style={{ padding: "8px 15px", borderRadius: "var(--pill)", border: "1px solid var(--green)", background: "var(--green-soft)", color: "var(--green)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              title={lang === "en" ? "Download this recap as Excel (.xlsx)" : "Unduh rekap ini sebagai Excel (.xlsx)"}
-            >
-              ⬇ {exportingWeeklyRecap === "excel" ? "..." : (lang === "en" ? "Download Excel" : "Download Excel")}
-            </button>
-            <button
-              onClick={() => handleExportWeeklyRecap("pdf")}
-              disabled={exportingWeeklyRecap !== null || weeklyRecap.rows.length === 0}
-              style={{ padding: "8px 15px", borderRadius: "var(--pill)", border: "1px solid var(--red)", background: "var(--red-soft)", color: "var(--red)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              title={lang === "en" ? "Download this recap as PDF" : "Unduh rekap ini sebagai PDF"}
-            >
-              ⬇ {exportingWeeklyRecap === "pdf" ? "..." : "Download PDF"}
-            </button>
+        <div className={cs.panel}>
+          <div className={cs.panelBar}>
+            <h3>{en ? "Weekly recap" : "Rekap mingguan"} · {periodLabel}</h3>
+            <div className={cs.actions}>
+              <button className={`${cs.btn} ${cs.btnGreen}`} onClick={() => handleExportWeeklyRecap("excel")} disabled={exportingWeeklyRecap !== null || weeklyRecap.rows.length === 0} title={en ? "Download this recap as Excel (.xlsx)" : "Unduh rekap ini sebagai Excel (.xlsx)"}>
+                ⬇ {exportingWeeklyRecap === "excel" ? "..." : "Excel"}
+              </button>
+              <button className={`${cs.btn} ${cs.btnRed}`} onClick={() => handleExportWeeklyRecap("pdf")} disabled={exportingWeeklyRecap !== null || weeklyRecap.rows.length === 0} title={en ? "Download this recap as PDF" : "Unduh rekap ini sebagai PDF"}>
+                ⬇ {exportingWeeklyRecap === "pdf" ? "..." : "PDF"}
+              </button>
+            </div>
           </div>
           {weeklyRecap.rows.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
+            <div className={cs.empty} style={{ border: 0 }}><span className={cs.emptyIc} aria-hidden="true">📊</span><b>{t.actionNoDataYet}</b></div>
           ) : (
-            <div style={{ overflowX: "auto", position: "relative", zIndex: 1 }}>
-              <table className="tableCompact" style={{ minWidth: 640, width: "100%" }}>
+            <div className={cs.tableWrap}>
+              <table className={cs.table}>
                 <thead>
                   <tr>
-                    <th>{lang === "en" ? "Week" : "Minggu"}</th>
-                    <th>{lang === "en" ? "Driver Name" : "Nama Driver"}</th>
-                    <th style={{ textAlign: "right" }}>Gasoline</th>
-                    <th style={{ textAlign: "right" }}>Toll</th>
-                    <th style={{ textAlign: "right" }}>Parking</th>
-                    <th style={{ textAlign: "right" }}>Other</th>
-                    <th style={{ textAlign: "right" }}>Total</th>
+                    <th>{en ? "Week" : "Minggu"}</th>
+                    <th>{en ? "Driver" : "Nama driver"}</th>
+                    <th className={cs.num}>{catLabel("Gasoline", lang)}</th>
+                    <th className={cs.num}>{catLabel("Toll", lang)}</th>
+                    <th className={cs.num}>{catLabel("Parking", lang)}</th>
+                    <th className={cs.num}>{en ? "Other" : "Lainnya"}</th>
+                    <th style={{ minWidth: 110 }}>{en ? "Mix" : "Komposisi"}</th>
+                    <th className={cs.num}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {weeklyRecap.rows.map((r, i) => (
                     <tr key={i}>
                       <td>{r.weekLabel}</td>
-                      <td style={{ fontWeight: 700 }}>{r.driver}</td>
-                      <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>Rp {fmtRp(r.gasoline)}</td>
-                      <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>Rp {fmtRp(r.toll)}</td>
-                      <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>Rp {fmtRp(r.parking)}</td>
-                      <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>Rp {fmtRp(r.other)}</td>
-                      <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontWeight: 800, color: "var(--t1)" }}>Rp {fmtRp(r.total)}</td>
+                      <td className={cs.strong}>{r.driver}</td>
+                      <td className={cs.num}>Rp {fmtRp(r.gasoline)}</td>
+                      <td className={cs.num}>Rp {fmtRp(r.toll)}</td>
+                      <td className={cs.num}>Rp {fmtRp(r.parking)}</td>
+                      <td className={cs.num}>Rp {fmtRp(r.other)}</td>
+                      <td><RecapBar g={r.gasoline} t={r.toll} p={r.parking} o={r.other} /></td>
+                      <td className={`${cs.num} ${cs.strong}`}>Rp {fmtRp(r.total)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr style={{ borderTop: "2px solid var(--border2)" }}>
-                    <td colSpan={2} style={{ fontWeight: 800, color: "var(--t1)", padding: "10px" }}>{lang === "en" ? "Grand Total" : "Grand Total"}</td>
-                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontWeight: 800 }}>Rp {fmtRp(weeklyRecap.grandTotal.gasoline)}</td>
-                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontWeight: 800 }}>Rp {fmtRp(weeklyRecap.grandTotal.toll)}</td>
-                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontWeight: 800 }}>Rp {fmtRp(weeklyRecap.grandTotal.parking)}</td>
-                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontWeight: 800 }}>Rp {fmtRp(weeklyRecap.grandTotal.other)}</td>
-                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontWeight: 800, color: "var(--brand)" }}>Rp {fmtRp(weeklyRecap.grandTotal.total)}</td>
+                  <tr>
+                    <td colSpan={2}>Grand total</td>
+                    <td className={cs.num}>Rp {fmtRp(weeklyRecap.grandTotal.gasoline)}</td>
+                    <td className={cs.num}>Rp {fmtRp(weeklyRecap.grandTotal.toll)}</td>
+                    <td className={cs.num}>Rp {fmtRp(weeklyRecap.grandTotal.parking)}</td>
+                    <td className={cs.num}>Rp {fmtRp(weeklyRecap.grandTotal.other)}</td>
+                    <td><RecapBar g={weeklyRecap.grandTotal.gasoline} t={weeklyRecap.grandTotal.toll} p={weeklyRecap.grandTotal.parking} o={weeklyRecap.grandTotal.other} /></td>
+                    <td className={cs.num} style={{ color: "var(--brand)" }}>Rp {fmtRp(weeklyRecap.grandTotal.total)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -4667,429 +4688,118 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
       )}
 
       {viewMode === "wreath" && (
-        <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, padding: "16px 18px" }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {([
-                ["all", lang === "en" ? "All" : "Semua"],
-                ["submitted", lang === "en" ? "Submitted" : "Sudah Diajukan"],
-                ["pending", lang === "en" ? "Not Yet Submitted" : "Belum Diajukan"],
-              ] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setWreathStatusFilter(key)}
-                  style={{ padding: "6px 14px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12, fontWeight: 700, background: wreathStatusFilter === key ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: wreathStatusFilter === key ? "#fff" : "var(--t2)" }}
-                >
-                  {label}
-                </button>
-              ))}
+        <>
+          <div className={cs.top}>
+            <div className={cs.filters}>
+              <PeriodSwitch
+                value={wreathStatusFilter === "all" ? "all" : wreathStatusFilter === "submitted" ? "week" : "date"}
+                onChange={(v) => setWreathStatusFilter(v === "all" ? "all" : v === "week" ? "submitted" : "pending")}
+                labels={[en ? "All" : "Semua", en ? "Submitted" : "Sudah diajukan", en ? "Not yet" : "Belum diajukan"]}
+              />
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={handleExportWreaths}
-                disabled={filteredWreaths.length === 0}
-                style={{ padding: "9px 16px", borderRadius: "var(--pill)", border: "1px solid var(--green)", background: "var(--green-soft)", color: "var(--green)", fontWeight: 700, fontSize: 13, cursor: filteredWreaths.length === 0 ? "not-allowed" : "pointer", opacity: filteredWreaths.length === 0 ? 0.5 : 1 }}
-                title={lang === "en" ? "Export condolence wreath report (CSV)" : "Export laporan karangan bunga (CSV)"}
-              >
-                ⬇ {lang === "en" ? "Export Report" : "Export Laporan"}
+            <div className={cs.actions}>
+              <button className={`${cs.btn} ${cs.btnGreen}`} onClick={handleExportWreaths} disabled={filteredWreaths.length === 0} title={en ? "Export condolence wreath report (CSV)" : "Export laporan karangan bunga (CSV)"}>
+                ⬇ {en ? "Export report" : "Export laporan"}
               </button>
-              <button className="pillBtn" onClick={openAddWreath}>
-                + {lang === "en" ? "Add Wreath Record" : "Tambah Karangan Bunga"}
+              <button className={cs.primary} onClick={openAddWreath}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                {en ? "Add wreath" : "Tambah karangan bunga"}
               </button>
             </div>
           </div>
-
           {loadingWreaths ? (
-            <SkeletonRows />
+            <div className={cs.skel}><i /><i /><i /></div>
           ) : filteredWreaths.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
-              💐 {lang === "en" ? "No condolence wreath records yet" : "Belum ada data karangan bunga duka cita"}
+            <div className={cs.empty}>
+              <span className={cs.emptyIc} aria-hidden="true">💐</span>
+              <b>{en ? "No wreath records yet" : "Belum ada data karangan bunga"}</b>
+              <p>{en ? "Record each condolence wreath so Finance can claim it later." : "Catat tiap karangan bunga duka cita supaya bisa diajukan ke Finance."}</p>
+              <button className={cs.primary} onClick={openAddWreath}>{en ? "Add wreath" : "Tambah karangan bunga"}</button>
             </div>
           ) : (
-            <div style={{ overflowX: "auto", position: "relative", zIndex: 1 }}>
-              <table className="tableCompact" style={{ minWidth: 640, width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th>{lang === "en" ? "Date" : "Tanggal"}</th>
-                    <th>{lang === "en" ? "On Behalf Of" : "Atas Nama"}</th>
-                    <th>{lang === "en" ? "Note" : "Keterangan"}</th>
-                    <th>Plant</th>
-                    <th>{lang === "en" ? "Claim Status" : "Status Klaim"}</th>
-                    <th style={{ textAlign: "right" }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredWreaths.map((w) => (
-                    <tr key={w.id}>
-                      <td>{formatDateLabel(w.tanggal)}</td>
-                      <td style={{ fontWeight: 700 }}>{w.atasNama}</td>
-                      <td style={{ color: "var(--t3)" }}>{w.keterangan || "-"}</td>
-                      <td>
-                        <span style={tagStyle(PLANT_COLOR[w.plant])}>{w.plant}</span>
-                      </td>
-                      <td>
-                        <button
-                          onClick={() => handleToggleWreathClaimed(w)}
-                          style={{
-                            padding: "5px 12px",
-                            borderRadius: "var(--pill)",
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            background: w.claimed ? "var(--green-soft)" : "var(--orange-soft)",
-                            color: w.claimed ? "var(--green)" : "var(--orange)",
-                          }}
-                          title={lang === "en" ? "Click to toggle claim status" : "Klik untuk ubah status klaim"}
-                        >
-                          {w.claimed ? `✓ ${lang === "en" ? "Submitted" : "Sudah Diajukan"}` : `○ ${lang === "en" ? "Not Yet Submitted" : "Belum Diajukan"}`}
-                        </button>
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <button
-                          onClick={() => setConfirmDeleteWreath(w)}
-                          style={{ border: "none", background: "var(--red-soft)", color: "var(--red)", borderRadius: 8, cursor: "pointer", padding: "5px 9px" }}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className={cs.list}>
+              {filteredWreaths.map((w) => (
+                <WreathCard
+                  key={w.id}
+                  atasNama={w.atasNama}
+                  keterangan={w.keterangan}
+                  tanggal={w.tanggal}
+                  plant={w.plant}
+                  claimed={w.claimed}
+                  onToggle={() => handleToggleWreathClaimed(w)}
+                  onDelete={() => setConfirmDeleteWreath(w)}
+                  lang={lang}
+                />
+              ))}
             </div>
           )}
-        </div>
+        </>
       )}
 
-      <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18, display: viewMode === "list" ? "block" : "none" }}>
-        <div style={{ display: "flex", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 24px", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge blue small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2V4a2 2 0 0 0-2-2Z" /><path d="M9 8h6M9 12h6" />
-              </svg>
-            </div>
-            <div>
-              <div className="statValue" style={{ fontSize: 22 }}>{animatedClaimsCount}</div>
-              <div className="statLabel">{lang === "en" ? "Claims" : "Klaim"}</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 24px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge gold small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="6" width="20" height="14" rx="2" /><path d="M2 10h20" /><circle cx="16" cy="15" r="1.5" />
-              </svg>
-            </div>
-            <div>
-              <div className="statValue" style={{ fontSize: 22 }}>Rp {fmtRp(animatedTotalFiltered)}</div>
-              <div className="statLabel">Total</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 24px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge teal small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-            </div>
-            <div>
-              <div className="statValue" style={{ fontSize: 22 }}>{animatedActiveDriversClaims}</div>
-              <div className="statLabel">{lang === "en" ? "Active Drivers" : "Driver Aktif"}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-
-      <div className="statPop" style={{ ...cardStyle, overflow: "hidden", display: viewMode === "list" ? "block" : "none" }}>
-        {!loading && filtered.length > 0 && !isMobileClaims && (
-          <div style={{ display: "grid", gridTemplateColumns: "140px 110px 1fr 1fr 120px 40px", gap: 14, padding: "12px 18px", background: "var(--navy)" }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{lang === "en" ? "Claim Period" : "Periode Klaim"}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{lang === "en" ? "Submitted" : "Diajukan"}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.07em" }}>Driver</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{lang === "en" ? "Claim Details" : "Rincian"}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.07em", textAlign: "right" }}>Total</div>
-            <div />
-          </div>
-        )}
-        {loading ? (
-          <SkeletonRows />
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
-        ) : (
-          filtered
-            .slice()
-            .sort((a, b) => (a.periodDate < b.periodDate ? 1 : -1))
-            .map((c) => {
-              const isOpen = expandedId === c.id;
-              const wk = weekRangeOf(c.periodDate, lang);
-              return (
-                <div key={c.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <div
-                    onClick={() => setExpandedId(isOpen ? null : c.id)}
-                    className="rowHover"
-                    style={{
-                      display: isMobileClaims ? "flex" : "grid",
-                      gridTemplateColumns: "140px 110px 1fr 1fr 120px 40px",
-                      flexDirection: isMobileClaims ? "column" : undefined,
-                      gap: 14, alignItems: "center", padding: "13px 18px", cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)" }}>
-                      {lang === "en" ? "Week" : "Minggu"} {weekOfMonth(c.periodDate)}
-                      <div style={{ fontSize: 13, fontWeight: 400, color: "var(--t3)" }}>{new Date(c.periodDate).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" })}</div>
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--t3)" }}>{new Date(c.submissionDate).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" })}</div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)" }}>{c.driverName || "-"}</div>
-                    <div>
-                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                        {[...new Set(c.items.map((i) => i.type))].map((tp) => (
-                          <span key={tp} style={tagStyle(CLAIM_TYPE_COLOR[tp] || "var(--t3)")}>{tp}</span>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 3 }}>{c.items.length} {lang === "en" ? "items" : "item"}</div>
-                    </div>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: "var(--t1)", whiteSpace: "nowrap", textAlign: isMobileClaims ? "left" : "right" }}>Rp {fmtRp(c.total)}</div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(c); }}
-                      style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid var(--red)", background: "var(--red-soft)", color: "var(--red)", fontSize: 13, cursor: "pointer", justifySelf: "end" }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                  {isOpen && (
-                    <div className="tabContent" style={{ padding: "16px 18px 18px", background: "var(--bg2)", borderTop: "1px solid var(--border2)" }}>
-                      <div style={{ ...cardStyle, background: "var(--surface)", padding: 16 }}>
-                        <div style={{ display: "flex", gap: 20, fontSize: 13.5, color: "var(--t3)", marginBottom: 12, flexWrap: "wrap" }}>
-                          <span><strong style={{ color: "var(--t2)" }}>{lang === "en" ? "Period" : "Periode"}:</strong> {wk.label}</span>
-                          <span><strong style={{ color: "var(--t2)" }}>{lang === "en" ? "Submitted" : "Diajukan"}:</strong> {new Date(c.submissionDate).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" })}</span>
-                        </div>
-                        <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr style={{ color: "var(--t3)", textAlign: "left" }}>
-                              <th style={{ paddingBottom: 8, fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em" }}>{lang === "en" ? "Type" : "Jenis"}</th>
-                              <th style={{ paddingBottom: 8, fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em" }}>{lang === "en" ? "Claim Details" : "Rincian"}</th>
-                              <th style={{ paddingBottom: 8, textAlign: "right", fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em" }}>{lang === "en" ? "Amount" : "Nominal"}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {c.items.map((item, idx) => (
-                              <tr key={idx} style={{ borderTop: "1px solid var(--border)" }}>
-                                <td style={{ padding: "8px 0" }}><span style={tagStyle(CLAIM_TYPE_COLOR[item.type] || "var(--t3)")}>{item.type}</span></td>
-                                <td style={{ padding: "8px 0", fontFamily: "var(--mono)", color: "var(--t3)", fontSize: 11.5 }}>{item.expr}</td>
-                                <td style={{ padding: "8px 0", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>Rp {fmtRp(item.total)}</td>
-                              </tr>
-                            ))}
-                            <tr style={{ borderTop: "2px solid var(--border2)" }}>
-                              <td colSpan={2} style={{ padding: "10px 0", fontWeight: 800, color: "var(--t1)" }}>TOTAL</td>
-                              <td className="numGrad" style={{ padding: "10px 0", textAlign: "right", fontWeight: 800 }}>Rp {fmtRp(c.total)}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                        {c.note && <div style={{ marginTop: 10, fontSize: 13.5, color: "var(--t3)", fontStyle: "italic" }}>{lang === "en" ? "Note" : "Catatan"}: {c.note}</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-        )}
-      </div>
-
       {showForm && (
-        <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={500}>
-          <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "20px 24px", background: "linear-gradient(135deg, var(--brand), var(--brand2))", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧾</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
-                {lang === "en" ? "New Claim" : "Buat Klaim"}
-              </div>
-            </div>
-            <div style={{ padding: 24 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                <div>
-                  <label>{lang === "en" ? "SUBMISSION DATE" : "TANGGAL PENGAJUAN"}</label>
-                  <input className={styles.formInput} type="date" value={submissionDate} onChange={(e) => setSubmissionDate(e.target.value)} />
-                </div>
-                <div>
-                  <label>{lang === "en" ? "PERIOD DATE" : "TANGGAL PERIODE"}</label>
-                  <input className={styles.formInput} type="date" value={periodDate} onChange={(e) => setPeriodDate(e.target.value)} />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label>{t.fieldDriver} *</label>
-                <select className={styles.formSelect} value={formDriverId} onChange={(e) => setFormDriverId(e.target.value)}>
-                  <option value="">{lang === "en" ? "Select driver" : "Pilih driver"}</option>
-                  {drivers.map((d) => (
-                    <option key={d.id} value={d.id}>{d.nama}</option>
-                  ))}
-                </select>
-              </div>
-
-             <div style={{ marginBottom: 14, padding: 14, background: "var(--bg2)", borderRadius: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                  <label className="fLabel" style={{ ...labelStyle, marginBottom: 0 }}>{lang === "en" ? "CLAIM LINES" : "RINCIAN KLAIM"}</label>
-                  <button onClick={addLine} style={{ fontSize: 13, fontWeight: 700, color: "var(--brand)", background: "none", border: "none", cursor: "pointer" }}>
-                    + {lang === "en" ? "Add Line" : "Tambah Baris"}
-                  </button>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {lines.map((line) => {
-                    const val = evalExpr(line.expr);
-                    return (
-                      <div key={line.id} style={{ background: "var(--surface)", borderRadius: 10, padding: 8, border: "1px solid var(--border2)" }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 28px", gap: 8 }}>
-                          <select className={styles.formSelect} style={{ ...inputStyle, fontSize: 12 }} value={line.type} onChange={(e) => updateLine(line.id, "type", e.target.value)}>
-                            {CLAIM_TYPES.map((ct) => (
-                              <option key={ct} value={ct}>{ct}</option>
-                            ))}
-                          </select>
-                          <input
-                            className={styles.formInput}
-                            style={{ ...inputStyle, fontFamily: "var(--mono)" }}
-                            placeholder="50000+30000"
-                            value={line.expr}
-                            onChange={(e) => updateLine(line.id, "expr", e.target.value)}
-                          />
-                          <button
-                            onClick={() => removeLine(line.id)}
-                            disabled={lines.length === 1}
-                            style={{ border: "none", background: "var(--red-soft)", color: "var(--red)", borderRadius: 8, cursor: "pointer", opacity: lines.length === 1 ? 0.3 : 1 }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        {line.expr && (
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-                            <span
-                              style={{
-                                fontSize: 12.5,
-                                fontWeight: 700,
-                                color: val !== null ? "var(--brand)" : "var(--red)",
-                                background: val !== null ? "rgba(61,111,242,0.08)" : "var(--red-soft)",
-                                padding: "4px 10px",
-                                borderRadius: 8,
-                              }}
-                            >
-                              {val !== null ? `= Rp ${fmtRp(val)}` : (lang === "en" ? "Invalid format" : "Format tidak valid")}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label>{lang === "en" ? "NOTE (optional)" : "CATATAN (opsional)"}</label>
-                <input className={styles.formInput} value={note} onChange={(e) => setNote(e.target.value)} />
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: "var(--gold-soft)", border: "1px solid var(--gold)", borderRadius: 12, marginBottom: 18 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t2)" }}>TOTAL</span>
-                <span className="numGrad" style={{ fontSize: 19, fontWeight: 800 }}>Rp {fmtRp(grandTotal)}</span>
-              </div>
-
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                  {t.actionCancel}
-                </button>
-                <button
-                  className="pillBtn"
-                  onClick={handleSave}
-                  disabled={!canSave || saving}
-                  style={{ flex: 2, justifyContent: "center", opacity: canSave && !saving ? 1 : 0.5 }}
-                >
-                  {saving ? t.actionSaving : (lang === "en" ? "Submit Claim" : "Submit Klaim")}
-                </button>
-              </div>
-            </div>
-          </div>
+        <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={940}>
+          <ClaimForm
+            lang={lang}
+            drivers={driverOptions}
+            driverId={formDriverId} setDriverId={setFormDriverId}
+            submissionDate={submissionDate} setSubmissionDate={setSubmissionDate}
+            periodDate={periodDate} setPeriodDate={setPeriodDate}
+            weekLabel={formWeek}
+            lines={lines}
+            addLine={addLine} removeLine={removeLine} updateLine={updateLine}
+            note={note} setNote={setNote}
+            grandTotal={grandTotal} canSave={canSave} saving={saving}
+            onSave={handleSave} onClose={() => setShowForm(false)}
+            evalExpr={evalExpr}
+            cancelText={t.actionCancel} savingText={t.actionSaving}
+          />
         </ModalPortal>
       )}
 
       {confirmDelete && (
-        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this claim?" : "Hapus klaim ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>Rp {fmtRp(confirmDelete.total)}</strong> ({confirmDelete.driverName}) akan dihapus permanen.
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionCancel}
-              </button>
-              <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionYesDelete}
-              </button>
+        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>
+          <div className={`${cs.dialog} ${cs.dialogWarn}`}>
+            <div className={cs.warnIc} aria-hidden="true">!</div>
+            <h2>{en ? "Delete this claim?" : "Hapus klaim ini?"}</h2>
+            <p><b>Rp {fmtRp(confirmDelete.total)}</b> ({confirmDelete.driverName}) {en ? "will be permanently deleted." : "akan dihapus permanen."}</p>
+            <div className={cs.dialogFoot}>
+              <button className={cs.btn} style={{ height: 44 }} onClick={() => setConfirmDelete(null)}>{t.actionCancel}</button>
+              <button className={cs.danger} onClick={handleDelete}>{t.actionYesDelete}</button>
             </div>
           </div>
         </ModalPortal>
       )}
 
       {showWreathForm && (
-        <ModalPortal onOverlayClick={() => setShowWreathForm(false)} maxWidth={440}>
-          <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>
-              💐 {lang === "en" ? "Add Condolence Wreath Record" : "Tambah Data Karangan Bunga Duka Cita"}
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>{lang === "en" ? "DATE *" : "TANGGAL *"}</label>
-              <input type="date" className={styles.formInput} value={wreathTanggal} onChange={(e) => setWreathTanggal(e.target.value)} />
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>{lang === "en" ? "ON BEHALF OF *" : "KARANGAN BUNGA ATAS NAMA *"}</label>
-              <input
-                className={styles.formInput}
-                value={wreathAtasNama}
-                onChange={(e) => setWreathAtasNama(e.target.value)}
-                placeholder={lang === "en" ? "e.g. Bapak Ahmad (Father of driver Budi)" : "Contoh: Bapak Ahmad (Ayah dari driver Budi)"}
-              />
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>{lang === "en" ? "NOTE (optional)" : "KETERANGAN (opsional)"}</label>
-              <input className={styles.formInput} value={wreathKeterangan} onChange={(e) => setWreathKeterangan(e.target.value)} />
-            </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <label style={labelStyle}>{t.fieldPlant} *</label>
-              <div style={{ display: "flex", gap: 8 }}>
+        <ModalPortal onOverlayClick={() => setShowWreathForm(false)} maxWidth={460}>
+          <div className={cs.dialog}>
+            <h2>💐 {en ? "Add condolence wreath" : "Tambah karangan bunga duka cita"}</h2>
+            <label className={cs.field}>
+              <span>{en ? "Date" : "Tanggal"}</span>
+              <input type="date" className={cs.search} value={wreathTanggal} onChange={(e) => setWreathTanggal(e.target.value)} />
+            </label>
+            <label className={cs.field}>
+              <span>{en ? "On behalf of" : "Atas nama"}</span>
+              <input className={cs.search} value={wreathAtasNama} onChange={(e) => setWreathAtasNama(e.target.value)} placeholder={en ? "e.g. Bapak Ahmad (father of driver Budi)" : "mis. Bapak Ahmad (ayah dari driver Budi)"} autoFocus />
+            </label>
+            <label className={cs.field}>
+              <span>{en ? "Note" : "Keterangan"} <em style={{ fontStyle: "normal", fontWeight: 600, color: "var(--t3)" }}>{en ? "optional" : "opsional"}</em></span>
+              <input className={cs.search} value={wreathKeterangan} onChange={(e) => setWreathKeterangan(e.target.value)} />
+            </label>
+            <div className={cs.field}>
+              <span>{t.fieldPlant}</span>
+              <div className={cs.plants} role="radiogroup">
                 {OT_PLANTS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setWreathPlant(p)}
-                    style={{
-                      flex: 1, padding: "9px", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer",
-                      border: wreathPlant === p ? `1px solid ${PLANT_COLOR[p]}` : "1px solid var(--border2)",
-                      background: wreathPlant === p ? "var(--bg2)" : "transparent",
-                      color: wreathPlant === p ? PLANT_COLOR[p] : "var(--t3)",
-                    }}
-                  >
+                  <button key={p} role="radio" aria-checked={wreathPlant === p} className={`${cs.plantBtn} ${wreathPlant === p ? cs.plantBtnOn : ""}`} style={{ ["--c" as string]: PLANT_COLOR[p] }} onClick={() => setWreathPlant(p)}>
                     {p}
                   </button>
                 ))}
               </div>
             </div>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowWreathForm(false)} style={{ flex: 1, padding: "11px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionCancel}
-              </button>
-              <button
-                className="pillBtn"
-                onClick={handleSaveWreath}
-                disabled={!canSaveWreath || savingWreath}
-                style={{ flex: 2, justifyContent: "center", opacity: canSaveWreath && !savingWreath ? 1 : 0.5 }}
-              >
-                {savingWreath ? t.actionSaving : (lang === "en" ? "Save Record" : "Simpan Data")}
+            <div className={cs.dialogFoot}>
+              <button className={cs.btn} style={{ height: 44 }} onClick={() => setShowWreathForm(false)}>{t.actionCancel}</button>
+              <button className={cs.primary} style={{ height: 44 }} onClick={handleSaveWreath} disabled={!canSaveWreath || savingWreath}>
+                {savingWreath ? t.actionSaving : (en ? "Save record" : "Simpan data")}
               </button>
             </div>
           </div>
@@ -5097,20 +4807,14 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
       )}
 
       {confirmDeleteWreath && (
-        <ModalPortal onOverlayClick={() => setConfirmDeleteWreath(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this record?" : "Hapus data ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{confirmDeleteWreath.atasNama}</strong> ({formatDateLabel(confirmDeleteWreath.tanggal)}) {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDeleteWreath(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionCancel}
-              </button>
-              <button onClick={handleDeleteWreath} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionYesDelete}
-              </button>
+        <ModalPortal onOverlayClick={() => setConfirmDeleteWreath(null)} maxWidth={380}>
+          <div className={`${cs.dialog} ${cs.dialogWarn}`}>
+            <div className={cs.warnIc} aria-hidden="true">!</div>
+            <h2>{en ? "Delete this record?" : "Hapus data ini?"}</h2>
+            <p><b>{confirmDeleteWreath.atasNama}</b> ({formatDateLabel(confirmDeleteWreath.tanggal)}) {en ? "will be permanently deleted." : "akan dihapus permanen."}</p>
+            <div className={cs.dialogFoot}>
+              <button className={cs.btn} style={{ height: 44 }} onClick={() => setConfirmDeleteWreath(null)}>{t.actionCancel}</button>
+              <button className={cs.danger} onClick={handleDeleteWreath}>{t.actionYesDelete}</button>
             </div>
           </div>
         </ModalPortal>
