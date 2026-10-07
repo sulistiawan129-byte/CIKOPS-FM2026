@@ -888,7 +888,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         );
       })()}
       {activeTab === "tasks" && (
-      <div key="tasks" className={`${styles.body} tabContent`}>
+      <div key="tasks" className={`${styles.body} ${tk.page} tabContent`}>
         <TaskBoardBar
           date={dateFilter}
           today={todayStr()}

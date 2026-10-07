@@ -1,3 +1,15 @@
+# Redesign V2.11 — Penugasan: layar penuh, kartu seragam
+
+Tidak ada SQL baru. Ganti file, lalu deploy.
+
+## Baru di V2.11
+- Halaman Penugasan kini memakai lebar penuh sampai batas side panel (seperti Gate Log), sehingga muat 3 kartu per baris di layar lebar.
+- Semua kartu sama ukuran: nama, rute, tag, catatan, dan baris jam punya tinggi tetap; teks panjang dipotong rapi (tooltip menampilkan teks lengkap). Tombol aksi selalu di dasar kartu dan satu baris.
+- Tipografi dirapikan: skala huruf konsisten, label DARI/TUJUAN kapital kecil, angka jam rata, tanpa font mono acak. Nama driver, tujuan, dan jenis kendaraan yang seluruhnya KAPITAL otomatis jadi Title Case (singkatan 3 huruf tetap).
+- Catatan kosong menampilkan "Tidak ada catatan" supaya tinggi kartu tetap sama. Tombol "Cetak bukti" disingkat "Cetak" (tooltip tetap lengkap).
+- Berubah: TasksUI.tsx, tasks.module.css, dashboard/page.tsx.
+
+---
 # Redesign V2.10 — Gate Log di dashboard
 
 Tidak ada SQL baru (SQL 018 dari V2.9 tetap perlu dijalankan agar keterangan tampil). Ganti file, lalu deploy.

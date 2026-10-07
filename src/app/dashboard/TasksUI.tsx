@@ -34,6 +34,13 @@ function shiftDay(iso: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Teks yang seluruhnya KAPITAL dirapikan jadi "Title Case" (singkatan ≤3 huruf tetap kapital). */
+function tidy(v: string | null | undefined): string {
+  const s = (v ?? "").trim();
+  if (s.length < 4 || s !== s.toUpperCase() || s === s.toLowerCase()) return s;
+  return s.replace(/[A-Za-z]+/g, (w) => (w.length <= 3 ? w : w[0] + w.slice(1).toLowerCase()));
+}
+
 function hhmm(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -197,10 +204,10 @@ export function TaskCard({
       <header className={s.cardTop}>
         <Avatar name={t.driver_nama || "?"} />
         <div className={s.who}>
-          <div className={s.whoName}>{t.driver_nama || "Belum ada driver"}</div>
+          <div className={s.whoName} title={tidy(t.driver_nama)}>{tidy(t.driver_nama) || "Belum ada driver"}</div>
           <div className={s.whoSub}>
             <span className={s.plate}>{t.kendaraan || "—"}</span>
-            {t.kendaraan_jenis ? <span className={s.dimTxt}>{t.kendaraan_jenis}</span> : null}
+            {t.kendaraan_jenis ? <span className={s.dimTxt} title={t.kendaraan_jenis}>{tidy(t.kendaraan_jenis)}</span> : null}
             <span className={s.plantTag}>{t.plant}</span>
           </div>
         </div>
@@ -213,21 +220,21 @@ export function TaskCard({
       <div className={s.route}>
         <div className={s.stop}>
           <span className={s.stopLabel}><i className={s.dotFrom} />Dari</span>
-          <b>{asal}</b>
+          <b title={asal}>{tidy(asal)}</b>
         </div>
         <div className={s.path} aria-hidden="true"><i /><span><IcCar size={16} /></span><i /></div>
         <div className={`${s.stop} ${s.stopTo}`}>
           <span className={s.stopLabel}><i className={s.dotTo} />Tujuan</span>
-          <b>{t.tujuan}</b>
+          <b title={t.tujuan}>{tidy(t.tujuan)}</b>
         </div>
       </div>
 
       <div className={s.meta}>
-        <span className={s.tag}>{t.jenis_pekerjaan}</span>
-        <span className={s.tagSoft}>Req. {t.requestor}{t.departement ? ` · ${t.departement}` : ""}</span>
-        {t.batch_id && t.batch_total_days > 1 ? <span className={s.tagSoft}>Rentang {t.batch_total_days} hari</span> : null}
+        <span className={s.tag} title={t.jenis_pekerjaan}>{t.jenis_pekerjaan}</span>
+        <span className={s.tagSoft} title={`Requestor: ${t.requestor}${t.departement ? ` · ${t.departement}` : ""}`}>Req. {t.requestor}{t.departement ? ` · ${t.departement}` : ""}</span>
+        {t.batch_id && t.batch_total_days > 1 ? <span className={s.tagSoft} style={{ flex: "none" }}>Rentang {t.batch_total_days} hari</span> : null}
       </div>
-      {t.perihal ? <p className={s.note}>{t.perihal}</p> : null}
+      <p className={`${s.note} ${t.perihal ? "" : s.noteNone}`} title={t.perihal || undefined}>{t.perihal || "Tidak ada catatan"}</p>
 
       <StatusTimes t={t} />
 
@@ -238,7 +245,7 @@ export function TaskCard({
           </button>
         )}
         <button className={s.printBtn} onClick={() => onPrint(t)} title="Cetak bukti penugasan">
-          <IcPrint size={15} />Cetak bukti
+          <IcPrint size={15} />Cetak
         </button>
         <span className={s.spacer} />
         {open && <button className={s.linkBtn} onClick={() => onCancel(t)}>Batalkan</button>}
