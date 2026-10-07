@@ -5,6 +5,10 @@ import type { CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import styles from "./dashboard.module.css";
 import cs from "./claims.module.css";
+import { TaskBoardBar, TaskCard, TaskEmpty, TaskSlipModal, TaskForm, TaskSuccess, sortTasks } from "./TasksUI";
+import type { TaskFormValues } from "./TasksUI";
+import tk from "./tasks.module.css";
+import { GateLogPanel } from "./GateUI";
 import { ClaimsHero, ClaimCard, WeekHeader, ViewSwitch, PeriodSwitch, RecapBar, ClaimForm, WreathCard, CLAIM_CATS, catLabel } from "./ClaimsUI";
 import { ModalPortal } from "@/components/ModalPortal";
 import { TabErrorBoundary } from "@/components/TabErrorBoundary";
@@ -157,7 +161,7 @@ import type {
   TaskStatus,
   Vehicle,
 } from "@/lib/types";
-import { computeStats } from "@/lib/types";
+import { computeStats, plantLocation } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import LockerTab from "./LockerTab";
 import { getLockerStatusGrid } from "@/lib/lockerApi";
@@ -333,6 +337,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 
   const [dateFilter, setDateFilter] = useState(todayStr());
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
+  const [slipTasks, setSlipTasks] = useState<TaskDetail[] | null>(null);
   const [search, setSearch] = useState("");
 
   const [tasks, setTasks] = useState<TaskDetail[]>([]);
@@ -884,109 +889,42 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       })()}
       {activeTab === "tasks" && (
       <div key="tasks" className={`${styles.body} tabContent`}>
-        <div className={styles.statsRow}>
-          <div className={`${styles.statCard} ${styles.statTotal}`}>
-            <div className={styles.statCardTop}>
-              <span className={styles.statCardIcon}>📊</span>
-            </div>
-            <div className={styles.statCardNum}>{stats.total}</div>
-            <div className={styles.statCardLabel}>Total Tugas</div>
-          </div>
-          <div className={`${styles.statCard} ${styles.statAssigned}`}>
-            <div className={styles.statCardTop}>
-              <span className={styles.statCardIcon}>🆕</span>
-            </div>
-            <div className={styles.statCardNum}>{stats.assigned}</div>
-            <div className={styles.statCardLabel}>Baru Ditugaskan</div>
-          </div>
-          <div className={`${styles.statCard} ${styles.statOngoing}`}>
-            <div className={styles.statCardTop}>
-              <span className={styles.statCardIcon}>🚗</span>
-            </div>
-            <div className={styles.statCardNum}>{stats.ongoing}</div>
-            <div className={styles.statCardLabel}>Sedang Berjalan</div>
-          </div>
-          <div className={`${styles.statCard} ${styles.statDone}`}>
-            <div className={styles.statCardTop}>
-              <span className={styles.statCardIcon}>✅</span>
-            </div>
-            <div className={styles.statCardNum}>{stats.done}</div>
-            <div className={styles.statCardLabel}>Selesai</div>
-          </div>
-        </div>
-
-        <div className={styles.toolbar}>
-          <div className={styles.toolbarDate}>
-            <span>📅</span>
-            <input
-              type="date"
-              className={styles.toolbarDateInput}
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            />
-          </div>
-
-          <div className={styles.toolbarStatusGroup}>
-            {(["ASSIGNED", "ON GOING", "DONE", "CANCELLED"] as TaskStatus[]).map(
-              (s) => (
-                <button
-                  key={s}
-                  className={`${styles.statusChip} ${
-                    statusFilter === s ? styles.statusChipOn : ""
-                  }`}
-                  onClick={() => setStatusFilter(statusFilter === s ? null : s)}
-                >
-                  {s}
-                </button>
-              )
-            )}
-          </div>
-
-          {!isMobile && <div className={styles.toolbarSpacer} />}
-
-          <div className={styles.searchBox}>
-            <span>🔎</span>
-            <input
-              className={styles.searchInput}
-              placeholder="Cari tujuan, driver, requestor..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
+        <TaskBoardBar
+          date={dateFilter}
+          today={todayStr()}
+          onDate={setDateFilter}
+          stats={stats}
+          statusFilter={statusFilter}
+          onStatus={setStatusFilter}
+          search={search}
+          onSearch={setSearch}
+          printCount={filteredTasks.length}
+          onPrintAll={() => setSlipTasks(sortTasks(filteredTasks))}
+        />
 
         {error && <div className={styles.errBanner}>{error}</div>}
 
-        {loading ? (
-          <div className={styles.tableWrap}>
-            <div className={styles.tableLoading}>
-              <div className={styles.spinner} />
-              <div className={styles.loadingTxt}>Memuat data tugas...</div>
-            </div>
-          </div>
+        {loading && tasks.length === 0 ? (
+          <div className={tk.loading}><div className={tk.spin} /><span>Memuat data tugas…</span></div>
         ) : filteredTasks.length === 0 ? (
-          <div className={styles.tableWrap}>
-            <div className={styles.tableEmpty}>
-              <span className={styles.tableEmptyIco}>🗂️</span>
-              <div className={styles.tableEmptyTitle}>
-                Tidak ada tugas untuk filter ini
-              </div>
-            </div>
-          </div>
-        ) : isMobile ? (
-          <MobileTaskList
-            tasks={filteredTasks}
-            onAdvance={handleStatusChange}
-            onCancel={openCancelConfirm}
-            onDelete={handleDelete}
+          <TaskEmpty
+            filtered={tasks.length > 0}
+            onNew={() => setModalOpen(true)}
+            onClear={() => { setStatusFilter(null); setSearch(""); }}
           />
         ) : (
-          <DesktopTaskTable
-            tasks={filteredTasks}
-            onAdvance={handleStatusChange}
-            onCancel={openCancelConfirm}
-            onDelete={handleDelete}
-          />
+          <div className={tk.list}>
+            {sortTasks(filteredTasks).map((t) => (
+              <TaskCard
+                key={t.id}
+                task={t}
+                onAdvance={handleStatusChange}
+                onCancel={openCancelConfirm}
+                onDelete={handleDelete}
+                onPrint={(x) => setSlipTasks([x])}
+              />
+            ))}
+          </div>
         )}
       </div>
       )}
@@ -1030,6 +968,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       employees={employees}
       jobTypes={jobTypes}
      myProfile={myProfile}
+     places={Array.from(new Set(tasks.flatMap((t) => [t.tujuan, t.lokasi_asal ?? ""]).map((x) => (x || "").trim()).filter(Boolean)))}
      onClose={() => setModalOpen(false)}
           onCreated={() => {
             setModalOpen(false);
@@ -1037,6 +976,14 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
             loadTasks();
           }}
           onError={(msg) => showToast(msg, true)}
+        />
+      )}
+
+      {slipTasks && (
+        <TaskSlipModal
+          tasks={slipTasks}
+          printedBy={myProfile?.fullName || user?.email?.split("@")[0] || ""}
+          onClose={() => setSlipTasks(null)}
         />
       )}
 
@@ -1061,7 +1008,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           >
             <div className={styles.modalTitle}>Batalkan tugas ini?</div>
             <div className={styles.confirmSub}>
-              Tujuan: {cancelTarget.tujuan} · Driver:{" "}
+              {(cancelTarget.lokasi_asal || plantLocation(cancelTarget.plant))} → {cancelTarget.tujuan} · Driver:{" "}
               {cancelTarget.driver_nama || "-"}
             </div>
             <div className={styles.modalActions}>
@@ -1105,183 +1052,6 @@ function SkeletonRows({ rows = 4 }: { rows?: number }) {
             <div className={styles.skeletonBar} style={{ height: 10, width: `${34 - i * 3}%` }} />
           </div>
           <div className={styles.skeletonBar} style={{ height: 22, width: 64, borderRadius: "var(--pill)", flexShrink: 0 }} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatusPill({ status }: { status: TaskStatus }) {
-  const cls =
-    status === "ASSIGNED"
-      ? styles.pillAssigned
-      : status === "ON GOING"
-      ? styles.pillOngoing
-      : status === "CANCELLED"
-      ? styles.pillCancelled
-      : styles.pillDone;
-  return <span className={`${styles.statusPill} ${cls}`}>{status}</span>;
-}
-
-/* ════════════════════════════════════════════════
-   DESKTOP: tabel lebar dengan scroll horizontal
-════════════════════════════════════════════════ */
-
-function DesktopTaskTable({
-  tasks,
-  onAdvance,
-  onCancel,
-  onDelete,
-}: {
-  tasks: TaskDetail[];
-  onAdvance: (t: TaskDetail, status: TaskStatus) => void;
-  onCancel: (t: TaskDetail) => void;
-  onDelete: (t: TaskDetail) => void;
-}) {
-  return (
-    <div className={styles.tableWrap}>
-      <div className={styles.tableScroll}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Waktu</th>
-              <th>Driver</th>
-              <th>Kendaraan</th>
-              <th>Tujuan</th>
-              <th>Jenis Pekerjaan</th>
-              <th>Requestor</th>
-              <th>Status</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((t) => (
-              <tr key={t.id}>
-                <td className={styles.cellMuted}>
-                  {new Date(t.created_at).toLocaleTimeString("id-ID", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </td>
-                <td className={styles.cellBold}>
-                  {t.driver_avatar} {t.driver_nama || "-"}
-                </td>
-                <td>{t.kendaraan || "-"}</td>
-                <td className={styles.cellBold}>{t.tujuan}</td>
-                <td>{t.jenis_pekerjaan}</td>
-                <td>
-                  {t.requestor}
-                  {t.departement ? ` (${t.departement})` : ""}
-                </td>
-                <td>
-                  <StatusPill status={t.status} />
-                </td>
-                <td>
-                  <div className={styles.rowActions}>
-                    {t.status !== "DONE" && t.status !== "CANCELLED" && (
-                      <button
-                        className={styles.rowActionBtn}
-                        onClick={() =>
-                          onAdvance(
-                            t,
-                            t.status === "ASSIGNED" ? "ON GOING" : "DONE"
-                          )
-                        }
-                      >
-                        {t.status === "ASSIGNED" ? "→ Proses" : "→ Selesai"}
-                      </button>
-                    )}
-                    {t.status !== "DONE" && t.status !== "CANCELLED" && (
-                      <button
-                        className={`${styles.rowActionBtn} ${styles.rowActionWarn}`}
-                        onClick={() => onCancel(t)}
-                      >
-                        Batalkan
-                      </button>
-                    )}
-                    <button
-                      className={`${styles.rowActionBtn} ${styles.rowActionDanger}`}
-                      onClick={() => onDelete(t)}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════
-   MOBILE: kartu vertikal, tanpa scroll horizontal
-════════════════════════════════════════════════ */
-
-function MobileTaskList({
-  tasks,
-  onAdvance,
-  onCancel,
-  onDelete,
-}: {
-  tasks: TaskDetail[];
-  onAdvance: (t: TaskDetail, status: TaskStatus) => void;
-  onCancel: (t: TaskDetail) => void;
-  onDelete: (t: TaskDetail) => void;
-}) {
-  return (
-    <div className={styles.mobileList}>
-      {tasks.map((t) => (
-        <div key={t.id} className={styles.mobileCard}>
-          <div className={styles.mobileCardTop}>
-            <div className={styles.mobileCardDest}>{t.tujuan}</div>
-            <StatusPill status={t.status} />
-          </div>
-          <div className={styles.mobileCardMeta}>
-            <span>
-              {t.driver_avatar} {t.driver_nama || "-"}
-            </span>
-            <span className={styles.mobileCardDot}>•</span>
-            <span>{t.kendaraan || "-"}</span>
-          </div>
-          <div className={styles.mobileCardSub}>
-            {t.jenis_pekerjaan} · {t.requestor}
-            {t.departement ? ` (${t.departement})` : ""}
-          </div>
-          <div className={styles.mobileCardTime}>
-            {new Date(t.created_at).toLocaleTimeString("id-ID", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-          <div className={styles.mobileCardActions}>
-            {t.status !== "DONE" && t.status !== "CANCELLED" && (
-              <button
-                className={styles.mobileActionBtn}
-                onClick={() =>
-                  onAdvance(t, t.status === "ASSIGNED" ? "ON GOING" : "DONE")
-                }
-              >
-                {t.status === "ASSIGNED" ? "→ Proses" : "→ Selesai"}
-              </button>
-            )}
-            {t.status !== "DONE" && t.status !== "CANCELLED" && (
-              <button
-                className={`${styles.mobileActionBtn} ${styles.mobileActionWarn}`}
-                onClick={() => onCancel(t)}
-              >
-                Batalkan
-              </button>
-            )}
-            <button
-              className={`${styles.mobileActionBtn} ${styles.mobileActionDanger}`}
-              onClick={() => onDelete(t)}
-            >
-              Hapus
-            </button>
-          </div>
         </div>
       ))}
     </div>
@@ -1659,6 +1429,7 @@ function buildTaskWhatsAppMessage(params: {
   driverName: string;
   vehicleLabel: string;
   jenisPekerjaan: string;
+  asal: string;
   tujuan: string;
   requestor: string;
   departement: string;
@@ -1692,6 +1463,7 @@ function buildTaskWhatsAppMessage(params: {
     `🧑‍✈️ *Driver* : ${params.driverName}`,
     `🚗 *Kendaraan* : ${params.vehicleLabel}`,
     `🧰 *Jenis Pekerjaan* : ${params.jenisPekerjaan}`,
+    `🚩 *Dari* : ${params.asal}`,
     `📍 *Tujuan* : ${params.tujuan}`,
     `👤 *Requestor* : ${params.requestor}${params.departement ? ` (${params.departement})` : ""}`,
   ];
@@ -1703,24 +1475,13 @@ function buildTaskWhatsAppMessage(params: {
   return lines.join("\n");
 }
 
-function SectionEyebrow({ label, color }: { label: string; color: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "20px 0 10px" }}>
-      <span style={{ width: 3, height: 12, borderRadius: 2, background: color, flexShrink: 0 }} />
-      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {label}
-      </span>
-      <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
-    </div>
-  );
-}
-
 function CreateTaskModal({
   drivers,
   vehicles,
   employees,
   jobTypes,
   myProfile,
+  places,
   onClose,
   onCreated,
   onError,
@@ -1730,157 +1491,57 @@ function CreateTaskModal({
   employees: Employee[];
   jobTypes: JobType[];
   myProfile: MyProfile | null;
+  places: string[];
   onClose: () => void;
   onCreated: () => void;
   onError: (msg: string) => void;
 }) {
-  const [tanggal, setTanggal] = useState(todayStr());
-  const lockedPlant = myProfile?.plantScope ?? null;
-  const [plant, setPlant] = useState<Plant>(lockedPlant ?? "CIK");
-  useEffect(() => {
-    if (lockedPlant) setPlant(lockedPlant);
-  }, [lockedPlant]);
-  const [driverId, setDriverId] = useState("");
-  const [vehicleId, setVehicleId] = useState("");
-  const [jenisPekerjaan, setJenisPekerjaan] = useState("");
-  const [tujuan, setTujuan] = useState("");
-  const [requestor, setRequestor] = useState("");
-  const [departement, setDepartement] = useState("");
-  const [perihal, setPerihal] = useState("");
-  const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [waMessage, setWaMessage] = useState<string | null>(null);
-  const [dateMode, setDateMode] = useState<"single" | "range">("single");
-  const [tanggalTo, setTanggalTo] = useState(todayStr());
-  const [requestorEmail, setRequestorEmail] = useState("");
 
-  const filteredDrivers = drivers.filter((d) => !d.plant || d.plant === plant);
-  const filteredVehicles = vehicles.filter((v) => !v.plant || v.plant === plant);
-
-  function handleRequestorPick(name: string) {
-    setRequestor(name);
-    const emp = employees.find((e) => e.nama === name);
-    if (emp?.departement) setDepartement(emp.departement);
-  }
-
- async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFormError("");
-
-    if (!driverId || !vehicleId || !jenisPekerjaan || !tujuan || !requestor) {
-      setFormError("Lengkapi semua field wajib (bertanda *)");
-      return;
-    }
-    if (dateMode === "range") {
-      if (tanggalTo < tanggal) {
-        setFormError("Tanggal selesai tidak boleh sebelum tanggal mulai");
-        return;
-      }
-      if (!requestorEmail) {
-        setFormError("Email Requestor wajib diisi untuk penugasan rentang tanggal");
-        return;
-      }
-    }
-
+  async function handleSubmit(v: TaskFormValues) {
     setBusy(true);
     try {
+      const { plant, tanggal, tanggalTo, asal, tujuan, driverId, vehicleId, jenisPekerjaan, requestor, departement, perihal, requestorEmail } = v;
       const driverName = drivers.find((d) => d.id === driverId)?.nama || "-";
-      const vehicle = vehicles.find((v) => v.id === vehicleId);
+      const vehicle = vehicles.find((x) => x.id === vehicleId);
       const vehicleLabel = vehicle ? `${vehicle.nopol}${vehicle.jenis ? ` (${vehicle.jenis})` : ""}` : "-";
+      const driverPhone = drivers.find((d) => d.id === driverId)?.no_hp || undefined;
+      const isRange = v.dateMode === "range";
+      const dateTo = isRange ? tanggalTo : tanggal;
 
-      if (dateMode === "range") {
-        const { createdCount } = await createTaskBatch({
-          driverId,
-          vehicleId,
-          jenisPekerjaan,
-          tujuan,
-          requestor,
-          departement,
-          perihal,
-          plant,
-          dateFrom: tanggal,
-          dateTo: tanggalTo,
+      let dayCount = 1;
+      if (isRange) {
+        const res = await createTaskBatch({
+          driverId, vehicleId, jenisPekerjaan, tujuan, requestor, departement, perihal, plant,
+          dateFrom: tanggal, dateTo: tanggalTo, lokasiAsal: asal,
         });
-        const driverPhone = drivers.find((d) => d.id === driverId)?.no_hp || undefined;
-        sendTaskBatchEmail({
-          requestorEmail,
-          requestor,
-          driverName,
-          driverPhone,
-          vehicleLabel,
-          jenisPekerjaan,
-          tujuan,
-          departement,
-          perihal,
-          dateFrom: tanggal,
-          dateTo: tanggalTo,
-          dayCount: createdCount,
-        }).catch((e) => console.warn("Task batch email failed:", e));
-        sendPushToDriver(
-          [driverId],
-          "Ada Tugas Baru 🚗",
-          `${tujuan} · ${jenisPekerjaan} · ${tanggal} s/d ${tanggalTo}`,
-          { type: "task" }
-        ).catch(() => {});
-        setWaMessage(
-          buildTaskWhatsAppMessage({
-            tanggal: `${tanggal} s/d ${tanggalTo}`,
-            driverName,
-            vehicleLabel,
-            jenisPekerjaan,
-            tujuan,
-            requestor,
-            departement,
-            perihal,
-          })
-        );
+        dayCount = res.createdCount;
       } else {
         await createTask({
-          tanggal,
-          driver_id: driverId,
-          vehicle_id: vehicleId,
-          jenis_pekerjaan: jenisPekerjaan,
-          tujuan,
-          requestor,
-          departement,
-          perihal,
-          plant,
+          tanggal, driver_id: driverId, vehicle_id: vehicleId, jenis_pekerjaan: jenisPekerjaan,
+          tujuan, requestor, departement, perihal, plant, lokasi_asal: asal,
         });
-        // Kirim email untuk single task juga (sama seperti range)
-        const driverPhoneSingle = drivers.find((d) => d.id === driverId)?.no_hp || undefined;
-        sendTaskBatchEmail({
-          requestorEmail,
-          requestor,
-          driverName,
-          driverPhone: driverPhoneSingle,
-          vehicleLabel,
-          jenisPekerjaan,
-          tujuan,
-          departement,
-          perihal,
-          dateFrom: tanggal,
-          dateTo: tanggal,
-          dayCount: 1,
-        }).catch((e) => console.warn("Task single email failed:", e));
-        sendPushToDriver(
-          [driverId],
-          "Ada Tugas Baru 🚗",
-          `${tujuan} · ${jenisPekerjaan} · ${tanggal}`,
-          { type: "task" }
-        ).catch(() => {});
-        setWaMessage(
-          buildTaskWhatsAppMessage({
-            tanggal,
-            driverName,
-            vehicleLabel,
-            jenisPekerjaan,
-            tujuan,
-            requestor,
-            departement,
-            perihal,
-          })
-        );
       }
+
+      // Notifikasi (best-effort, tidak menggagalkan penugasan)
+      sendTaskBatchEmail({
+        requestorEmail, requestor, driverName, driverPhone, vehicleLabel, jenisPekerjaan,
+        tujuan, asal, departement, perihal, dateFrom: tanggal, dateTo, dayCount,
+      }).catch((e) => console.warn("Task email failed:", e));
+      sendPushToDriver(
+        [driverId],
+        "Ada Tugas Baru 🚗",
+        `${asal} → ${tujuan} · ${jenisPekerjaan} · ${isRange ? `${tanggal} s/d ${tanggalTo}` : tanggal}`,
+        { type: "task" }
+      ).catch(() => {});
+
+      setWaMessage(
+        buildTaskWhatsAppMessage({
+          tanggal: isRange ? `${tanggal} s/d ${tanggalTo}` : tanggal,
+          driverName, vehicleLabel, jenisPekerjaan, asal, tujuan, requestor, departement, perihal,
+        })
+      );
     } catch (err) {
       onError(err instanceof Error ? err.message : "Gagal membuat tugas");
     } finally {
@@ -1888,276 +1549,29 @@ function CreateTaskModal({
     }
   }
 
-  const requiredFilled = [driverId, vehicleId, jenisPekerjaan, tujuan, requestor].filter(Boolean).length;
-  const requiredTotal = 5;
-
   return (
-    <div className={`${styles.modalOverlay} modalOverlayAnim`} onClick={waMessage ? undefined : onClose}>
-      <div className={`${styles.modalBox} modalPop`} onClick={(e) => e.stopPropagation()}>
-        {waMessage ? (
-          <>
-            <div className={styles.modalHeader}>
-              <div className={styles.modalTitle}>✅ Tugas Berhasil Dibuat</div>
-            </div>
-            <div style={{ padding: "0 24px 20px" }}>
-              <div style={{ fontSize: 12.5, color: "var(--t3)", marginBottom: 10 }}>
-                Bagikan detail penugasan ini ke driver/grup terkait via WhatsApp:
-              </div>
-              <div
-                style={{
-                  background: "var(--bg2)",
-                  border: "1px solid var(--border2)",
-                  borderRadius: 12,
-                  padding: 16,
-                  fontSize: 13,
-                  color: "var(--t1)",
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.6,
-                  marginBottom: 16,
-                  maxHeight: 260,
-                  overflowY: "auto",
-                  fontFamily: "var(--font)",
-                }}
-              >
-                {waMessage}
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWaMessage(null);
-                    onCreated();
-                  }}
-                  style={{ flex: 1, padding: "11px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}
-                >
-                  Selesai
-                </button>
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(waMessage)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => {
-                    setWaMessage(null);
-                    onCreated();
-                  }}
-                  className="pillBtn"
-                  style={{ flex: 2, justifyContent: "center", textDecoration: "none", background: "linear-gradient(135deg, #25d366, #128c7e)" }}
-                >
-                  💬 Kirim via WhatsApp
-                </a>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className={styles.modalHeader}>
-              <div className={styles.modalTitle}>Tugaskan Driver</div>
-              <button className={styles.modalClose} onClick={onClose}>✕</button>
-            </div>
-
-            {/* Garis progres tipis, tanpa teks — indikator premium yang tidak
-                mengganggu, bukan bar besar dengan label terpisah. */}
-            <div style={{ height: 3, background: "var(--border)", overflow: "hidden" }}>
-              <div
-                style={{
-                  height: "100%",
-                  width: `${(requiredFilled / requiredTotal) * 100}%`,
-                  background: requiredFilled === requiredTotal ? "var(--green)" : "linear-gradient(90deg, var(--brand), var(--gold))",
-                  transition: "width 0.3s ease, background 0.3s ease",
-                }}
-              />
-            </div>
-
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", maxHeight: "calc(90vh - 80px)" }}>
-              <div className={styles.formBody ?? ""} style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-              <SectionEyebrow label="Penugasan" color="var(--brand)" />
-              <div className={styles.formGrid}>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Plant *</label>
-                  {lockedPlant ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, background: "var(--bg2)", fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>
-                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--brand)", flexShrink: 0 }} />
-                      {lockedPlant}
-                      <span style={{ fontSize: 11, fontWeight: 400, color: "var(--t3)" }}>(khusus plant ini)</span>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "var(--bg2)", border: "1px solid var(--border2)" }}>
-                      {(["CIK", "PRB"] as Plant[]).map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => {
-                            setPlant(p);
-                            setDriverId("");
-                            setVehicleId("");
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "9px 0",
-                            borderRadius: 8,
-                            border: "none",
-                            cursor: "pointer",
-                            fontWeight: 700,
-                            fontSize: 13,
-                            background: plant === p ? "var(--surface)" : "transparent",
-                            color: plant === p ? "var(--brand)" : "var(--t3)",
-                            boxShadow: plant === p ? "var(--shadow-sm)" : "none",
-                            transition: "all 0.15s ease",
-                          }}
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-               <div className={`${styles.formField} ${styles.formFieldFull}`}>
-                  <label className={styles.formLabel}>Tanggal *</label>
-                  <div style={{ display: "flex", padding: 3, borderRadius: 10, background: "var(--bg2)", border: "1px solid var(--border2)", width: "fit-content", marginBottom: 10 }}>
-                    {(["single", "range"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setDateMode(m)}
-                        style={{
-                          padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 12.5,
-                          background: dateMode === m ? "var(--surface)" : "transparent",
-                          color: dateMode === m ? "var(--brand)" : "var(--t3)",
-                          boxShadow: dateMode === m ? "var(--shadow-sm)" : "none",
-                        }}
-                      >
-                        {m === "single" ? "1 Hari" : "Rentang Tanggal"}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: dateMode === "range" ? "1fr 1fr" : "1fr", gap: 12 }}>
-                    <input type="date" className={`${styles.formInput} premiumInput`} value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-                    {dateMode === "range" && (
-                      <input type="date" className={`${styles.formInput} premiumInput`} value={tanggalTo} onChange={(e) => setTanggalTo(e.target.value)} min={tanggal} />
-                    )}
-                  </div>
-                  {dateMode === "range" && (
-                    <div style={{ marginTop: 12 }}>
-                      <label className={styles.formLabel}>Email Requestor * <span style={{ fontWeight: 400, color: "var(--t3)" }}>(buat notifikasi otomatis)</span></label>
-                      <input
-                        type="email"
-                        className={`${styles.formInput} premiumInput`}
-                        placeholder="nama@perusahaan.com"
-                        value={requestorEmail}
-                        onChange={(e) => setRequestorEmail(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <SectionEyebrow label="Driver & Kendaraan" color="var(--gold2)" />
-              <div className={styles.formGrid}>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Driver *</label>
-                  <select className={`${styles.formSelect} premiumInput`} value={driverId} onChange={(e) => setDriverId(e.target.value)}>
-                    <option value="">Pilih driver</option>
-                    {filteredDrivers.map((d) => (
-                      isUserDriver(d)
-                        ? <option key={d.id} value={d.id} disabled>{d.nama} — Driver User (On Duty{d.assigned_user ? ` · ${d.assigned_user}` : ""})</option>
-                        : <option key={d.id} value={d.id}>{d.nama}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Kendaraan *</label>
-                  <select className={`${styles.formSelect} premiumInput`} value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-                    <option value="">Pilih kendaraan</option>
-                    {filteredVehicles.map((v) => (
-                      <option key={v.id} value={v.id}>{v.nopol} {v.jenis ? `(${v.jenis})` : ""}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <SectionEyebrow label="Detail Tugas" color="var(--purple)" />
-              <div className={styles.formGrid}>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Jenis Pekerjaan *</label>
-                  <select className={`${styles.formSelect} premiumInput`} value={jenisPekerjaan} onChange={(e) => setJenisPekerjaan(e.target.value)}>
-                    <option value="">Pilih jenis</option>
-                    {jobTypes.map((j) => (
-                      <option key={j.id} value={j.label}>{j.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Requestor *</label>
-                  <select className={`${styles.formSelect} premiumInput`} value={requestor} onChange={(e) => handleRequestorPick(e.target.value)}>
-                    <option value="">Pilih pegawai</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.nama}>{emp.nama}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={`${styles.formField} ${styles.formFieldFull}`}>
-                  <label className={styles.formLabel}>Tujuan *</label>
-                  <input
-                    type="text"
-                    className={`${styles.formInput} premiumInput`}
-                    placeholder="Contoh: Kantor Cabang Selatan"
-                    value={tujuan}
-                    onChange={(e) => setTujuan(e.target.value.replace(/[\r\n]+/g, " "))}
-                    onPaste={(e) => {
-                      // Cegah newline mentah masuk lewat paste (mis. copy alamat
-                      // multi-baris dari WhatsApp/Notes). Newline di sini pernah
-                      // menyebabkan email notifikasi tugas tampil sebagai kode
-                      // MIME mentah di Gmail, karena field ini ikut membentuk
-                      // baris header Subject di email. Input satu baris seperti
-                      // ini memang tidak seharusnya berisi newline.
-                      e.preventDefault();
-                      const pasted = e.clipboardData.getData("text").replace(/[\r\n]+/g, " ");
-                      const el = e.currentTarget;
-                      const start = el.selectionStart ?? tujuan.length;
-                      const end = el.selectionEnd ?? tujuan.length;
-                      setTujuan(tujuan.slice(0, start) + pasted + tujuan.slice(end));
-                    }}
-                  />
-                </div>
-
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>Departemen</label>
-                  <input
-                    type="text"
-                    className={`${styles.formInput} premiumInput`}
-                    placeholder="Otomatis terisi"
-                    value={departement}
-                    onChange={(e) => setDepartement(e.target.value)}
-                  />
-                </div>
-
-                <div className={`${styles.formField} ${styles.formFieldFull}`}>
-                  <label className={styles.formLabel}>Perihal (opsional)</label>
-                  <textarea
-                    className={`${styles.formTextarea} premiumInput`}
-                    placeholder="Catatan tambahan untuk driver..."
-                    value={perihal}
-                    onChange={(e) => setPerihal(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {formError && <div className={styles.formError}>{formError}</div>}
-              </div>
-              <div className={styles.modalActions}>
-                <button type="button" className={styles.btnCancel} onClick={onClose}>Batal</button>
-                <button type="submit" className={styles.btnSubmit} disabled={busy}>
-                  {busy ? "Menyimpan..." : "Tugaskan Driver"}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
-      </div>
-    </div>
+    <ModalPortal onOverlayClick={waMessage ? undefined : onClose} maxWidth={waMessage ? 520 : 980}>
+      {waMessage ? (
+        <TaskSuccess
+          message={waMessage}
+          onWhatsapp={`https://wa.me/?text=${encodeURIComponent(waMessage)}`}
+          onDone={() => { setWaMessage(null); onCreated(); }}
+        />
+      ) : (
+        <TaskForm
+          drivers={drivers}
+          vehicles={vehicles}
+          employees={employees}
+          jobTypes={jobTypes}
+          lockedPlant={myProfile?.plantScope ?? null}
+          places={places}
+          busy={busy}
+          error=""
+          onSubmit={handleSubmit}
+          onClose={onClose}
+        />
+      )}
+    </ModalPortal>
   );
 }
 
@@ -3011,7 +2425,7 @@ function HomeTab({
                         <span className={styles.homeAvatar}>{initialsOf(g.driverName)}</span>
                         <span className={styles.homeFeedText}>
                           <b>{g.driverName}</b>
-                          <small>{g.nopol} · {g.plant}{g.tujuan ? ` → ${g.tujuan}` : ""}</small>
+                          <small>{g.nopol} · {g.plant}{g.tujuan ? ` → ${g.tujuan}` : ""}{g.keterangan ? ` · ${g.keterangan}` : ""}</small>
                         </span>
                         <span className={`${styles.homeTag} ${out ? styles.homeTagOut : styles.homeTagIn}`}>
                           {out ? (lang === "en" ? "Out" : "Keluar") : g.status === "IN" ? (lang === "en" ? "In" : "Masuk") : (lang === "en" ? "Done" : "Selesai")} · {fmtClock(out ? g.timeOut : g.timeIn ?? g.timeOut)}
@@ -7252,96 +6666,24 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       </div>
 
       {viewMode === "gatelog" && (
-        <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, padding: "16px 18px" }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <input type="date" className={styles.formInput} style={{ width: "auto" }} value={gateDateFrom} onChange={(e) => setGateDateFrom(e.target.value)} />
-              <span style={{ color: "var(--t3)", fontSize: 12 }}>—</span>
-              <input type="date" className={styles.formInput} style={{ width: "auto" }} value={gateDateTo} onChange={(e) => setGateDateTo(e.target.value)} />
-              <select className={styles.formSelect} style={{ width: "auto" }} value={gatePlantFilter} onChange={(e) => setGatePlantFilter(e.target.value as "all" | Plant)}>
-                <option value="all">{lang === "en" ? "All Plants" : "Semua Plant"}</option>
-                <option value="CIK">CIK</option>
-                <option value="PRB">PRB</option>
-              </select>
-            </div>
-            <button
-              onClick={() => exportGateLogsToCsv(gateLogs)}
-              disabled={gateLogs.length === 0}
-              style={{ padding: "9px 16px", borderRadius: "var(--pill)", border: "1px solid var(--green)", background: "var(--green-soft)", color: "var(--green)", fontWeight: 700, fontSize: 13, cursor: gateLogs.length === 0 ? "not-allowed" : "pointer", opacity: gateLogs.length === 0 ? 0.5 : 1 }}
-            >
-              ⬇ {lang === "en" ? "Export CSV" : "Export CSV"}
-            </button>
-          </div>
-
-          {loadingGateLogs ? (
-            <SkeletonRows rows={5} />
-          ) : gateLogs.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
-              🚧 {lang === "en" ? "No gate log entries in this range" : "Belum ada catatan gate di rentang ini"}
-            </div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="tableCompact" style={{ minWidth: 900, width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th>{lang === "en" ? "Date" : "Tanggal"}</th>
-                    <th>{lang === "en" ? "Plate" : "Plat"}</th>
-                    <th>Driver</th>
-                    <th>{lang === "en" ? "Purpose" : "Tujuan"}</th>
-                    <th>Jam Out</th>
-                    <th>Jam In</th>
-                    <th>Status</th>
-                    <th>Durasi</th>
-                    <th style={{ textAlign: "right" }}>{lang === "en" ? "Actions" : "Aksi"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gateLogs.map((l) => {
-                    const done = l.status === "DONE";
-                    const label = l.plant === "CIK" ? (done ? "Sudah Kembali" : "Sedang Keluar") : (done ? "Sudah Check-Out" : "Sedang Check-In");
-                    const durMin = l.timeOut && l.timeIn ? Math.round(Math.abs(new Date(l.timeIn).getTime() - new Date(l.timeOut).getTime()) / 60000) : null;
-                    const durLabel = durMin === null ? "-" : durMin >= 60 ? `${Math.floor(durMin / 60)}j ${durMin % 60}m` : `${durMin}m`;
-                    return (
-                      <tr key={l.id}>
-                        <td>{formatDateLabel(l.createdAt.slice(0, 10))}</td>
-                        <td style={{ fontWeight: 700 }}>{l.nopol} <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6, color: PLANT_COLOR[l.plant], background: `${PLANT_COLOR[l.plant]}18`, marginLeft: 4 }}>{l.plant}</span></td>
-                        <td>{l.driverName}</td>
-                        <td style={{ color: "var(--t3)" }}>{l.tujuan || "-"}</td>
-                        <td>{l.timeOut ? new Date(l.timeOut).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-"}</td>
-                        <td>{l.timeIn ? new Date(l.timeIn).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-"}</td>
-                        <td>
-                          <span style={{ padding: "4px 10px", borderRadius: "var(--pill)", fontSize: 11.5, fontWeight: 700, background: done ? "var(--green-soft)" : "var(--orange-soft)", color: done ? "var(--green)" : "var(--orange)" }}>
-                            {label}
-                          </span>
-                        </td>
-                        <td style={{ fontFamily: "var(--mono)" }}>{durLabel}</td>
-                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                          {!done && (
-                            <button
-                              onClick={() => handleForceCloseGateLog(l)}
-                              disabled={busyGateLogId === l.id}
-                              title={lang === "en" ? "Force close (manual correction)" : "Tutup manual (koreksi data)"}
-                              style={{ border: "none", background: "var(--green-soft)", color: "var(--green)", borderRadius: 8, cursor: busyGateLogId === l.id ? "wait" : "pointer", padding: "5px 9px", marginRight: 6, fontSize: 11, fontWeight: 700 }}
-                            >
-                              {busyGateLogId === l.id ? "..." : "✓ Tutup"}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setConfirmDeleteGateLog(l)}
-                            title={lang === "en" ? "Delete" : "Hapus"}
-                            style={{ border: "none", background: "var(--red-soft)", color: "var(--red)", borderRadius: 8, cursor: "pointer", padding: "5px 9px" }}
-                          >
-                            🗑️
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <GateLogPanel
+          logs={gateLogs}
+          loading={loadingGateLogs}
+          dateFrom={gateDateFrom}
+          dateTo={gateDateTo}
+          onDateFrom={setGateDateFrom}
+          onDateTo={setGateDateTo}
+          onQuickRange={(days) => {
+            const d = new Date(); const from = new Date(); from.setDate(d.getDate() - days);
+            setGateDateFrom(from.toISOString().slice(0, 10)); setGateDateTo(d.toISOString().slice(0, 10));
+          }}
+          plant={gatePlantFilter}
+          onPlant={setGatePlantFilter}
+          busyId={busyGateLogId}
+          onForceClose={handleForceCloseGateLog}
+          onDelete={setConfirmDeleteGateLog}
+          onExport={() => exportGateLogsToCsv(gateLogs)}
+        />
       )}
 
       <div style={{ display: viewMode === "list" ? "block" : "none" }}>

@@ -18,7 +18,7 @@ import {
   getDriverDutyInfo,
 } from "@/lib/api";
 import type { Claim, Driver, TaskDetail } from "@/lib/types";
-import { computeStats } from "@/lib/types";
+import { computeStats, plantLocation } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
 import { todayLocalISODate } from "@/lib/dateUtils";
@@ -1099,6 +1099,13 @@ function TaskCard({
       </div>
 
       <div className={styles.cardMeta}>
+        <div className={styles.metaRow}>
+          <div className={`${styles.mi} ${styles.miGreen}`}>🚩</div>
+          <div className={styles.metaContent}>
+            <div className={styles.ml}>{lang === "en" ? "From" : "Dari"}</div>
+            <div className={styles.mv}>{(task.lokasi_asal && task.lokasi_asal.trim()) || plantLocation(task.plant)}</div>
+          </div>
+        </div>
         <div className={styles.metaRow}>
           <div className={`${styles.mi} ${styles.miBlue}`}>🚗</div>
           <div className={styles.metaContent}>

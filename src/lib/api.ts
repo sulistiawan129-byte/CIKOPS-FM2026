@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { todayLocalISODate } from "./dateUtils";
+import { plantLocation } from "./types";
 import type {
   Claim,
   ClaimItem,
@@ -74,6 +75,7 @@ export interface ViewOnlyGateLog {
   driverName: string;
   plant: Plant;
   tujuan: string;
+  keterangan?: string;
   timeOut: string | null;
   timeIn: string | null;
   status: "OUT" | "IN" | "DONE";
@@ -89,7 +91,7 @@ async function gateFallback(): Promise<{ gate: ViewOnlyGateLog[]; gateReady: boo
       gateReady: true,
       gate: rows.map((r) => ({
         id: r.id, nopol: r.nopol, jenis: r.jenis, driverName: r.driverName, plant: r.plant,
-        tujuan: r.tujuan, timeOut: r.timeOut, timeIn: r.timeIn, status: r.status, createdAt: r.createdAt,
+        tujuan: r.tujuan, keterangan: r.keterangan, timeOut: r.timeOut, timeIn: r.timeIn, status: r.status, createdAt: r.createdAt,
       })),
     };
   } catch {
@@ -106,7 +108,7 @@ export async function getViewOnlySnapshot(): Promise<{
       tasks?: TaskDetail[]; drivers?: Driver[]; vehicles?: Vehicle[];
       gate?: Array<{
         id: string; nopol: string | null; jenis: string | null; driver_name: string | null; plant: Plant;
-        tujuan: string | null; time_out: string | null; time_in: string | null;
+        tujuan: string | null; keterangan?: string | null; time_out: string | null; time_in: string | null;
         status: "OUT" | "IN" | "DONE"; created_at: string;
       }>;
     };
@@ -117,7 +119,7 @@ export async function getViewOnlySnapshot(): Promise<{
         gateReady: true,
         gate: d.gate.map((g) => ({
           id: g.id, nopol: g.nopol ?? "-", jenis: g.jenis ?? "-", driverName: g.driver_name ?? "-",
-          plant: g.plant, tujuan: g.tujuan ?? "", timeOut: g.time_out, timeIn: g.time_in,
+          plant: g.plant, tujuan: g.tujuan ?? "", keterangan: g.keterangan ?? "", timeOut: g.time_out, timeIn: g.time_in,
           status: g.status, createdAt: g.created_at,
         })),
       };
@@ -267,6 +269,30 @@ export async function changeDriverPassword(newPassword: string): Promise<void> {
 }
 
 /* ════════════════════════════════════════════════════════════
+   LOKASI KEBERANGKATAN (Dari mana → kemana) — migrasi 017
+   Dibaca lewat RPC terpisah supaya view tasks_detail tidak perlu diubah.
+   Bila RPC/kolom belum ada, tiap tugas jatuh ke lokasi plant-nya.
+════════════════════════════════════════════════════════════ */
+
+export async function withOrigins(rows: TaskDetail[]): Promise<TaskDetail[]> {
+  if (rows.length === 0) return rows;
+  const map = new Map<string, string>();
+  try {
+    const ids = rows.map((r) => r.id);
+    for (let i = 0; i < ids.length; i += 300) {
+      const { data, error } = await supabase.rpc("get_task_origins", { p_ids: ids.slice(i, i + 300) });
+      if (error) throw error;
+      for (const r of (data ?? []) as { id: string; lokasi_asal: string | null }[]) {
+        if (r.lokasi_asal && r.lokasi_asal.trim()) map.set(r.id, r.lokasi_asal.trim());
+      }
+    }
+  } catch {
+    /* migrasi 017 belum dijalankan → pakai lokasi plant */
+  }
+  return rows.map((r) => ({ ...r, lokasi_asal: map.get(r.id) ?? plantLocation(r.plant) }));
+}
+
+/* ════════════════════════════════════════════════════════════
    TASKS — driver panel
 ════════════════════════════════════════════════════════════ */
 
@@ -281,7 +307,7 @@ export async function getDriverTasksToday(
     .eq("tanggal", today)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return withOrigins(data ?? []);
 }
 
 export async function getDriverHistory(
@@ -297,7 +323,7 @@ export async function getDriverHistory(
     .lte("tanggal", dateTo)
     .order("tanggal", { ascending: false });
   if (error) throw error;
-  return data ?? [];
+  return withOrigins(data ?? []);
 }
 
 export async function acceptTask(
@@ -351,7 +377,7 @@ export async function getTasksByDate(
   if (plant) q = q.eq("plant", plant);
   const { data, error } = await q;
   if (error) throw error;
-  return data ?? [];
+  return withOrigins(data ?? []);
 }
 
 export async function getTasksByRange(
@@ -380,12 +406,14 @@ export interface CreateTaskInput {
   requestor: string;
   departement: string;
   perihal?: string;
-  plant: Plant; 
+  plant: Plant;
+  /** Lokasi keberangkatan / penjemputan (Dari mana). Kosong → lokasi plant. */
+  lokasi_asal?: string;
   }
 
   
 export async function createTask(input: CreateTaskInput): Promise<void> {
-  const { error } = await supabase.from("tasks").insert({
+  const row = {
     tanggal: input.tanggal,
     driver_id: input.driver_id,
     vehicle_id: input.vehicle_id,
@@ -396,7 +424,16 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
     perihal: input.perihal || "",
     status: "ASSIGNED",
     plant: input.plant,
-  });
+  };
+  const asal = (input.lokasi_asal ?? "").trim();
+  if (asal) {
+    const { error } = await supabase.from("tasks").insert({ ...row, lokasi_asal: asal });
+    if (!error) return;
+    // Kolom belum ada (migrasi 017 belum dijalankan) → simpan tanpa lokasi asal
+    const missing = error.code === "42703" || error.code === "PGRST204" || /lokasi_asal/i.test(error.message || "");
+    if (!missing) throw error;
+  }
+  const { error } = await supabase.from("tasks").insert(row);
   if (error) throw error;
 }
 
@@ -411,6 +448,8 @@ export interface CreateTaskBatchInput {
   plant: Plant;
   dateFrom: string;
   dateTo: string;
+  /** Lokasi keberangkatan / penjemputan (Dari mana). */
+  lokasiAsal?: string;
 }
 
 export async function createTaskBatch(input: CreateTaskBatchInput): Promise<{ createdCount: number; batchId: string }> {
@@ -428,7 +467,14 @@ export async function createTaskBatch(input: CreateTaskBatchInput): Promise<{ cr
   });
   if (error) throw error;
   const row = data?.[0];
-  return { createdCount: row?.created_count ?? 0, batchId: row?.batch_id ?? "" };
+  const batchId: string = row?.batch_id ?? "";
+  // Best-effort: isi lokasi asal untuk seluruh hari di batch ini (migrasi 017)
+  if (batchId && input.lokasiAsal?.trim()) {
+    try {
+      await supabase.rpc("set_task_origin_batch", { p_batch_id: batchId, p_asal: input.lokasiAsal.trim() });
+    } catch { /* abaikan — default lokasi plant tetap berlaku */ }
+  }
+  return { createdCount: row?.created_count ?? 0, batchId };
 }
 
 export async function sendTaskBatchEmail(input: {
@@ -439,6 +485,8 @@ export async function sendTaskBatchEmail(input: {
   vehicleLabel: string;
   jenisPekerjaan: string;
   tujuan: string;
+  /** Lokasi keberangkatan / penjemputan (opsional). */
+  asal?: string;
   departement: string;
   perihal?: string;
   dateFrom: string;
@@ -460,6 +508,7 @@ export async function sendTaskBatchEmail(input: {
     vehicleLabel: input.vehicleLabel,
     jenisPekerjaan: input.jenisPekerjaan,
     tujuan: input.tujuan,
+    asal: input.asal,
     departement: input.departement,
     perihal: input.perihal,
     dateFrom: input.dateFrom,
@@ -843,6 +892,7 @@ interface GatePublicLogApiRow {
 export async function getGateLogsPublic(date?: string): Promise<VehicleGateLog[]> {
   const { data, error } = await supabase.rpc("get_gate_logs_public", { p_date: date ?? null });
   if (error) throw error;
+  const notes = await gateNotes((data as GatePublicLogApiRow[] ?? []).map((r) => r.log_id));
   return (data as GatePublicLogApiRow[] ?? []).map((r) => ({
     id: r.log_id,
     vehicleId: r.vehicle_id,
@@ -854,11 +904,30 @@ export async function getGateLogsPublic(date?: string): Promise<VehicleGateLog[]
     driverName: r.driver_name,
     plant: r.plant,
     tujuan: r.tujuan ?? "",
+    keterangan: notes.get(r.log_id) ?? "",
     timeOut: r.time_out,
     timeIn: r.time_in,
     status: r.status,
     createdAt: r.created_at,
   }));
+}
+
+/** Keterangan log gate (migrasi 018). Bila RPC/kolom belum ada → kosong. */
+async function gateNotes(ids: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (ids.length === 0) return map;
+  try {
+    for (let i = 0; i < ids.length; i += 300) {
+      const { data, error } = await supabase.rpc("get_gate_keterangan", { p_ids: ids.slice(i, i + 300) });
+      if (error) throw error;
+      for (const r of (data ?? []) as { id: string; keterangan: string | null }[]) {
+        if (r.keterangan && r.keterangan.trim()) map.set(r.id, r.keterangan.trim());
+      }
+    }
+  } catch {
+    /* migrasi 018 belum dijalankan */
+  }
+  return map;
 }
 
 /** Buka catatan baru dari form operator (tanggal, driver, kendaraan, tujuan). */
@@ -867,6 +936,7 @@ export async function openGateCheckpoint(input: {
   driverId?: string | null;
   driverNameManual?: string | null;
   tujuan: string;
+  keterangan?: string;
   timestamp?: string; // ISO — kalau tidak diisi, RPC pakai now()
 }): Promise<void> {
   const { error } = await supabase.rpc("open_gate_checkpoint", {
@@ -877,6 +947,11 @@ export async function openGateCheckpoint(input: {
     p_timestamp: input.timestamp ?? new Date().toISOString(),
   });
   if (error) throw error;
+  const note = (input.keterangan ?? "").trim();
+  if (note) {
+    // Best-effort: sebelum migrasi 018 dijalankan, catatan tidak tersimpan tapi catat gate tetap berhasil.
+    await supabase.rpc("set_gate_keterangan", { p_vehicle_id: input.vehicleId, p_keterangan: note });
+  }
 }
 
 /** Tutup catatan (tombol kontrol di list) — satu klik, tidak butuh input. */
@@ -892,6 +967,7 @@ interface GateLogRow {
   driver_name_manual: string | null;
   plant: Plant;
   tujuan: string | null;
+  keterangan?: string | null;
   time_out: string | null;
   time_in: string | null;
   status: "OUT" | "IN" | "DONE";
@@ -912,6 +988,7 @@ function mapGateLogRow(r: GateLogRow): VehicleGateLog {
     driverName: r.driver_name_manual || r.drivers?.nama || "-",
     plant: r.plant,
     tujuan: r.tujuan ?? "",
+    keterangan: r.keterangan ?? "",
     timeOut: r.time_out,
     timeIn: r.time_in,
     status: r.status,

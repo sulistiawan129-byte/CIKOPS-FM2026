@@ -116,6 +116,7 @@ export default function GatePage() {
   const [useManualDriver, setUseManualDriver] = useState(false);
   const [driverManual, setDriverManual] = useState("");
   const [tujuan, setTujuan] = useState("");
+  const [keterangan, setKeterangan] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [busyLogId, setBusyLogId] = useState<string | null>(null);
   const vehicleInputRef = useRef<HTMLDivElement>(null);
@@ -220,9 +221,10 @@ export default function GatePage() {
         driverId: useManualDriver ? null : driverId,
         driverNameManual: useManualDriver ? driverManual.trim() : null,
         tujuan: tujuan.trim(),
+        keterangan: keterangan.trim(),
         timestamp: ts,
       });
-      setVehicleId(""); setVehicleSearch(""); setDriverId(""); setUseManualDriver(false); setDriverManual(""); setTujuan("");
+      setVehicleId(""); setVehicleSearch(""); setDriverId(""); setUseManualDriver(false); setDriverManual(""); setTujuan(""); setKeterangan("");
       await loadLogs();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal mencatat data");
@@ -259,7 +261,7 @@ export default function GatePage() {
   const searchedList = currentList.filter((l) => {
     const q = search.toLowerCase();
     if (!q) return true;
-    return l.driverName.toLowerCase().includes(q) || l.nopol.toLowerCase().includes(q) || l.tujuan.toLowerCase().includes(q);
+    return l.driverName.toLowerCase().includes(q) || l.nopol.toLowerCase().includes(q) || l.tujuan.toLowerCase().includes(q) || (l.keterangan ?? "").toLowerCase().includes(q);
   });
   const totalPages = Math.max(1, Math.ceil(searchedList.length / PAGE_SIZE));
   const pageSafe = Math.min(page, totalPages);
@@ -395,7 +397,7 @@ export default function GatePage() {
 
           <div style={{ marginBottom: 28 }}>
             <label style={labelStyle}>KEPERLUAN / CATATAN</label>
-            <textarea placeholder="Keperluan perjalanan..." rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
+            <textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Keperluan perjalanan..." rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
           </div>
 
           <button
@@ -425,7 +427,7 @@ export default function GatePage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cari driver, kendaraan, tujuan..."
+                  placeholder="Cari driver, kendaraan, tujuan, keterangan..."
                   style={{ ...inputStyle, width: 260, padding: "10px 14px 10px 34px", fontSize: 13.5 }}
                 />
                 <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: P.textMuted, fontSize: 13 }}>⌕</span>
@@ -458,7 +460,7 @@ export default function GatePage() {
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
                 <thead>
                   <tr style={{ background: P.tableHeadBg }}>
-                    {["NO", "DRIVER", "KENDARAAN", "TUJUAN", "CHECK-IN", "CHECK-OUT", "STATUS", "AKSI"].map((h, i) => (
+                    {["NO", "DRIVER", "KENDARAAN", "TUJUAN / KETERANGAN", "CHECK-IN", "CHECK-OUT", "STATUS", "AKSI"].map((h, i) => (
                       <th key={h} style={{ padding: "12px 16px", fontSize: 11, fontWeight: 800, color: P.textMuted, letterSpacing: "0.05em", textAlign: i === 7 ? "right" : "left", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -480,7 +482,10 @@ export default function GatePage() {
                           <div style={{ fontWeight: 800, fontSize: 14, color: P.textPrimary, fontFamily: "var(--font-mono, monospace)" }}>{l.nopol}</div>
                           <div style={{ fontSize: 11.5, color: P.textMuted }}>{l.jenis}{l.color ? ` - ${l.color}` : ""}</div>
                         </td>
-                        <td style={{ padding: "16px", fontSize: 13.5, color: P.textSecondary, maxWidth: 160 }}>{l.tujuan || "-"}</td>
+                        <td style={{ padding: "16px", fontSize: 13.5, color: P.textSecondary, minWidth: 200, maxWidth: 260 }}>
+                          {l.tujuan || "-"}
+                          {l.keterangan ? <div style={{ fontSize: 11.5, color: P.textMuted, marginTop: 3, lineHeight: 1.35, whiteSpace: "pre-wrap" }}>{l.keterangan}</div> : null}
+                        </td>
                         <td style={{ padding: "16px", fontSize: 13, color: P.textSecondary }}>
                           {first ? <>{fmtJam(first)}<div style={{ fontSize: 11, color: P.textMuted }}>{fmtTgl(first)}</div></> : "-"}
                         </td>

@@ -215,6 +215,7 @@ export interface VehicleGateLog {
   driverName: string; // resolved: driverNameManual jika ada, kalau tidak nama driver terdaftar
   plant: Plant;
   tujuan: string;
+  keterangan?: string;
   timeOut: string | null;
   timeIn: string | null;
   status: "OUT" | "IN" | "DONE";
@@ -328,6 +329,14 @@ export interface TaskDetail {
   plant: Plant;
   batch_id: string | null;
   batch_total_days: number;
+  /** Lokasi keberangkatan / penjemputan (Dari mana). Tujuan ada di `tujuan`.
+   *  Dilengkapi dari tabel tasks (migrasi 017); bila kosong dianggap lokasi plant. */
+  lokasi_asal?: string | null;
+}
+
+/** Nama lokasi default sebuah plant — dipakai sebagai "Dari" untuk tugas lama. */
+export function plantLocation(plant: Plant | null | undefined): string {
+  return plant === "PRB" ? "Plant Pasar Rebo" : "Plant Cikarang";
 }
 
 export interface TaskStats {

@@ -470,7 +470,7 @@ function GateRow({ g, dir }: { g: ViewOnlyGateLog; dir: "in" | "out" }) {
       <div className="av sm">{initials(g.driverName)}</div>
       <div className="d-main">
         <div className="d-name sm">{shortName(g.driverName)}</div>
-        <div className="g-text"><span className="plate">{plate(g.nopol)}</span> {dir === "out" ? `ke ${titleCase(g.tujuan) || "—"}` : sentence(g.tujuan) || "—"}</div>
+        <div className="g-text"><span className="plate">{plate(g.nopol)}</span> {dir === "out" ? `ke ${titleCase(g.tujuan) || "—"}` : sentence(g.tujuan) || "—"}{g.keterangan ? <span className="g-note"> · {sentence(g.keterangan)}</span> : null}</div>
       </div>
       <div className="g-time">{fmtTime(dir === "out" ? g.timeOut : g.timeIn)}</div>
     </div>
@@ -617,10 +617,10 @@ export default function TvDisplayPage() {
     for (const g of m.gate) {
       const who = `${shortName(g.driverName)} (${g.plant}) · ${plate(g.nopol)}`;
       if (g.plant === "CIK") {
-        add(g.timeOut, `↗ KELUAR · ${who} → ${titleCase(g.tujuan) || "—"}`);
+        add(g.timeOut, `↗ KELUAR · ${who} → ${titleCase(g.tujuan) || "—"}${g.keterangan ? ` (${sentence(g.keterangan)})` : ""}`);
         add(g.timeIn, `↙ KEMBALI · ${who}`);
       } else {
-        add(g.timeIn, `↙ MASUK CIK · ${who}${g.tujuan ? ` · ${titleCase(g.tujuan)}` : ""}`);
+        add(g.timeIn, `↙ MASUK CIK · ${who}${g.tujuan ? ` · ${titleCase(g.tujuan)}` : ""}${g.keterangan ? ` (${sentence(g.keterangan)})` : ""}`);
         add(g.timeOut, `↗ KELUAR CIK · ${who}`);
       }
     }
@@ -777,6 +777,7 @@ export default function TvDisplayPage() {
         :global(.g-row.out) { --tone: var(--amber); }
         :global(.g-row .av) { background: var(--tone); }
                 :global(.g-text) { margin-top: .1rem; font-size: .9rem; line-height: 1.5; color: var(--t2); overflow-wrap: anywhere; }
+                :global(.g-note) { color: var(--t3); font-style: italic; }
         :global(.plate) { margin-right: .3rem; font-family: var(--font-jetbrains-mono), monospace; font-size: .8rem; font-weight: 700; padding: .05rem .4rem; border-radius: .35rem; background: var(--card2); border: 1px solid var(--line); color: var(--t1); flex-shrink: 0; }
         :global(.g-time) { font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--t2); flex-shrink: 0; }
 

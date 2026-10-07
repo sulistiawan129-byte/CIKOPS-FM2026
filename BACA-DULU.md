@@ -1,3 +1,51 @@
+# Redesign V2.10 — Gate Log di dashboard
+
+Tidak ada SQL baru (SQL 018 dari V2.9 tetap perlu dijalankan agar keterangan tampil). Ganti file, lalu deploy.
+
+## Baru di V2.10 (Armada -> Gate Log)
+- Ringkasan di atas: total catatan, sedang aktif, selesai, rata-rata durasi.
+- Filter: rentang cepat (Hari ini / 7 hari / 30 hari) plus tanggal manual, plant (Semua/CIK/PRB), status (Semua/Aktif/Selesai), dan kolom cari (plat, driver, tujuan, keterangan). Ekspor CSV tetap ada.
+- Daftar dikelompokkan per hari. Tiap catatan: plat + plant, driver, tujuan, keterangan (kotak tersendiri), jam keluar -> kembali (atau masuk CIK -> keluar CIK) dengan durasi, status berwarna, tombol Tutup (koreksi) dan Hapus.
+- File baru: src/app/dashboard/GateUI.tsx, gate.module.css. Berubah: dashboard/page.tsx.
+
+---
+# Redesign V2.9 — penyempurnaan Penugasan & Gate
+
+## LANGKAH PERTAMA (V2.9): jalankan 1 SQL di Supabase -> SQL Editor
+`supabase/018_gate_keterangan.sql` (sesudah 014, 015, 016, 017). Isinya:
+- kolom baru `vehicle_gate_logs.keterangan` (isi kolom "Keperluan / Catatan" di form /gate),
+- fungsi kecil untuk menyimpan dan membaca keterangan; fungsi gate yang lama TIDAK diubah,
+- `get_viewonly_snapshot` diperbarui agar gate memuat keterangan.
+Aman dijalankan ulang. Tanpa SQL ini aplikasi tetap jalan, tetapi keterangan belum tersimpan.
+(Kalau 017 belum dijalankan, jalankan 017 dulu — lihat catatan V2.8 di bawah.)
+
+## Baru di V2.9
+- Penugasan: timeline/stepper di kartu dihapus, diganti satu baris jam biasa (Ditugaskan, Berjalan, Selesai).
+- Form penugasan: driver dan kendaraan kini dropdown (Driver User tetap tampil tapi tidak bisa dipilih). Plant tetap menyaring isi dropdown.
+- Bukti cetak: tanpa logo, hanya nama perusahaan + judul "BUKTI PERMINTAAN DAN PENUGASAN DRIVER". Kolom tanda tangan dihapus. Kolom jam gate dan KM untuk diisi tangan tetap ada.
+- Gate: keterangan sekarang tersimpan dan tampil di halaman /gate (di bawah tujuan, ikut dicari), tab Gate di dashboard, feed "Aktivitas gate" di Beranda, dan Dashboard-ViewOnly.
+- File baru: supabase/018_gate_keterangan.sql. File berubah: TasksUI.tsx, tasks.module.css, taskSlip.ts, gate/page.tsx, dashboard/page.tsx, dashboard-viewonly/page.tsx, lib/api.ts, lib/types.ts.
+
+---
+## Catatan V2.8 (SQL 017): jalankan 1 SQL di Supabase → SQL Editor
+`supabase/017_task_origin.sql` (sesudah 014, 015, 016). Isinya:
+- kolom baru `tasks.lokasi_asal` (Dari mana),
+- data lama otomatis diisi sesuai plant: CIK → "Plant Cikarang", PRB → "Plant Pasar Rebo",
+- tugas baru tanpa lokasi asal otomatis memakai lokasi plant-nya,
+- dua fungsi kecil untuk membaca dan mengisi lokasi asal. View `tasks_detail` TIDAK diubah.
+Aman dijalankan ulang. Tanpa SQL ini aplikasi tetap jalan: "Dari" memakai lokasi plant, tetapi lokasi yang diketik di form belum tersimpan.
+
+Opsional: deploy ulang edge function `send-task-email` supaya email konfirmasi memuat baris "Lokasi Keberangkatan".
+
+## Baru di V2.8
+- Form penugasan: rute "Dari mana → kemana" (tombol Tukar untuk perjalanan pulang, saran lokasi), pilih driver/kendaraan/jenis pekerjaan lewat chip, tiket pratinjau di kanan, daftar kelengkapan.
+- Papan penugasan: navigator tanggal, bar status yang bisa diklik sebagai filter, kartu tugas dengan rute Dari → Tujuan (teks tidak dipotong) dan progres Ditugaskan → Berjalan → Selesai.
+- Cetak bukti penugasan: tombol "Cetak bukti" di tiap tugas dan "Cetak semua" untuk tugas yang tampil. A4, dua bukti per lembar, kolom tanda tangan, kolom jam gate dan KM untuk diisi tangan.
+- Aplikasi driver: kartu tugas menampilkan "Dari".
+- Pesan WhatsApp dan email memuat lokasi keberangkatan.
+- File baru: src/app/dashboard/TasksUI.tsx, tasks.module.css, src/lib/taskSlip.ts, supabase/017_task_origin.sql.
+
+---
 # Redesign V2.7 — modul Klaim
 
 Tidak ada SQL baru. Cukup ganti file, lalu deploy.
