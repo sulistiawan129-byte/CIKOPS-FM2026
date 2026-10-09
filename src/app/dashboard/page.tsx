@@ -2339,7 +2339,7 @@ function HomeTab({
   const readyPct = vehiclesTotal > 0 ? Math.round((vehiclesFree / vehiclesTotal) * 100) : 0;
 
   return (
-    <div className={styles.homeLayout} style={prbOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
+    <div className={`${styles.homeLayout} ${hm.exec}`} style={prbOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
       <div className={styles.homeMain}>
         {!filteredGroup && (
           <>

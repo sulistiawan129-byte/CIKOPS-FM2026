@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Mono, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Space_Mono, Plus_Jakarta_Sans, JetBrains_Mono, Chakra_Petch, Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/lib/providers";
 import { AuthProvider } from "@/lib/auth";
@@ -23,6 +23,21 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+// Tema "executive" (sama dengan Dashboard-ViewOnly) — dipakai di Beranda dashboard.
+const execDisplay = Chakra_Petch({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-exec-display",
+  display: "swap",
+});
+
+const execBody = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-exec-body",
   display: "swap",
 });
 
@@ -63,7 +78,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id" className={`${spaceMono.variable} ${jakarta.variable} ${jetbrainsMono.variable}`}>
+    <html lang="id" className={`${spaceMono.variable} ${jakarta.variable} ${jetbrainsMono.variable} ${execDisplay.variable} ${execBody.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

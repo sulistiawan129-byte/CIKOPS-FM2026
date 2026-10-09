@@ -1,3 +1,18 @@
+# Redesign V2.18 — Beranda bertema "executive" (seperti Dashboard-ViewOnly)
+
+Tidak ada SQL baru. Ganti 3 file, lalu deploy.
+
+## Baru di V2.18
+- Seluruh Beranda kini satu kanvas gelap seperti Dashboard-ViewOnly: latar navy #050b1c dengan grid halus dan cahaya biru/cyan, panel kaca gelap.
+- Font sama dengan ViewOnly: Chakra Petch untuk judul, angka, jam, dan nama driver; Inter untuk teks. Judul panel huruf kapital berjarak lebar.
+- Header: jam besar bercahaya, sapaan, tombol Tugaskan driver (biru menyala), ViewOnly, Salin link, dan 3 angka utama berwarna.
+- KPI: kartu dengan garis warna di atas dan angka besar berwarna (biru, cyan, ungu, hijau, kuning).
+- Baris tugas dan gate bernada warna sesuai status (biru berjalan, kuning menunggu/keluar, hijau selesai), nama driver kapital, badge LIVE merah seperti ViewOnly.
+- Widget kanan (kalender, agenda, pengumuman) otomatis ikut gelap.
+- Responsif: papan berganti 3 / 2 / 1 kolom mengikuti lebar area, KPI 2 kolom di HP.
+- Berubah: src/app/layout.tsx (tambah font Chakra Petch & Inter), src/app/dashboard/page.tsx, src/app/dashboard/home.module.css.
+
+---
 # Redesign V2.17 — Dashboard utama: tata letak baru
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy.
