@@ -1,3 +1,17 @@
+# Redesign V2.15 — dashboard Kantin
+
+Tidak ada SQL baru. Ganti 2 file, lalu deploy. Form input harian di /canteen tidak berubah.
+
+## Baru di V2.15 (menu Kantin)
+- Header dengan ekspor CSV & PDF; periode Harian / Mingguan / Bulanan / Kustom dengan tombol mundur-maju.
+- Ring efisiensi keseluruhan + status (Sangat baik / Baik / Cukup / Perlu perhatian), dan kartu Snack & Makan (persen terpakai, order, terpakai, sisa). Klik kartu untuk mengganti grafik.
+- Catatan otomatis: hari dengan sisa terbanyak (snack & makan) dan shift yang paling banyak menyisakan.
+- Grafik harian interaktif: batang terpakai + sisa, tooltip saat diarahkan, klik batang untuk memilih hari.
+- Panel "Per shift" (Shift 1/2/3): efisiensi & sisa snack/makan untuk seluruh periode, atau hari yang dipilih.
+- Tabel laporan harian: order, sisa, efisiensi (berwarna), pelapor, hapus. Klik baris = pilih hari.
+- Berubah: src/app/dashboard/CanteenTab.tsx, baru: src/app/dashboard/canteen.module.css.
+
+---
 # Redesign V2.14 — modul Overtime dihapus
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy. Data overtime di database TIDAK dihapus (tabel tetap ada, hanya tidak ditampilkan).

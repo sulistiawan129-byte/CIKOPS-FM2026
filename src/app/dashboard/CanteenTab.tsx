@@ -1,28 +1,24 @@
 "use client";
 
+/* ════════════════════════════════════════════════════════════
+   KANTIN — dashboard (admin, baca + hapus). Input harian ada di /canteen.
+   - Periode: Harian / Mingguan / Bulanan / Kustom, dengan tombol mundur/maju
+   - Ring efisiensi keseluruhan + kartu Snack & Makan
+   - Grafik harian interaktif (hover = tooltip, klik = pilih hari)
+   - Rincian per shift (1/2/3) untuk periode atau hari terpilih
+   - Catatan otomatis, tabel harian, ekspor CSV & PDF, hapus laporan
+════════════════════════════════════════════════════════════ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
 import { useLang } from "@/lib/providers";
 import { ModalPortal } from "@/components/ModalPortal";
 import { getAllCanteenReports, deleteCanteenReport } from "@/lib/api";
 import type { CanteenReport } from "@/lib/types";
 import { exportCanteenToPdf } from "@/lib/canteenReport";
-
-/* ════════════════════════════════════════════════════════════
-   CANTEEN DASHBOARD — self-contained (own styles/helpers), covering:
-     - Period filter: Day / Week / Month / Custom
-     - Snack / Meal / Overall summary cards (Ordered, Consumed,
-       Leftover, Efficiency)
-     - Auto-generated text analysis
-     - Daily trend chart per category, Bar/Line toggle
-     - Period summary block per category
-     - CSV export
-     - Daily detail list (existing feature, kept)
-   Daily entry itself now lives on the public /canteen page — this
-   tab is admin/read-only + delete, matching the Locker module split.
-════════════════════════════════════════════════════════════ */
+import c from "./canteen.module.css";
 
 type PeriodMode = "day" | "week" | "month" | "custom";
+type Cat = "snack" | "meal";
 
 interface DayAgg {
   date: string;
@@ -34,92 +30,74 @@ interface DayAgg {
   mealConsumed: number;
 }
 
-function toISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+const SHIFTS = ["Shift 1", "Shift 2", "Shift 3"];
 
-function weekRangeOf(dateStr: string): { from: string; to: string } {
+function toISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function weekRangeOf(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
   const day = d.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
   const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
+  monday.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   return { from: toISO(monday), to: toISO(sunday) };
 }
-
-function fmtRp(n: number): string {
-  return new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+const num = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+const pctTxt = (n: number) => `${n.toFixed(1).replace(".", ",")}%`;
+function dShort(iso: string) {
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
-
-function fmtDateShort(iso: string, lang: string): string {
-  try {
-    return new Date(iso + "T00:00:00").toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short" });
-  } catch {
-    return iso;
-  }
+function dFull(iso: string) {
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
-
-function fmtDateFull(iso: string, lang: string): string {
-  try {
-    return new Date(iso + "T00:00:00").toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return iso;
-  }
-}
-
+const sum3 = (a: number[]) => (a[0] || 0) + (a[1] || 0) + (a[2] || 0);
 function toDayAgg(r: CanteenReport): DayAgg {
-  const snackOrder = r.snackOrder[0] + r.snackOrder[1] + r.snackOrder[2];
-  const snackLeftover = r.snackLeftover[0] + r.snackLeftover[1] + r.snackLeftover[2];
-  const mealOrder = r.mealOrder[0] + r.mealOrder[1] + r.mealOrder[2];
-  const mealLeftover = r.mealLeftover[0] + r.mealLeftover[1] + r.mealLeftover[2];
+  const snackOrder = sum3(r.snackOrder), snackLeftover = sum3(r.snackLeftover);
+  const mealOrder = sum3(r.mealOrder), mealLeftover = sum3(r.mealLeftover);
   return {
     date: r.reportDate,
-    snackOrder,
-    snackLeftover,
-    snackConsumed: Math.max(0, snackOrder - snackLeftover),
-    mealOrder,
-    mealLeftover,
-    mealConsumed: Math.max(0, mealOrder - mealLeftover),
+    snackOrder, snackLeftover, snackConsumed: Math.max(0, snackOrder - snackLeftover),
+    mealOrder, mealLeftover, mealConsumed: Math.max(0, mealOrder - mealLeftover),
   };
 }
-
-function effOf(consumed: number, order: number): number {
-  return order > 0 ? (consumed / order) * 100 : 0;
+const effOf = (consumed: number, order: number) => (order > 0 ? (consumed / order) * 100 : 0);
+function health(eff: number, hasData: boolean): { label: string; tone: string } {
+  if (!hasData) return { label: "Belum ada data", tone: c.tMute };
+  if (eff >= 97) return { label: "Sangat baik", tone: c.tGood };
+  if (eff >= 90) return { label: "Baik", tone: c.tGood };
+  if (eff >= 80) return { label: "Cukup", tone: c.tWarn };
+  return { label: "Perlu perhatian", tone: c.tBad };
 }
 
-function healthLabel(eff: number, lang: string): string {
-  if (eff >= 97) return lang === "en" ? "Excellent" : "Sangat Baik";
-  if (eff >= 90) return lang === "en" ? "Good" : "Baik";
-  if (eff >= 80) return lang === "en" ? "Normal" : "Cukup";
-  return lang === "en" ? "Needs Attention" : "Perlu Perhatian";
-}
-
-const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
+const IcPrev = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>;
+const IcNext = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>;
+const IcDown = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v12m0 0-4-4m4 4 4-4M5 20h14" /></svg>;
+const IcTrash = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>;
+const IcBulb = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2l.1.7h4.8l.1-.7c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z" /></svg>;
 
 export default function CanteenTab() {
-  const { lang, t } = useLang();
+  const { t } = useLang();
   const now = new Date();
 
   const [allRows, setAllRows] = useState<CanteenReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<CanteenReport | null>(null);
-  const [chartMode, setChartMode] = useState<"bar" | "line">("line");
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const [mode, setMode] = useState<PeriodMode>("month");
   const [dayValue, setDayValue] = useState(toISO(now));
   const [monthValue, setMonthValue] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
-  const [customFrom, setCustomFrom] = useState(() => {
-    const d = new Date(now.getFullYear(), now.getMonth(), 1);
-    return toISO(d);
-  });
+  const [customFrom, setCustomFrom] = useState(toISO(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [customTo, setCustomTo] = useState(toISO(now));
+
+  const [cat, setCat] = useState<Cat>("snack");
+  const [hover, setHover] = useState<number | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,15 +110,13 @@ export default function CanteenTab() {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function handleDelete() {
     if (!confirmDelete) return;
     try {
       await deleteCanteenReport(confirmDelete.id);
+      if (picked === confirmDelete.reportDate) setPicked(null);
       setConfirmDelete(null);
       await load();
     } catch (e) {
@@ -148,79 +124,99 @@ export default function CanteenTab() {
     }
   }
 
-  // ── Resolve the active [from, to] range + label from the selected mode ──
   const { rangeFrom, rangeTo, periodLabel } = useMemo(() => {
-    if (mode === "day") {
-      return { rangeFrom: dayValue, rangeTo: dayValue, periodLabel: fmtDateFull(dayValue, lang) };
-    }
+    if (mode === "day") return { rangeFrom: dayValue, rangeTo: dayValue, periodLabel: dFull(dayValue) };
     if (mode === "week") {
       const { from, to } = weekRangeOf(dayValue);
-      return { rangeFrom: from, rangeTo: to, periodLabel: `${fmtDateShort(from, lang)} – ${fmtDateShort(to, lang)}` };
+      return { rangeFrom: from, rangeTo: to, periodLabel: `${dShort(from)} – ${dShort(to)}` };
     }
-    if (mode === "custom") {
-      return { rangeFrom: customFrom, rangeTo: customTo, periodLabel: `${fmtDateShort(customFrom, lang)} – ${fmtDateShort(customTo, lang)}` };
-    }
-    // month
-    const from = `${monthValue}-01`;
+    if (mode === "custom") return { rangeFrom: customFrom, rangeTo: customTo, periodLabel: `${dShort(customFrom)} – ${dShort(customTo)}` };
     const [y, m] = monthValue.split("-").map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    const to = `${monthValue}-${String(lastDay).padStart(2, "0")}`;
-    const label = new Date(y, m - 1, 1).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { month: "long", year: "numeric" });
-    return { rangeFrom: from, rangeTo: to, periodLabel: label };
-  }, [mode, dayValue, monthValue, customFrom, customTo, lang]);
+    const last = new Date(y, m, 0).getDate();
+    return {
+      rangeFrom: `${monthValue}-01`,
+      rangeTo: `${monthValue}-${String(last).padStart(2, "0")}`,
+      periodLabel: new Date(y, m - 1, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" }),
+    };
+  }, [mode, dayValue, monthValue, customFrom, customTo]);
+
+  function shift(dir: -1 | 1) {
+    setPicked(null);
+    if (mode === "day" || mode === "week") {
+      const d = new Date(dayValue + "T00:00:00");
+      d.setDate(d.getDate() + dir * (mode === "day" ? 1 : 7));
+      setDayValue(toISO(d));
+    } else if (mode === "month") {
+      const [y, m] = monthValue.split("-").map(Number);
+      const d = new Date(y, m - 1 + dir, 1);
+      setMonthValue(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+  }
 
   const filteredRows = useMemo(
-    () => allRows.filter((r) => r.reportDate >= rangeFrom && r.reportDate <= rangeTo),
+    () => allRows.filter((r) => r.reportDate >= rangeFrom && r.reportDate <= rangeTo).sort((a, b) => (a.reportDate < b.reportDate ? -1 : 1)),
     [allRows, rangeFrom, rangeTo]
   );
-
-  const dayAggs = useMemo(() => filteredRows.map(toDayAgg).sort((a, b) => (a.date < b.date ? -1 : 1)), [filteredRows]);
+  const dayAggs = useMemo(() => filteredRows.map(toDayAgg), [filteredRows]);
 
   const totals = useMemo(() => {
-    const snackOrder = dayAggs.reduce((s, d) => s + d.snackOrder, 0);
-    const snackLeftover = dayAggs.reduce((s, d) => s + d.snackLeftover, 0);
-    const snackConsumed = dayAggs.reduce((s, d) => s + d.snackConsumed, 0);
-    const mealOrder = dayAggs.reduce((s, d) => s + d.mealOrder, 0);
-    const mealLeftover = dayAggs.reduce((s, d) => s + d.mealLeftover, 0);
-    const mealConsumed = dayAggs.reduce((s, d) => s + d.mealConsumed, 0);
-    const snackEff = effOf(snackConsumed, snackOrder);
-    const mealEff = effOf(mealConsumed, mealOrder);
-    const overallOrder = snackOrder + mealOrder;
-    const overallConsumed = snackConsumed + mealConsumed;
-    const overallEff = effOf(overallConsumed, overallOrder);
-    return { snackOrder, snackLeftover, snackConsumed, snackEff, mealOrder, mealLeftover, mealConsumed, mealEff, overallOrder, overallConsumed, overallEff };
+    const s = (k: keyof Omit<DayAgg, "date">) => dayAggs.reduce((a, d) => a + d[k], 0);
+    const snackOrder = s("snackOrder"), snackLeftover = s("snackLeftover"), snackConsumed = s("snackConsumed");
+    const mealOrder = s("mealOrder"), mealLeftover = s("mealLeftover"), mealConsumed = s("mealConsumed");
+    const overallOrder = snackOrder + mealOrder, overallConsumed = snackConsumed + mealConsumed;
+    return {
+      snackOrder, snackLeftover, snackConsumed, snackEff: effOf(snackConsumed, snackOrder),
+      mealOrder, mealLeftover, mealConsumed, mealEff: effOf(mealConsumed, mealOrder),
+      overallOrder, overallConsumed, overallEff: effOf(overallConsumed, overallOrder),
+    };
   }, [dayAggs]);
 
+  // Rincian per shift — untuk hari terpilih, atau seluruh periode
+  const shiftRows = useMemo(() => {
+    const src = picked ? filteredRows.filter((r) => r.reportDate === picked) : filteredRows;
+    return SHIFTS.map((label, i) => {
+      const so = src.reduce((a, r) => a + (r.snackOrder[i] || 0), 0);
+      const sl = src.reduce((a, r) => a + (r.snackLeftover[i] || 0), 0);
+      const mo = src.reduce((a, r) => a + (r.mealOrder[i] || 0), 0);
+      const ml = src.reduce((a, r) => a + (r.mealLeftover[i] || 0), 0);
+      return { label, so, sl, mo, ml, sEff: effOf(Math.max(0, so - sl), so), mEff: effOf(Math.max(0, mo - ml), mo) };
+    });
+  }, [filteredRows, picked]);
+
+  const insights = useMemo(() => {
+    if (dayAggs.length === 0) return [] as string[];
+    const out: string[] = [];
+    const sPeak = dayAggs.reduce((b, d) => (d.snackLeftover > b.snackLeftover ? d : b), dayAggs[0]);
+    const mPeak = dayAggs.reduce((b, d) => (d.mealLeftover > b.mealLeftover ? d : b), dayAggs[0]);
+    if (sPeak.snackLeftover > 0) out.push(`Sisa snack terbanyak ${num(sPeak.snackLeftover)} porsi pada ${dShort(sPeak.date)}.`);
+    if (mPeak.mealLeftover > 0) out.push(`Sisa makan terbanyak ${num(mPeak.mealLeftover)} porsi pada ${dShort(mPeak.date)}.`);
+    const allShift = SHIFTS.map((label, i) => ({
+      label,
+      left: filteredRows.reduce((a, r) => a + (r.snackLeftover[i] || 0) + (r.mealLeftover[i] || 0), 0),
+    })).sort((a, b) => b.left - a.left)[0];
+    if (allShift && allShift.left > 0) out.push(`${allShift.label} menyumbang sisa paling banyak (${num(allShift.left)} porsi).`);
+    if (out.length === 0) out.push("Tidak ada sisa makanan pada periode ini.");
+    return out;
+  }, [dayAggs, filteredRows]);
+
   const autoAnalysis = useMemo(() => {
-    if (dayAggs.length === 0) {
-      return lang === "en" ? "No data recorded for this period yet." : "Belum ada data tercatat pada periode ini.";
-    }
-    const snackPeak = dayAggs.reduce((best, d) => (d.snackLeftover > best.snackLeftover ? d : best), dayAggs[0]);
-    const mealPeak = dayAggs.reduce((best, d) => (d.mealLeftover > best.mealLeftover ? d : best), dayAggs[0]);
-    const label = healthLabel(totals.overallEff, lang);
-    if (lang === "en") {
-      return `${periodLabel} — Snack ${totals.snackEff.toFixed(2)}% (peak leftover ${fmtRp(snackPeak.snackLeftover)} on ${fmtDateShort(snackPeak.date, lang)}) · Meal ${totals.mealEff.toFixed(2)}% (peak leftover ${fmtRp(mealPeak.mealLeftover)} on ${fmtDateShort(mealPeak.date, lang)}) · Overall ${totals.overallEff.toFixed(1)}% — ${label}.`;
-    }
-    return `${periodLabel} — Snack ${totals.snackEff.toFixed(2)}% (leftover tertinggi ${fmtRp(snackPeak.snackLeftover)} pada ${fmtDateShort(snackPeak.date, lang)}) · Meal ${totals.mealEff.toFixed(2)}% (leftover tertinggi ${fmtRp(mealPeak.mealLeftover)} pada ${fmtDateShort(mealPeak.date, lang)}) · Overall ${totals.overallEff.toFixed(1)}% — ${label}.`;
-  }, [dayAggs, totals, periodLabel, lang]);
+    if (dayAggs.length === 0) return "Belum ada data tercatat pada periode ini.";
+    return `${periodLabel} — Snack ${totals.snackEff.toFixed(2)}% · Makan ${totals.mealEff.toFixed(2)}% · Keseluruhan ${totals.overallEff.toFixed(1)}% — ${health(totals.overallEff, true).label}. ${insights.join(" ")}`;
+  }, [dayAggs, totals, periodLabel, insights]);
 
   function handleExportCsv() {
-    const headers = ["Tanggal", "Snack Order", "Snack Leftover", "Snack Consumed", "Meal Order", "Meal Leftover", "Meal Consumed"];
-    const lines = [headers.join(",")];
-    dayAggs.forEach((d) => {
-      lines.push([d.date, d.snackOrder, d.snackLeftover, d.snackConsumed, d.mealOrder, d.mealLeftover, d.mealConsumed].join(","));
-    });
+    const lines = [["Tanggal", "Snack Order", "Snack Sisa", "Snack Terpakai", "Makan Order", "Makan Sisa", "Makan Terpakai"].join(",")];
+    dayAggs.forEach((d) => lines.push([d.date, d.snackOrder, d.snackLeftover, d.snackConsumed, d.mealOrder, d.mealLeftover, d.mealConsumed].join(",")));
     lines.push("");
     lines.push(["TOTAL", totals.snackOrder, totals.snackLeftover, totals.snackConsumed, totals.mealOrder, totals.mealLeftover, totals.mealConsumed].join(","));
-    const csvContent = "\uFEFF" + lines.join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Canteen_Report_${rangeFrom}_to_${rangeTo}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Laporan_Kantin_${rangeFrom}_sd_${rangeTo}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
   async function handleExportPdf() {
@@ -234,321 +230,249 @@ export default function CanteenTab() {
     }
   }
 
-  const inputStyle: CSSProperties = { padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--bg2)", color: "var(--t1)", fontSize: 13, fontFamily: "var(--font)" };
+  if (loading) return <div className={c.loading}>Memuat data kantin…</div>;
 
-  if (loading) return <div style={{ padding: 60, textAlign: "center", color: "var(--t3)" }}>{t.actionLoading}</div>;
+  const hasData = dayAggs.length > 0;
+  const overall = health(totals.overallEff, hasData);
+  const R = 52, CIRC = 2 * Math.PI * R;
+  const ringLen = (Math.min(100, totals.overallEff) / 100) * CIRC;
+
+  // grafik
+  const series = dayAggs.map((d) => cat === "snack"
+    ? { date: d.date, used: d.snackConsumed, left: d.snackLeftover, order: d.snackOrder }
+    : { date: d.date, used: d.mealConsumed, left: d.mealLeftover, order: d.mealOrder });
+  const maxOrder = Math.max(1, ...series.map((s) => s.order));
+  const labelEvery = Math.max(1, Math.ceil(series.length / 10));
+  const tip = hover !== null ? series[hover] : null;
+
+  const catCard = (key: Cat, title: string, order: number, used: number, left: number, eff: number) => {
+    const h = health(eff, order > 0);
+    return (
+      <button type="button" className={`${c.catCard} ${cat === key ? c.catOn : ""} ${key === "meal" ? c.meal : c.snack}`} onClick={() => setCat(key)} aria-pressed={cat === key}>
+        <span className={c.catHead}>
+          <b>{title}</b>
+          <span className={`${c.badge} ${h.tone}`}>{h.label}</span>
+        </span>
+        <span className={c.catBig}><b>{order > 0 ? pctTxt(eff) : "–"}</b><span>terpakai</span></span>
+        <span className={c.track}><i style={{ width: `${Math.min(100, eff)}%` }} /></span>
+        <span className={c.catStats}>
+          <span><small>Order</small><b>{num(order)}</b></span>
+          <span><small>Terpakai</small><b>{num(used)}</b></span>
+          <span><small>Sisa</small><b className={left > 0 ? c.inkBad : ""}>{num(left)}</b></span>
+        </span>
+      </button>
+    );
+  };
 
   return (
-    <div>
-      {/* ── Period filter bar ── */}
-      <div className="statPop" style={{ ...cardStyle, padding: 16, marginBottom: 18 }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-          {(["day", "week", "month", "custom"] as PeriodMode[]).map((m) => (
-            <button
-              key={m}
-              className="tabPill"
-              onClick={() => setMode(m)}
-              style={{
-                padding: "7px 16px", borderRadius: "var(--pill)", border: mode === m ? "none" : "1px solid var(--border2)",
-                background: mode === m ? "linear-gradient(135deg, var(--green), #0d8a4f)" : "transparent",
-                color: mode === m ? "#fff" : "var(--t2)", fontWeight: 700, fontSize: 12.5, cursor: "pointer",
-              }}
-            >
-              {m === "day" ? (lang === "en" ? "Day" : "Harian") : m === "week" ? (lang === "en" ? "Week" : "Mingguan") : m === "month" ? (lang === "en" ? "Month" : "Bulanan") : (lang === "en" ? "Custom" : "Kustom")}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <button onClick={handleExportCsv} style={{ padding: "8px 16px", borderRadius: "var(--pill)", border: "1px solid var(--green)", background: "var(--green-soft)", color: "var(--green)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-            ⬇ CSV
-          </button>
-          <button onClick={handleExportPdf} disabled={exportingPdf} style={{ padding: "8px 16px", borderRadius: "var(--pill)", border: "1px solid var(--brand)", background: "rgba(61,111,242,0.1)", color: "var(--brand)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-            ⬇ {exportingPdf ? "..." : "PDF"}
-          </button>
+    <div className={c.wrap}>
+      <header className={c.head}>
+        <div className={c.headText}>
+          <h1>Kantin</h1>
+          <p>Order dan sisa snack &amp; makan per shift, dilaporkan harian dari halaman /canteen.</p>
         </div>
+        <div className={c.headActions}>
+          <button type="button" className={c.ghost} onClick={handleExportCsv} disabled={!hasData}><IcDown />CSV</button>
+          <button type="button" className={c.ghost} onClick={handleExportPdf} disabled={!hasData || exportingPdf}><IcDown />{exportingPdf ? "Membuat…" : "PDF"}</button>
+        </div>
+      </header>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {(mode === "day" || mode === "week") && (
-            <input className="premiumInput" style={inputStyle} type="date" value={dayValue} onChange={(e) => setDayValue(e.target.value)} />
-          )}
-          {mode === "month" && (
-            <input className="premiumInput" style={inputStyle} type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} />
-          )}
+      <div className={c.toolbar}>
+        <div className={c.seg} role="group" aria-label="Mode periode">
+          {([["day", "Harian"], ["week", "Mingguan"], ["month", "Bulanan"], ["custom", "Kustom"]] as const).map(([k, l]) => (
+            <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? c.segOn : ""} onClick={() => { setMode(k); setPicked(null); }}>{l}</button>
+          ))}
+        </div>
+        <div className={c.period}>
+          {mode !== "custom" && <button type="button" className={c.navBtn} onClick={() => shift(-1)} aria-label="Periode sebelumnya"><IcPrev /></button>}
+          <span className={c.periodLabel}>{periodLabel}</span>
+          {mode !== "custom" && <button type="button" className={c.navBtn} onClick={() => shift(1)} aria-label="Periode berikutnya"><IcNext /></button>}
+        </div>
+        <div className={c.pickers}>
+          {(mode === "day" || mode === "week") && <input className={c.input} type="date" value={dayValue} onChange={(e) => { setDayValue(e.target.value); setPicked(null); }} aria-label="Tanggal" />}
+          {mode === "month" && <input className={c.input} type="month" value={monthValue} onChange={(e) => { setMonthValue(e.target.value); setPicked(null); }} aria-label="Bulan" />}
           {mode === "custom" && (
             <>
-              <input className="premiumInput" style={inputStyle} type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-              <span style={{ color: "var(--t3)" }}>s/d</span>
-              <input className="premiumInput" style={inputStyle} type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+              <input className={c.input} type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Dari" />
+              <span className={c.sep}>s/d</span>
+              <input className={c.input} type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label="Sampai" />
             </>
           )}
-          <span style={{ fontSize: 12.5, color: "var(--t3)", fontWeight: 600 }}>
-            {lang === "en" ? "Period" : "Periode"}: <strong style={{ color: "var(--t1)" }}>{periodLabel}</strong>
-          </span>
         </div>
       </div>
 
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
+      {error && <div className={c.err}>{error}</div>}
 
-      {/* ── Category cards: Snack / Meal ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <CategoryCard
-          icon="🥐" title="Snack" color="var(--green)"
-          ordered={totals.snackOrder} consumed={totals.snackConsumed} leftover={totals.snackLeftover} eff={totals.snackEff}
-          lang={lang}
-        />
-        <CategoryCard
-          icon="🍱" title="Meal" color="var(--brand)"
-          ordered={totals.mealOrder} consumed={totals.mealConsumed} leftover={totals.mealLeftover} eff={totals.mealEff}
-          lang={lang}
-        />
-      </div>
-
-      {/* ── Overall ── */}
-      <div className="statPop" style={{ ...cardStyle, padding: 16, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Overall</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          <MiniStat label={lang === "en" ? "Total Ordered" : "Total Order"} value={fmtRp(totals.overallOrder)} />
-          <MiniStat label={lang === "en" ? "Total Consumed" : "Total Terpakai"} value={fmtRp(totals.overallConsumed)} color="var(--green)" />
-          <MiniStat label={lang === "en" ? "Overall Efficiency" : "Efisiensi Keseluruhan"} value={`${totals.overallEff.toFixed(1)}%`} color={totals.overallEff >= 95 ? "var(--green)" : totals.overallEff >= 85 ? "var(--orange)" : "var(--red)"} />
+      <section className={c.top}>
+        <div className={c.ringCard}>
+          <svg viewBox="0 0 132 132" width="132" height="132" role="img" aria-label={`Efisiensi keseluruhan ${pctTxt(totals.overallEff)}`}>
+            <circle cx="66" cy="66" r={R} className={c.ringBg} />
+            {hasData && <circle cx="66" cy="66" r={R} className={c.ringFg} strokeDasharray={`${ringLen} ${CIRC}`} transform="rotate(-90 66 66)" />}
+            <text x="66" y="64" textAnchor="middle" className={c.ringVal}>{hasData ? pctTxt(totals.overallEff) : "–"}</text>
+            <text x="66" y="82" textAnchor="middle" className={c.ringSub}>efisiensi</text>
+          </svg>
+          <div className={c.ringText}>
+            <span className={`${c.badge} ${overall.tone}`}>{overall.label}</span>
+            <b>{num(totals.overallConsumed)}<small> / {num(totals.overallOrder)} porsi terpakai</small></b>
+            <span>{hasData ? `${dayAggs.length} hari tercatat · sisa ${num(totals.snackLeftover + totals.mealLeftover)} porsi` : "Belum ada laporan pada periode ini."}</span>
+          </div>
         </div>
-      </div>
+        {catCard("snack", "Snack", totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}
+        {catCard("meal", "Makan", totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}
+      </section>
 
-      {/* ── Auto analysis ── */}
-      <div className="statPop" style={{ ...cardStyle, borderLeft: "3px solid var(--gold)", padding: "14px 18px", marginBottom: 18 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t2)", marginBottom: 4 }}>💡 {lang === "en" ? "Auto Analysis" : "Analisis Otomatis"}</div>
-        <div style={{ fontSize: 12.5, color: "var(--t2)", lineHeight: 1.6 }}>{autoAnalysis}</div>
-      </div>
+      {hasData && (
+        <section className={c.insight} aria-label="Catatan otomatis">
+          <span className={c.insightIc}><IcBulb /></span>
+          <ul>{insights.map((s, i) => <li key={i}>{s}</li>)}</ul>
+        </section>
+      )}
 
-      {/* ── Trend charts ── */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-        <div style={{ display: "flex", borderRadius: "var(--pill)", border: "1px solid var(--border2)", padding: 3, gap: 2 }}>
-          {(["bar", "line"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setChartMode(m)}
-              style={{
-                padding: "5px 14px", borderRadius: "var(--pill)", border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 700,
-                background: chartMode === m ? "var(--brand)" : "transparent", color: chartMode === m ? "#fff" : "var(--t3)",
-              }}
-            >
-              {m === "bar" ? (lang === "en" ? "Bar" : "Batang") : (lang === "en" ? "Line" : "Garis")}
-            </button>
+      <div className={c.split}>
+        <section className={`${c.card} ${c.chartCard}`}>
+          <div className={c.cardHead}>
+            <div>
+              <h2>Tren harian · {cat === "snack" ? "Snack" : "Makan"}</h2>
+              <span className={c.hint}>Arahkan kursor untuk detail, klik batang untuk melihat rincian shift hari itu.</span>
+            </div>
+            <div className={c.seg} role="group" aria-label="Kategori">
+              <button type="button" aria-pressed={cat === "snack"} className={cat === "snack" ? c.segOn : ""} onClick={() => setCat("snack")}>Snack</button>
+              <button type="button" aria-pressed={cat === "meal"} className={cat === "meal" ? c.segOn : ""} onClick={() => setCat("meal")}>Makan</button>
+            </div>
+          </div>
+          <div className={c.legend}>
+            <span><i className={`${c.dot} ${cat === "meal" ? c.dotMeal : c.dotSnack}`} />Terpakai</span>
+            <span><i className={`${c.dot} ${c.dotLeft}`} />Sisa</span>
+          </div>
+          {series.length === 0 ? (
+            <div className={c.empty}>Belum ada data pada periode ini.</div>
+          ) : (
+            <div className={c.chartBox} onMouseLeave={() => setHover(null)}>
+              <div className={c.chart} style={{ gridTemplateColumns: `repeat(${series.length}, minmax(14px, 1fr))` }}>
+                {series.map((s, i) => {
+                  const usedH = (s.used / maxOrder) * 100;
+                  const leftH = (s.left / maxOrder) * 100;
+                  const on = picked === s.date;
+                  return (
+                    <button
+                      key={s.date}
+                      type="button"
+                      className={`${c.col} ${on ? c.colOn : ""} ${picked && !on ? c.colDim : ""}`}
+                      onMouseEnter={() => setHover(i)}
+                      onFocus={() => setHover(i)}
+                      onBlur={() => setHover(null)}
+                      onClick={() => setPicked(on ? null : s.date)}
+                      aria-label={`${dFull(s.date)}: terpakai ${s.used}, sisa ${s.left}`}
+                      aria-pressed={on}
+                    >
+                      <span className={c.stack}>
+                        <span className={c.left} style={{ height: `${leftH}%` }} />
+                        <span className={`${c.used} ${cat === "meal" ? c.usedMeal : ""}`} style={{ height: `${usedH}%` }} />
+                      </span>
+                      <span className={c.xl}>{i % labelEvery === 0 || i === series.length - 1 ? dShort(s.date) : ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {tip && hover !== null && (
+                <div className={c.tip} style={{ left: `${((hover + 0.5) / series.length) * 100}%` }} role="status">
+                  <b>{dFull(tip.date)}</b>
+                  <span>Order <b>{num(tip.order)}</b></span>
+                  <span>Terpakai <b>{num(tip.used)}</b></span>
+                  <span>Sisa <b>{num(tip.left)}</b></span>
+                  <span>Efisiensi <b>{pctTxt(effOf(tip.used, tip.order))}</b></span>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className={`${c.card} ${c.shiftCard}`}>
+          <div className={c.cardHead}>
+            <div>
+              <h2>Per shift</h2>
+              <span className={c.hint}>{picked ? dFull(picked) : `Seluruh periode · ${periodLabel}`}</span>
+            </div>
+            {picked && <button type="button" className={c.link} onClick={() => setPicked(null)}>Semua hari</button>}
+          </div>
+          {shiftRows.map((s) => (
+            <div key={s.label} className={c.shiftRow}>
+              <b className={c.shiftName}>{s.label}</b>
+              <div className={c.shiftBars}>
+                <div className={c.shiftLine}>
+                  <span>Snack</span>
+                  <span className={c.track}><i className={c.trackSnack} style={{ width: `${Math.min(100, s.sEff)}%` }} /></span>
+                  <span className={c.shiftVal}>{s.so > 0 ? pctTxt(s.sEff) : "–"}<small>sisa {num(s.sl)}</small></span>
+                </div>
+                <div className={c.shiftLine}>
+                  <span>Makan</span>
+                  <span className={c.track}><i className={c.trackMeal} style={{ width: `${Math.min(100, s.mEff)}%` }} /></span>
+                  <span className={c.shiftVal}>{s.mo > 0 ? pctTxt(s.mEff) : "–"}<small>sisa {num(s.ml)}</small></span>
+                </div>
+              </div>
+            </div>
           ))}
-        </div>
+        </section>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 18 }}>
-        <TrendChartCard
-          title={lang === "en" ? "Snack — Daily Trend" : "Snack — Tren Harian"}
-          data={dayAggs.map((d) => ({ label: fmtDateShort(d.date, lang), ordered: d.snackOrder, consumed: d.snackConsumed, leftover: d.snackLeftover }))}
-          mode={chartMode}
-          colors={{ ordered: "var(--t3)", consumed: "var(--green)", leftover: "var(--red)" }}
-          lang={lang}
-        />
-        <TrendChartCard
-          title={lang === "en" ? "Meal — Daily Trend" : "Meal — Tren Harian"}
-          data={dayAggs.map((d) => ({ label: fmtDateShort(d.date, lang), ordered: d.mealOrder, consumed: d.mealConsumed, leftover: d.mealLeftover }))}
-          mode={chartMode}
-          colors={{ ordered: "var(--t3)", consumed: "var(--brand)", leftover: "var(--red)" }}
-          lang={lang}
-        />
-      </div>
-
-      {/* ── Period summary blocks ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
-        <PeriodSummaryCard title={`🥐 Snack — ${lang === "en" ? "Period Summary" : "Ringkasan Periode"}`} periodLabel={periodLabel} order={totals.snackOrder} consumed={totals.snackConsumed} leftover={totals.snackLeftover} eff={totals.snackEff} days={dayAggs.length} lang={lang} />
-        <PeriodSummaryCard title={`🍱 Meal — ${lang === "en" ? "Period Summary" : "Ringkasan Periode"}`} periodLabel={periodLabel} order={totals.mealOrder} consumed={totals.mealConsumed} leftover={totals.mealLeftover} eff={totals.mealEff} days={dayAggs.length} lang={lang} />
-      </div>
-
-      {/* ── Daily detail ── */}
-      <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-        <div style={{ padding: "13px 18px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-          {lang === "en" ? "Daily Detail" : "Detail Harian"}
+      <section className={c.card}>
+        <div className={c.cardHead}>
+          <h2>Laporan harian</h2>
+          <span className={c.hint}>{filteredRows.length} laporan</span>
         </div>
         {filteredRows.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 30, color: "var(--t3)", fontSize: 12 }}>{t.actionNoDataYet}</div>
+          <div className={c.empty}>{t.actionNoDataYet}</div>
         ) : (
-          filteredRows.slice().reverse().map((r) => {
-            const d = toDayAgg(r);
-            return (
-              <div key={r.id} className="rowHover" style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 18px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ minWidth: 100, fontSize: 12.5, fontWeight: 700, color: "var(--t1)" }}>{fmtDateFull(r.reportDate, lang)}</div>
-                <div style={{ flex: 1, fontSize: 11.5, color: "var(--t3)" }}>🥐 {fmtRp(d.snackOrder)} order · sisa {fmtRp(d.snackLeftover)}</div>
-                <div style={{ flex: 1, fontSize: 11.5, color: "var(--t3)" }}>🍱 {fmtRp(d.mealOrder)} order · sisa {fmtRp(d.mealLeftover)}</div>
-                <button onClick={() => setConfirmDelete(r)} style={{ border: "none", background: "none", color: "var(--red)", cursor: "pointer", fontSize: 13 }}>🗑️</button>
-              </div>
-            );
-          })
+          <div className={c.tableBox}>
+            <table className={c.table}>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th className={c.num}>Snack order</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
+                  <th className={c.num}>Makan order</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
+                  <th>Pelapor</th>
+                  <th aria-label="Aksi" />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.slice().reverse().map((r) => {
+                  const d = toDayAgg(r);
+                  const se = effOf(d.snackConsumed, d.snackOrder), me = effOf(d.mealConsumed, d.mealOrder);
+                  const on = picked === r.reportDate;
+                  return (
+                    <tr key={r.id} className={on ? c.rowOn : ""} onClick={() => setPicked(on ? null : r.reportDate)}>
+                      <td><b>{dFull(r.reportDate)}</b></td>
+                      <td className={c.num}>{num(d.snackOrder)}</td>
+                      <td className={`${c.num} ${d.snackLeftover > 0 ? c.inkBad : ""}`}>{num(d.snackLeftover)}</td>
+                      <td className={c.num}><span className={`${c.badge} ${health(se, d.snackOrder > 0).tone}`}>{d.snackOrder > 0 ? pctTxt(se) : "–"}</span></td>
+                      <td className={c.num}>{num(d.mealOrder)}</td>
+                      <td className={`${c.num} ${d.mealLeftover > 0 ? c.inkBad : ""}`}>{num(d.mealLeftover)}</td>
+                      <td className={c.num}><span className={`${c.badge} ${health(me, d.mealOrder > 0).tone}`}>{d.mealOrder > 0 ? pctTxt(me) : "–"}</span></td>
+                      <td className={c.muted}>{r.submittedBy || "-"}</td>
+                      <td className={c.num}>
+                        <button type="button" className={c.del} onClick={(e) => { e.stopPropagation(); setConfirmDelete(r); }} aria-label={`Hapus laporan ${dFull(r.reportDate)}`}><IcTrash /></button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </section>
 
       {confirmDelete && (
-        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this report?" : "Hapus laporan ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{fmtDateFull(confirmDelete.reportDate, lang)}</strong> {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.actionYesDelete}</button>
+        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>
+          <div className={c.confirm}>
+            <h3>Hapus laporan ini?</h3>
+            <p>Laporan <b>{dFull(confirmDelete.reportDate)}</b> akan dihapus permanen.</p>
+            <div className={c.confirmActions}>
+              <button type="button" className={c.ghost} onClick={() => setConfirmDelete(null)}>{t.actionCancel}</button>
+              <button type="button" className={c.danger} onClick={handleDelete}>{t.actionYesDelete}</button>
             </div>
           </div>
         </ModalPortal>
       )}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
-   Pieces
-════════════════════════════════════════════════════════════ */
-
-function CategoryCard({
-  icon, title, color, ordered, consumed, leftover, eff, lang,
-}: { icon: string; title: string; color: string; ordered: number; consumed: number; leftover: number; eff: number; lang: string }) {
-  return (
-    <div className="statPop" style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-      <div style={{ height: 3, background: color }} />
-      <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)", marginBottom: 12 }}>{icon} {title}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <MiniStat label={lang === "en" ? "Ordered" : "Order"} value={fmtRp(ordered)} />
-          <MiniStat label={lang === "en" ? "Consumed" : "Terpakai"} value={fmtRp(consumed)} color={color} />
-          <MiniStat label={lang === "en" ? "Leftover" : "Sisa"} value={fmtRp(leftover)} color="var(--red)" />
-          <MiniStat label={lang === "en" ? "Efficiency" : "Efisiensi"} value={`${eff.toFixed(2)}%`} color={eff >= 95 ? "var(--green)" : eff >= 85 ? "var(--orange)" : "var(--red)"} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{ background: "var(--bg2)", borderRadius: 10, padding: "10px 12px" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: color || "var(--t1)", fontFamily: "var(--mono)" }}>{value}</div>
-    </div>
-  );
-}
-
-function PeriodSummaryCard({
-  title, periodLabel, order, consumed, leftover, eff, days, lang,
-}: { title: string; periodLabel: string; order: number; consumed: number; leftover: number; eff: number; days: number; lang: string }) {
-  const avgPerDay = days > 0 ? leftover / days : 0;
-  return (
-    <div className="statPop" style={{ ...cardStyle, padding: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 2 }}>{title}</div>
-      <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 12 }}>{periodLabel}</div>
-      <SummaryLine label={lang === "en" ? "Total Ordered" : "Total Order"} value={fmtRp(order)} />
-      <SummaryLine label={lang === "en" ? "Total Consumed" : "Total Terpakai"} value={fmtRp(consumed)} color="var(--green)" />
-      <SummaryLine label={lang === "en" ? "Total Leftover" : "Total Sisa"} value={fmtRp(leftover)} color="var(--red)" />
-      <SummaryLine label={lang === "en" ? "Avg Leftover / Day" : "Rata-rata Sisa / Hari"} value={fmtRp(avgPerDay)} />
-      <SummaryLine label={lang === "en" ? "Efficiency" : "Efisiensi"} value={`${eff.toFixed(2)}%`} color={eff >= 95 ? "var(--green)" : eff >= 85 ? "var(--orange)" : "var(--red)"} last />
-    </div>
-  );
-}
-
-function SummaryLine({ label, value, color, last }: { label: string; value: string; color?: string; last?: boolean }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 12.5, borderBottom: last ? "none" : "1px solid var(--border)" }}>
-      <span style={{ color: "var(--t3)" }}>{label}</span>
-      <strong style={{ color: color || "var(--t1)" }}>{value}</strong>
-    </div>
-  );
-}
-
-function TrendChartCard({
-  title, data, mode, colors, lang,
-}: {
-  title: string;
-  data: { label: string; ordered: number; consumed: number; leftover: number }[];
-  mode: "bar" | "line";
-  colors: { ordered: string; consumed: string; leftover: string };
-  lang: string;
-}) {
-  const legend = [
-    { key: "ordered", label: lang === "en" ? "Ordered" : "Order", color: colors.ordered },
-    { key: "consumed", label: lang === "en" ? "Consumed" : "Terpakai", color: colors.consumed },
-    { key: "leftover", label: lang === "en" ? "Leftover" : "Sisa", color: colors.leftover },
-  ];
-
-  return (
-    <div className="statPop" style={{ ...cardStyle, padding: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{title}</div>
-        <div style={{ display: "flex", gap: 12 }}>
-          {legend.map((l) => (
-            <span key={l.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: l.color, display: "inline-block" }} />
-              {l.label}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {data.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 30, color: "var(--t3)", fontSize: 12 }}>
-          {lang === "en" ? "No data yet" : "Belum ada data"}
-        </div>
-      ) : mode === "line" ? (
-        <LineTrend data={data} colors={colors} />
-      ) : (
-        <BarTrend data={data} colors={colors} />
-      )}
-    </div>
-  );
-}
-
-function LineTrend({ data, colors }: { data: { label: string; ordered: number; consumed: number; leftover: number }[]; colors: { ordered: string; consumed: string; leftover: string } }) {
-  const chartW = 640, chartH = 160, pad = 30;
-  const maxVal = Math.max(...data.map((d) => Math.max(d.ordered, d.consumed, d.leftover)), 1);
-  const pt = (v: number, i: number) => {
-    const x = pad + (data.length > 1 ? (i / (data.length - 1)) * (chartW - pad * 2) : 0);
-    const y = chartH - pad - (v / maxVal) * (chartH - pad * 2 - 10);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  };
-  const orderedPts = data.map((d, i) => pt(d.ordered, i)).join(" ");
-  const consumedPts = data.map((d, i) => pt(d.consumed, i)).join(" ");
-  const leftoverPts = data.map((d, i) => pt(d.leftover, i)).join(" ");
-
-  const step = Math.max(1, Math.ceil(data.length / 8));
-
-  return (
-    <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height={chartH}>
-      {[0.25, 0.5, 0.75].map((f) => (
-        <line key={f} x1={pad} x2={chartW - pad} y1={pad + f * (chartH - pad * 2 - 10)} y2={pad + f * (chartH - pad * 2 - 10)} stroke="var(--border)" strokeWidth={1} />
-      ))}
-      <polyline points={orderedPts} fill="none" stroke={colors.ordered} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" opacity={0.6} />
-      <polyline points={consumedPts} fill="none" stroke={colors.consumed} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      <polyline points={leftoverPts} fill="none" stroke={colors.leftover} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" opacity={0.8} />
-      {data.map((d, i) => {
-        if (i % step !== 0 && i !== data.length - 1) return null;
-        const x = pad + (data.length > 1 ? (i / (data.length - 1)) * (chartW - pad * 2) : 0);
-        return (
-          <text key={i} x={x} y={chartH - 8} textAnchor="middle" fontSize={9.5} fill="var(--t3)">{d.label}</text>
-        );
-      })}
-    </svg>
-  );
-}
-
-function BarTrend({ data, colors }: { data: { label: string; ordered: number; consumed: number; leftover: number }[]; colors: { ordered: string; consumed: string; leftover: string } }) {
-  const maxVal = Math.max(...data.map((d) => Math.max(d.ordered, d.consumed, d.leftover)), 1);
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 140, minWidth: data.length * 46 }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 100 }}>
-              <div title={`Order: ${d.ordered}`} style={{ width: 8, height: `${Math.max(2, (d.ordered / maxVal) * 100)}px`, background: colors.ordered, opacity: 0.6, borderRadius: "3px 3px 0 0" }} />
-              <div title={`Consumed: ${d.consumed}`} style={{ width: 8, height: `${Math.max(2, (d.consumed / maxVal) * 100)}px`, background: colors.consumed, borderRadius: "3px 3px 0 0" }} />
-              <div title={`Leftover: ${d.leftover}`} style={{ width: 8, height: `${Math.max(2, (d.leftover / maxVal) * 100)}px`, background: colors.leftover, opacity: 0.8, borderRadius: "3px 3px 0 0" }} />
-            </div>
-            <span style={{ fontSize: 9.5, color: "var(--t3)", whiteSpace: "nowrap" }}>{d.label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
