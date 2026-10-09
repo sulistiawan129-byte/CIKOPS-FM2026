@@ -1,3 +1,31 @@
+# Redesign V2.17 — Dashboard utama: tata letak baru
+
+Tidak ada SQL baru. Ganti 3 file, lalu deploy.
+
+## Perubahan dari V2.16
+- Grafik "Tugas per hari" diganti papan **Tugas hari ini**: daftar tugas (driver, rute dari -> tujuan, plat, jam, status) dengan filter Semua / Berjalan / Menunggu / Selesai. Klik baris membuka Penugasan.
+- "Akses cepat modul" dan widget "Aksi Cepat" di kolom kanan dihapus.
+- Beban per plant digabung ke kartu Armada (kotak Cikarang & Pasar Rebo).
+- Tata letak adaptif (container query): layar lebar = tugas + gate berdampingan; menengah = tugas selebar penuh, gate di kiri, armada & perlu perhatian di kanan; sempit/HP = satu kolom. Pita KPI jadi 2 kolom di HP.
+- Lebar 861–1280 px: kolom kanan (kalender, agenda, pengumuman) turun ke bawah dalam 2 kolom, tidak lagi kalender raksasa.
+- Berubah: src/app/dashboard/page.tsx, src/app/dashboard/home.module.css, src/app/dashboard/dashboard.module.css.
+
+---
+# Redesign V2.16 — Dashboard utama (Beranda)
+
+Tidak ada SQL baru. Ganti 2 file, lalu deploy.
+
+## Baru di V2.16
+- Hero "command center": panel navy dengan jam besar (WIB), sapaan, ringkasan tugas, tombol Tugaskan driver / ViewOnly / Salin link, dan 3 angka utama (tugas hari ini, sedang jalan, kendaraan keluar) yang bisa diklik.
+- Peringatan otomatis bila ada tugas berjalan > 2 jam.
+- Pita KPI satu baris (5 kolom sejajar, 2 untuk akun PRB): tugas, kendaraan & driver aktif, klaim minggu ini, kantin hari ini, dana tersedia — masing-masing membuka modulnya.
+- Grafik tugas 7 hari lebih besar: total per hari, hari ini disorot, tooltip CIK/PRB saat diarahkan.
+- Aktivitas gate: nama tidak terpotong, tampil tujuan + keterangan, tautan ke Gate Log.
+- Status armada, beban per plant, dan "perlu perhatian" dalam 3 kartu sejajar.
+- Modul jadi "Akses cepat modul" yang ringkas per grup. Kolom kanan (kalender, agenda, aksi cepat, pengumuman) tetap.
+- Berubah: src/app/dashboard/page.tsx, baru: src/app/dashboard/home.module.css.
+
+---
 # Redesign V2.15 — dashboard Kantin
 
 Tidak ada SQL baru. Ganti 2 file, lalu deploy. Form input harian di /canteen tidak berubah.

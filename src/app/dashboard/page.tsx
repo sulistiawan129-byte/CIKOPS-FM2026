@@ -10,6 +10,7 @@ import type { TaskFormValues } from "./TasksUI";
 import tk from "./tasks.module.css";
 import { GateLogPanel } from "./GateUI";
 import { OverviewBoard, type OverviewData } from "./OverviewUI";
+import hm from "./home.module.css";
 import { ClaimsHero, ClaimCard, WeekHeader, ViewSwitch, PeriodSwitch, RecapBar, ClaimForm, WreathCard, CLAIM_CATS, catLabel } from "./ClaimsUI";
 import { ModalPortal } from "@/components/ModalPortal";
 import { TabErrorBoundary } from "@/components/TabErrorBoundary";
@@ -83,6 +84,7 @@ import {
   setWreathClaimed,
   deleteWreath,
   getVehicleGateLogs,
+  withOrigins,
   deleteGateLog,
   forceCloseGateLog,
   getPrinters,
@@ -2104,6 +2106,12 @@ function fmtClock(iso: string | null): string {
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtRpShort(n: number): string {
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")} jt`;
+  if (n >= 1_000) return `Rp ${Math.round(n / 1_000)} rb`;
+  return `Rp ${Math.round(n || 0)}`;
+}
+
 function HomeTab({
   setActiveTab,
   myProfile,
@@ -2117,6 +2125,7 @@ function HomeTab({
 }) {
   const { lang } = useLang();
   const [viewLinkCopied, setViewLinkCopied] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<"all" | "ON GOING" | "ASSIGNED" | "DONE">("all");
   const prbOnly = isPrbOnly(myProfile);
   const visibleGroups = NAV_GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((t) => canAccessTab(myProfile, t.id)) })).filter((g) => g.tabs.length > 0);
   const filteredGroup = activeGroupId ? visibleGroups.find((g) => g.id === activeGroupId) : undefined;
@@ -2160,7 +2169,7 @@ function HomeTab({
       try {
         const from = new Date();
         from.setDate(from.getDate() - 6);
-        setWeekTasks(await getTasksByRange(toLocalISODate(from), todayStr(), myProfile?.plantScope ?? null));
+        setWeekTasks(await withOrigins(await getTasksByRange(toLocalISODate(from), todayStr(), myProfile?.plantScope ?? null)));
       } catch (e) {
         console.warn("Gagal memuat tugas 7 hari:", e);
       }
@@ -2334,205 +2343,252 @@ function HomeTab({
       <div className={styles.homeMain}>
         {!filteredGroup && (
           <>
-            {/* ── Hero ── */}
-            <section className={`heroGlow ${styles.homeHero}`}>
-              <div className={styles.homeHeroText}>
-                <span className={styles.homeHeroEyebrow}><span className={styles.homeHeroDot} />{dateLabel}</span>
-                <h1 className={styles.homeHeroTitle}>{greet}, {firstName}.</h1>
-                <p className={styles.homeHeroSub}>
-                  {lang === "en"
-                    ? `${ongoingToday.length} task(s) are running now.${lateOngoing.length > 0 ? ` ${lateOngoing.length} need a check.` : " All on schedule."}`
-                    : `${ongoingToday.length} tugas sedang berjalan.${lateOngoing.length > 0 ? ` ${lateOngoing.length} perlu dicek.` : " Semua sesuai jadwal."}`}
-                </p>
-                {!prbOnly && <div className={styles.heroTvRow}>
-                <a className={styles.heroTv} href="/dashboard-viewonly" target="_blank" rel="noopener noreferrer">
-                  <Icon name="eye" size={16} strokeWidth={2.1} />
-                  Dashboard-ViewOnly
-                  <Icon name="external" size={14} />
-                </a>
-                <button
-                  type="button"
-                  className={styles.heroTvCopy}
-                  onClick={() => {
-                    const url = `${window.location.origin}/dashboard-viewonly`;
-                    navigator.clipboard?.writeText(url).then(
-                      () => { setViewLinkCopied(true); setTimeout(() => setViewLinkCopied(false), 2000); },
-                      () => window.prompt(lang === "en" ? "Copy this link:" : "Salin link ini:", url),
-                    );
-                  }}
-                  title={lang === "en" ? "Copy the public link to share with SPV/managers" : "Salin link publik untuk dibagikan ke SPV/manajer"}
-                >
-                  <Icon name={viewLinkCopied ? "check" : "copy"} size={15} strokeWidth={2.2} />
-                  {viewLinkCopied ? (lang === "en" ? "Link copied" : "Link tersalin") : (lang === "en" ? "Copy link" : "Salin link")}
-                </button>
-                </div>}
+            {/* ── Hero: command center ── */}
+            <section className={hm.hero}>
+              <div className={hm.heroTop}>
+                <span className={hm.eyebrow}><i className={hm.liveDot} />{dateLabel}</span>
+                <div className={hm.clock} aria-label="Waktu sekarang">
+                  {new Date(nowTick).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":")}
+                  <span>WIB</span>
+                </div>
               </div>
-              <div className={styles.homeHeroStats}>
-                <div className={styles.homeHeroStat}><b>{heroCount.today}</b><span>{lang === "en" ? "Tasks today" : "Tugas hari ini"}</span></div>
-                <div className={styles.homeHeroStat}><b>{heroCount.going}</b><span>{lang === "en" ? "Running" : "Sedang jalan"}</span></div>
-                <div className={styles.homeHeroStat}><b>{heroCount.out}</b><span>{lang === "en" ? "Vehicles out" : "Kendaraan keluar"}</span></div>
+              <h1>{greet}, {firstName}.</h1>
+              <p className={hm.heroSub}>
+                {ongoingToday.length > 0
+                  ? `${ongoingToday.length} tugas sedang berjalan${lateOngoing.length > 0 ? `, ${lateOngoing.length} perlu dicek.` : ", semua sesuai jadwal."}`
+                  : todayTasks.length > 0 ? "Belum ada tugas yang berjalan saat ini." : "Belum ada penugasan hari ini."}
+              </p>
+              <div className={hm.heroBottom}>
+                <div className={hm.heroActions}>
+                  <button type="button" className={hm.heroPrimary} onClick={() => setActiveTab("tasks")}>
+                    <Icon name="plus" size={16} strokeWidth={2.4} />Tugaskan driver
+                  </button>
+                  {!prbOnly && (
+                    <>
+                      <a className={hm.heroGhost} href="/dashboard-viewonly" target="_blank" rel="noopener noreferrer">
+                        <Icon name="eye" size={16} />ViewOnly<Icon name="external" size={13} />
+                      </a>
+                      <button
+                        type="button"
+                        className={hm.heroGhost}
+                        title="Salin link Dashboard-ViewOnly"
+                        onClick={() => {
+                          const url = `${window.location.origin}/dashboard-viewonly`;
+                          navigator.clipboard?.writeText(url).then(
+                            () => { setViewLinkCopied(true); setTimeout(() => setViewLinkCopied(false), 2000); },
+                            () => window.prompt("Salin link ini:", url),
+                          );
+                        }}
+                      >
+                        <Icon name={viewLinkCopied ? "check" : "copy"} size={15} />{viewLinkCopied ? "Tersalin" : "Salin link"}
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className={hm.heroStats}>
+                  <button type="button" onClick={() => setActiveTab("tasks")}><b>{heroCount.today}</b><span>Tugas hari ini</span></button>
+                  <button type="button" onClick={() => setActiveTab("tasks")}><b>{heroCount.going}</b><span>Sedang jalan</span></button>
+                  <button type="button" onClick={() => setActiveTab("vehicles")}><b>{heroCount.out}</b><span>Kendaraan keluar</span></button>
+                </div>
               </div>
             </section>
 
-            {/* ── KPI ── */}
-            {kpi && (
-              <div className={styles.homeKpiGrid}>
-                {!prbOnly && <HomeKpiCard icon="claims" tone="fleet" labelId="Total Klaim Minggu Ini" labelEn="Claims This Week" value={kpi.claimWeekTotal} isCurrency />}
-                <HomeKpiCard icon="tasks" tone="fleet" labelId="Tugas Driver Hari Ini" labelEn="Driver Tasks Today" value={kpi.tasksToday} />
-                {!prbOnly && <HomeKpiCard icon="canteen" tone="facility" labelId="Rekap Kantin Hari Ini" labelEn="Canteen Today" value={kpi.canteenTodayTotal} />}
-                {!prbOnly && <HomeKpiCard icon="opfund" tone="finance" labelId="Budget Operasional" labelEn="Operational Budget" value={kpi.opBudgetAvailable} isCurrency />}
-                <HomeKpiCard icon="vehicles" tone="fleet" labelId="Kendaraan & Driver Aktif" labelEn="Active Vehicles & Drivers" value={kpi.vehiclesActive} subValue={kpi.driversActive} subLabelId="Driver" subLabelEn="Drivers" />
-              </div>
+            {lateOngoing.length > 0 && (
+              <button type="button" className={hm.alert} onClick={() => setActiveTab("tasks")}>
+                <span className={hm.alertIc}><Icon name="alert" size={18} /></span>
+                <span className={hm.alertText}>
+                  <b>{lateOngoing.length} tugas berjalan lebih dari 2 jam</b>
+                  <span>{lateOngoing.slice(0, 2).map((t) => `${t.driver_nama ?? "-"} ke ${t.tujuan}`).join(" · ")}</span>
+                </span>
+                <span className={hm.alertGo}>Cek tugas</span>
+              </button>
             )}
 
-            {/* ── Grafik + Gate ── */}
-            <div className={styles.homeSplit} style={prbOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
-              <section className={styles.homeCard}>
-                <div className={styles.homeCardHead}>
-                  <div>
-                    <h3>{lang === "en" ? "Tasks per day" : "Tugas per hari"}</h3>
-                    <small>{lang === "en" ? "Last 7 days" : "7 hari terakhir"}</small>
-                  </div>
-                  <div className={styles.homeLegend}>
-                    {!prbOnly && <span><i style={{ background: "var(--brand)" }} />Cikarang</span>}
-                    <span><i style={{ background: "var(--gold)" }} />Pasar Rebo</span>
-                  </div>
-                </div>
-                <svg viewBox="0 0 560 220" className={styles.homeChart} role="img" aria-label={lang === "en" ? "Tasks per day by plant" : "Tugas per hari per plant"}>
-                  {[0, 1, 2, 3].map((g) => {
-                    const y = 10 + (220 - 10 - 28) * (1 - g / 3);
-                    return (
-                      <g key={g}>
-                        <line x1="28" x2="560" y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 5" />
-                        <text x="0" y={y + 4} fontSize="11" fill="var(--t3)">{Math.round((chartMax * g) / 3)}</text>
-                      </g>
-                    );
-                  })}
-                  {chartData.map((d, i) => {
-                    const slot = (560 - 28) / chartData.length;
-                    const bw = (slot * 0.64) / 2;
-                    const x0 = 28 + i * slot + slot * 0.18;
-                    const h1 = (d.cik / chartMax) * (220 - 10 - 28);
-                    const h2 = (d.prb / chartMax) * (220 - 10 - 28);
-                    const isToday = d.key === today;
-                    return (
-                      <g key={d.key}>
-                        {!prbOnly && <rect x={x0} y={220 - 28 - h1} width={bw} height={h1} rx="5" fill="var(--brand)" opacity={isToday ? 1 : 0.8} />}
-                        <rect x={prbOnly ? x0 + bw / 2 : x0 + bw + 3} y={220 - 28 - h2} width={bw} height={h2} rx="5" fill="var(--gold)" opacity={isToday ? 1 : 0.8} />
-                        <text x={28 + i * slot + slot / 2} y={212} textAnchor="middle" fontSize="11" fill={isToday ? "var(--t1)" : "var(--t3)"} fontWeight={isToday ? 700 : 500}>{d.label}</text>
-                      </g>
-                    );
-                  })}
-                </svg>
+            {/* ── KPI band ── */}
+            {kpi && (
+              <section className={hm.kpiBand} aria-label="Indikator" style={{ ["--n" as string]: prbOnly ? 2 : 5 }}>
+                <button type="button" className={hm.kpi} onClick={() => setActiveTab("tasks")}>
+                  <span className={hm.kpiIc}><Icon name="tasks" size={18} /></span>
+                  <span className={hm.kpiLabel}>Tugas hari ini</span>
+                  <b className={hm.kpiVal}>{kpi.tasksToday.toLocaleString("id-ID")}</b>
+                </button>
+                <button type="button" className={hm.kpi} onClick={() => setActiveTab("vehicles")}>
+                  <span className={hm.kpiIc}><Icon name="vehicles" size={18} /></span>
+                  <span className={hm.kpiLabel}>Kendaraan aktif</span>
+                  <b className={hm.kpiVal}>{kpi.vehiclesActive}<small> · {kpi.driversActive} driver</small></b>
+                </button>
+                {!prbOnly && (
+                  <>
+                    <button type="button" className={hm.kpi} onClick={() => setActiveTab("claims")}>
+                      <span className={hm.kpiIc}><Icon name="claims" size={18} /></span>
+                      <span className={hm.kpiLabel}>Klaim minggu ini</span>
+                      <b className={hm.kpiVal}>{fmtRpShort(kpi.claimWeekTotal)}</b>
+                    </button>
+                    <button type="button" className={hm.kpi} onClick={() => setActiveTab("canteen")}>
+                      <span className={hm.kpiIc}><Icon name="canteen" size={18} /></span>
+                      <span className={hm.kpiLabel}>Kantin hari ini</span>
+                      <b className={hm.kpiVal}>{kpi.canteenTodayTotal.toLocaleString("id-ID")}<small> porsi</small></b>
+                    </button>
+                    <button type="button" className={hm.kpi} onClick={() => setActiveTab("opfund")}>
+                      <span className={hm.kpiIc}><Icon name="opfund" size={18} /></span>
+                      <span className={hm.kpiLabel}>Dana tersedia</span>
+                      <b className={hm.kpiVal}>{fmtRpShort(kpi.opBudgetAvailable)}</b>
+                    </button>
+                  </>
+                )}
               </section>
+            )}
 
-              {!prbOnly && <section className={styles.homeCard}>
-                <div className={styles.homeCardHead}>
+            {/* ── Papan: tugas hari ini, gate, armada, perhatian ── */}
+            <div className={hm.boardWrap}>
+            <div className={`${hm.board} ${prbOnly ? hm.boardPrb : ""}`}>
+              <section className={`${hm.card} ${hm.aTasks}`}>
+                <div className={hm.cardHead}>
                   <div>
-                    <h3>{lang === "en" ? "Gate activity" : "Aktivitas gate"}</h3>
-                    <small>{gateAgo === null ? (lang === "en" ? "Loading…" : "Memuat…") : gateAgo < 5 ? (lang === "en" ? "Updated just now" : "Diperbarui baru saja") : `${lang === "en" ? "Updated" : "Diperbarui"} ${gateAgo} ${lang === "en" ? "s ago" : "dtk lalu"}`}</small>
+                    <h2>Tugas hari ini</h2>
+                    <span className={hm.sub}>{todayTasks.length} tugas · {todayTasks.filter((t) => t.status === "DONE").length} selesai</span>
                   </div>
-                  <span className="neonBadgePill"><span className="dot" />Live</span>
+                  <div className={hm.seg} role="group" aria-label="Filter status tugas">
+                    {([["all", "Semua", todayTasks.length], ["ON GOING", "Berjalan", todayTasks.filter((t) => t.status === "ON GOING").length], ["ASSIGNED", "Menunggu", todayTasks.filter((t) => t.status === "ASSIGNED").length], ["DONE", "Selesai", todayTasks.filter((t) => t.status === "DONE").length]] as const).map(([k, l, n]) => (
+                      <button key={k} type="button" aria-pressed={taskFilter === k} className={taskFilter === k ? hm.segOn : ""} onClick={() => setTaskFilter(k)}>
+                        {l}<span>{n}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className={styles.homeFeed}>
-                  {gateLogs.length === 0 && (
-                    <div className={styles.homeEmpty}>{lang === "en" ? "No gate movement today." : "Belum ada pergerakan gate hari ini."}</div>
-                  )}
-                  {gateLogs.slice(0, 6).map((g) => {
-                    const out = g.status === "OUT";
+                {(() => {
+                  const order: Record<string, number> = { "ON GOING": 0, ASSIGNED: 1, DONE: 2 };
+                  const list = todayTasks
+                    .filter((t) => taskFilter === "all" || t.status === taskFilter)
+                    .sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                  if (list.length === 0) {
                     return (
-                      <div className={styles.homeFeedRow} key={g.id}>
-                        <span className={styles.homeAvatar}>{initialsOf(g.driverName)}</span>
-                        <span className={styles.homeFeedText}>
-                          <b>{g.driverName}</b>
-                          <small>{g.nopol} · {g.plant}{g.tujuan ? ` → ${g.tujuan}` : ""}{g.keterangan ? ` · ${g.keterangan}` : ""}</small>
-                        </span>
-                        <span className={`${styles.homeTag} ${out ? styles.homeTagOut : styles.homeTagIn}`}>
-                          {out ? (lang === "en" ? "Out" : "Keluar") : g.status === "IN" ? (lang === "en" ? "In" : "Masuk") : (lang === "en" ? "Done" : "Selesai")} · {fmtClock(out ? g.timeOut : g.timeIn ?? g.timeOut)}
-                        </span>
+                      <div className={hm.emptyBox}>
+                        <b>{todayTasks.length === 0 ? "Belum ada penugasan hari ini" : "Tidak ada tugas dengan status ini"}</b>
+                        {todayTasks.length === 0 && <button type="button" className={hm.cardLink} onClick={() => setActiveTab("tasks")}><Icon name="plus" size={14} />Tugaskan driver</button>}
                       </div>
                     );
-                  })}
-                </div>
-              </section>}
-            </div>
-
-            {/* ── Armada + plant ── */}
-            <div className={styles.homeTrio} style={prbOnly ? { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } : undefined}>
-              <section className={styles.homeCard}>
-                <div className={styles.homeCardHead}><h3>{lang === "en" ? "Fleet status" : "Status armada"}</h3><small>{vehiclesTotal} unit</small></div>
-                <div className={styles.homeDonutWrap}>
-                  <svg viewBox="0 0 120 120" width="132" height="132" role="img" aria-label={lang === "en" ? "Fleet status" : "Status armada"}>
-                    <circle cx="60" cy="60" r={donutR} fill="none" stroke="var(--bg2)" strokeWidth="14" />
-                    {vehiclesOut > 0 && <circle cx="60" cy="60" r={donutR} fill="none" stroke="var(--brand)" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, outLen - 4)} ${donutC - outLen + 4}`} transform="rotate(-90 60 60)" />}
-                    {vehiclesFree > 0 && <circle cx="60" cy="60" r={donutR} fill="none" stroke="var(--gold)" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, freeLen - 4)} ${donutC - freeLen + 4}`} strokeDashoffset={-outLen} transform="rotate(-90 60 60)" />}
-                    <text x="60" y="58" textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--t1)">{readyPct}%</text>
-                    <text x="60" y="73" textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--t3)">{lang === "en" ? "ready" : "siap pakai"}</text>
-                  </svg>
-                  <div className={styles.homeDonutLegend}>
-                    <div><i style={{ background: "var(--brand)" }} />{lang === "en" ? "On duty" : "Bertugas"}<b>{vehiclesOut}</b></div>
-                    <div><i style={{ background: "var(--gold)" }} />{lang === "en" ? "Available" : "Tersedia"}<b>{vehiclesFree}</b></div>
-                  </div>
-                </div>
-              </section>
-
-              {!prbOnly && <section className={styles.homeCard}>
-                <div className={styles.homeCardHead}><h3>{lang === "en" ? "Load per plant" : "Beban per plant"}</h3><small>{lang === "en" ? "tasks today" : "tugas hari ini"}</small></div>
-                {(["CIK", "PRB"] as const).map((pl) => {
-                  const all = todayTasks.filter((t) => t.plant === pl).length;
-                  const going = ongoingToday.filter((t) => t.plant === pl).length;
-                  const maxAll = Math.max(1, todayTasks.filter((t) => t.plant === "CIK").length, todayTasks.filter((t) => t.plant === "PRB").length);
+                  }
                   return (
-                    <div key={pl} className={styles.homePlantRow}>
-                      <div className={styles.homePlantHead}><b>{pl === "CIK" ? "Cikarang" : "Pasar Rebo"}</b><span>{going} {lang === "en" ? "running" : "jalan"} / {all}</span></div>
-                      <div className={styles.homeBar}><i style={{ width: `${(all / maxAll) * 100}%`, background: pl === "CIK" ? "var(--grad-brand)" : "linear-gradient(90deg, var(--gold), var(--gold2))" }} /></div>
+                    <div className={hm.taskList}>
+                      {list.slice(0, 6).map((t) => {
+                        const st = t.status === "ON GOING" ? { l: "Berjalan", c: hm.sGo } : t.status === "DONE" ? { l: "Selesai", c: hm.sDone } : { l: "Menunggu", c: hm.sWait };
+                        const at = t.status === "DONE" ? t.completed_at : t.status === "ON GOING" ? t.accepted_at : t.created_at;
+                        return (
+                          <button key={t.id} type="button" className={hm.taskRow} onClick={() => setActiveTab("tasks")}>
+                            <span className={`${hm.av} ${t.plant === "PRB" ? hm.avPrb : ""}`}>{initialsOf(t.driver_nama ?? "-")}</span>
+                            <span className={hm.taskMain}>
+                              <b>{t.driver_nama ?? "Belum ada driver"}</b>
+                              <span className={hm.route}>
+                                <span>{t.lokasi_asal || plantLocation(t.plant)}</span>
+                                <Icon name="arrow" size={13} />
+                                <span>{t.tujuan}</span>
+                              </span>
+                            </span>
+                            <span className={hm.taskMeta}>
+                              <span className={`${hm.status} ${st.c}`}>{st.l}</span>
+                              <small>{t.kendaraan ?? "-"}{at ? ` · ${fmtClock(at)}` : ""}</small>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   );
-                })}
-              </section>}
+                })()}
+                <button type="button" className={hm.cardLink} onClick={() => setActiveTab("tasks")}>Buka Penugasan<Icon name="arrow" size={14} /></button>
+              </section>
 
-              <section className={styles.homeCard}>
-                <div className={styles.homeCardHead}><h3>{lang === "en" ? "Needs attention" : "Perlu perhatian"}</h3><small>{lateOngoing.length}</small></div>
-                <div className={styles.homeFeed}>
-                  {lateOngoing.length === 0 && <div className={styles.homeEmpty}>{lang === "en" ? "Nothing needs a check right now." : "Tidak ada yang perlu dicek saat ini."}</div>}
+              {!prbOnly && (
+                <section className={`${hm.card} ${hm.aGate}`}>
+                  <div className={hm.cardHead}>
+                    <div>
+                      <h2>Aktivitas gate</h2>
+                      <span className={hm.sub}>{gateAgo === null ? "Memuat…" : gateAgo < 5 ? "Diperbarui baru saja" : `Diperbarui ${gateAgo} dtk lalu`}</span>
+                    </div>
+                    <span className={hm.livePill}><i className={hm.liveDot} />Live</span>
+                  </div>
+                  <div className={hm.feed}>
+                    {gateLogs.length === 0 && <div className={hm.empty}>Belum ada pergerakan gate hari ini.</div>}
+                    {gateLogs.slice(0, 6).map((g) => {
+                      const out = g.status === "OUT";
+                      const tag = out ? "Keluar" : g.status === "IN" ? "Masuk" : "Selesai";
+                      return (
+                        <div key={g.id} className={hm.feedRow}>
+                          <span className={`${hm.av} ${g.plant === "PRB" ? hm.avPrb : ""}`}>{initialsOf(g.driverName)}</span>
+                          <span className={hm.feedText}>
+                            <b>{g.driverName}</b>
+                            <span>{g.nopol} · {g.plant}{g.tujuan ? ` → ${g.tujuan}` : ""}</span>
+                            {g.keterangan ? <em>{g.keterangan}</em> : null}
+                          </span>
+                          <span className={`${hm.tag} ${out ? hm.tagOut : g.status === "IN" ? hm.tagIn : hm.tagDone}`}>{tag}<small>{fmtClock(out ? g.timeOut : g.timeIn ?? g.timeOut)}</small></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button type="button" className={hm.cardLink} onClick={() => setActiveTab("vehicles")}>Buka Gate Log<Icon name="arrow" size={14} /></button>
+                </section>
+              )}
+
+              <section className={`${hm.card} ${hm.aFleet}`}>
+                <div className={hm.cardHead}><h2>Armada</h2><span className={hm.sub}>{vehiclesTotal} unit aktif</span></div>
+                <div className={hm.donutWrap}>
+                  <svg viewBox="0 0 120 120" width="112" height="112" role="img" aria-label={`${readyPct}% armada siap pakai`}>
+                    <circle cx="60" cy="60" r={donutR} className={hm.donutBg} />
+                    {vehiclesOut > 0 && <circle cx="60" cy="60" r={donutR} className={hm.donutOut} strokeDasharray={`${Math.max(0, outLen - 4)} ${donutC - outLen + 4}`} transform="rotate(-90 60 60)" />}
+                    {vehiclesFree > 0 && <circle cx="60" cy="60" r={donutR} className={hm.donutFree} strokeDasharray={`${Math.max(0, freeLen - 4)} ${donutC - freeLen + 4}`} strokeDashoffset={-outLen} transform="rotate(-90 60 60)" />}
+                    <text x="60" y="58" textAnchor="middle" className={hm.donutVal}>{readyPct}%</text>
+                    <text x="60" y="74" textAnchor="middle" className={hm.donutSub}>siap pakai</text>
+                  </svg>
+                  <div className={hm.donutLegend}>
+                    <span><i className={hm.dOut} />Bertugas<b>{vehiclesOut}</b></span>
+                    <span><i className={hm.dFree} />Tersedia<b>{vehiclesFree}</b></span>
+                  </div>
+                </div>
+                {!prbOnly && (
+                  <div className={hm.plants}>
+                    {(["CIK", "PRB"] as const).map((pl) => {
+                      const all = todayTasks.filter((t) => t.plant === pl).length;
+                      const going = ongoingToday.filter((t) => t.plant === pl).length;
+                      return (
+                        <div key={pl} className={hm.plantChip}>
+                          <span className={hm.plantName}><i className={pl === "PRB" ? hm.bPrb : hm.bCik} />{pl === "CIK" ? "Cikarang" : "Pasar Rebo"}</span>
+                          <b>{all}<small> tugas</small></b>
+                          <span className={hm.sub}>{going} berjalan</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section className={`${hm.card} ${hm.aAttn}`}>
+                <div className={hm.cardHead}><h2>Perlu perhatian</h2><span className={`${hm.count} ${lateOngoing.length ? hm.countWarn : ""}`}>{lateOngoing.length}</span></div>
+                <div className={hm.feed}>
+                  {lateOngoing.length === 0 && (
+                    <div className={hm.allGood}><span><Icon name="check" size={18} /></span>Tidak ada yang perlu dicek saat ini.</div>
+                  )}
                   {lateOngoing.slice(0, 4).map((t) => (
-                    <div className={styles.homeFeedRow} key={t.id}>
-                      <span className={`${styles.homeAvatar} ${styles.homeAvatarWarn}`}><Icon name="clock" size={16} /></span>
-                      <span className={styles.homeFeedText}>
+                    <div className={hm.feedRow} key={t.id}>
+                      <span className={`${hm.av} ${hm.avWarn}`}><Icon name="clock" size={16} /></span>
+                      <span className={hm.feedText}>
                         <b>{t.driver_nama ?? "-"}</b>
-                        <small>{t.tujuan} · {Math.round((nowTick - new Date(t.accepted_at ?? t.created_at).getTime()) / 3600000)} {lang === "en" ? "h" : "jam"}</small>
+                        <span>{t.tujuan}</span>
                       </span>
-                      <span className={`${styles.homeTag} ${styles.homeTagOut}`}>{lang === "en" ? "Check" : "Cek"}</span>
+                      <span className={`${hm.tag} ${hm.tagOut}`}>{Math.round((nowTick - new Date(t.accepted_at ?? t.created_at).getTime()) / 3600000)} jam</span>
                     </div>
                   ))}
                 </div>
               </section>
             </div>
+            </div>
           </>
         )}
-
-        {/* ── Modul ── */}
-        <div className={styles.homeSectionHead}>
-          <h2>{filteredGroup ? (lang === "id" ? filteredGroup.labelId : filteredGroup.labelEn) : (lang === "en" ? "Modules" : "Modul")}</h2>
-          {filteredGroup && (
-            <button onClick={() => setActiveGroupId(undefined)} className={styles.homeBack}>
-              <Icon name="back" size={14} /> {lang === "en" ? "All modules" : "Semua modul"}
-            </button>
-          )}
-        </div>
-        {(filteredGroup ? [filteredGroup] : visibleGroups).map((group) => (
-          <div key={group.id} className={styles.homeGroup}>
-            {!filteredGroup && <div className={styles.homeGroupLabel}>{lang === "id" ? group.labelId : group.labelEn}</div>}
-            <div className={styles.moduleGrid}>{group.tabs.map((tabItem) => renderCard(tabItem, group.id))}</div>
-          </div>
-        ))}
       </div>
 
       {/* ── Kolom kanan ── */}
       {!prbOnly && <div className={styles.homeSide}>
         <CalendarWidget events={agendaEvents} selectedDate={selectedAgendaDate} onPickDate={(d) => setSelectedAgendaDate(d === selectedAgendaDate ? null : d)} />
         <AgendaWidget events={agendaEvents} onAdd={handleAddAgenda} onDelete={handleDeleteAgenda} filterDate={selectedAgendaDate} onClearFilter={() => setSelectedAgendaDate(null)} />
-        <QuickActionsWidget setActiveTab={setActiveTab} />
         <AnnouncementWidget announcements={announcements} onAdd={handleAddAnnouncement} canManage={myProfile?.role === "admin"} />
       </div>}
     </div>
