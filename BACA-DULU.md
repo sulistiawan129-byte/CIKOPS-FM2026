@@ -1,3 +1,19 @@
+# Redesign V2.19 — Tema EXECUTIVE untuk semua modul
+
+Tidak ada SQL baru. Ganti 3 file, lalu deploy.
+
+## Yang berubah
+- Seluruh dashboard (sidebar, topbar, dan SEMUA modul: Ringkasan, Penugasan, Armada/Gate Log, Pom Bensin, Klaim, Budget Driver, Dana Operasional, Kantin, Locker, Pembagian, Printer, Permintaan Karyawan, ATK, Report, Master Data, Log Aktivitas) kini memakai tema yang sama dengan Dashboard-ViewOnly:
+  - latar navy #050b1c dengan grid halus + cahaya biru/cyan,
+  - panel kaca gelap, garis biru tipis,
+  - warna aksen biru #4d8dff, hijau #34d399, cyan #22d3ee, kuning #fbbf24, merah #fb7185, ungu #a78bfa,
+  - font Inter untuk teks dan Chakra Petch untuk judul (h1/h2/h3, judul seksi).
+- Tema gelap executive jadi DEFAULT. Tombol matahari/bulan di topbar tetap bisa dipakai untuk pindah ke mode terang (pilihan disimpan).
+- Menu aktif di sidebar bergaya tombol biru menyala seperti ViewOnly.
+- Catatan: halaman publik /canteen, /request, /locker, dan /gate memakai gaya sendiri (tidak berbasis token) sehingga belum berubah. /driver dan /gift ikut gelap.
+- Berubah: src/app/globals.css, src/app/layout.tsx, src/app/dashboard/home.module.css.
+
+---
 # Redesign V2.18 — Beranda bertema "executive" (seperti Dashboard-ViewOnly)
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy.

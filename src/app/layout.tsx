@@ -69,7 +69,7 @@ export const viewport: Viewport = {
 const THEME_INIT_SCRIPT = `
   try {
     var t = localStorage.getItem("cikops_theme");
-    if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    if (t !== "light") document.documentElement.setAttribute("data-theme", "dark");
   } catch (e) {}
 `;
 export default function RootLayout({

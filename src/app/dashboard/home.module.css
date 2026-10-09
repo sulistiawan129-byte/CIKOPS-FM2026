@@ -213,3 +213,6 @@
   .seg button { flex: 0 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) { .liveDot, .sGo::before, .taskRow { animation: none; } .taskRow, .kpi, .heroPrimary { transition: none; } }
+
+/* Saat seluruh aplikasi sudah bertema executive (gelap), kanvas beranda menyatu dengan latar halaman. */
+:global([data-theme="dark"]) .exec { background: transparent; box-shadow: none; padding: 4px 4px 40px !important; border-radius: 0; }
