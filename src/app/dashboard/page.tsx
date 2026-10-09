@@ -9,6 +9,7 @@ import { TaskBoardBar, TaskCard, TaskEmpty, TaskSlipModal, TaskForm, TaskSuccess
 import type { TaskFormValues } from "./TasksUI";
 import tk from "./tasks.module.css";
 import { GateLogPanel } from "./GateUI";
+import { OverviewBoard, type OverviewData } from "./OverviewUI";
 import { ClaimsHero, ClaimCard, WeekHeader, ViewSwitch, PeriodSwitch, RecapBar, ClaimForm, WreathCard, CLAIM_CATS, catLabel } from "./ClaimsUI";
 import { ModalPortal } from "@/components/ModalPortal";
 import { TabErrorBoundary } from "@/components/TabErrorBoundary";
@@ -21,6 +22,7 @@ import type { DriverReportSummary } from "@/lib/analytics";
 import {
   getMyProfile,
   canAccessTab,
+  isPrbOnly,
   getActivityLog,
   type ActivityLogEntry,
   cancelTaskByAdmin,
@@ -219,7 +221,6 @@ const NAV_GROUPS: NavGroup[] = [
     labelEn: "Finance",
     tabs: [
       { id: "claims", icon: "🧾", labelId: "Klaim", labelEn: "Claims", descId: "Pengajuan & monitoring klaim", descEn: "Claim submission & monitoring" },
-      { id: "overtime", icon: "⏱️", labelId: "Overtime", labelEn: "Overtime", descId: "Lembur driver & rekapitulasi", descEn: "Driver overtime & recap" },
       { id: "driverbudget", icon: "💳", labelId: "Budget Driver", labelEn: "Driver Budget", descId: "Budget rutin & penggunaan", descEn: "Routine budget & usage" },
       { id: "opfund", icon: "💰", labelId: "Dana Operasional", labelEn: "Operational Fund", descId: "Pengajuan dana operasional", descEn: "Operational fund requests" },
     ],
@@ -330,6 +331,10 @@ export default function DashboardPage() {
     if (prev === "home") setActiveHomeGroup(undefined);
   }, [tabHistory]);
   const [activeHomeGroup, setActiveHomeGroup] = useState<string | undefined>(undefined);
+  // Akun scope PRB hanya boleh Penugasan, Armada, Master Data — kembalikan ke Home bila tab lain terbuka.
+  useEffect(() => {
+    if (activeTab !== "home" && myProfile && !canAccessTab(myProfile, activeTab)) setActiveTab("home");
+  }, [activeTab, myProfile, setActiveTab]);
   const [globalSearch, setGlobalSearch] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -355,13 +360,13 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
     for (const group of NAV_GROUPS) {
       for (const tabItem of group.tabs) {
         const label = lang === "en" ? tabItem.labelEn : tabItem.labelId;
-        if (label.toLowerCase().includes(q)) {
+        if (canAccessTab(myProfile, tabItem.id) && label.toLowerCase().includes(q)) {
           results.push({ tab: tabItem.id, label, icon: tabItem.icon, group: lang === "en" ? group.labelEn : group.labelId });
         }
       }
     }
     return results.slice(0, 6);
-  }, [globalSearch, lang]);
+  }, [globalSearch, lang, myProfile]);
 
   const dataSearchResults = useMemo(() => {
     const q = globalSearch.trim().toLowerCase();
@@ -639,13 +644,13 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
             <span><Icon name="home" /></span>
             Dashboard
           </button>
-          <button
+          {!isPrbOnly(myProfile) && <button
             className={`navItem ${activeTab === "overview" ? "navItemActive" : ""}`}
             onClick={() => { setActiveTab("overview"); setSidebarOpen(false); }}
           >
             <span><Icon name="overview" /></span>
             {lang === "id" ? "Ringkasan" : "Overview"}
-          </button>
+          </button>}
           {NAV_GROUPS.map((group) => {
             const visibleTabs = group.tabs.filter((tabItem) => canAccessTab(myProfile, tabItem.id));
             if (visibleTabs.length === 0) return null;
@@ -667,7 +672,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           })}
         </nav>
 
-        <a
+        {!isPrbOnly(myProfile) && <a
           href="/dashboard-viewonly"
           target="_blank"
           rel="noopener noreferrer"
@@ -680,7 +685,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
             <small>{lang === "en" ? "No login · view only" : "Tanpa login · lihat saja"}</small>
           </span>
           <Icon name="external" size={15} />
-        </a>
+        </a>}
 
         <div style={{ marginTop: 8, padding: 10, borderRadius: 16, background: "var(--surface2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--grad-brand)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
@@ -791,7 +796,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
               <span className={styles.liveDot} /> Live
             </div>
           )}
-          <a
+          {!isPrbOnly(myProfile) && <a
             className={styles.iconBtn}
             href="/dashboard-viewonly"
             target="_blank"
@@ -801,7 +806,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
             style={{ textDecoration: "none", color: "inherit" }}
           >
             <Icon name="eye" size={18} />
-          </a>
+          </a>}
           <button
             className={styles.iconBtn}
             onClick={() => setLang(lang === "id" ? "en" : "id")}
@@ -818,14 +823,14 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           </button>
           {activeTab === "tasks" && (
             <>
-              <button
+              {!isPrbOnly(myProfile) && <button
                 className={styles.iconBtn}
                 onClick={() => setReportModalOpen(true)}
                 aria-label="Laporan & Analytics"
                 title="Laporan & Analytics"
               >
                 <Icon name="reports" size={18} />
-              </button>
+              </button>}
               <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
                 {isMobile ? "+ Tugaskan" : "+ Tugaskan Driver"}
               </button>
@@ -936,7 +941,6 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "overview" && <OverviewTab setActiveTab={setActiveTab} myProfile={myProfile} />}
           {activeTab === "vehicles" && <VehiclesTab myProfile={myProfile} />}
           {activeTab === "claims" && <ClaimsTab myProfile={myProfile} />}
-         {activeTab === "overtime" && <OvertimeTab myProfile={myProfile} />}
           {activeTab === "driverbudget" && <DriverBudgetTab myProfile={myProfile} />}
           {activeTab === "opfund" && <OpFundTab myProfile={myProfile} />}
           {activeTab === "gasstations" && <GasStationsTab />}
@@ -2113,6 +2117,7 @@ function HomeTab({
 }) {
   const { lang } = useLang();
   const [viewLinkCopied, setViewLinkCopied] = useState(false);
+  const prbOnly = isPrbOnly(myProfile);
   const visibleGroups = NAV_GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((t) => canAccessTab(myProfile, t.id)) })).filter((g) => g.tabs.length > 0);
   const filteredGroup = activeGroupId ? visibleGroups.find((g) => g.id === activeGroupId) : undefined;
 
@@ -2142,7 +2147,7 @@ function HomeTab({
     }
   }, []);
 
-  useEffect(() => { loadWidgets(); }, [loadWidgets]);
+  useEffect(() => { if (!prbOnly) loadWidgets(); }, [loadWidgets, prbOnly]);
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
@@ -2174,10 +2179,11 @@ function HomeTab({
         console.warn("Gagal memuat aktivitas gate:", e);
       }
     }
+    if (prbOnly) return;
     loadGate();
     const id = setInterval(loadGate, 20000);
     return () => { alive = false; clearInterval(id); };
-  }, [myProfile?.plantScope]);
+  }, [myProfile?.plantScope, prbOnly]);
 
   useEffect(() => {
     (async () => {
@@ -2189,6 +2195,20 @@ function HomeTab({
         const monday = new Date(now);
         monday.setDate(now.getDate() - dow);
         const mondayStr = monday.toISOString().slice(0, 10);
+
+        if (prbOnly) {
+          const [tasksToday, vehicles, drivers] = await Promise.all([
+            getTasksByRange(todayS, todayS, "PRB"),
+            getVehicles("PRB"),
+            getDrivers("PRB"),
+          ]);
+          setKpi({
+            claimWeekTotal: 0, tasksToday: tasksToday.length, canteenTodayTotal: 0, opBudgetAvailable: 0,
+            vehiclesActive: vehicles.filter((v) => v.aktif).length,
+            driversActive: drivers.filter((d) => d.aktif).length,
+          });
+          return;
+        }
 
         const [claims, tasksToday, canteenMonth, kantongCik, kantongPrb, vehicles, drivers] = await Promise.all([
           getClaims(),
@@ -2221,7 +2241,7 @@ function HomeTab({
         console.warn("Gagal memuat KPI Home:", e);
       }
     })();
-  }, []);
+  }, [prbOnly]);
 
   async function handleAddAgenda(e: { title: string; location: string; eventDate: string; eventTime: string }) {
     try {
@@ -2310,7 +2330,7 @@ function HomeTab({
   const readyPct = vehiclesTotal > 0 ? Math.round((vehiclesFree / vehiclesTotal) * 100) : 0;
 
   return (
-    <div className={styles.homeLayout}>
+    <div className={styles.homeLayout} style={prbOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
       <div className={styles.homeMain}>
         {!filteredGroup && (
           <>
@@ -2324,7 +2344,7 @@ function HomeTab({
                     ? `${ongoingToday.length} task(s) are running now.${lateOngoing.length > 0 ? ` ${lateOngoing.length} need a check.` : " All on schedule."}`
                     : `${ongoingToday.length} tugas sedang berjalan.${lateOngoing.length > 0 ? ` ${lateOngoing.length} perlu dicek.` : " Semua sesuai jadwal."}`}
                 </p>
-                <div className={styles.heroTvRow}>
+                {!prbOnly && <div className={styles.heroTvRow}>
                 <a className={styles.heroTv} href="/dashboard-viewonly" target="_blank" rel="noopener noreferrer">
                   <Icon name="eye" size={16} strokeWidth={2.1} />
                   Dashboard-ViewOnly
@@ -2345,7 +2365,7 @@ function HomeTab({
                   <Icon name={viewLinkCopied ? "check" : "copy"} size={15} strokeWidth={2.2} />
                   {viewLinkCopied ? (lang === "en" ? "Link copied" : "Link tersalin") : (lang === "en" ? "Copy link" : "Salin link")}
                 </button>
-                </div>
+                </div>}
               </div>
               <div className={styles.homeHeroStats}>
                 <div className={styles.homeHeroStat}><b>{heroCount.today}</b><span>{lang === "en" ? "Tasks today" : "Tugas hari ini"}</span></div>
@@ -2357,16 +2377,16 @@ function HomeTab({
             {/* ── KPI ── */}
             {kpi && (
               <div className={styles.homeKpiGrid}>
-                <HomeKpiCard icon="claims" tone="fleet" labelId="Total Klaim Minggu Ini" labelEn="Claims This Week" value={kpi.claimWeekTotal} isCurrency />
+                {!prbOnly && <HomeKpiCard icon="claims" tone="fleet" labelId="Total Klaim Minggu Ini" labelEn="Claims This Week" value={kpi.claimWeekTotal} isCurrency />}
                 <HomeKpiCard icon="tasks" tone="fleet" labelId="Tugas Driver Hari Ini" labelEn="Driver Tasks Today" value={kpi.tasksToday} />
-                <HomeKpiCard icon="canteen" tone="facility" labelId="Rekap Kantin Hari Ini" labelEn="Canteen Today" value={kpi.canteenTodayTotal} />
-                <HomeKpiCard icon="opfund" tone="finance" labelId="Budget Operasional" labelEn="Operational Budget" value={kpi.opBudgetAvailable} isCurrency />
+                {!prbOnly && <HomeKpiCard icon="canteen" tone="facility" labelId="Rekap Kantin Hari Ini" labelEn="Canteen Today" value={kpi.canteenTodayTotal} />}
+                {!prbOnly && <HomeKpiCard icon="opfund" tone="finance" labelId="Budget Operasional" labelEn="Operational Budget" value={kpi.opBudgetAvailable} isCurrency />}
                 <HomeKpiCard icon="vehicles" tone="fleet" labelId="Kendaraan & Driver Aktif" labelEn="Active Vehicles & Drivers" value={kpi.vehiclesActive} subValue={kpi.driversActive} subLabelId="Driver" subLabelEn="Drivers" />
               </div>
             )}
 
             {/* ── Grafik + Gate ── */}
-            <div className={styles.homeSplit}>
+            <div className={styles.homeSplit} style={prbOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
               <section className={styles.homeCard}>
                 <div className={styles.homeCardHead}>
                   <div>
@@ -2374,7 +2394,7 @@ function HomeTab({
                     <small>{lang === "en" ? "Last 7 days" : "7 hari terakhir"}</small>
                   </div>
                   <div className={styles.homeLegend}>
-                    <span><i style={{ background: "var(--brand)" }} />Cikarang</span>
+                    {!prbOnly && <span><i style={{ background: "var(--brand)" }} />Cikarang</span>}
                     <span><i style={{ background: "var(--gold)" }} />Pasar Rebo</span>
                   </div>
                 </div>
@@ -2397,8 +2417,8 @@ function HomeTab({
                     const isToday = d.key === today;
                     return (
                       <g key={d.key}>
-                        <rect x={x0} y={220 - 28 - h1} width={bw} height={h1} rx="5" fill="var(--brand)" opacity={isToday ? 1 : 0.8} />
-                        <rect x={x0 + bw + 3} y={220 - 28 - h2} width={bw} height={h2} rx="5" fill="var(--gold)" opacity={isToday ? 1 : 0.8} />
+                        {!prbOnly && <rect x={x0} y={220 - 28 - h1} width={bw} height={h1} rx="5" fill="var(--brand)" opacity={isToday ? 1 : 0.8} />}
+                        <rect x={prbOnly ? x0 + bw / 2 : x0 + bw + 3} y={220 - 28 - h2} width={bw} height={h2} rx="5" fill="var(--gold)" opacity={isToday ? 1 : 0.8} />
                         <text x={28 + i * slot + slot / 2} y={212} textAnchor="middle" fontSize="11" fill={isToday ? "var(--t1)" : "var(--t3)"} fontWeight={isToday ? 700 : 500}>{d.label}</text>
                       </g>
                     );
@@ -2406,7 +2426,7 @@ function HomeTab({
                 </svg>
               </section>
 
-              <section className={styles.homeCard}>
+              {!prbOnly && <section className={styles.homeCard}>
                 <div className={styles.homeCardHead}>
                   <div>
                     <h3>{lang === "en" ? "Gate activity" : "Aktivitas gate"}</h3>
@@ -2434,11 +2454,11 @@ function HomeTab({
                     );
                   })}
                 </div>
-              </section>
+              </section>}
             </div>
 
             {/* ── Armada + plant ── */}
-            <div className={styles.homeTrio}>
+            <div className={styles.homeTrio} style={prbOnly ? { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } : undefined}>
               <section className={styles.homeCard}>
                 <div className={styles.homeCardHead}><h3>{lang === "en" ? "Fleet status" : "Status armada"}</h3><small>{vehiclesTotal} unit</small></div>
                 <div className={styles.homeDonutWrap}>
@@ -2456,7 +2476,7 @@ function HomeTab({
                 </div>
               </section>
 
-              <section className={styles.homeCard}>
+              {!prbOnly && <section className={styles.homeCard}>
                 <div className={styles.homeCardHead}><h3>{lang === "en" ? "Load per plant" : "Beban per plant"}</h3><small>{lang === "en" ? "tasks today" : "tugas hari ini"}</small></div>
                 {(["CIK", "PRB"] as const).map((pl) => {
                   const all = todayTasks.filter((t) => t.plant === pl).length;
@@ -2469,7 +2489,7 @@ function HomeTab({
                     </div>
                   );
                 })}
-              </section>
+              </section>}
 
               <section className={styles.homeCard}>
                 <div className={styles.homeCardHead}><h3>{lang === "en" ? "Needs attention" : "Perlu perhatian"}</h3><small>{lateOngoing.length}</small></div>
@@ -2509,12 +2529,12 @@ function HomeTab({
       </div>
 
       {/* ── Kolom kanan ── */}
-      <div className={styles.homeSide}>
+      {!prbOnly && <div className={styles.homeSide}>
         <CalendarWidget events={agendaEvents} selectedDate={selectedAgendaDate} onPickDate={(d) => setSelectedAgendaDate(d === selectedAgendaDate ? null : d)} />
         <AgendaWidget events={agendaEvents} onAdd={handleAddAgenda} onDelete={handleDeleteAgenda} filterDate={selectedAgendaDate} onClearFilter={() => setSelectedAgendaDate(null)} />
         <QuickActionsWidget setActiveTab={setActiveTab} />
         <AnnouncementWidget announcements={announcements} onAdd={handleAddAnnouncement} canManage={myProfile?.role === "admin"} />
-      </div>
+      </div>}
     </div>
   );
 }
@@ -2647,722 +2667,45 @@ function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: DashboardT
 
   if (loading) return <div style={{ padding: 60, textAlign: "center", color: "var(--t3)" }}>{lang === "en" ? "Loading overview..." : "Memuat ringkasan..."}</div>;
 
-  const now = new Date();
-  const todayTasks = tasksLast30d.filter((t) => t.tanggal === todayStr());
-  const hour = now.getHours();
-  const greeting =
-    hour < 11 ? (lang === "en" ? "Good Morning" : "Selamat Pagi") : hour < 15 ? (lang === "en" ? "Good Afternoon" : "Selamat Siang") : hour < 18 ? (lang === "en" ? "Good Evening" : "Selamat Sore") : (lang === "en" ? "Good Evening" : "Selamat Malam");
-  const displayName = myProfile?.fullName || "";
-  const heroTimeStr = clockNow.toLocaleTimeString(lang === "en" ? "en-GB" : "id-ID", { hour: "2-digit", minute: "2-digit" });
-  const heroDateStr = clockNow.toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-
-  // ── Vehicles & documents ──
-  const activeV = vehicles.filter((v) => v.aktif).length;
-  const maintenanceV = vehicles.length - activeV;
-  const availableDrivers = availableDriversPre;
-
-  // ── Claims (this month) ──
-  const thisMonthClaims = claims.filter((c) => {
-    const d = new Date(c.periodDate);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  // ── Data untuk tampilan Ringkasan baru (OverviewUI) ──
+  const ovDocs: OverviewData["docs"] = [];
+  vehicles.filter((v) => v.aktif).forEach((v) => {
+    const svc = nextDocDate("Service", v.service_date);
+    const items: [string, string | null][] = [
+      ["KIR", nextDocDate("KIR", v.kir_date).next],
+      ["STNK", nextDocDate("STNK", v.stnk_date).next],
+      ["Service", svc.nextEarly ?? svc.next],
+    ];
+    items.forEach(([doc, date]) => {
+      if (date) ovDocs.push({ id: `${v.id}-${doc}`, nopol: v.nopol, plant: v.plant ?? "CIK", doc, date, days: daysUntil(date) });
+    });
   });
-  const thisMonthTotal = thisMonthClaims.reduce((s, c) => s + c.total, 0);
-  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthTotal = claims
-    .filter((c) => { const d = new Date(c.periodDate); return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear(); })
-    .reduce((s, c) => s + c.total, 0);
-  const claimTrendPct = lastMonthTotal > 0 ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : null;
-
-  // ── Overtime (this month) — plain numbers, no health bar ──
-  const periodNow = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const otThisMonth = overtimes.filter((o) => o.period === periodNow);
-  const otHours = otThisMonth.reduce((s, o) => s + o.hours, 0);
-  const otAmount = otThisMonth.reduce((s, o) => s + o.amount, 0);
-  const otByPlant = OT_PLANTS.map((p) => ({ plant: p, hours: otThisMonth.filter((o) => o.plant === p).reduce((s, o) => s + o.hours, 0) }));
-  const maxOtPlantHours = Math.max(...otByPlant.map((p) => p.hours), 1);
-
-  // ── Operational Fund — CIK & PRB shown separately (never summed),
-  // no health gauge, plain figures per plant. ──
-  const myKantong = myProfile?.plantScope === "PRB" ? kantongPrb : kantongCik;
-  const showBothPlants = !myProfile?.plantScope;
-
-  // ── Driver Budget ──
-  const totalTierBudget = tiers.reduce((s, t) => s + t.amountPerMonth * t.activeDriverCount, 0);
-  const totalTierDrivers = tiers.reduce((s, t) => s + t.activeDriverCount, 0);
-
-  // ── Gas Stations ──
-  const fuelTypesCovered = new Set(gasStations.flatMap((s) => s.fuels.filter((f) => f.available).map((f) => f.type))).size;
-
-  // ── Canteen (this month) ──
-  const canteenSnackOrder = canteenThisMonth.reduce((s, r) => s + r.snackOrder[0] + r.snackOrder[1] + r.snackOrder[2], 0);
-  const canteenSnackLeftover = canteenThisMonth.reduce((s, r) => s + r.snackLeftover[0] + r.snackLeftover[1] + r.snackLeftover[2], 0);
-  const canteenMealOrder = canteenThisMonth.reduce((s, r) => s + r.mealOrder[0] + r.mealOrder[1] + r.mealOrder[2], 0);
-  const canteenMealLeftover = canteenThisMonth.reduce((s, r) => s + r.mealLeftover[0] + r.mealLeftover[1] + r.mealLeftover[2], 0);
-  const canteenSnackConsumed = Math.max(0, canteenSnackOrder - canteenSnackLeftover);
-  const canteenMealConsumed = Math.max(0, canteenMealOrder - canteenMealLeftover);
-  const maxCanteenVal = Math.max(canteenSnackOrder, canteenMealOrder, 1);
-
-  // ── Locker ──
-  const lockerTotal = lockerEntries.length;
-  const lockerUsed = lockerEntries.filter((e) => e.status === "Terisi").length;
-  const lockerAvailable = lockerTotal - lockerUsed;
-  const RL = 38, CIRCL = 2 * Math.PI * RL;
-  const lockerUsedPct = lockerTotal > 0 ? (lockerUsed / lockerTotal) * 100 : 0;
-
-  // ── Overall activity, last 30 days — three different systems (Claims,
-  // Tasks, Overtime) plotted on the SAME calendar so the chart tells the
-  // story of the whole operation, not just claims. Each keeps its own
-  // natural unit (Rp / count / hours) rather than forcing them onto one
-  // shared axis, which would be misleading. ──
-  const days30: Date[] = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (29 - i));
-    d.setHours(0, 0, 0, 0);
-    return d;
-  });
-  const dayIndexOf = (d: Date) => days30.findIndex((x) => x.getTime() === d.getTime());
-
-  const claimsDaily = days30.map(() => 0);
-  claims.forEach((c) => {
-    const cd = new Date(c.periodDate);
-    cd.setHours(0, 0, 0, 0);
-    const idx = dayIndexOf(cd);
-    if (idx >= 0) claimsDaily[idx] += c.total;
-  });
-
-  const tasksDaily = days30.map(() => 0);
-  tasksLast30d.forEach((tk) => {
-    const td = new Date(tk.tanggal);
-    td.setHours(0, 0, 0, 0);
-    const idx = dayIndexOf(td);
-    if (idx >= 0) tasksDaily[idx] += 1;
-  });
-
-  const overtimeDaily = days30.map(() => 0);
-  overtimes.forEach((o) => {
-    if (!o.createdAt) return;
-    const od = new Date(o.createdAt);
-    od.setHours(0, 0, 0, 0);
-    const idx = dayIndexOf(od);
-    if (idx >= 0) overtimeDaily[idx] += o.hours;
-  });
-
-  const fmtShortDate = (d: Date) => d.toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short" });
-  const fmtRpCompact = (n: number): string => {
-    if (n <= 0) return "0";
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1).replace(/\.0$/, "")}jt`;
-    if (n >= 1_000) return `${Math.round(n / 1_000)}rb`;
-    return String(Math.round(n));
+  const sum3 = (a: number[] | undefined) => (a ?? []).slice(0, 3).reduce((s, n) => s + (Number(n) || 0), 0);
+  const snackOrder = canteenThisMonth.reduce((s, r) => s + sum3(r.snackOrder), 0);
+  const snackLeft = canteenThisMonth.reduce((s, r) => s + sum3(r.snackLeftover), 0);
+  const mealOrder = canteenThisMonth.reduce((s, r) => s + sum3(r.mealOrder), 0);
+  const mealLeft = canteenThisMonth.reduce((s, r) => s + sum3(r.mealLeftover), 0);
+  const ovData: OverviewData = {
+    tasks: tasksLast30d,
+    claims,
+    vehicles,
+    drivers,
+    funds: [kantongCik, kantongPrb].filter((k): k is Kantong => !!k).map((k) => ({ plant: k.plant, cash: k.cashAvailable, budget: k.totalBudget })),
+    docs: ovDocs,
+    tiers,
+    canteen: { snackOrder, snackUsed: Math.max(0, snackOrder - snackLeft), mealOrder, mealUsed: Math.max(0, mealOrder - mealLeft) },
+    locker: { total: lockerEntries.length, used: lockerEntries.filter((e) => e.status === "Terisi").length },
+    gas: { stations: gasStations.length, fuelTypes: new Set(gasStations.flatMap((s) => s.fuels.filter((f) => f.available).map((f) => f.type))).size },
   };
-
-  interface ActivitySeries {
-    key: string;
-    label: string;
-    color: string;
-    values: number[];
-    fmtAxis: (n: number) => string;
-    fmtInsight: (n: number) => string;
-  }
-  const activitySeries: ActivitySeries[] = [
-    {
-      key: "claims",
-      label: lang === "en" ? "Claims" : "Klaim",
-      color: "var(--brand)",
-      values: claimsDaily,
-      fmtAxis: (n) => `Rp ${fmtRpCompact(n)}`,
-      fmtInsight: (n) => `Rp ${fmtRp(n)}`,
-    },
-    {
-      key: "tasks",
-      label: lang === "en" ? "Tasks" : "Tugas",
-      color: "var(--green)",
-      values: tasksDaily,
-      fmtAxis: (n) => String(Math.round(n)),
-      fmtInsight: (n) => `${Math.round(n)} ${lang === "en" ? "tasks" : "tugas"}`,
-    },
-    {
-      key: "overtime",
-      label: "Overtime",
-      color: "var(--gold2)",
-      values: overtimeDaily,
-      fmtAxis: (n) => String(Math.round(n)),
-      fmtInsight: (n) => `${fmtRp(n)} ${lang === "en" ? "hrs" : "jam"}`,
-    },
-  ];
-
-  // ── Vehicle status donut ──
-  const donutTotal = vehicles.length || 1;
-  const donutSegs = [
-    { label: lang === "en" ? "Active" : "Aktif", value: activeV, color: "var(--brand)" },
-    { label: "Maintenance", value: maintenanceV, color: "var(--orange)" },
-  ];
-  const RD = 42, CIRCD = 2 * Math.PI * RD;
-  let donutOffset = 0;
-
-  // ── Activity feed — Claims + Overtime, merged ──
-  const activity = [
-    ...claims.map((c) => ({ kind: "claim" as const, date: c.periodDate, driver: c.driverName, amount: c.total, meta: [...new Set(c.items.map((i) => i.type))].join(", ") })),
-    ...overtimes.map((o) => ({ kind: "overtime" as const, date: `${o.period}-01`, driver: o.driverName, amount: o.amount, meta: `${o.plant} · ${fmtRp(o.hours)} jam` })),
-  ].filter((a) => a.driver).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6);
-
-  const cardStyle: CSSProperties = { background: "linear-gradient(180deg, var(--surface2), var(--surface))", border: "1px solid var(--border2)", borderRadius: "var(--r2)", boxShadow: "var(--shadow-md)" };
-
- const quickAccessAll: { icon: string; label: string; tab: DashboardTab }[] = [
-    { icon: "🚗", label: lang === "en" ? "Vehicles" : "Armada", tab: "vehicles" },
-    { icon: "🧾", label: lang === "en" ? "Claims" : "Klaim", tab: "claims" },
-    { icon: "⏱️", label: "Overtime", tab: "overtime" },
-    { icon: "💳", label: lang === "en" ? "Driver Budget" : "Budget Driver", tab: "driverbudget" },
-    { icon: "🍱", label: lang === "en" ? "Canteen" : "Kantin", tab: "canteen" },
-    { icon: "🔐", label: "Locker", tab: "locker" },
-  ];
-  const quickAccess = quickAccessAll.filter((q) => canAccessTab(myProfile, q.tab));
-
-  const STATUS_COLOR: Record<string, string> = { ASSIGNED: "var(--brand)", "ON GOING": "var(--orange)", DONE: "var(--green)", CANCELLED: "var(--red)" };
-  const STATUS_LABEL_ID: Record<string, string> = { ASSIGNED: "Ditugaskan", "ON GOING": "Berjalan", DONE: "Selesai", CANCELLED: "Batal" };
 
   return (
     <div style={{ padding: 20 }}>
-      {/* ══════════════════════════════════════════════════════
-          HERO — dramatic, full-bleed, animated mesh background.
-      ══════════════════════════════════════════════════════ */}
-      <div
-        className="statPop"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: 28,
-          padding: "34px 32px",
-          marginBottom: 22,
-          background: "linear-gradient(135deg, var(--navy) 0%, var(--brand2) 55%, var(--brand) 100%)",
-          boxShadow: "0 28px 60px rgba(20,49,92,0.35)",
-        }}
-      >
-        <div style={{ position: "absolute", top: "-30%", right: "-10%", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%)", filter: "blur(6px)", animation: "heroFloat1 16s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", bottom: "-40%", left: "-8%", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle, rgba(23,195,178,0.28), transparent 70%)", filter: "blur(6px)", animation: "heroFloat2 20s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)", backgroundSize: "22px 22px", opacity: 0.5 }} />
-
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 26 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--gold)", animation: "pulse 1.6s infinite", display: "inline-block" }} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.5, color: "rgba(255,255,255,0.75)", textTransform: "uppercase" }}>
-                {lang === "en" ? "Operational Command Center" : "Command Center Operasional"}
-              </span>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "var(--mono)" }}>{heroTimeStr}</div>
-              <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>{heroDateStr}</div>
-            </div>
-          </div>
-
-          <div style={{ fontSize: 28, fontWeight: 800, color: "#fff", marginBottom: 4, letterSpacing: -0.5 }}>
-            {greeting}{displayName ? `, ${displayName}` : ""} 👋
-          </div>
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.75)", marginBottom: 28 }}>
-            {lang === "en" ? "Here's everything at a glance." : "Berikut semua ringkasan sekilas pandang."}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
-            {[
-              { label: lang === "en" ? "Available Drivers" : "Driver Tersedia", value: String(animatedAvailableDrivers), sub: `${drivers.length} total` },
-              { label: lang === "en" ? "Total Vehicles" : "Total Kendaraan", value: String(animatedVehicleCount), sub: `${activeV} ${lang === "en" ? "active" : "aktif"}` },
-              { label: lang === "en" ? "Claims This Month" : "Klaim Bulan Ini", value: `Rp ${fmtRp(animatedThisMonthTotal)}`, sub: claimTrendPct === null ? "-" : `${claimTrendPct >= 0 ? "+" : ""}${claimTrendPct.toFixed(0)}% vs bulan lalu` },
-              { label: lang === "en" ? "Urgent Documents" : "Dokumen Urgent", value: String(animatedUrgentDocs), sub: "≤30 " + (lang === "en" ? "days" : "hari") },
-            ].map((k, i) => (
-              <div key={i} style={{ padding: "0 18px", borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.18)" : "none" }}>
-                <div style={{ fontSize: 27, fontWeight: 800, fontFamily: "var(--mono)", letterSpacing: -0.5, color: "#fff" }}>{k.value}</div>
-                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 4 }}>{k.label}</div>
-                <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{k.sub}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="sectionHeading">{lang === "en" ? "Today's Operations" : "Operasional Hari Ini"}</div>
-      {/* ══════════════════════════════════════════════════════
-          TASKS HARI INI (detail) + OPERATIONAL FUND (CIK/PRB)
-      ══════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 22 }}>
-        <div className="neonCard" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div className="hexBadge blue small">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                </svg>
-              </div>
-              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>{lang === "en" ? "Tasks Today" : "Tugas Hari Ini"}</div>
-            </div>
-            <button onClick={() => setActiveTab("tasks")} style={{ fontSize: 12, fontWeight: 700, color: "var(--brand)", background: "none", border: "none", cursor: "pointer" }}>
-              {lang === "en" ? "View all →" : "Lihat semua →"}
-            </button>
-          </div>
-          {todayTasks.length === 0 ? (
-            <div style={{ padding: 30, textAlign: "center", color: "var(--t3)", fontSize: 12.5 }}>
-              {lang === "en" ? "No tasks assigned today." : "Belum ada tugas hari ini."}
-            </div>
-          ) : (
-            <div style={{ maxHeight: 340, overflowY: "auto" }}>
-              {todayTasks.map((t, i) => (
-                <div key={t.id} className="staggerItem" style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 18px", borderBottom: "1px solid var(--border)", animationDelay: `${i * 0.03}s` }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--bg2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
-                    {t.driver_avatar || "🧑‍✈️"}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{t.driver_nama || "-"}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {t.tujuan}</div>
-                  </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 9px", borderRadius: "var(--pill)", background: `${STATUS_COLOR[t.status] || "var(--t3)"}18`, color: STATUS_COLOR[t.status] || "var(--t3)", whiteSpace: "nowrap" }}>
-                    {STATUS_LABEL_ID[t.status] || t.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="statPop" style={{ ...cardStyle, padding: 20, display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ fontSize: 14.5, fontWeight: 800, color: "var(--t1)", marginBottom: 16, position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "Vehicle Status" : "Distribusi Status Kendaraan"}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, position: "relative", zIndex: 1 }}>
-            <svg viewBox="0 0 110 110" width={96} height={96}>
-              <circle cx={55} cy={55} r={RD} fill="none" stroke="var(--border)" strokeWidth={14} />
-              {donutSegs.map((seg, i) => {
-                const segLen = (seg.value / donutTotal) * CIRCD;
-                const el = (
-                  <circle key={i} cx={55} cy={55} r={RD} fill="none" stroke={seg.color} strokeWidth={14} strokeDasharray={`${segLen} ${CIRCD - segLen}`} strokeDashoffset={-donutOffset} transform="rotate(-90 55 55)" />
-                );
-                donutOffset += segLen;
-                return el;
-              })}
-            </svg>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {donutSegs.map((seg, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: seg.color, flexShrink: 0 }} />
-                  <span style={{ color: "var(--t2)" }}>{seg.label}</span>
-                  <span style={{ fontWeight: 700, color: "var(--t1)" }}>{seg.value} ({donutTotal > 0 ? Math.round((seg.value / donutTotal) * 100) : 0}%)</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <button className="overviewCardBtn" onClick={() => setActiveTab("vehicles")} style={{ marginTop: "auto", paddingTop: 16, position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "View Vehicles" : "Lihat Kendaraan"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="sectionHeading">Finance</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 22 }}>
-        {/* Operational Fund — moved here so Finance is complete: Fund + Overtime + Budget */}
-        <div className="neonCard" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, position: "relative", zIndex: 1 }}>
-            <div className="hexBadge gold small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="6" width="20" height="14" rx="2" /><path d="M2 10h20" /><circle cx="16" cy="15" r="1.5" />
-              </svg>
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>{lang === "en" ? "Operational Fund" : "Dana Operasional"}</div>
-          </div>
-          {showBothPlants ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, position: "relative", zIndex: 1 }}>
-              {[{ label: "CIK", k: kantongCik }, { label: "PRB", k: kantongPrb }].map((p) => {
-                const gapP = p.k ? (p.k.allocOpDriver + p.k.allocEmergency + p.k.cashAvailable + p.k.claimSubmitted + p.k.claimPaid) - p.k.totalBudget : 0;
-                return (
-                  <div key={p.label} style={{ padding: 16, borderRadius: 12, border: "1px solid var(--border2)", background: "var(--bg2)" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", marginBottom: 8 }}>{p.label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--t1)" }}>{p.k ? `Rp ${fmtRp(p.k.totalBudget)}` : "-"}</div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: gapP === 0 ? "var(--green)" : gapP > 0 ? "var(--orange)" : "var(--red)", marginTop: 5 }}>
-                      {p.k ? `GAP ${gapP >= 0 ? "+" : ""}Rp ${fmtRp(gapP)}` : (lang === "en" ? "Not set up" : "Belum diisi")}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{ position: "relative", zIndex: 1 }}>
-              <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--t1)" }}>{myKantong ? `Rp ${fmtRp(myKantong.totalBudget)}` : "-"}</div>
-              <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 6 }}>{myProfile?.plantScope} · {lang === "en" ? "Total Cash Operational" : "Total Cash Operasional"}</div>
-            </div>
-          )}
-          <button className="overviewCardBtn" onClick={() => setActiveTab("opfund")} style={{ marginTop: "auto", paddingTop: 16, position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "Manage Fund" : "Kelola Dana"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Overtime */}
-        <div className="neonCard" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, position: "relative", zIndex: 1 }}>
-            <div className="hexBadge teal small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
-              </svg>
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>Overtime {lang === "en" ? "This Month" : "Bulan Ini"}</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 18, position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--t1)" }}>{fmtRp(animatedOtHours)} jam</div>
-            <div style={{ fontSize: 13.5, color: "#2dd4bf", fontWeight: 700 }}>Rp {fmtRp(animatedOtAmount)}</div>
-          </div>
-          <div style={{ position: "relative", zIndex: 1 }}>
-            {otByPlant.map((p) => (
-              <div key={p.plant} style={{ marginBottom: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--t3)", marginBottom: 5 }}>
-                  <span style={{ fontWeight: 600, color: "var(--t2)" }}>{p.plant}</span><span>{fmtRp(p.hours)} jam</span>
-                </div>
-                <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(p.hours / maxOtPlantHours) * 100}%`, background: PLANT_COLOR[p.plant] || "var(--brand)", boxShadow: `0 0 8px ${PLANT_COLOR[p.plant] || "var(--brand)"}` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <button className="overviewCardBtn" onClick={() => setActiveTab("overtime")} style={{ marginTop: "auto", paddingTop: 14, position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "View Overtime" : "Lihat Overtime"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Driver Budget */}
-        <div className="neonCard" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, position: "relative", zIndex: 1 }}>
-            <div className="hexBadge gold small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
-              </svg>
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>{lang === "en" ? "Driver Budget" : "Budget Driver"}</div>
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--t1)", position: "relative", zIndex: 1 }}>Rp {fmtRp(totalTierBudget)}</div>
-          <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 6, position: "relative", zIndex: 1 }}>{totalTierDrivers} {lang === "en" ? "drivers" : "driver"} · {tiers.length} tier</div>
-          <button className="overviewCardBtn" onClick={() => setActiveTab("driverbudget")} style={{ marginTop: "auto", paddingTop: 20, position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "View Budget" : "Lihat Budget"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {(canAccessTab(myProfile, "canteen") || canAccessTab(myProfile, "locker") || canAccessTab(myProfile, "gasstations")) && (
-      <>
-      <div className="sectionHeading">{lang === "en" ? "Facility" : "Fasilitas"}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 22 }}>
-        {canAccessTab(myProfile, "canteen") && (
-        <>
-        {/* Canteen */}
-       <div className="neonCard" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22, position: "relative", zIndex: 1 }}>
-            <div className="hexBadge green small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 2v7c0 1.1.9 2 2 2h1v11" /><path d="M8 2v20" /><path d="M17 2a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3v9" />
-              </svg>
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>{lang === "en" ? "Canteen (Month)" : "Kantin (Bulan Ini)"}</div>
-          </div>
-          <div style={{ position: "relative", zIndex: 1, marginBottom: 22 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 13, marginBottom: 7 }}>
-              <span style={{ color: "var(--t2)" }}>🥐 Snack</span><span style={{ fontWeight: 700, color: "var(--t1)", fontFamily: "var(--mono)" }}>{fmtRp(canteenSnackConsumed)}/{fmtRp(canteenSnackOrder)}</span>
-            </div>
-            <div style={{ height: 9, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${(canteenSnackOrder / maxCanteenVal) * 100}%`, background: "#34d399", boxShadow: "0 0 8px #34d399" }} />
-            </div>
-          </div>
-          <div style={{ position: "relative", zIndex: 1, marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 13, marginBottom: 7 }}>
-              <span style={{ color: "var(--t2)" }}>🍽️ Meal</span><span style={{ fontWeight: 700, color: "var(--t1)", fontFamily: "var(--mono)" }}>{fmtRp(canteenMealConsumed)}/{fmtRp(canteenMealOrder)}</span>
-            </div>
-            <div style={{ height: 9, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${(canteenMealOrder / maxCanteenVal) * 100}%`, background: "var(--brand)", boxShadow: "0 0 8px var(--brand)" }} />
-            </div>
-          </div>
-          <button className="overviewCardBtn" onClick={() => setActiveTab("canteen")} style={{ marginTop: "auto", paddingTop: 14, position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "View Canteen" : "Lihat Kantin"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-        </>
-        )}
-
-        {canAccessTab(myProfile, "locker") && (
-        <>
-        {/* Locker — 100% mengikuti referensi: hexagon badge outline-glow,
-            gauge dengan glow kuat + marker dot, sub-stat lingkaran outline. */}
-        <div className="neonCard" style={{ gridColumn: "span 1", display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22, position: "relative", zIndex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div className="hexBadge purple">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="11" width="14" height="10" rx="2" />
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: "var(--t1)" }}>Locker</div>
-                <div style={{ fontSize: 12, color: "var(--t3)" }}>{lang === "en" ? "Smart Locker System" : "Sistem Locker Pintar"}</div>
-              </div>
-            </div>
-            <div className="neonBadgePill">
-              <span className="dot" />
-              {lang === "en" ? "ACTIVE" : "AKTIF"}
-            </div>
-          </div>
-
-          {(() => {
-            const RLk = 64, CIRCLk = 2 * Math.PI * RLk;
-            const availPct = lockerTotal > 0 ? (lockerAvailable / lockerTotal) * 100 : 100;
-            const angleRad = (-90 + (availPct / 100) * 360) * (Math.PI / 180);
-            const dotX = 80 + RLk * Math.cos(angleRad);
-            const dotY = 80 + RLk * Math.sin(angleRad);
-            return (
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 22, position: "relative", zIndex: 1 }}>
-                <svg viewBox="0 0 160 160" width={160} height={160}>
-                  <defs>
-                    <linearGradient id="lockerGaugeGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#3b82f6" />
-                      <stop offset="100%" stopColor="#a78bfa" />
-                    </linearGradient>
-                    <filter id="lockerGlow2" x="-80%" y="-80%" width="260%" height="260%">
-                      <feGaussianBlur stdDeviation="8" result="blur1" />
-                      <feGaussianBlur stdDeviation="3" result="blur2" />
-                      <feMerge>
-                        <feMergeNode in="blur1" />
-                        <feMergeNode in="blur2" />
-                        <feMergeNode in="SourceGraphic" />
-                      </feMerge>
-                    </filter>
-                  </defs>
-                  <circle cx={80} cy={80} r={RLk} fill="none" stroke="var(--border)" strokeWidth={9} />
-                  <circle
-                    cx={80} cy={80} r={RLk} fill="none"
-                    stroke="url(#lockerGaugeGrad2)" strokeWidth={9} strokeLinecap="round"
-                    strokeDasharray={CIRCLk}
-                    strokeDashoffset={CIRCLk * (1 - availPct / 100)}
-                    transform="rotate(-90 80 80)"
-                    filter="url(#lockerGlow2)"
-                  />
-                  <circle cx={dotX} cy={dotY} r={5} fill="#fff" filter="url(#lockerGlow2)" />
-                  <text x={80} y={78} textAnchor="middle" fontSize={38} fontWeight={800} fill="var(--t1)" fontFamily="var(--mono)">{lockerTotal}</text>
-                  <text x={80} y={99} textAnchor="middle" fontSize={10} fill="var(--t3)" letterSpacing={1.5}>TOTAL LOCKER</text>
-                </svg>
-              </div>
-            );
-          })()}
-
-          <div className="neonSubCard" style={{ marginBottom: 16, position: "relative", zIndex: 1 }}>
-            <div className="half available" style={{ padding: "18px 20px" }}>
-              <div className="circleBadge teal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 8v13H3V8" /><path d="M1 3h22v5H1z" /><path d="M10 12h4" />
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#2dd4bf", fontFamily: "var(--mono)" }}>{lockerAvailable}</div>
-                <div style={{ fontSize: 12, color: "var(--t3)" }}>{lang === "en" ? "Available" : "Tersedia"}</div>
-              </div>
-            </div>
-            <div className="divider" />
-            <div className="half used" style={{ padding: "18px 20px" }}>
-              <div className="circleBadge red">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="11" width="14" height="10" rx="2" />
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#ef4444", fontFamily: "var(--mono)" }}>{lockerUsed}</div>
-                <div style={{ fontSize: 12, color: "var(--t3)" }}>{lang === "en" ? "Used" : "Terisi"}</div>
-              </div>
-            </div>
-          </div>
-
-          <button className="overviewCardBtn" onClick={() => setActiveTab("locker")} style={{ marginTop: "auto", paddingTop: 16, position: "relative", zIndex: 1 }}>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-            {lang === "en" ? "View Locker" : "Lihat Locker"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-        </>
-        )}
-
-        {canAccessTab(myProfile, "gasstations") && (
-        <>
-        {/* Gas Station */}
-        <div className="neonCard" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22, position: "relative", zIndex: 1 }}>
-            <div className="hexBadge red small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 22V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16" /><path d="M3 10h10" /><path d="M15 6l3.5 3.5a1.5 1.5 0 0 0 2.5-1.1V6.5" />
-              </svg>
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>{lang === "en" ? "Gas Stations" : "Pom Bensin"}</div>
-          </div>
-          <div style={{ position: "relative", zIndex: 1, fontSize: 40, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--t1)", lineHeight: 1 }}>{gasStations.length}</div>
-          <div style={{ position: "relative", zIndex: 1, fontSize: 13, color: "var(--t3)", marginTop: 8, marginBottom: 20 }}>{lang === "en" ? "stations registered" : "pom bensin terdaftar"}</div>
-          <div className="neonSubCard" style={{ marginBottom: 20, position: "relative", zIndex: 1 }}>
-            <div className="half available" style={{ padding: "16px 18px" }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--t1)", fontFamily: "var(--mono)" }}>{fuelTypesCovered}/{FUEL_TYPES_LIST.length}</div>
-                <div style={{ fontSize: 12, color: "var(--t3)" }}>{lang === "en" ? "fuel types" : "jenis BBM"}</div>
-              </div>
-            </div>
-          </div>
-          <button className="overviewCardBtn" onClick={() => setActiveTab("gasstations")} style={{ marginTop: "auto", position: "relative", zIndex: 1 }}>
-            {lang === "en" ? "View Stations" : "Lihat Pom Bensin"}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-        </>
-        )}
-      </div>
-      </>
-      )}
-
-      <div className="sectionHeading">{lang === "en" ? "Trends & Analytics" : "Tren & Analitik"}</div>
-      {/* ── Charts row ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 22 }}>
-        <div className="statPop" style={{ ...cardStyle, padding: 20 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-            {lang === "en" ? "Activity Overview — Last 30 Days" : "Ringkasan Aktivitas — 30 Hari Terakhir"}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 14 }}>
-            {lang === "en" ? "Claims, tasks, and overtime on the same calendar." : "Klaim, tugas, dan overtime dalam kalender yang sama."}
-          </div>
-
-          {(() => {
-            const miniW = 600, miniH = 58, padL = 46, padR = 6, padTop = 8, padBottom = 6;
-            const plotW = miniW - padL - padR;
-            const plotHm = miniH - padTop - padBottom;
-            return activitySeries.map((s, sIdx) => {
-              const maxV = Math.max(...s.values, 1);
-              const xAt = (i: number) => padL + (i / (s.values.length - 1)) * plotW;
-              const yAt = (v: number) => miniH - padBottom - (v / maxV) * plotHm;
-              const linePts = s.values.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
-              const areaPts = `${xAt(0).toFixed(1)},${miniH - padBottom} ${linePts} ${xAt(s.values.length - 1).toFixed(1)},${miniH - padBottom}`;
-              const total = s.values.reduce((a, v) => a + v, 0);
-              const activeDays = s.values.filter((v) => v > 0).length;
-              const peakIdx = s.values.reduce((best, v, i) => (v > s.values[best] ? i : best), 0);
-              const isLast = sIdx === activitySeries.length - 1;
-              return (
-                <div key={s.key} style={{ marginBottom: isLast ? 0 : 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "var(--t2)" }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                      {s.label}
-                    </span>
-                    <span style={{ color: "var(--t3)" }}>
-                      {total === 0
-                        ? (lang === "en" ? "No activity" : "Belum ada aktivitas")
-                        : `${lang === "en" ? "Peak" : "Puncak"} ${fmtShortDate(days30[peakIdx])} · ${s.fmtInsight(s.values[peakIdx])} · ${activeDays} ${lang === "en" ? "active days" : "hari aktif"}`}
-                    </span>
-                  </div>
-                  <svg viewBox={`0 0 ${miniW} ${miniH}`} width="100%" height={miniH}>
-                    <defs>
-                      <linearGradient id={`miniGrad-${s.key}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor={s.color} stopOpacity="0.32" />
-                        <stop offset="100%" stopColor={s.color} stopOpacity="0.02" />
-                      </linearGradient>
-                    </defs>
-                    <line x1={padL} x2={miniW - padR} y1={miniH - padBottom} y2={miniH - padBottom} stroke="var(--border)" strokeWidth={1} />
-                    <text x={padL - 6} y={padTop + 4} textAnchor="end" fontSize={9} fill="var(--t3)">{s.fmtAxis(maxV)}</text>
-                    <text x={padL - 6} y={miniH - padBottom} textAnchor="end" fontSize={9} fill="var(--t3)">0</text>
-                    <polygon points={areaPts} fill={`url(#miniGrad-${s.key})`} />
-                    <polyline points={linePts} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-                    {total > 0 && <circle cx={xAt(peakIdx)} cy={yAt(s.values[peakIdx])} r={2.5} fill="var(--surface)" stroke={s.color} strokeWidth={1.5} />}
-                    {s.values.map((v, i) => (
-                      <g key={i}>
-                        <title>{fmtShortDate(days30[i])}: {s.fmtInsight(v)}</title>
-                        <rect x={xAt(i) - plotW / s.values.length / 2} y={0} width={plotW / s.values.length} height={miniH} fill="transparent" />
-                      </g>
-                    ))}
-                    {isLast && [0, 7, 14, 21, 29].map((idx) => (
-                      <text key={idx} x={xAt(idx)} y={miniH + 12} textAnchor="middle" fontSize={9.5} fill="var(--t3)">
-                        {fmtShortDate(days30[idx])}
-                      </text>
-                    ))}
-                  </svg>
-                </div>
-              );
-            });
-          })()}
-        </div>
-
-        <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 14.5, color: "var(--t1)" }}>
-            {lang === "en" ? "Recent Activity" : "Aktivitas Terbaru"}
-          </div>
-          {activity.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
-              {lang === "en" ? "No activity yet." : "Belum ada aktivitas."}
-            </div>
-          ) : (
-            <div style={{ maxHeight: 296, overflowY: "auto" }}>
-              {activity.map((a, i) => (
-                <div key={i} className="staggerItem" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--border)", borderLeft: `3px solid ${a.kind === "claim" ? "var(--brand)" : "var(--gold2)"}`, animationDelay: `${i * 0.05}s` }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: a.kind === "claim" ? "rgba(61,111,242,0.1)" : "var(--gold-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15.5, flexShrink: 0 }}>
-                    {a.kind === "claim" ? "🧾" : "⏱️"}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--t1)" }}>
-                      {a.driver} <span style={{ fontWeight: 400, color: "var(--t3)" }}>{a.kind === "claim" ? (lang === "en" ? "submitted a claim" : "mengajukan claim") : (lang === "en" ? "logged overtime" : "mencatat overtime")}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: "var(--t3)" }}>{a.meta}</div>
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: a.kind === "claim" ? "var(--brand)" : "var(--gold2)", whiteSpace: "nowrap" }}>Rp {fmtRp(a.amount)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="sectionHeading">{lang === "en" ? "Shortcuts" : "Pintasan"}</div>
-      {/* ── Quick Access — full width, wraps naturally regardless of count ── */}
-      <div className="statPop" style={{ ...cardStyle, padding: 18 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
-          {quickAccess.map((q, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveTab(q.tab)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 8px", borderRadius: 12, border: "1px solid var(--border2)", background: "var(--bg2)", cursor: "pointer", transition: "transform 0.15s ease, box-shadow 0.15s ease" }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "var(--shadow-sm)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
-            >
-              <span style={{ fontSize: 20 }}>{q.icon}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)", textAlign: "center" }}>{q.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes heroFloat1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-25px, 30px) scale(1.08); }
-        }
-        @keyframes heroFloat2 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(20px, -25px) scale(1.1); }
-        }
-      `}</style>
+      <OverviewBoard
+        data={ovData}
+        lockedPlant={myProfile?.plantScope ?? null}
+        userName={myProfile?.fullName ?? ""}
+        onGo={(tab) => setActiveTab(tab as DashboardTab)}
+      />
     </div>
   );
 }
@@ -4241,386 +3584,6 @@ const PLANT_COLOR: Record<Plant, string> = { CIK: "var(--brand)", PRB: "var(--gr
 const MONTHS_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const MONTHS_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-function OvertimeTab({ myProfile }: { myProfile: MyProfile | null }) {
-  const { lang, t } = useLang();
-  const months = lang === "en" ? MONTHS_EN : MONTHS_ID;
-  const now = new Date();
-
-  const lockedPlant = myProfile?.plantScope ?? null;
-
-  const [overtimes, setOvertimes] = useState<Overtime[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [filterMonth, setFilterMonth] = useState(now.getMonth());
-  const [filterYear, setFilterYear] = useState(now.getFullYear());
-  const [filterPlant, setFilterPlant] = useState<"all" | Plant>(lockedPlant ?? "all");
-
-  const [showForm, setShowForm] = useState(false);
-  const [formDriverId, setFormDriverId] = useState("");
-  const [formMonth, setFormMonth] = useState(now.getMonth());
-  const [formYear, setFormYear] = useState(now.getFullYear());
-  const [formPlant, setFormPlant] = useState<Plant>(lockedPlant ?? "CIK");
-  const [formHours, setFormHours] = useState("");
-  const [formAmount, setFormAmount] = useState("");
-  const [formReason, setFormReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<Overtime | null>(null);
-
-  useEffect(() => {
-    if (lockedPlant) {
-      setFilterPlant(lockedPlant);
-      setFormPlant(lockedPlant);
-    }
-  }, [lockedPlant]);
-  
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [ot, d] = await Promise.all([getOvertimes(myProfile?.plantScope ?? null), getDrivers(myProfile?.plantScope ?? null)]);
-      setOvertimes(ot);
-      setDrivers(d);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data overtime");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const filtered = useMemo(() => {
-    const period = `${filterYear}-${String(filterMonth + 1).padStart(2, "0")}`;
-    return overtimes.filter((o) => o.period === period && (filterPlant === "all" || o.plant === filterPlant));
-  }, [overtimes, filterMonth, filterYear, filterPlant]);
-
-  const totalHours = filtered.reduce((s, o) => s + o.hours, 0);
-  const totalAmount = filtered.reduce((s, o) => s + o.amount, 0);
-  const animatedEntries = useCountUp(filtered.length);
-  const animatedTotalHours = useCountUp(totalHours);
-  const animatedTotalAmount = useCountUp(totalAmount);
-
-  const byPlant = OT_PLANTS.map((plant) => {
-    const rows = filtered.filter((o) => o.plant === plant);
-    const hours = rows.reduce((s, o) => s + o.hours, 0);
-    const amount = rows.reduce((s, o) => s + o.amount, 0);
-    return { plant, count: rows.length, hours, amount, hoursPct: totalHours > 0 ? (hours / totalHours) * 100 : 0 };
-  });
-  const topPlant = [...byPlant].sort((a, b) => b.hours - a.hours)[0];
-
-  const byDriver = useMemo(() => {
-    const map = new Map<string, { driver: string; hours: number; amount: number; count: number }>();
-    filtered.forEach((o) => {
-      const cur = map.get(o.driver_id) || { driver: o.driverName, hours: 0, amount: 0, count: 0 };
-      cur.hours += o.hours;
-      cur.amount += o.amount;
-      cur.count += 1;
-      map.set(o.driver_id, cur);
-    });
-    return [...map.values()].sort((a, b) => b.hours - a.hours);
-  }, [filtered]);
-
-  function openAdd() {
-    setFormDriverId("");
-    setFormMonth(filterMonth);
-    setFormYear(filterYear);
-    setFormPlant(lockedPlant ?? "CIK");
-    setFormHours("");
-    setFormAmount("");
-    setFormReason("");
-    setShowForm(true);
-  }
-
-  const hoursNum = Number(formHours);
-  const amountNum = evalExpr(formAmount);
-  const canSave = !!formDriverId && hoursNum > 0 && (amountNum || 0) > 0;
-
-  async function handleSave() {
-    if (!canSave || saving) return;
-    setSaving(true);
-    try {
-      await addOvertime({
-        driver_id: formDriverId,
-        period: `${formYear}-${String(formMonth + 1).padStart(2, "0")}`,
-        plant: formPlant,
-        hours: hoursNum,
-        amount: amountNum || 0,
-        reason: formReason,
-      });
-      setShowForm(false);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan overtime");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!confirmDelete) return;
-    try {
-      await deleteOvertime(confirmDelete.id);
-      setConfirmDelete(null);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus overtime");
-    }
-  }
-
-  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
-
-  const driverNameMap = useMemo(() => new Map(drivers.map((d) => [d.id, d.nama])), [drivers]);
-  const overtimeColumns: ReportColumn<Overtime>[] = [
-    { key: "period", labelId: "Periode", labelEn: "Period", get: (o) => o.period },
-    { key: "plant", labelId: "Plant", labelEn: "Plant", get: (o) => o.plant },
-    { key: "driver", labelId: "Driver", labelEn: "Driver", get: (o) => driverNameMap.get(o.driver_id) ?? "-" },
-    { key: "hours", labelId: "Jam Lembur", labelEn: "OT Hours", get: (o) => o.hours, align: "right" },
-    { key: "amount", labelId: "Nominal (Rp)", labelEn: "Amount (Rp)", get: (o) => o.amount, align: "right" },
-    { key: "reason", labelId: "Alasan", labelEn: "Reason", get: (o) => o.reason || "-" },
-  ];
-  const monthsIdFull = MONTHS_ID;
-  const overtimeReportOpts = {
-    rows: filtered,
-    columns: overtimeColumns,
-    titleId: "Laporan Lembur (Overtime)",
-    titleEn: "Overtime Report",
-    periodLabel: `${monthsIdFull[filterMonth]} ${filterYear}${filterPlant !== "all" ? ` — ${filterPlant}` : ""}`,
-    filename: "Laporan_Overtime",
-    summaryRows: [
-      { label: "Total Jam / Total Hours", value: totalHours },
-      { label: "Total Nominal / Total Amount (Rp)", value: totalAmount.toLocaleString("id-ID") },
-    ],
-  };
-  const otExportPicker = useExportLanguagePicker((format, exportLang) => {
-    const opts = { ...overtimeReportOpts, lang: exportLang };
-    if (format === "csv") exportGenericCsv(opts);
-    else if (format === "excel") exportGenericExcel(opts);
-    else exportGenericPdf(opts);
-  });
-
-  return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
-        <select className={styles.formSelect} style={{ width: "auto" }} value={filterMonth} onChange={(e) => setFilterMonth(Number(e.target.value))}>
-          {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-        </select>
-        <select className={styles.formSelect} style={{ width: "auto" }} value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))}>
-          {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select className={styles.formSelect} style={{ width: "auto" }} value={filterPlant} onChange={(e) => setFilterPlant(e.target.value as "all" | Plant)}>
-          <option value="all">{lang === "en" ? "All Plants" : "Semua Plant"}</option>
-          {OT_PLANTS.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <div style={{ flex: 1 }} />
-        <ReportExportButtons onExport={otExportPicker.requestExport} disabled={filtered.length === 0} />
-        <button className="pillBtn" onClick={openAdd}>+ {lang === "en" ? "Add Overtime" : "Tambah OT"}</button>
-      </div>
-      {otExportPicker.pending && <LanguagePickerModal format={otExportPicker.pending} onConfirm={otExportPicker.confirm} onClose={otExportPicker.cancel} />}
-
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-
-      <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
-        <div style={{ display: "flex", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge blue small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>{animatedEntries}</div><div className="statLabel">{lang === "en" ? "Entries" : "Entri"}</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge teal small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>{fmtRp(animatedTotalHours)} jam</div><div className="statLabel">Total Jam OT</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge gold small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="6" width="20" height="14" rx="2" /><path d="M2 10h20" /><circle cx="16" cy="15" r="1.5" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>Rp {fmtRp(animatedTotalAmount)}</div><div className="statLabel">Total Nominal</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge purple small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 20h20V10l-5 4V8l-5 4V6l-5 4v10z" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20, color: topPlant ? PLANT_COLOR[topPlant.plant] : "var(--t1)" }}>{topPlant?.plant || "-"}</div><div className="statLabel">Plant Terbanyak OT</div></div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ ...cardStyle, padding: 18, marginBottom: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-          {lang === "en" ? "Plant Comparison" : "Perbandingan Plant"}
-        </div>
-        <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 16 }}>CIK vs PRB</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {byPlant.map((p) => (
-            <div key={p.plant} style={{ padding: 14, borderRadius: 12, border: `1px solid var(--border2)`, borderLeft: `3px solid ${PLANT_COLOR[p.plant]}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ fontWeight: 800, color: PLANT_COLOR[p.plant] }}>{p.plant}</span>
-                <span style={{ fontSize: 13, color: "var(--t3)" }}>{p.count} entri</span>
-              </div>
-              <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 4 }}>Jam OT</div>
-              <div style={{ fontWeight: 700, color: "var(--t1)", marginBottom: 6 }}>{fmtRp(p.hours)} jam ({p.hoursPct.toFixed(0)}%)</div>
-              <div style={{ height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden", marginBottom: 10 }}>
-                <div style={{ height: "100%", width: `${p.hoursPct}%`, background: PLANT_COLOR[p.plant] }} />
-              </div>
-              <div style={{ fontSize: 12, color: "var(--t3)" }}>Nominal</div>
-              <div style={{ fontWeight: 700, color: "var(--t1)" }}>Rp {fmtRp(p.amount)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={{ ...cardStyle, overflow: "hidden" }}>
-          <div style={{ padding: "13px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-            {lang === "en" ? "Driver Ranking" : "Ranking Driver"}
-          </div>
-          {byDriver.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>-</div>
-          ) : (
-            byDriver.map((d, i) => (
-              <div key={d.driver} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--brand)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{i + 1}</div>
-                <div style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: "var(--t1)" }}>{d.driver}</div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)" }}>{fmtRp(d.hours)} jam</div>
-                  <div style={{ fontSize: 12, color: "var(--t3)" }}>Rp {fmtRp(d.amount)}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={{ ...cardStyle, overflow: "hidden" }}>
-          <div style={{ padding: "13px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-            {lang === "en" ? "Entry List" : "Daftar Entri"}
-          </div>
-          {loading ? (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--t3)" }}>...</div>
-          ) : filtered.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>Belum ada data</div>
-          ) : (
-            filtered.map((o) => (
-              <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: PLANT_COLOR[o.plant], padding: "2px 8px", borderRadius: 6, background: "var(--bg2)" }}>{o.plant}</span>
-                <div style={{ flex: 1, fontSize: 12, color: "var(--t1)" }}>{o.driverName}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{fmtRp(o.hours)}j</div>
-                <button onClick={() => setConfirmDelete(o)} style={{ border: "none", background: "none", color: "var(--red)", cursor: "pointer" }}>🗑️</button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {showForm && (
-        <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={440}>
-          <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>{lang === "en" ? "Add Overtime" : "Tambah Overtime"}</div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-              <select className={styles.formSelect} value={formMonth} onChange={(e) => setFormMonth(Number(e.target.value))}>
-                {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-              </select>
-              <select className={styles.formSelect} value={formYear} onChange={(e) => setFormYear(Number(e.target.value))}>
-                {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label>{t.fieldDriver} *</label>
-              <select className={styles.formSelect} value={formDriverId} onChange={(e) => setFormDriverId(e.target.value)}>
-                <option value="">{lang === "en" ? "Select driver" : "Pilih driver"}</option>
-                {drivers.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label>{t.fieldPlant} *</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                {OT_PLANTS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setFormPlant(p)}
-                    style={{
-                      flex: 1, padding: "9px", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer",
-                      border: formPlant === p ? `1px solid ${PLANT_COLOR[p]}` : "1px solid var(--border2)",
-                      background: formPlant === p ? "var(--bg2)" : "transparent",
-                      color: formPlant === p ? PLANT_COLOR[p] : "var(--t3)",
-                    }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-              <div>
-                <label>{lang === "en" ? "HOURS *" : "TOTAL JAM OT *"}</label>
-                <input className={styles.formInput} type="number" step="0.5" value={formHours} onChange={(e) => setFormHours(e.target.value)} placeholder="4" />
-              </div>
-              <div>
-                <label>{lang === "en" ? "AMOUNT *" : "TOTAL NOMINAL *"}</label>
-                <input className={styles.formInput} value={formAmount} onChange={(e) => setFormAmount(e.target.value)} placeholder="150000" />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <label>{lang === "en" ? "REASON" : "ALASAN OT"}</label>
-              <input className={styles.formInput} value={formReason} onChange={(e) => setFormReason(e.target.value)} placeholder="Lembur closing bulanan" />
-            </div>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                Batal
-              </button>
-              <button className="pillBtn" onClick={handleSave} disabled={!canSave || saving} style={{ flex: 2, justifyContent: "center", opacity: canSave && !saving ? 1 : 0.5 }}>
-                {saving ? t.actionSaving : t.actionSave}
-              </button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-
-      {confirmDelete && (
-        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this OT entry?" : "Hapus entri OT ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{confirmDelete.driverName}</strong> ({confirmDelete.plant}) akan dihapus permanen.
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                Batal
-              </button>
-              <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                Ya, Hapus
-              </button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-    </div>
-  );
-}
 const TIER_PALETTE = ["var(--brand)", "var(--green)", "var(--orange)", "var(--red)", "var(--purple)"];
 
 /* ════════════════════════════════════════════════════════════
@@ -5662,7 +4625,7 @@ function ReportsTab({ myProfile }: { myProfile: MyProfile | null }) {
     try {
       const [c, ot, v, kCik, kPrb, t, d] = await Promise.all([
         getClaims(myProfile?.plantScope ?? null),
-        getOvertimes(myProfile?.plantScope ?? null),
+        Promise.resolve([] as Overtime[]), // modul Overtime dinonaktifkan
         getAllVehiclesFull(),
         getCurrentKantong("CIK"),
         getCurrentKantong("PRB"),
@@ -5894,8 +4857,8 @@ function ReportsTab({ myProfile }: { myProfile: MyProfile | null }) {
           </div>
           <div style={{ fontSize: 12, color: "var(--t3)" }}>
             {lang === "en"
-              ? "Combines Task Assignment, Claims, Overtime, Vehicles, and Operational Fund into one report."
-              : "Menggabungkan Penugasan Driver, Klaim, Overtime, Armada, dan Dana Operasional jadi satu laporan."}
+              ? "Combines Task Assignment, Claims, Vehicles, and Operational Fund into one report."
+              : "Menggabungkan Penugasan Driver, Klaim, Armada, dan Dana Operasional jadi satu laporan."}
           </div>
         </div>
       ) : (
@@ -6001,20 +4964,6 @@ function ReportsTab({ myProfile }: { myProfile: MyProfile | null }) {
               )}
             </div>
 
-            <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-              <div style={{ padding: "13px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-                ⏱️ {lang === "en" ? "Overtime — CIK vs PRB" : "Overtime — CIK vs PRB"}
-              </div>
-              <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {otByPlant.map((p) => (
-                  <div key={p.plant} style={{ padding: 12, borderRadius: 10, border: "1px solid var(--border2)", borderLeft: `3px solid ${PLANT_COLOR[p.plant]}` }}>
-                    <div style={{ fontWeight: 800, color: PLANT_COLOR[p.plant], marginBottom: 6 }}>{p.plant}</div>
-                    <div style={{ fontSize: 12, color: "var(--t2)" }}>{fmtRp(p.hours)} jam</div>
-                    <div style={{ fontSize: 13, color: "var(--t3)" }}>Rp {fmtRp(p.amount)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
@@ -6532,7 +5481,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     setLoading(true);
     setError(null);
     try {
-      const [v, d] = await Promise.all([getAllVehiclesFull(), getDrivers(myProfile?.plantScope ?? null)]);
+      const [v, d] = await Promise.all([getAllVehiclesFull(myProfile?.plantScope ?? null), getDrivers(myProfile?.plantScope ?? null)]);
       setVehicles(v);
       setDrivers(d);
     } catch (e) {
@@ -6540,7 +5489,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [myProfile?.plantScope]);
 
   useEffect(() => {
     load();
@@ -6552,7 +5501,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
 
   function openAdd() {
     setEditing(null);
-    setForm(BLANK_VEHICLE_FORM);
+    setForm({ ...BLANK_VEHICLE_FORM, plant: myProfile?.plantScope ?? BLANK_VEHICLE_FORM.plant });
     setShowForm(true);
   }
 
@@ -6594,7 +5543,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       stnk_date: form.stnk_date || null,
       dept: form.dept || null,
       default_driver_id: form.default_driver_id || null,
-      plant: form.plant,
+      plant: myProfile?.plantScope ?? form.plant,
     };
     try {
       if (editing) {
@@ -6651,12 +5600,12 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
           >
             {lang === "en" ? "Vehicle Fleet" : "Armada Kendaraan"}
           </button>
-          <button
+          {!isPrbOnly(myProfile) && <button
             onClick={() => setViewMode("gatelog")}
             style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "gatelog" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "gatelog" ? "#fff" : "var(--t2)" }}
           >
             🚧 Gate Log
-          </button>
+          </button>}
         </div>
         {viewMode === "list" && (
           <button className="pillBtn" onClick={openAdd}>
@@ -6890,7 +5839,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                 <div>
     <label>PLANT *</label>
      <div style={{ display: "flex", gap: 6 }}>
-      {(["CIK", "PRB"] as Plant[]).map((p) => (
+      {((myProfile?.plantScope ? [myProfile.plantScope] : ["CIK", "PRB"]) as Plant[]).map((p) => (
         <button
          key={p}
          type="button"
@@ -8501,7 +7450,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
     setLoading(true);
     setError(null);
     try {
-      const [d, tr] = await Promise.all([getAllDriversFull(), getDriverTiers()]);
+      const [d, tr] = await Promise.all([getAllDriversFull(myProfile?.plantScope ?? null), getDriverTiers()]);
       setDrivers(d);
       setTiers(tr);
     } catch (e) {
@@ -8509,13 +7458,13 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [myProfile?.plantScope]);
   useEffect(() => { load(); }, [load]);
 
   function openAdd() {
      setEditing(null);
     setFormNama(""); setFormPhone(""); setFormEmail(""); setFormAvatar(AVATAR_EMOJIS[0]); setFormAktif(true); setFormPin("");
-   setFormPlant("CIK");
+   setFormPlant(myProfile?.plantScope ?? "CIK");
     setFormType("operational"); setFormUser(""); setFormUserTitle("");
     setShowForm(true);
   }
@@ -8533,7 +7482,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
     if (!canSave) return;
     setSaving(true);
     try {
-      const payload: DriverInput = { nama: formNama.trim(), no_hp: formPhone.trim() || null, email: formEmail.trim() || null, avatar_emoji: formAvatar, aktif: formAktif, plant: formPlant, driver_type: formType, assigned_user: formType === "user" ? formUser.trim() : null, assigned_user_title: formType === "user" ? (formUserTitle.trim() || null) : null };
+      const payload: DriverInput = { nama: formNama.trim(), no_hp: formPhone.trim() || null, email: formEmail.trim() || null, avatar_emoji: formAvatar, aktif: formAktif, plant: myProfile?.plantScope ?? formPlant, driver_type: formType, assigned_user: formType === "user" ? formUser.trim() : null, assigned_user_title: formType === "user" ? (formUserTitle.trim() || null) : null };
       if (editing) await updateDriver(editing.id, payload);
       else await addDriver(payload, formPin);
       setShowForm(false);
@@ -8654,7 +7603,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
               <div style={{ marginBottom: 14 }}>
      <label>PLANT *</label>
     <div style={{ display: "flex", gap: 8 }}>
-      {(["CIK", "PRB"] as Plant[]).map((p) => (
+      {((myProfile?.plantScope ? [myProfile.plantScope] : ["CIK", "PRB"]) as Plant[]).map((p) => (
         <button
            key={p}
           type="button"

@@ -1,3 +1,46 @@
+# Redesign V2.14 — modul Overtime dihapus
+
+Tidak ada SQL baru. Ganti 3 file, lalu deploy. Data overtime di database TIDAK dihapus (tabel tetap ada, hanya tidak ditampilkan).
+
+## Yang berubah
+- Menu Finance: "Overtime" dihilangkan (sidebar, Beranda, pencarian menu). Halaman Overtime dihapus dari aplikasi.
+- Ringkasan: KPI dan grafik overtime dihapus; kartu "Overtime" diganti kartu "Budget driver" (total per bulan, per tier, dan klaim periode ini); tabel bawah jadi "Klaim terbaru".
+- Report: tidak lagi memuat overtime. Kartu "Overtime — CIK vs PRB" dihapus; di PDF/CSV bagian overtime (kartu jam/nominal OT, perbandingan CIK vs PRB, halaman detail, insight OT) hanya muncul bila ada data overtime, jadi sekarang otomatis tidak tampil.
+- Berubah: src/app/dashboard/page.tsx, src/app/dashboard/OverviewUI.tsx, src/lib/fleetReport.ts.
+
+---
+# Redesign V2.13 — modul Ringkasan
+
+Tidak ada SQL baru. Ganti file, lalu deploy.
+
+## Baru di V2.13 (menu Ringkasan)
+- Header dengan filter plant (Semua/CIK/PRB; terkunci untuk akun ber-scope plant) dan periode (Hari ini / Minggu ini / Bulan ini). Semua angka, grafik, dan daftar ikut berubah.
+- "Perlu tindakan": dokumen kendaraan lewat/jatuh tempo <= 7 hari, tugas berjalan > 2 jam, dana operasional plant < 20%. Klik untuk membuka modulnya. Bila aman, tampil satu baris "Tidak ada yang perlu ditindak".
+- Indikator utama (bisa diklik): tugas, kendaraan aktif, driver tersedia (aktif dikurangi yang sedang bertugas), klaim (dengan tren vs periode sebelumnya), overtime.
+- Aktivitas 30 hari: tugas, klaim, overtime sebagai 3 grafik terpisah dengan skala masing-masing.
+- Armada: aktif vs tidak aktif + 5 dokumen (KIR/STNK/Service) terdekat.
+- Dana operasional per plant (tidak dijumlah), overtime per plant + budget driver, fasilitas (kantin, locker, pom bensin), dan tabel klaim & overtime terbaru.
+- Data yang dimuat sama seperti sebelumnya; hanya tampilannya yang baru.
+- File baru: src/app/dashboard/OverviewUI.tsx, overview.module.css. Berubah: dashboard/page.tsx.
+
+---
+# Redesign V2.12 — Scope plant Pasar Rebo (PRB)
+
+Tidak ada SQL baru. Ganti 2 file, lalu deploy. Berlaku otomatis untuk SEMUA akun yang scope plant-nya PRB (kolom profiles.plant_scope = 'PRB'); akun CIK dan akun tanpa scope tidak berubah.
+
+## Yang tampil untuk akun PRB
+- Menu: Dashboard, Penugasan, Armada, Master Data. Menu lain (Ringkasan, Klaim, Overtime, Budget, Dana Operasional, Kantin, Locker, Pembagian, Printer, Permintaan, ATK, Report, Pom Bensin, Log Aktivitas) disembunyikan, termasuk dari pencarian menu dan dari tautan Dashboard-ViewOnly.
+- Dashboard (Beranda): hanya data penugasan driver Pasar Rebo: tugas hari ini, sedang jalan, kendaraan keluar, grafik tugas per hari (PRB), status armada PRB, dan "perlu perhatian". Kalender, agenda, pengumuman, aktivitas gate, klaim, kantin, budget tidak ditampilkan.
+- Penugasan: seperti biasa, plant terkunci PRB. Tombol Laporan & Analytics disembunyikan.
+- Armada: hanya kendaraan PRB, form tambah/edit terkunci ke PRB, tab Gate Log disembunyikan.
+- Master Data: sama seperti biasa (Driver, Pegawai, Jenis Pekerjaan, Pengaturan). Satu-satunya beda: daftar Driver hanya driver PRB (termasuk akun login/kirim kredensial dan Driver User), dan driver baru otomatis PRB. Pegawai tetap semua plant.
+- Akun PRB yang membuka tab lain (mis. lewat riwayat) dikembalikan ke Dashboard.
+
+## Catatan
+- Pembatasan ini di sisi aplikasi (sama seperti scope plant yang sudah ada). Pembatasan di database (RLS) tidak diubah.
+- Berubah: src/app/dashboard/page.tsx, src/lib/api.ts (canAccessTab, isPrbOnly, filter plant untuk daftar kendaraan dan driver).
+
+---
 # Redesign V2.11 — Penugasan: layar penuh, kartu seragam
 
 Tidak ada SQL baru. Ganti file, lalu deploy.

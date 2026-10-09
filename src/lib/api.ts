@@ -621,11 +621,10 @@ export function subscribeToTasks(onChange: () => void, onStatusChange?: (connect
    the task-assignment feature, so we never bulk overwrite it.
 ════════════════════════════════════════════════════════════ */
 
-export async function getAllVehiclesFull(): Promise<Vehicle[]> {
-  const { data, error } = await supabase
-    .from("vehicles")
-    .select("*")
-    .order("nopol", { ascending: true });
+export async function getAllVehiclesFull(plant?: Plant | null): Promise<Vehicle[]> {
+  let q = supabase.from("vehicles").select("*").order("nopol", { ascending: true });
+  if (plant) q = q.eq("plant", plant);
+  const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
 }
@@ -1872,8 +1871,17 @@ export async function getMyProfile(userId: string): Promise<MyProfile | null> {
 
 /** Helper — dipakai di sidebar & tempat lain buat cek apakah profil ini
  *  boleh lihat tab tertentu. `allowedTabs === null` artinya akses penuh. */
+export const PRB_TABS = ["tasks", "vehicles", "masterdata"];
+
+/** Akun dengan scope plant Pasar Rebo: hanya Penugasan, Armada, dan Master Data
+ *  (driver, karyawan, akun). Fitur lain disembunyikan. */
+export function isPrbOnly(profile: MyProfile | null): boolean {
+  return profile?.plantScope === "PRB";
+}
+
 export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  if (isPrbOnly(profile) && !PRB_TABS.includes(tab)) return false;
   if (tab === "activitylog") return profile.isMasterAdmin === true;
   return profile.allowedTabs === null || profile.allowedTabs.includes(tab);
 }
@@ -1921,8 +1929,12 @@ export async function getActivityLog(filters?: { tableName?: string; days?: numb
    everything for a management/admin view, plus full CRUD.
 ════════════════════════════════════════════════════════════ */
 
-export async function getAllDriversFull(): Promise<Driver[]> {
-  const run = (cols: string) => supabase.from("drivers").select(cols).order("nama", { ascending: true });
+export async function getAllDriversFull(plant?: Plant | null): Promise<Driver[]> {
+  const run = (cols: string) => {
+    let q = supabase.from("drivers").select(cols).order("nama", { ascending: true });
+    if (plant) q = q.eq("plant", plant);
+    return q;
+  };
   let res = await run(DRIVER_COLS_FULL);
   if (isMissingDriverTypeColumn(res.error)) res = await run(DRIVER_COLS_BASE);
   if (res.error) throw res.error;

@@ -363,13 +363,15 @@ export function exportFleetReportToCsv(data: FleetReportData, months: string[], 
   lines.push(["", "", "", "TOTAL", data.claims.reduce((s, c) => s + c.total, 0)].map(escapeCsv).join(","));
   lines.push("");
 
-  lines.push(escapeCsv("=== OVERTIME ==="));
-  lines.push(["Periode", "Driver", "Plant", "Jam", "Nominal", "Alasan"].map(escapeCsv).join(","));
-  data.overtimes.forEach((o) => {
-    lines.push([o.period, o.driverName, o.plant, o.hours, o.amount, o.reason].map(escapeCsv).join(","));
-  });
-  lines.push(["", "", "", "TOTAL", data.overtimes.reduce((s, o) => s + o.amount, 0), ""].map(escapeCsv).join(","));
-  lines.push("");
+  if (data.overtimes.length > 0) {
+    lines.push(escapeCsv("=== OVERTIME ==="));
+    lines.push(["Periode", "Driver", "Plant", "Jam", "Nominal", "Alasan"].map(escapeCsv).join(","));
+    data.overtimes.forEach((o) => {
+      lines.push([o.period, o.driverName, o.plant, o.hours, o.amount, o.reason].map(escapeCsv).join(","));
+    });
+    lines.push(["", "", "", "TOTAL", data.overtimes.reduce((s, o) => s + o.amount, 0), ""].map(escapeCsv).join(","));
+    lines.push("");
+  }
 
   lines.push(escapeCsv("=== ARMADA (snapshot saat ini) ==="));
   lines.push(["Plat Nomor", "Tipe", "Status", "KIR", "Service", "STNK"].map(escapeCsv).join(","));
@@ -492,7 +494,7 @@ export async function exportFleetReportToPdf(
   const fmtRp = (n: number) => "Rp " + new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
 
   /* ── Page 1: Summary ── */
-  drawPageHeader("Laporan Komprehensif — Klaim, Overtime, Armada, Dana Operasional");
+  drawPageHeader(data.overtimes.length > 0 ? "Laporan Komprehensif — Klaim, Overtime, Armada, Dana Operasional" : "Laporan Komprehensif — Klaim, Armada, Dana Operasional");
   let y = 96;
   drawSectionTitle(marginX, y, "Ringkasan Keseluruhan");
   y += 18;
@@ -505,8 +507,10 @@ export async function exportFleetReportToPdf(
 
   const cards: Array<[string, string, RGB]> = [
     ["Total Klaim", fmtRp(totalClaims), BRAND],
-    ["Total Jam OT", `${new Intl.NumberFormat("id-ID").format(totalOtHours)} jam`, GOLD],
-    ["Nominal OT", fmtRp(totalOtAmount), GOLD],
+    ...(data.overtimes.length > 0 ? ([
+      ["Total Jam OT", `${new Intl.NumberFormat("id-ID").format(totalOtHours)} jam`, GOLD],
+      ["Nominal OT", fmtRp(totalOtAmount), GOLD],
+    ] as Array<[string, string, RGB]>) : []),
     ["Kendaraan Aktif", `${activeVehicles}/${data.vehicles.length}`, GREEN],
     ["Budget Driver/Bulan", fmtRp(totalTierBudget), NAVY],
   ];
@@ -561,6 +565,7 @@ export async function exportFleetReportToPdf(
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 26;
   }
 
+  if (data.overtimes.length > 0) {
   drawSectionTitle(marginX, y, "Perbandingan Overtime — CIK vs PRB");
   y += 14;
   const plants: Plant[] = ["CIK", "PRB"];
@@ -581,6 +586,7 @@ export async function exportFleetReportToPdf(
     alternateRowStyles: { fillColor: LIGHT_BG },
   });
 
+  }
   drawFooter();
 
   /* ── Page 2: Task Assignment (Penugasan Driver) — merged from the
@@ -674,7 +680,8 @@ export async function exportFleetReportToPdf(
   });
   drawFooter();
 
-  /* ── Page 4: Overtime detail ── */
+  /* ── Page 4: Overtime detail (hanya bila ada data) ── */
+  if (data.overtimes.length > 0) {
   doc.addPage();
   drawPageHeader("Detail Overtime");
   y = 96;
@@ -693,6 +700,7 @@ export async function exportFleetReportToPdf(
     alternateRowStyles: { fillColor: LIGHT_BG },
   });
   drawFooter();
+  }
 
   /* ── Page 4: Vehicles snapshot ── */
   doc.addPage();
