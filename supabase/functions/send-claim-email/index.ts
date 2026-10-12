@@ -160,9 +160,18 @@ function managerTemplate(p: ClaimEmailPayload): { subject: string; html: string 
   const driverName = escapeHtml(p.driverName);
   const note = p.note ? escapeHtml(p.note) : "";
 
+  // Header-injection guard: driverName ikut membentuk baris Subject SMTP.
+  // Kalau nama driver pernah diisi/di-paste dengan karakter newline mentah,
+  // parser MIME penerima (Gmail dkk) bisa kehilangan batas header/body dan
+  // menampilkan seluruh sisa pesan (header asli + boundary MIME) sebagai
+  // teks body mentah — lihat penjelasan lengkap & bukti reproduksi di
+  // send-task-email/index.ts (sanitizeHeaderValue). driverName yang dipakai
+  // di body (baris di atas) tetap versi escapeHtml biasa; di sini kita
+  // pakai versi khusus tanpa newline untuk Subject saja.
+  const driverNameForSubject = driverName.replace(/[\r\n]+/g, " ").trim();
   const subject = id
-    ? `[Notifikasi Klaim] ${driverName} - ${fmtDate(p.periodDate, "id")}`
-    : `[Claim Notification] ${driverName} - ${fmtDate(p.periodDate, "en")}`;
+    ? `[Notifikasi Klaim] ${driverNameForSubject} - ${fmtDate(p.periodDate, "id")}`
+    : `[Claim Notification] ${driverNameForSubject} - ${fmtDate(p.periodDate, "en")}`;
 
   const html = minify(`
   <div style="font-family:Georgia,'Times New Roman',serif;max-width:560px;margin:0 auto;background:#ffffff;padding:0;border:1px solid #d1d5e6;">
