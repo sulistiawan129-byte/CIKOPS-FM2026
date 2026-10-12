@@ -80,7 +80,7 @@ export function renderChartPNG(spec: ChartSpec, w = 640, h = 340, format: "png" 
 }
 
 function deltaColor(d: number, goodUp: boolean | null | undefined): string {
-  if (Math.abs(d) < 0.5) return "#94A3B8";
+  if (Math.abs(d) < 0.5) return "#64748B";
   if (goodUp === null || goodUp === undefined) return d > 0 ? "#1D4ED8" : "#B45309";
   return (d > 0) === goodUp ? "#047857" : "#B91C1C";
 }
