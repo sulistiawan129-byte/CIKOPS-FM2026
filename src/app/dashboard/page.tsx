@@ -79,6 +79,7 @@ import {
   getClaims,
   addClaim,
   deleteClaim,
+  updateClaim,
   getWreaths,
   addWreath,
   setWreathClaimed,
@@ -3029,6 +3030,7 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
   const [confirmDelete, setConfirmDelete] = useState<Claim | null>(null);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
   const [formDriverId, setFormDriverId] = useState("");
   const [submissionDate, setSubmissionDate] = useState(todayStr());
   const [periodDate, setPeriodDate] = useState(todayStr());
@@ -3042,7 +3044,7 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
   const [exportingWeeklyRecap, setExportingWeeklyRecap] = useState<"excel" | "pdf" | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "weekly" | "wreath">("list");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ name: string; total: number } | null>(null);
+  const [notice, setNotice] = useState<{ name: string; total: number; edited?: boolean } | null>(null);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(null), 6000);
@@ -3179,7 +3181,22 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
 
   const weeklyRecap = useMemo(() => computeWeeklyRecap(filtered), [filtered]);
 
+  function openEditClaim(c: Claim) {
+    setEditingClaim(c);
+    setFormDriverId(c.driver_id);
+    setSubmissionDate(c.submissionDate);
+    setPeriodDate(c.periodDate);
+    setNote(c.note || "");
+    setLines(
+      c.items.length > 0
+        ? c.items.map((it, i) => ({ id: Date.now() + i, type: it.type, expr: it.expr || String(it.total) }))
+        : [{ id: Date.now(), type: "Gasoline", expr: "" }]
+    );
+    setShowForm(true);
+  }
+
   function openAdd() {
+    setEditingClaim(null);
     setFormDriverId("");
     setSubmissionDate(todayStr());
     setPeriodDate(todayStr());
@@ -3210,6 +3227,14 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
         expr: l.expr,
         total: evalExpr(l.expr) || 0,
       }));
+      if (editingClaim) {
+        await updateClaim(editingClaim.id, { driver_id: formDriverId, submissionDate, periodDate, items, total: grandTotal, note });
+        setShowForm(false);
+        setEditingClaim(null);
+        setNotice({ name: drivers.find((d) => d.id === formDriverId)?.nama || editingClaim.driverName || "-", total: grandTotal, edited: true });
+        await load();
+        return;
+      }
       await addClaim({
         driver_id: formDriverId,
         submissionDate,
@@ -3337,13 +3362,17 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
   let formWeek = "";
   try { formWeek = periodDate ? weekRangeOf(periodDate, lang).label : ""; } catch { formWeek = ""; }
   const driverOptions = drivers.map((d) => ({ id: d.id, nama: d.nama }));
+  // Saat edit, driver klaim lama tetap muncul di daftar walau sudah nonaktif / beda filter.
+  if (editingClaim && !driverOptions.some((d) => d.id === editingClaim.driver_id)) {
+    driverOptions.unshift({ id: editingClaim.driver_id, nama: editingClaim.driverName || "-" });
+  }
 
   return (
     <div className={cs.root}>
       {notice && (
         <div className={cs.notice} role="status">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m8 12.5 2.8 2.8L16 9.5" /></svg>
-          <span>{en ? "Claim submitted for" : "Klaim terkirim untuk"} <b>{notice.name}</b> · Rp {fmtRp(notice.total)}</span>
+          <span>{notice.edited ? (en ? "Claim updated for" : "Klaim diperbarui untuk") : (en ? "Claim submitted for" : "Klaim terkirim untuk")} <b>{notice.name}</b> · Rp {fmtRp(notice.total)}</span>
         </div>
       )}
       {error && <div className={`${cs.notice} ${cs.noticeErr}`} role="alert">{error}</div>}
@@ -3427,6 +3456,7 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
                       open={expandedId === c.id}
                       onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
                       onDelete={() => setConfirmDelete(c)}
+                      onEdit={() => openEditClaim(c)}
                       lang={lang}
                       typeFilter={typeFilter}
                       weekText={weekRangeOf(c.periodDate, lang).label}
@@ -3550,7 +3580,7 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
       )}
 
       {showForm && (
-        <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={940}>
+        <ModalPortal onOverlayClick={() => { setShowForm(false); setEditingClaim(null); }} maxWidth={940}>
           <ClaimForm
             lang={lang}
             drivers={driverOptions}
@@ -3562,9 +3592,10 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
             addLine={addLine} removeLine={removeLine} updateLine={updateLine}
             note={note} setNote={setNote}
             grandTotal={grandTotal} canSave={canSave} saving={saving}
-            onSave={handleSave} onClose={() => setShowForm(false)}
+            onSave={handleSave} onClose={() => { setShowForm(false); setEditingClaim(null); }}
             evalExpr={evalExpr}
             cancelText={t.actionCancel} savingText={t.actionSaving}
+            editing={!!editingClaim}
           />
         </ModalPortal>
       )}

@@ -1,3 +1,34 @@
+# V2.21 — Penugasan: jam tugas maksimal 17.00, auto-selesai
+
+## LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
+`supabase/020_task_auto_complete.sql` (sesudah 019). Isinya:
+- kolom `tasks.auto_completed` (penanda tugas yang ditutup sistem),
+- fungsi `auto_complete_tasks()`: semua tugas berstatus Ditugaskan atau Berjalan yang sudah lewat pukul 17.00 WIB pada tanggal tugasnya diubah jadi Selesai, jam selesai = 17.00 WIB. Tugas yang dibatalkan/sudah selesai tidak disentuh,
+- jadwal otomatis setiap hari pukul 17.00 WIB lewat pg_cron.
+  Bila muncul pesan "pg_cron belum bisa diaktifkan", aktifkan dulu di Supabase Dashboard -> Database -> Extensions -> pg_cron, lalu jalankan ulang file ini.
+- Di akhir file, fungsi langsung dijalankan sekali: tugas hari-hari sebelumnya yang masih menggantung ikut ditutup.
+
+## Baru di V2.21
+- Cadangan di aplikasi: dashboard dan aplikasi driver memanggil fungsi yang sama saat memuat tugas, jadi tugas lewat jam tetap tertutup walau jadwal pg_cron belum aktif.
+- Kartu tugas: tugas yang masih terbuka menampilkan "batas 17.00"; tugas yang ditutup sistem menampilkan "Selesai otomatis 17:00" + label "Auto 17.00".
+- Form penugasan: catatan "Jam tugas maksimal pukul 17.00 ...".
+- Aplikasi driver: pengingat "Selesaikan sebelum pukul 17.00" di tugas aktif, dan keterangan bila tugas ditutup otomatis.
+- Bukti cetak: status "Selesai otomatis (batas jam tugas)".
+- Baru: supabase/020_task_auto_complete.sql. Berubah: src/lib/api.ts, src/lib/types.ts, src/lib/taskSlip.ts, src/app/dashboard/TasksUI.tsx, tasks.module.css, src/app/driver/page.tsx, driver.module.css.
+
+---
+# V2.20 — Klaim: driver dropdown + EDIT klaim
+
+## LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
+`supabase/019_claims_update.sql` — mengaktifkan izin EDIT klaim (sebelumnya tabel claims hanya boleh dibaca, ditambah, dan dihapus). Tanpa SQL ini, tombol "Simpan perubahan" akan menampilkan pesan untuk menjalankan SQL 019.
+
+## Baru di V2.20
+- Form klaim: pilihan driver jadi dropdown.
+- Edit klaim: ikon pensil di setiap kartu klaim (di samping hapus) dan tombol "Edit klaim" di rincian yang dibuka. Form terbuka dengan data lama (driver, tanggal periode & pengajuan, rincian, catatan); tombol berubah jadi "Simpan perubahan". Notifikasi: "Klaim diperbarui untuk ...".
+- Edit TIDAK mengirim ulang email/push ke driver (hanya klaim baru yang mengirim notifikasi).
+- Berubah: src/lib/api.ts (updateClaim), src/app/dashboard/ClaimsUI.tsx, claims.module.css, dashboard/page.tsx. Baru: supabase/019_claims_update.sql.
+
+---
 # Redesign V2.19 — Tema EXECUTIVE untuk semua modul
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy.

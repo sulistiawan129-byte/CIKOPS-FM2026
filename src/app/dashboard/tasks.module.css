@@ -293,3 +293,7 @@
 
 @media (max-width: 520px) { .whoSub { flex-wrap: wrap; white-space: normal; } .actions { flex-wrap: wrap; } }
 .spacer { flex: 1 1 0; min-width: 0; }
+
+/* jam tugas maksimal 17.00 (V2.21) */
+.autoTag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--orange); background: var(--orange-soft); vertical-align: 1px; }
+.cutoffNote { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--t3); }

@@ -323,6 +323,7 @@ export interface TaskDetail {
   created_at: string;
   accepted_at: string | null;
   completed_at: string | null;
+  auto_completed?: boolean | null;
   cancelled_at: string | null;
   cancelled_by: string | null;
   cancel_reason: string | null;
@@ -523,4 +524,16 @@ export interface GiftRegistration {
   claimedAt: string | null;
   claimedBy: string | null;
   registeredAt: string;
+}
+
+/** Jam tugas maksimal (WIB). Tugas yang belum selesai ditutup otomatis pada jam ini (migrasi 020). */
+export const TASK_CUTOFF_HOUR = 17;
+
+/** True bila tugas ditutup otomatis sistem pada pukul 17.00 (batas jam tugas). */
+export function isAutoCompleted(t: { status: string; completed_at: string | null; auto_completed?: boolean | null }): boolean {
+  if (t.status !== "DONE" || !t.completed_at) return false;
+  if (t.auto_completed) return true;
+  const d = new Date(t.completed_at);
+  const wib = new Date(d.getTime() + 7 * 3600_000);
+  return wib.getUTCHours() === TASK_CUTOFF_HOUR && wib.getUTCMinutes() === 0 && wib.getUTCSeconds() === 0 && wib.getUTCMilliseconds() === 0;
 }

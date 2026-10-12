@@ -2054,3 +2054,6 @@
 .dutyUser { margin-top: 6px; font-size: 14px; color: var(--t2); }
 .dutyUser b { color: var(--t1); }
 .dutyNote { margin-top: 4px; font-size: 12px; color: var(--t3); }
+
+/* jam tugas maksimal 17.00 (V2.21) */
+.cutoff { margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; font-size: 12.5px; font-weight: 600; line-height: 1.4; color: var(--orange-text, var(--orange)); background: var(--orange-soft); }

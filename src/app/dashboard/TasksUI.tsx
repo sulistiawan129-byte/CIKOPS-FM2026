@@ -14,7 +14,7 @@ import s from "./tasks.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
 import { isUserDriver } from "@/lib/duty";
 import { buildTaskSlipsHtml, taskRefNo } from "@/lib/taskSlip";
-import { plantLocation } from "@/lib/types";
+import { plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
 import type { Driver, Employee, JobType, Plant, TaskDetail, TaskStatus, Vehicle } from "@/lib/types";
 
 /* ───────────────────────── util ───────────────────────── */
@@ -183,8 +183,15 @@ function StatusTimes({ t }: { t: TaskDetail }) {
   }
   const parts = [`Ditugaskan ${hhmm(t.created_at)}`];
   if (t.accepted_at) parts.push(`Berjalan ${hhmm(t.accepted_at)}`);
-  if (t.completed_at) parts.push(`Selesai ${hhmm(t.completed_at)}`);
-  return <div className={s.timesTxt}>{parts.join(" · ")}</div>;
+  const auto = isAutoCompleted(t);
+  if (t.completed_at) parts.push(auto ? `Selesai otomatis ${hhmm(t.completed_at)}` : `Selesai ${hhmm(t.completed_at)}`);
+  if (t.status === "ASSIGNED" || t.status === "ON GOING") parts.push(`batas ${String(TASK_CUTOFF_HOUR).padStart(2, "0")}.00`);
+  return (
+    <div className={s.timesTxt}>
+      {parts.join(" · ")}
+      {auto && <span className={s.autoTag} title={`Belum diselesaikan driver, ditutup otomatis oleh sistem pukul ${TASK_CUTOFF_HOUR}.00`}>Auto {TASK_CUTOFF_HOUR}.00</span>}
+    </div>
+  );
 }
 
 export function TaskCard({
@@ -540,6 +547,9 @@ export function TaskForm(p: {
                 </>
               )}
             </div>
+            <p className={s.cutoffNote}>
+              Jam tugas maksimal pukul {TASK_CUTOFF_HOUR}.00. Tugas yang belum diselesaikan driver akan ditutup otomatis pada jam tersebut.
+            </p>
             {dateMode === "range" && (
               <label className={s.field}>
                 <span>Email requestor <em>untuk notifikasi otomatis</em></span>

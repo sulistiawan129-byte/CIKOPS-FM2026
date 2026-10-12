@@ -10,7 +10,7 @@
  */
 
 import type { TaskDetail, TaskStatus } from "./types";
-import { plantLocation } from "./types";
+import { plantLocation, isAutoCompleted } from "./types";
 
 const esc = (v: unknown) =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
@@ -53,7 +53,7 @@ function slip(t: TaskDetail, printedAt: string, printedBy: string): string {
   const cancelled = t.status === "CANCELLED";
   const times: string[] = [];
   if (t.accepted_at) times.push(`Diterima ${fmtStamp(t.accepted_at)}`);
-  if (t.completed_at) times.push(`Selesai ${fmtStamp(t.completed_at)}`);
+  if (t.completed_at) times.push(`${isAutoCompleted(t) ? "Selesai otomatis (batas jam tugas)" : "Selesai"} ${fmtStamp(t.completed_at)}`);
   return `
   <section class="slip${cancelled ? " void" : ""}">
     ${cancelled ? '<div class="stamp">DIBATALKAN</div>' : ""}

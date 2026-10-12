@@ -296,9 +296,28 @@ export async function withOrigins(rows: TaskDetail[]): Promise<TaskDetail[]> {
    TASKS — driver panel
 ════════════════════════════════════════════════════════════ */
 
+/* ── Jam tugas maksimal 17.00 WIB (migrasi 020) ──
+   Penjadwal di database (pg_cron) menutup tugas tiap hari 17.00. Sebagai
+   cadangan, aplikasi ikut memanggil fungsi yang sama saat memuat tugas
+   (paling sering sekali per menit per perangkat). Bila migrasi belum
+   dijalankan, panggilan ini diabaikan. */
+let lastAutoComplete = 0;
+export async function ensureTaskAutoComplete(): Promise<void> {
+  const now = Date.now();
+  if (now - lastAutoComplete < 60_000) return;
+  lastAutoComplete = now;
+  try {
+    await supabase.rpc("auto_complete_tasks");
+  } catch {
+    /* migrasi 020 belum ada — abaikan */
+  }
+}
+
+
 export async function getDriverTasksToday(
   driverId: string
 ): Promise<TaskDetail[]> {
+  await ensureTaskAutoComplete();
   const today = todayLocalISODate();
   const { data, error } = await supabase
     .from("tasks_detail")
@@ -369,6 +388,7 @@ export async function getTasksByDate(
   dateFilter: string,
   plant?: Plant | null
 ): Promise<TaskDetail[]> {
+  await ensureTaskAutoComplete();
   let q = supabase
     .from("tasks_detail")
     .select("*")
@@ -779,6 +799,26 @@ export async function addClaim(input: AddClaimInput): Promise<void> {
     submitted_at: new Date().toISOString(),
   });
   if (error) throw error;
+}
+
+/** Perbaiki klaim yang salah input (driver, tanggal, rincian, catatan). */
+export async function updateClaim(id: string, input: AddClaimInput): Promise<void> {
+  const { data, error } = await supabase
+    .from("claims")
+    .update({
+      driver_id: input.driver_id,
+      submission_date: input.submissionDate,
+      period_date: input.periodDate,
+      items: input.items,
+      total: input.total,
+      note: input.note || "",
+    })
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/019_claims_update.sql di Supabase SQL Editor.");
+  }
 }
 
 export async function deleteClaim(id: string): Promise<void> {

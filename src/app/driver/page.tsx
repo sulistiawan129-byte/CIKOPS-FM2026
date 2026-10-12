@@ -18,7 +18,7 @@ import {
   getDriverDutyInfo,
 } from "@/lib/api";
 import type { Claim, Driver, TaskDetail } from "@/lib/types";
-import { computeStats, plantLocation } from "@/lib/types";
+import { computeStats, plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
 import { todayLocalISODate } from "@/lib/dateUtils";
@@ -1140,6 +1140,17 @@ function TaskCard({
           </div>
         )}
       </div>
+
+      {(task.status === "ASSIGNED" || task.status === "ON GOING") && (
+        <div className={styles.cutoff}>
+          ⏰ {lang === "en" ? `Finish before ${TASK_CUTOFF_HOUR}:00 — unfinished tasks close automatically.` : `Selesaikan sebelum pukul ${TASK_CUTOFF_HOUR}.00 — tugas yang belum selesai akan ditutup otomatis.`}
+        </div>
+      )}
+      {isAutoCompleted(task) && (
+        <div className={styles.cutoff}>
+          ⏰ {lang === "en" ? `Closed automatically at ${TASK_CUTOFF_HOUR}:00.` : `Ditutup otomatis oleh sistem pukul ${TASK_CUTOFF_HOUR}.00.`}
+        </div>
+      )}
 
       <div className={styles.cardAction}>
         {task.status === "ASSIGNED" && (

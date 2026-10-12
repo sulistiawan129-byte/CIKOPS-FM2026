@@ -236,9 +236,9 @@ export function WeekHeader({ label, count, total, lang }: { label: string; count
 }
 
 export function ClaimCard({
-  claim, open, onToggle, onDelete, lang, typeFilter, weekText,
+  claim, open, onToggle, onDelete, onEdit, lang, typeFilter, weekText,
 }: {
-  claim: Claim; open: boolean; onToggle: () => void; onDelete: () => void;
+  claim: Claim; open: boolean; onToggle: () => void; onDelete: () => void; onEdit: () => void;
   lang: string; typeFilter: string | null; weekText: string;
 }) {
   const types = useMemo(() => [...new Set(claim.items.map((i) => i.type))], [claim.items]);
@@ -272,6 +272,9 @@ export function ClaimCard({
         </span>
         <svg className={styles.chev} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
       </button>
+      <button className={styles.cardEdit} onClick={onEdit} aria-label={lang === "en" ? "Edit claim" : "Edit klaim"} title={lang === "en" ? "Edit" : "Edit"}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+      </button>
       <button className={styles.cardDel} onClick={onDelete} aria-label={lang === "en" ? "Delete claim" : "Hapus klaim"} title={lang === "en" ? "Delete" : "Hapus"}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5" /></svg>
       </button>
@@ -293,6 +296,10 @@ export function ClaimCard({
             ))}
             <div className={styles.slipTotal}><span>Total</span><b>Rp {fmt(claim.total)}</b></div>
             {claim.note && <div className={styles.slipNote}>“{claim.note}”</div>}
+            <button className={styles.slipEdit} onClick={onEdit}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              {lang === "en" ? "Edit claim" : "Edit klaim"}
+            </button>
           </div>
         </div>
       </div>
@@ -332,6 +339,7 @@ export interface ClaimFormProps {
   onSave: () => void; onClose: () => void;
   evalExpr: (raw: string) => number | null;
   cancelText: string; savingText: string;
+  editing?: boolean;
 }
 
 const QUICK = [10000, 20000, 50000, 100000];
@@ -339,11 +347,9 @@ const QUICK = [10000, 20000, 50000, 100000];
 export function ClaimForm(p: ClaimFormProps) {
   const { lang, evalExpr } = p;
   const en = lang === "en";
-  const [q, setQ] = useState("");
   const total = useTween(p.grandTotal);
   const firstRef = useRef<HTMLInputElement>(null);
   const driver = p.drivers.find((d) => d.id === p.driverId);
-  const shown = p.drivers.filter((d) => d.nama.toLowerCase().includes(q.trim().toLowerCase()));
   const today = isoLocal(new Date());
   const yest = isoLocal(new Date(Date.now() - 86400000));
   const filled = p.lines.filter((l) => l.expr.trim() !== "");
@@ -366,8 +372,10 @@ export function ClaimForm(p: ClaimFormProps) {
     <div className={styles.form}>
       <header className={styles.formHead}>
         <div>
-          <h2>{en ? "New claim" : "Buat klaim"}</h2>
-          <p>{en ? "Add what the driver spent — the receipt on the right updates as you type." : "Catat pengeluaran driver. Struk di kanan ikut terisi saat Anda mengetik."}</p>
+          <h2>{p.editing ? (en ? "Edit claim" : "Edit klaim") : (en ? "New claim" : "Buat klaim")}</h2>
+          <p>{p.editing
+            ? (en ? "Fix any wrong input, then save the changes." : "Perbaiki data yang salah input, lalu simpan perubahan.")
+            : (en ? "Add what the driver spent — the receipt on the right updates as you type." : "Catat pengeluaran driver. Struk di kanan ikut terisi saat Anda mengetik.")}</p>
         </div>
         <button className={styles.x} onClick={p.onClose} aria-label={en ? "Close" : "Tutup"}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -379,31 +387,15 @@ export function ClaimForm(p: ClaimFormProps) {
           {/* 1 · driver */}
           <section className={styles.block}>
             <h3>{en ? "Who is claiming?" : "Klaim untuk siapa?"}</h3>
-            {p.drivers.length > 7 && (
-              <input
-                ref={firstRef}
-                className={styles.search}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={en ? "Search driver name" : "Cari nama driver"}
-                aria-label={en ? "Search driver" : "Cari driver"}
-              />
-            )}
-            <div className={styles.drivers} role="radiogroup" aria-label="Driver">
-              {shown.map((d) => (
-                <button
-                  key={d.id}
-                  role="radio"
-                  aria-checked={p.driverId === d.id}
-                  className={`${styles.drv} ${p.driverId === d.id ? styles.drvOn : ""}`}
-                  onClick={() => p.setDriverId(d.id)}
-                >
-                  <Avatar name={d.nama} size={26} />
-                  <span>{d.nama}</span>
-                </button>
-              ))}
-              {shown.length === 0 && <span className={styles.none}>{en ? "No driver matches" : "Tidak ada driver yang cocok"}</span>}
-            </div>
+            <select
+              className={styles.driverSelect}
+              value={p.driverId}
+              onChange={(e) => p.setDriverId(e.target.value)}
+              aria-label="Driver"
+            >
+              <option value="">{en ? "— Select driver —" : "— Pilih driver —"}</option>
+              {p.drivers.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
+            </select>
           </section>
 
           {/* 2 · tanggal */}
@@ -537,7 +529,7 @@ export function ClaimForm(p: ClaimFormProps) {
         <div className={styles.footCta}>
           {hint && <span className={styles.hint}>{hint}</span>}
           <button className={styles.submit} onClick={p.onSave} disabled={!p.canSave || p.saving}>
-            {p.saving ? p.savingText : (en ? "Submit claim" : "Ajukan klaim")}
+            {p.saving ? p.savingText : p.editing ? (en ? "Save changes" : "Simpan perubahan") : (en ? "Submit claim" : "Ajukan klaim")}
           </button>
         </div>
       </footer>
