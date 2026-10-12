@@ -172,6 +172,7 @@ import LockerTab from "./LockerTab";
 import { getLockerStatusGrid } from "@/lib/lockerApi";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
+import SecurityTab from "./SecurityTab";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
@@ -201,6 +202,7 @@ export type DashboardTab =
   | "printer"
   | "employeerequests"
   | "atk"
+  | "security"
   | "activitylog";
 
 interface NavTab { id: DashboardTab; icon: string; labelId: string; labelEn: string; descId?: string; descEn?: string }
@@ -241,6 +243,15 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "printer", icon: "🖨️", labelId: "Printer", labelEn: "Printer", descId: "Manajemen printer & permintaan", descEn: "Printer management & requests" },
       { id: "employeerequests", icon: "📨", labelId: "Permintaan Karyawan", labelEn: "Employee Requests", descId: "Pengajuan permintaan dari karyawan", descEn: "Employee-submitted requests" },
       { id: "atk", icon: "✏️", labelId: "ATK", labelEn: "Office Supplies", descId: "Pengajuan ATK & perlengkapan", descEn: "Office supplies requests" },
+    ],
+  },
+  {
+    id: "security",
+    icon: "🛡️",
+    labelId: "Security",
+    labelEn: "Security",
+    tabs: [
+      { id: "security", icon: "🛡️", labelId: "Laporan Security", labelEn: "Security Report", descId: "Input bulanan kendaraan, transporter, kejadian, patroli", descEn: "Monthly vehicles, transporters, incidents, patrol" },
     ],
   },
   {
@@ -962,6 +973,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab />}
+          {activeTab === "security" && <SecurityTab myProfile={myProfile} />}
           {activeTab === "activitylog" && <ActivityLogTab />}
           </TabErrorBoundary>
         </div>
@@ -2095,6 +2107,7 @@ const GROUP_TONE: Record<string, { fg: string; bg: string }> = {
   fleet: { fg: "var(--brand)", bg: "var(--accent-soft)" },
   finance: { fg: "var(--green-text)", bg: "var(--green-soft)" },
   facility: { fg: "var(--orange-text)", bg: "var(--orange-soft)" },
+  security: { fg: "var(--red)", bg: "var(--red-soft)" },
   system: { fg: "var(--t2)", bg: "var(--bg2)" },
 };
 

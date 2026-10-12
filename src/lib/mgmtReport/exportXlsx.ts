@@ -23,7 +23,7 @@ export async function exportMgmtXlsx(report: MgmtReport, filename: string): Prom
   titleBlock(ws, `${tr("Laporan Manajemen", "Management Report")} — Fleet & Facility Management`, `${report.company} · ${report.periodLabel} · ${report.scopeLabel}`,
     `${tr("Pembanding", "Compared with")}: ${report.prevLabel} · ${tr("Dibuat", "Generated")} ${report.generatedAt}${report.generatedBy ? ` ${tr("oleh", "by")} ${report.generatedBy}` : ""}`, 7);
   let r = 6;
-  for (const m of report.modules) {
+  for (const m of report.modules.filter((x) => !x.sub)) {
     const head = ws.getRow(r);
     ws.mergeCells(r, 2, r, 7);
     head.getCell(2).value = m.title;
@@ -62,7 +62,8 @@ export async function exportMgmtXlsx(report: MgmtReport, filename: string): Prom
   });
 
   /* ── per modul ── */
-  for (const m of report.modules) moduleSheet(wb, m, report);
+  const used = new Set<string>(["ringkasan", "summary"]);
+  for (const m of report.modules) moduleSheet(wb, m, report, used);
 
   // cetak: landscape, selebar 1 halaman
   wb.worksheets.forEach((sh) => {
@@ -98,8 +99,11 @@ function sectionTitle(ws: WS, r: number, text: string, color: string) {
   ws.getCell(r, 2).border = { bottom: { style: "medium", color: { argb: color } } };
 }
 
-function moduleSheet(wb: WB, m: ModuleReport, report: MgmtReport) {
-  const name = m.title.replace(/[\\/*?:[\]]/g, "").slice(0, 28);
+function moduleSheet(wb: WB, m: ModuleReport, report: MgmtReport, used: Set<string>) {
+  const base = m.title.replace(/^Security — /, "Sec — ").replace(/[\\/*?:[\]]/g, "").slice(0, 28);
+  let name = base, i = 2;
+  while (used.has(name.toLowerCase())) name = `${base.slice(0, 25)} ${i++}`;
+  used.add(name.toLowerCase());
   const ws = wb.addWorksheet(name, { views: [{ showGridLines: false }], properties: { tabColor: { argb: argb(m.accent) } } });
   ws.columns = [{ width: 3 }, { width: 34 }, { width: 22 }, { width: 22 }, { width: 22 }, { width: 22 }, { width: 3 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
   titleBlock(ws, m.title, `${report.periodLabel} · ${report.scopeLabel}`, m.headline, 13);
@@ -155,7 +159,7 @@ function moduleSheet(wb: WB, m: ModuleReport, report: MgmtReport) {
   sectionTitle(ws, r, tr("Data grafik", "Chart data"), MUTED); r++;
   m.charts.forEach((c) => {
     ws.getCell(r, 2).value = c.title; ws.getCell(r, 2).font = { bold: true, color: { argb: INK } }; r++;
-    const head = [tr("Kategori", "Category"), ...c.series.map((s) => s.name)];
+    const head = [tr("Kategori", "Category"), ...c.series.map((s) => s.name), ...(c.deltas ? [tr("Perubahan vs bulan sebelumnya", "Change vs previous month")] : [])];
     head.forEach((t, i) => { const cell = ws.getCell(r, 2 + i); cell.value = t; cell.font = { bold: true, color: { argb: MUTED } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: SOFT } }; });
     r++;
     c.labels.forEach((lab, li) => {
@@ -165,6 +169,12 @@ function moduleSheet(wb: WB, m: ModuleReport, report: MgmtReport) {
         cell.value = Math.round((s.values[li] || 0) * 100) / 100;
         cell.numFmt = c.unit === "rp" ? (report.lang === "en" ? '"IDR" #,##0' : '"Rp" #,##0') : c.unit === "pct" ? '0.0"%"' : "#,##0";
       });
+      if (c.deltas) {
+        const d = c.deltas[li];
+        const cell = ws.getCell(r, 3 + c.series.length);
+        cell.value = d === null || d === undefined ? "–" : Math.round(d * 10) / 1000;
+        if (typeof cell.value === "number") cell.numFmt = '+0.0%;-0.0%;0.0%';
+      }
       r++;
     });
     r++;

@@ -93,6 +93,7 @@
 
 /* modul */
 .module { display: flex; flex-direction: column; gap: 14px; padding: 20px; border-radius: 18px; border: 1px solid var(--border2); border-top: 4px solid var(--c); background: var(--surface); scroll-margin-top: 90px; }
+.moduleSub { border-top-width: 2px; margin-top: -6px; }
 .modHead { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .modHead h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--t1); }
 .modHead span { font-size: 12.5px; color: var(--t3); }

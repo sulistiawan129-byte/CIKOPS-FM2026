@@ -405,16 +405,24 @@ export async function getTasksByRange(
   dateTo: string,
   plant?: Plant | null
 ): Promise<TaskDetail[]> {
-  let q = supabase
-    .from("tasks_detail")
-    .select("*")
-    .gte("tanggal", dateFrom)
-    .lte("tanggal", dateTo)
-    .order("tanggal", { ascending: false });
-  if (plant) q = q.eq("plant", plant);
-  const { data, error } = await q;
-  if (error) throw error;
-  return data ?? [];
+  // Paginasi per 1000 baris (batas default Supabase) — rentang panjang untuk report/tren.
+  const out: TaskDetail[] = [];
+  for (let off = 0; off < 100000; off += 1000) {
+    let q = supabase
+      .from("tasks_detail")
+      .select("*")
+      .gte("tanggal", dateFrom)
+      .lte("tanggal", dateTo)
+      .order("tanggal", { ascending: false })
+      .order("id", { ascending: true })
+      .range(off, off + 999);
+    if (plant) q = q.eq("plant", plant);
+    const { data, error } = await q;
+    if (error) throw error;
+    out.push(...((data ?? []) as TaskDetail[]));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
 }
 
 export interface CreateTaskInput {
@@ -1404,12 +1412,17 @@ function mapAtkRequestRow(r: AtkRequestRow): AtkRequest {
   };
 }
 export async function getAtkRequests(params?: { dateFrom?: string; dateTo?: string }): Promise<AtkRequest[]> {
-  let q = supabase.from("atk_requests").select("*").order("tanggal", { ascending: false });
-  if (params?.dateFrom) q = q.gte("tanggal", params.dateFrom);
-  if (params?.dateTo) q = q.lte("tanggal", params.dateTo);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data as AtkRequestRow[] ?? []).map(mapAtkRequestRow);
+  const rows: AtkRequestRow[] = [];
+  for (let off = 0; off < 100000; off += 1000) {
+    let q = supabase.from("atk_requests").select("*").order("tanggal", { ascending: false }).order("id", { ascending: true }).range(off, off + 999);
+    if (params?.dateFrom) q = q.gte("tanggal", params.dateFrom);
+    if (params?.dateTo) q = q.lte("tanggal", params.dateTo);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows.push(...((data as AtkRequestRow[]) ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows.map(mapAtkRequestRow);
 }
 
 interface AtkRestockRow {

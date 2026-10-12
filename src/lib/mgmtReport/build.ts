@@ -6,8 +6,12 @@ import {
 } from "../api";
 import type { Plant } from "../types";
 import { computeAtk, computeCanteen, computeClaims, computeFleet } from "./compute";
+import { computeSecurity } from "./security";
+import { atkTrend, canteenTrend, claimsTrend, fleetTrend } from "./trend";
+import { fetchGcCases, getSecurityConfig, getSecurityMonths } from "../security/api";
+import { DEFAULT_KHUSUS, monthKeyOf } from "../security/model";
 import {
-  periodLabelOf, prevRange, setGranularity, setReportLang, tr,
+  periodLabelOf, prevRange, setGranularity, setReportLang, tr, trendMonths,
   type Granularity, type MgmtReport, type ModuleKey, type ModuleReport, type ReportLang,
 } from "./model";
 
@@ -28,34 +32,48 @@ export async function buildMgmtReport(p: {
   const showPlants = !p.plant;
   const out: ModuleReport[] = [];
   const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn(); } catch { return fallback; } };
+  // jendela data: periode, periode pembanding, dan 13 bulan untuk grafik tren
+  const months = trendMonths(p.to, 13);
+  const winFrom = [p.from, prev.from, months[0].from].sort()[0];
+  const inR = (d: string | null | undefined, a: string, b: string) => !!d && d.slice(0, 10) >= a && d.slice(0, 10) <= b;
 
   for (const key of p.modules) {
     if (key === "fleet") {
-      const [tasks, prevTasks, vehicles, gateLogs] = await Promise.all([
-        safe(() => getTasksByRange(p.from, p.to, p.plant), []),
-        safe(() => getTasksByRange(prev.from, prev.to, p.plant), []),
+      const [allTasks, vehicles, gateLogs] = await Promise.all([
+        safe(() => getTasksByRange(winFrom, p.to, p.plant), []),
         safe(() => getAllVehiclesFull(p.plant), []),
         safe(() => getVehicleGateLogs({ plant: p.plant, dateFrom: p.from, dateTo: p.to }), []),
       ]);
       use();
-      out.push(computeFleet({ from: p.from, to: p.to, tasks, prevTasks, vehicles, gateLogs, showPlants }));
+      const tasks = allTasks.filter((t) => inR(t.tanggal, p.from, p.to));
+      const prevTasks = allTasks.filter((t) => inR(t.tanggal, prev.from, prev.to));
+      out.push(fleetTrend(computeFleet({ from: p.from, to: p.to, tasks, prevTasks, vehicles, gateLogs, showPlants }), months, allTasks));
     } else if (key === "claims") {
       const claims = await safe(() => getClaims(p.plant), []);
       use();
-      out.push(computeClaims({ from: p.from, to: p.to, claims, showPlants }));
+      out.push(claimsTrend(computeClaims({ from: p.from, to: p.to, claims, showPlants }), months, claims));
     } else if (key === "canteen") {
       const rows = await safe(() => getAllCanteenReports(), []);
       use();
-      out.push(computeCanteen({ from: p.from, to: p.to, rows }));
+      out.push(canteenTrend(computeCanteen({ from: p.from, to: p.to, rows }), months, rows));
     } else if (key === "atk") {
-      const [requests, prevRequests, restocks, items] = await Promise.all([
-        safe(() => getAtkRequests({ dateFrom: p.from, dateTo: p.to }), []),
-        safe(() => getAtkRequests({ dateFrom: prev.from, dateTo: prev.to }), []),
+      const [allReq, restocks, items] = await Promise.all([
+        safe(() => getAtkRequests({ dateFrom: winFrom, dateTo: p.to }), []),
         safe(() => getAtkRestocks({ dateFrom: p.from, dateTo: p.to }), []),
         safe(() => getAtkItems(), []),
       ]);
       use();
-      out.push(computeAtk({ from: p.from, to: p.to, requests, prevRequests, restocks, items }));
+      const requests = allReq.filter((r) => inR(r.tanggal, p.from, p.to));
+      const prevRequests = allReq.filter((r) => inR(r.tanggal, prev.from, prev.to));
+      out.push(atkTrend(computeAtk({ from: p.from, to: p.to, requests, prevRequests, restocks, items }), months, allReq));
+    } else if (key === "security") {
+      const [rows, cfg, gc] = await Promise.all([
+        safe(() => getSecurityMonths(monthKeyOf(winFrom), monthKeyOf(p.to)), {}),
+        safe(() => getSecurityConfig(), { khusus: DEFAULT_KHUSUS, driverNames: {} }),
+        fetchGcCases(winFrom, p.to),
+      ]);
+      use();
+      out.push(...computeSecurity({ from: p.from, to: p.to, months, rows, gc, khusus: cfg.khusus, driverNames: cfg.driverNames }));
     }
   }
 

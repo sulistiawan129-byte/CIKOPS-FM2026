@@ -79,9 +79,16 @@ export function renderChartPNG(spec: ChartSpec, w = 640, h = 340, format: "png" 
   return format === "jpeg" ? cv.toDataURL("image/jpeg", 0.9) : cv.toDataURL("image/png");
 }
 
+function deltaColor(d: number, goodUp: boolean | null | undefined): string {
+  if (Math.abs(d) < 0.5) return "#94A3B8";
+  if (goodUp === null || goodUp === undefined) return d > 0 ? "#1D4ED8" : "#B45309";
+  return (d > 0) === goodUp ? "#047857" : "#B91C1C";
+}
+
 function drawBars(ctx: CanvasRenderingContext2D, spec: ChartSpec, w: number, h: number, stacked: boolean) {
   const multi = spec.series.length > 1;
-  const top = multi ? 34 : 18, bottom = 40, left = 16, right = 16;
+  const trend = Array.isArray(spec.deltas);
+  const top = multi ? 34 : 18, bottom = trend ? 58 : 40, left = 16, right = 16;
   const ph = h - top - bottom, pw = w - left - right;
   const totals = spec.labels.map((_, i) => (stacked ? spec.series.reduce((s, se) => s + (se.values[i] || 0), 0) : Math.max(...spec.series.map((se) => se.values[i] || 0))));
   const max = niceMax(Math.max(...totals) * 1.12);
@@ -92,9 +99,12 @@ function drawBars(ctx: CanvasRenderingContext2D, spec: ChartSpec, w: number, h: 
 
   const n = spec.labels.length;
   const slot = pw / n;
-  const groupW = Math.min(slot * 0.62, 70);
+  const groupW = Math.min(slot * (trend ? 0.7 : 0.62), 70);
+  const valFont = n > 9 ? 10.5 : 12;
   spec.labels.forEach((lab, i) => {
     const cx = left + slot * i + slot / 2;
+    const isLast = i === n - 1;
+    ctx.globalAlpha = trend && !isLast ? 0.5 : 1;
     if (stacked) {
       let y = top + ph;
       spec.series.forEach((se) => {
@@ -104,7 +114,8 @@ function drawBars(ctx: CanvasRenderingContext2D, spec: ChartSpec, w: number, h: 
         ctx.fillRect(cx - groupW / 2, y - bh, groupW, bh);
         y -= bh;
       });
-      ctx.fillStyle = INK; ctx.font = `700 12px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = INK; ctx.font = `700 ${valFont}px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
       if (totals[i] > 0) ctx.fillText(shortVal(totals[i], spec.unit), cx, y - 4);
     } else {
       const bw = groupW / spec.series.length;
@@ -112,17 +123,31 @@ function drawBars(ctx: CanvasRenderingContext2D, spec: ChartSpec, w: number, h: 
         const v = se.values[i] || 0;
         const bh = (v / max) * ph;
         const x = cx - groupW / 2 + k * bw;
+        ctx.globalAlpha = trend && !isLast ? 0.5 : 1;
         ctx.fillStyle = se.color;
         ctx.beginPath(); ctx.roundRect(x + 1, top + ph - bh, bw - 2, bh, [4, 4, 0, 0]); ctx.fill();
+        ctx.globalAlpha = 1;
         if (v > 0 && (!multi || n <= 8)) {
-          ctx.fillStyle = INK; ctx.font = `700 ${multi ? 10.5 : 12}px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.fillStyle = INK; ctx.font = `700 ${multi ? 10.5 : valFont}px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
           ctx.fillText(shortVal(v, spec.unit), x + bw / 2, top + ph - bh - 4);
         }
       });
     }
-    ctx.fillStyle = MUTED; ctx.font = `500 11.5px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText(fit(ctx, lab, slot - 4), cx, top + ph + 8);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = trend && isLast ? INK : MUTED; ctx.font = `${trend && isLast ? 700 : 500} ${n > 9 ? 10.5 : 11.5}px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(fit(ctx, lab, slot - 2), cx, top + ph + 8);
+    if (trend) {
+      const d = spec.deltas![i];
+      const txt = d === null || d === undefined ? "·" : Math.abs(d) < 0.5 ? "0%" : `${d > 0 ? "▲" : "▼"}${fmtNum(Math.abs(d), Math.abs(d) >= 10 ? 0 : 1)}%`;
+      ctx.fillStyle = d === null || d === undefined ? "#CBD5E1" : deltaColor(d, spec.goodUp);
+      ctx.font = `700 ${n > 9 ? 10 : 11}px ${FONT}`;
+      ctx.fillText(fit(ctx, txt, slot), cx, top + ph + 24);
+    }
   });
+  if (trend && spec.note) {
+    ctx.fillStyle = MUTED; ctx.font = `500 10.5px ${FONT}`; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText(spec.note, left + pw, h - 2);
+  }
 }
 
 function drawHBar(ctx: CanvasRenderingContext2D, spec: ChartSpec, w: number, h: number) {

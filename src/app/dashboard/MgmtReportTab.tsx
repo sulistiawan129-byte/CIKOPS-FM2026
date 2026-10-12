@@ -17,7 +17,7 @@ import {
 import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
-const ALL: ModuleKey[] = ["fleet", "claims", "canteen", "atk"];
+const ALL: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "security"];
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 /** Rentang periode untuk mode kalender (minggu Senin–Minggu, bulan, kuartal, tahun) yang memuat tanggal anchor. */
@@ -67,7 +67,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
   const { from, to } = mode === "range" ? { from: rFrom, to: rTo } : rangeOf(mode, anchor);
   const valid = mods.length > 0 && !!from && !!to && from <= to;
   const selKeys = ALL.filter((k) => mods.includes(k)).join();
-  const stale = !!report && (report.from !== from || report.to !== to || report.lang !== lang || report.granularity !== gran || report.modules.map((m) => m.key).join() !== selKeys);
+  const stale = !!report && (report.from !== from || report.to !== to || report.lang !== lang || report.granularity !== gran || [...new Set(report.modules.map((m) => m.key))].join() !== selKeys);
   const cur = parseISO(anchor);
   const years = useMemo(() => { const y = new Date().getFullYear(); return Array.from({ length: 6 }, (_, i) => y - 4 + i); }, []);
   const periodHint = valid ? withLang(lang, () => periodLabelOf(from, to)) : "";
@@ -285,7 +285,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
               </div>
             </div>
             <div className={r.execGrid}>
-              {report.modules.map((m) => (
+              {report.modules.filter((m) => !m.sub).map((m) => (
                 <a key={m.key} href={`#mr-${m.key}`} className={r.execCard} style={{ ["--c" as string]: m.accent }}>
                   <b>{m.title}</b>
                   <p>{m.headline}</p>
@@ -301,8 +301,8 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
             </div>
           </section>
 
-          {report.modules.map((m) => (
-            <section key={m.key} id={`mr-${m.key}`} className={r.module} style={{ ["--c" as string]: m.accent }}>
+          {report.modules.map((m, mi) => (
+            <section key={`${m.key}-${mi}`} id={m.sub ? undefined : `mr-${m.key}`} className={`${r.module} ${m.sub ? r.moduleSub : ""}`} style={{ ["--c" as string]: m.accent }}>
               <div className={r.modHead}>
                 <h2>{m.title}</h2>
                 <span>{report.periodLabel}</span>

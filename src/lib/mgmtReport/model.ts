@@ -3,7 +3,7 @@
    dan pratinjau di aplikasi. Satu sumber angka, tiga format keluaran.
 ════════════════════════════════════════════════════════════ */
 
-export type ModuleKey = "fleet" | "claims" | "canteen" | "atk";
+export type ModuleKey = "fleet" | "claims" | "canteen" | "atk" | "security";
 
 export type ReportLang = "id" | "en";
 export type Granularity = "auto" | "day" | "week" | "month";
@@ -28,12 +28,14 @@ const META_ID: Record<ModuleKey, { title: string; short: string; accent: string;
   claims: { title: "Klaim Driver", short: "Klaim", accent: "#0F9D74", desc: "Pengeluaran operasional driver per kategori" },
   canteen: { title: "Kantin", short: "Kantin", accent: "#E08A00", desc: "Efisiensi order & sisa makanan per shift" },
   atk: { title: "Alat Tulis Kantor (ATK)", short: "ATK", accent: "#7A5AF0", desc: "Pemakaian, departemen, dan stok kritis" },
+  security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Kendaraan & visitor, transporter, pelanggaran, kejadian, patroli" },
 };
 const META_EN: Record<ModuleKey, { title: string; short: string; accent: string; desc: string }> = {
   fleet: { title: "Fleet Management", short: "Fleet", accent: "#2D5BFF", desc: "Driver assignments, vehicle utilisation, fleet documents" },
   claims: { title: "Driver Claims", short: "Claims", accent: "#0F9D74", desc: "Driver operating expenses by category" },
   canteen: { title: "Canteen", short: "Canteen", accent: "#E08A00", desc: "Order efficiency & food waste per shift" },
   atk: { title: "Office Supplies (ATK)", short: "Supplies", accent: "#7A5AF0", desc: "Usage, departments and critical stock" },
+  security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Vehicles & visitors, transporters, violations, incidents, patrol" },
 };
 /** Metadata modul dalam bahasa yang diminta (default: bahasa aktif). */
 export function metaOf(key: ModuleKey, lang: ReportLang = LANG) { return (lang === "en" ? META_EN : META_ID)[key]; }
@@ -66,6 +68,10 @@ export interface ChartSpec {
   /** Warna per kategori (donut / hbar). Bila kosong, pakai SERIES_COLORS. */
   colors?: string[];
   note?: string;
+  /** Grafik tren: % perubahan tiap titik dari titik sebelumnya (ditulis di bawah label). */
+  deltas?: (number | null)[];
+  /** Arti kenaikan untuk pewarnaan ▲▼: true = naik baik, false = naik buruk, null = netral. */
+  goodUp?: boolean | null;
 }
 
 export interface ModuleReport {
@@ -83,6 +89,8 @@ export interface ModuleReport {
   attention: string[];
   table?: { title: string; headers: string[]; rows: (string | number)[][] };
   empty: boolean;
+  /** Bagian lanjutan sebuah modul (mis. halaman rincian Security) — tidak tampil sebagai kartu di ringkasan eksekutif. */
+  sub?: boolean;
 }
 
 export interface MgmtReport {
@@ -194,6 +202,71 @@ export function periodLabelOf(from: string, to: string): string {
     return `${monFull(a.getMonth())} – ${monFull(b.getMonth())} ${a.getFullYear()}`;
   }
   return range;
+}
+
+/* ── tren 13 bulan ── */
+export interface MonthSlot { key: string; from: string; to: string; label: string; partial: boolean }
+/** n bulan kalender yang berakhir di bulan tanggal `to`. Bulan terakhir ditandai partial bila `to` belum akhir bulan. */
+export function trendMonths(to: string, n = 13): MonthSlot[] {
+  const end = parseISO(to);
+  const out: MonthSlot[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const a = new Date(end.getFullYear(), end.getMonth() - i, 1);
+    const b = new Date(a.getFullYear(), a.getMonth() + 1, 0);
+    const partial = i === 0 && end.getDate() < b.getDate();
+    out.push({
+      key: iso(a).slice(0, 7), from: iso(a), to: partial ? iso(end) : iso(b), partial,
+      label: `${monShort(a.getMonth())} ${String(a.getFullYear()).slice(2)}${partial ? "*" : ""}`,
+    });
+  }
+  return out;
+}
+export function deltasOf(vals: (number | null)[]): (number | null)[] {
+  return vals.map((v, i) => {
+    if (i === 0 || v === null) return null;
+    const p = vals[i - 1];
+    return p === null || p === undefined || p <= 0 ? null : ((v - p) / p) * 100;
+  });
+}
+/** Grafik batang tren 13 bulan dengan % perubahan bulanan. */
+export function trendChart(p: {
+  id: string; title: string; months: MonthSlot[]; unit: ChartSpec["unit"]; goodUp: boolean | null;
+  series: { name: string; values: (number | null)[]; color: string }[];
+}): ChartSpec {
+  const tot = p.months.map((_, i) => {
+    const vs = p.series.map((s) => s.values[i]);
+    return vs.every((v) => v === null || v === undefined) ? null : vs.reduce<number>((a, v) => a + (v || 0), 0);
+  });
+  const partial = p.months[p.months.length - 1]?.partial;
+  return {
+    id: p.id, title: p.title, type: p.series.length > 1 ? "stacked" : "bar",
+    labels: p.months.map((m) => m.label),
+    series: p.series.map((s) => ({ name: s.name, color: s.color, values: s.values.map((v) => v || 0) })),
+    unit: p.unit, deltas: deltasOf(tot), goodUp: p.goodUp,
+    note: partial ? tr("* bulan berjalan", "* month to date") : undefined,
+  };
+}
+/** Kalimat ringkas tren 13 bulan: perubahan bulanan & tahunan, tertinggi/terendah. */
+export function trendSentence(name: string, vals: (number | null)[], months: MonthSlot[], fmt: (n: number) => string): string {
+  const n = vals.length - 1;
+  const cur = vals[n];
+  if (cur === null || cur === undefined) return "";
+  const pairs = vals.map((v, i) => ({ v, l: months[i].label.replace("*", "") })).filter((x) => x.v !== null) as { v: number; l: string }[];
+  if (pairs.length < 2) return "";
+  const prev = vals[n - 1], first = vals[0];
+  const ch = (a: number, b: number) => {
+    const p = ((b - a) / a) * 100;
+    return Math.abs(p) < 0.5 ? tr("stabil", "flat") : `${p > 0 ? tr("naik", "up") : tr("turun", "down")} ${fmtNum(Math.abs(p), 1)}%`;
+  };
+  const hi = pairs.reduce((a, b) => (b.v > a.v ? b : a)), lo = pairs.reduce((a, b) => (b.v < a.v ? b : a));
+  const parts: string[] = [];
+  if (prev) parts.push(`${ch(prev, cur)} ${tr("dari bulan sebelumnya", "month on month")}`);
+  if (vals.length >= 13 && first) parts.push(`${ch(first, cur)} ${tr("dari", "vs")} ${months[0].label}`);
+  const partialNote = months[n].partial ? tr(" (bulan berjalan)", " (month to date)") : "";
+  return tr(
+    `Tren 13 bulan — ${name} ${fmt(cur)}${partialNote}: ${parts.join(", ")}. Tertinggi ${hi.l} (${fmt(hi.v)}), terendah ${lo.l} (${fmt(lo.v)}).`,
+    `13-month trend — ${name} ${fmt(cur)}${partialNote}: ${parts.join(", ")}. Highest ${hi.l} (${fmt(hi.v)}), lowest ${lo.l} (${fmt(lo.v)}).`,
+  );
 }
 
 export interface Bucket { key: string; label: string; from: string; to: string }

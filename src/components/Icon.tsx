@@ -21,6 +21,7 @@ const P: Record<string, ReactNode> = {
   printer: <><path d="M7 9V3h10v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M7 14h10v7H7z" /></>,
   employeerequests: <><path d="M4 5h16v11H8l-4 4z" /><path d="M8 9h8M8 12h5" /></>,
   atk: <><path d="M4 20l1-4L17 4a2.1 2.1 0 0 1 3 3L8 19z" /><path d="M14 7l3 3" /></>,
+  security: <><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z" /><path d="m9 12 2 2 4-4" /></>,
   reports: <><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" /></>,
   masterdata: <><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6M4 11.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>,
   activitylog: <><path d="M8 4h10a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2V6" /><path d="M6 8H3m3 4H3m3 4H3M11 9h5M11 13h5" /></>,

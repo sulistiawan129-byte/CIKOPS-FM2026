@@ -17,7 +17,7 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
   const { default: jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   // Font standar PDF (WinAnsi) tidak punya ≤ ≥ → − ; ganti dengan padanan aman.
-  const clean = (t: string) => t.replace(/≤/g, tr("maks.", "max.")).replace(/≥/g, tr("min.", "min.")).replace(/→/g, "->").replace(/−/g, "-").replace(/[“”]/g, '"');
+  const clean = (t: string) => t.replace(/▲\s?/g, "+").replace(/▼\s?/g, "-").replace(/≤/g, tr("maks.", "max.")).replace(/≥/g, tr("min.", "min.")).replace(/→/g, "->").replace(/−/g, "-").replace(/[“”]/g, '"');
   const cleanAny = (t: string | string[]) => (Array.isArray(t) ? t.map(clean) : clean(t));
   const origText = doc.text.bind(doc);
   const origSplit = doc.splitTextToSize.bind(doc);
@@ -64,8 +64,9 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
   doc.text(report.periodLabel, 26, 96);
   doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(170, 182, 214);
   doc.text(`${report.scopeLabel} · ${tr("dibandingkan dengan", "compared with")} ${report.prevLabel}`, 26, 103);
-  let cy = 122;
-  report.modules.forEach((m) => {
+  const sm = report.modules.filter((m) => !m.sub);
+  let cy = sm.length > 4 ? 116 : 122;
+  sm.forEach((m) => {
     doc.setFillColor(...hex(m.accent)); doc.roundedRect(26, cy - 4, 3, 7, 1, 1, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(255, 255, 255);
     doc.text(m.title, 33, cy + 1);
@@ -80,31 +81,33 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
   /* ── ringkasan eksekutif ── */
   let page = 2;
   doc.addPage(); header(tr("Ringkasan Eksekutif", "Executive Summary"), [45, 91, 255], report.periodLabel);
-  const cols = 2, gap = 6;
-  const cw = (W - M * 2 - gap) / cols, ch = 58;
-  report.modules.forEach((m, i) => {
+  const cols = 2, gap = sm.length > 4 ? 4 : 6;
+  const compact = sm.length > 4;
+  const cw = (W - M * 2 - gap) / cols, ch = compact ? 44 : 58;
+  const o = compact ? { h: 15, kl: 25, kv: 33, ks: 38.5, lines: 1 } : { h: 17, kl: 33, kv: 42, ks: 48, lines: 2 };
+  sm.forEach((m, i) => {
     const x = M + (i % cols) * (cw + gap);
     const y = 28 + Math.floor(i / cols) * (ch + gap);
     doc.setFillColor(...SOFT); doc.setDrawColor(...LINE); doc.roundedRect(x, y, cw, ch, 3, 3, "FD");
     doc.setFillColor(...hex(m.accent)); doc.rect(x, y + 3, 1.6, ch - 6, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...INK);
-    doc.text(m.title, x + 7, y + 10);
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...MUTED);
-    doc.text((doc.splitTextToSize(m.headline, cw - 14) as string[]).slice(0, 2), x + 7, y + 17);
+    doc.text(m.title, x + 7, y + 9);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(compact ? 8.8 : 9.5); doc.setTextColor(...MUTED);
+    doc.text((doc.splitTextToSize(m.headline, cw - 14) as string[]).slice(0, o.lines), x + 7, y + o.h);
     const ks = m.kpis.slice(0, 3);
     const kw = (cw - 14) / Math.max(1, ks.length);
     ks.forEach((k, j) => {
       const kx = x + 7 + j * kw;
       doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...MUTED);
-      doc.text((doc.splitTextToSize(k.label.toUpperCase(), kw - 4) as string[])[0], kx, y + 33);
-      doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...hex(m.accent));
-      doc.text((doc.splitTextToSize(k.value, kw - 3) as string[])[0], kx, y + 42);
-      if (k.sub) { doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...(TONE[k.tone || "neutral"])); doc.text((doc.splitTextToSize(k.sub, kw - 4) as string[])[0], kx, y + 48); }
+      doc.text((doc.splitTextToSize(k.label.toUpperCase(), kw - 4) as string[])[0], kx, y + o.kl);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(compact ? 13.5 : 15); doc.setTextColor(...hex(m.accent));
+      doc.text((doc.splitTextToSize(k.value, kw - 3) as string[])[0], kx, y + o.kv);
+      if (k.sub) { doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...(TONE[k.tone || "neutral"])); doc.text((doc.splitTextToSize(k.sub, kw - 4) as string[])[0], kx, y + o.ks); }
     });
-    if (m.empty) { doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(tr("Tidak ada data pada periode ini.", "No data for this period."), x + 7, y + 38); }
+    if (m.empty) { doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(tr("Tidak ada data pada periode ini.", "No data for this period."), x + 7, y + o.kv - 4); }
   });
   const attention = report.modules.flatMap((m) => m.attention);
-  const ay = 28 + Math.ceil(report.modules.length / cols) * (ch + gap);
+  const ay = 28 + Math.ceil(sm.length / cols) * (ch + gap);
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
   doc.text(tr("Perlu perhatian manajemen", "Management attention required"), M, ay + 4);
   if (attention.length) bullets(attention, M, ay + 11, W - M * 2, H - 14, [214, 69, 69]);
