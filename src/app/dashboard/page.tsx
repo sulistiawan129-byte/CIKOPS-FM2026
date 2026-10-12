@@ -267,6 +267,14 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** Menu yang punya alamat sendiri: /dashboard/<id>. */
+const URL_TABS = new Set<DashboardTab>(["home", "overview", "tasks", ...NAV_GROUPS.flatMap((g) => g.tabs.map((t) => t.id))]);
+function tabFromPath(pathname: string): DashboardTab | null {
+  const m = pathname.match(/^\/dashboard\/([a-z]+)\/?$/);
+  const id = m?.[1] as DashboardTab | undefined;
+  return id && URL_TABS.has(id) ? id : null;
+}
+
 /** Hook sederhana untuk deteksi viewport mobile vs desktop, dipakai untuk
  *  memilih presentasi yang berbeda (tabel di PC, kartu di HP) dari data yang sama. */
 function useIsMobile(breakpoint = 860) {
@@ -320,8 +328,10 @@ export default function DashboardPage() {
       getMyProfile(user.id).then((p) => {
         setMyProfile(p);
         setProfileChecked(true);
+        // Akun dengan menu terbatas: buka menu pertamanya, kecuali URL sudah menunjuk menu yang boleh diakses.
         if (p?.allowedTabs && p.allowedTabs.length > 0 && !p.allowedTabs.includes("overview")) {
-          setActiveTab(p.allowedTabs[0] as DashboardTab);
+          const fromUrl = tabFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+          if (!fromUrl || !p.allowedTabs.includes(fromUrl)) setActiveTab(p.allowedTabs[0] as DashboardTab);
         }
       });
     }
@@ -346,6 +356,28 @@ export default function DashboardPage() {
     if (prev === "home") setActiveHomeGroup(undefined);
   }, [tabHistory]);
   const [activeHomeGroup, setActiveHomeGroup] = useState<string | undefined>(undefined);
+
+  // ── URL per menu: /dashboard/<menu> (bisa dibagikan, di-bookmark, tombol Back browser jalan) ──
+  const urlReadyRef = useRef(false);
+  useEffect(() => {
+    const t = tabFromPath(window.location.pathname);
+    if (t && t !== activeTabRef.current) { activeTabRef.current = t; setActiveTabState(t); }
+    urlReadyRef.current = true;
+    const onPop = () => {
+      const next = tabFromPath(window.location.pathname) || "home";
+      activeTabRef.current = next;
+      setActiveTabState(next);
+      if (next === "home") setActiveHomeGroup(undefined);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    if (!urlReadyRef.current) return;
+    const path = activeTab === "home" ? "/dashboard" : `/dashboard/${activeTab}`;
+    if (window.location.pathname !== path) window.history.pushState(null, "", path);
+  }, [activeTab]);
+
   // Akun scope PRB hanya boleh Penugasan, Armada, Master Data — kembalikan ke Home bila tab lain terbuka.
   useEffect(() => {
     if (activeTab !== "home" && myProfile && !canAccessTab(myProfile, activeTab)) setActiveTab("home");
