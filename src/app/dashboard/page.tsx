@@ -171,6 +171,7 @@ import { useLang, useTheme } from "@/lib/providers";
 import LockerTab from "./LockerTab";
 import { getLockerStatusGrid } from "@/lib/lockerApi";
 import CanteenTab from "./CanteenTab";
+import MgmtReportTab from "./MgmtReportTab";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
@@ -947,7 +948,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "driverbudget" && <DriverBudgetTab myProfile={myProfile} />}
           {activeTab === "opfund" && <OpFundTab myProfile={myProfile} />}
           {activeTab === "gasstations" && <GasStationsTab />}
-          {activeTab === "reports" && <ReportsTab myProfile={myProfile} />}
+          {activeTab === "reports" && <MgmtReportTab myProfile={myProfile} />}
         {activeTab === "masterdata" && (
   <MasterDataTab
     initialSub={masterDataInitialSub}

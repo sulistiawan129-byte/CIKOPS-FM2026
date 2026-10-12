@@ -1,3 +1,67 @@
+# V2.23 — Report: versi bahasa Inggris + periode fleksibel
+
+Tidak ada SQL baru dan tidak ada library baru. Cukup ganti file lalu deploy (kalau dari V2.21 atau lebih lama, tetap jalankan `npm install` untuk pptxgenjs dari V2.22).
+
+## Yang baru di menu Report
+- **Langkah 2 — Periode**
+  - **Mingguan**: Senin–Minggu, dengan judul "Minggu ke-41 (5–11 Okt 2026)".
+  - **Bulanan**: pilih bulan dan tahun.
+  - **Kuartalan**: Q1–Q4 dan tahun.
+  - **Tahunan**.
+  - **Rentang tanggal**: tanggal bebas, plus tombol cepat 7/30/90 hari terakhir dan "Sejak awal tahun".
+  - Tombol ‹ › menggeser satu periode; tombol "Minggu/Bulan/… ini" kembali ke periode berjalan.
+- **Periode pembanding**:
+  - bulan, kuartal, atau tahun penuh dibandingkan dengan periode kalender sebelumnya (September → Agustus, Q3 → Q2);
+  - minggu dan rentang bebas dibandingkan dengan rentang sama panjang tepat sebelumnya;
+  - periode pembanding langsung tampil di panel sebelum laporan disusun.
+- **Langkah 3 — Opsi laporan**
+  - **Bahasa laporan: Indonesia / English.** Default-nya mengikuti bahasa aplikasi.
+  - **Grafik tren: Otomatis / Per hari / Per minggu / Per bulan.** Otomatis berarti per hari untuk periode ≤ 14 hari, per minggu untuk ≤ 92 hari, dan per bulan untuk periode lebih panjang. Per hari dinonaktifkan untuk periode > 92 hari.
+
+## Versi bahasa Inggris
+Berlaku untuk seluruh isi laporan di pratinjau, Excel, PowerPoint, dan PDF:
+- KPI, temuan, rekomendasi, dan butir "Management attention required";
+- judul dan legenda grafik, kategori klaim (Fuel/Toll/Parking/…), nama bulan dan hari;
+- nama sheet, catatan metodologi, dan nama file `Management_Report_<dari>_to_<sampai>`.
+
+Format angka mengikuti gaya internasional, misalnya IDR 3.1M, IDR 313K, 96.3%, 1,234. Pada grafik PowerPoint satuan rupiah ditulis "IDR million".
+
+Nama driver, kendaraan, item, dan departemen tetap sesuai data aslinya.
+
+## File yang berubah
+- src/lib/mgmtReport/model.ts, compute.ts, build.ts, chartImage.ts
+- src/lib/mgmtReport/exportXlsx.ts, exportPptx.ts, exportPdf.ts
+- src/app/dashboard/MgmtReportTab.tsx, mgmt.module.css
+
+---
+
+# V2.22 — Report: Laporan Manajemen (Fleet, Klaim, Kantin, ATK)
+
+Tidak ada SQL baru. **Wajib `npm install`** setelah mengganti file (library baru: pptxgenjs untuk PowerPoint), lalu deploy.
+
+## Cara pakai (menu Report)
+1. Pilih modul: Fleet Management, Klaim Driver, Kantin, ATK (bisa sebagian).
+2. Pilih periode: Bulan ini / Bulan lalu / Kuartal ini / Tahun ini / Kustom. Otomatis dibandingkan dengan periode sebelumnya yang sama panjang.
+3. Tekan "Susun laporan" → pratinjau tampil di layar.
+4. Unduh: Excel, PowerPoint, atau PDF.
+
+## Isi laporan
+- Ringkasan eksekutif: 1 kalimat utama + 3 angka kunci per modul, dan daftar "Perlu perhatian manajemen".
+- Per modul: 4–5 KPI dengan pembanding periode lalu, 2 grafik utama, temuan utama, dan rekomendasi.
+  - Fleet: total penugasan, tingkat penyelesaian, utilisasi armada, rata-rata durasi, dokumen KIR/STNK/Service jatuh tempo; tren per minggu/bulan, jenis pekerjaan, status (termasuk tutup otomatis 17.00), kendaraan tersibuk.
+  - Klaim: total & tren, komposisi kategori, 5 driver terbesar, porsi per plant.
+  - Kantin: efisiensi snack/makan, sisa per shift, dipesan vs terpakai.
+  - ATK: unit keluar, item terbanyak, pemakaian per departemen, stok kritis (habis / cukup < 14 hari).
+- PDF: A4 landscape, sampul + ringkasan + 1 halaman per modul.
+- PowerPoint: 16:9, sampul, ringkasan, 2 slide per modul (kinerja; temuan & rekomendasi), catatan metodologi. Grafik asli PowerPoint, bisa diedit.
+- Excel: sheet Ringkasan + 1 sheet per modul (KPI, temuan, rekomendasi, tabel, gambar grafik, dan data di balik setiap grafik). Siap cetak landscape.
+- Akun ber-scope plant otomatis hanya melihat data plant-nya (Fleet & Klaim).
+
+## File
+- Baru: src/lib/mgmtReport/ (model, compute, chartImage, build, exportPdf, exportPptx, exportXlsx), src/app/dashboard/MgmtReportTab.tsx, mgmt.module.css.
+- Berubah: package.json, package-lock.json (pptxgenjs), src/app/dashboard/page.tsx (menu Report memakai laporan baru).
+
+---
 # V2.21 — Penugasan: jam tugas maksimal 17.00, auto-selesai
 
 ## LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
