@@ -33,7 +33,11 @@ import type {
   AtkItem,
   AtkRequest,
   AtkRestock,
+  AtkSource,
+  AtkSyncStatus,
   AgendaEvent,
+  AgendaEventInput,
+  AgendaCategory,
   Announcement,
 } from "./types";
 
@@ -1383,17 +1387,24 @@ export async function deleteEmployeeRequest(id: string): Promise<void> {
 }
 
 /* ════════════════════════════════════════════════════════════
-   ATK (ALAT TULIS KANTOR) — data disinkronkan dari Excel/VBA lewat
-   tombol "Sinkron ke CIKOPS" (lihat vba/modSyncCikops.bas). CIKOPS
-   murni untuk LAPORAN — tidak ada insert/update/delete dari sisi
-   Dashboard, semua input tetap dilakukan di Excel.
+   ATK (ALAT TULIS KANTOR) — sinkron DUA ARAH dengan Excel/VBA
+   (vba/modSyncCikops.bas + supabase/026_atk_dua_arah.sql).
+   • Excel → CIKOPS: tombol "Sinkron ke CIKOPS" (stok, permintaan, restock).
+   • CIKOPS → Excel: input di sini lewat fungsi atk_web_* (stok langsung
+     berubah), lalu ditarik Excel lewat "Tarik dari CIKOPS".
 ════════════════════════════════════════════════════════════ */
 
 interface AtkItemRow {
   id: string; kode_barang: string; nama_barang: string; satuan: string | null; stok: number; updated_at: string;
+  min_stok?: number | null; source?: string | null; excel_pulled_at?: string | null;
 }
+function atkSource(s: string | null | undefined): AtkSource { return s === "web" ? "web" : "excel"; }
 function mapAtkItemRow(r: AtkItemRow): AtkItem {
-  return { id: r.id, kodeBarang: r.kode_barang, namaBarang: r.nama_barang, satuan: r.satuan ?? "", stok: r.stok, updatedAt: r.updated_at };
+  const source = atkSource(r.source);
+  return {
+    id: r.id, kodeBarang: r.kode_barang, namaBarang: r.nama_barang, satuan: r.satuan ?? "", stok: Number(r.stok) || 0, updatedAt: r.updated_at,
+    minStok: r.min_stok == null ? 5 : Number(r.min_stok), source, pulled: source === "excel" || !!r.excel_pulled_at,
+  };
 }
 export async function getAtkItems(): Promise<AtkItem[]> {
   const { data, error } = await supabase.from("atk_items").select("*").order("nama_barang");
@@ -1404,11 +1415,14 @@ export async function getAtkItems(): Promise<AtkItem[]> {
 interface AtkRequestRow {
   id: string; request_id: string; tanggal: string; nama: string; nik: string | null; departemen: string | null;
   kode_barang: string; nama_barang: string; jumlah: number; satuan: string | null; helper: string | null; created_at: string;
+  source?: string | null; excel_pulled_at?: string | null; created_by?: string | null;
 }
 function mapAtkRequestRow(r: AtkRequestRow): AtkRequest {
+  const source = atkSource(r.source);
   return {
     id: r.id, requestId: r.request_id, tanggal: r.tanggal, nama: r.nama, nik: r.nik ?? "", departemen: r.departemen ?? "",
-    kodeBarang: r.kode_barang, namaBarang: r.nama_barang, jumlah: r.jumlah, satuan: r.satuan ?? "", helper: r.helper ?? "", createdAt: r.created_at,
+    kodeBarang: r.kode_barang, namaBarang: r.nama_barang, jumlah: Number(r.jumlah) || 0, satuan: r.satuan ?? "", helper: r.helper ?? "", createdAt: r.created_at,
+    source, pulled: source === "excel" || !!r.excel_pulled_at, createdBy: r.created_by ?? "",
   };
 }
 export async function getAtkRequests(params?: { dateFrom?: string; dateTo?: string }): Promise<AtkRequest[]> {
@@ -1428,20 +1442,81 @@ export async function getAtkRequests(params?: { dateFrom?: string; dateTo?: stri
 interface AtkRestockRow {
   id: string; update_id: string; tanggal: string; nama: string | null; nik: string | null; departemen: string | null;
   kode_barang: string; nama_barang: string; jumlah: number; satuan: string | null; created_at: string;
+  source?: string | null; excel_pulled_at?: string | null; created_by?: string | null;
 }
 function mapAtkRestockRow(r: AtkRestockRow): AtkRestock {
+  const source = atkSource(r.source);
   return {
     id: r.id, updateId: r.update_id, tanggal: r.tanggal, nama: r.nama ?? "", nik: r.nik ?? "", departemen: r.departemen ?? "",
-    kodeBarang: r.kode_barang, namaBarang: r.nama_barang, jumlah: r.jumlah, satuan: r.satuan ?? "", createdAt: r.created_at,
+    kodeBarang: r.kode_barang, namaBarang: r.nama_barang, jumlah: Number(r.jumlah) || 0, satuan: r.satuan ?? "", createdAt: r.created_at,
+    source, pulled: source === "excel" || !!r.excel_pulled_at, createdBy: r.created_by ?? "",
   };
 }
 export async function getAtkRestocks(params?: { dateFrom?: string; dateTo?: string }): Promise<AtkRestock[]> {
-  let q = supabase.from("atk_restocks").select("*").order("tanggal", { ascending: false });
-  if (params?.dateFrom) q = q.gte("tanggal", params.dateFrom);
-  if (params?.dateTo) q = q.lte("tanggal", params.dateTo);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data as AtkRestockRow[] ?? []).map(mapAtkRestockRow);
+  const rows: AtkRestockRow[] = [];
+  for (let off = 0; off < 100000; off += 1000) {
+    let q = supabase.from("atk_restocks").select("*").order("tanggal", { ascending: false }).order("id", { ascending: true }).range(off, off + 999);
+    if (params?.dateFrom) q = q.gte("tanggal", params.dateFrom);
+    if (params?.dateTo) q = q.lte("tanggal", params.dateTo);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows.push(...((data as AtkRestockRow[]) ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows.map(mapAtkRestockRow);
+}
+
+/** Pesan error RPC yang ramah (termasuk bila migrasi 026 belum dijalankan). */
+function atkRpcError(error: { code?: string; message?: string }): Error {
+  if (error.code === "PGRST202" || /Could not find the function/i.test(error.message ?? "")) {
+    return new Error("Fitur input ATK belum aktif — jalankan supabase/026_atk_dua_arah.sql di Supabase.");
+  }
+  return new Error(error.message ?? String(error));
+}
+export interface AtkLineInput { kode: string; jumlah: number }
+export async function createAtkRequest(input: { tanggal: string; nama: string; nik: string; departemen: string; helper: string; items: AtkLineInput[] }): Promise<string> {
+  const { data, error } = await supabase.rpc("atk_web_request", {
+    p_tanggal: input.tanggal, p_nama: input.nama, p_nik: input.nik, p_departemen: input.departemen, p_helper: input.helper, p_items: input.items,
+  });
+  if (error) throw atkRpcError(error);
+  return String(data);
+}
+export async function createAtkRestock(input: { tanggal: string; nama: string; nik: string; departemen: string; items: AtkLineInput[] }): Promise<string> {
+  const { data, error } = await supabase.rpc("atk_web_restock", {
+    p_tanggal: input.tanggal, p_nama: input.nama, p_nik: input.nik, p_departemen: input.departemen, p_items: input.items,
+  });
+  if (error) throw atkRpcError(error);
+  return String(data);
+}
+export async function addAtkItem(input: { kode: string; nama: string; satuan: string; minStok: number; stokAwal: number }): Promise<string> {
+  const { data, error } = await supabase.rpc("atk_web_add_item", {
+    p_kode: input.kode, p_nama: input.nama, p_satuan: input.satuan, p_min_stok: input.minStok, p_stok_awal: input.stokAwal,
+  });
+  if (error) throw atkRpcError(error);
+  return String(data);
+}
+export async function setAtkMinStok(kode: string, min: number): Promise<void> {
+  const { error } = await supabase.rpc("atk_web_set_min_stok", { p_kode: kode, p_min: min });
+  if (error) throw atkRpcError(error);
+}
+export async function cancelAtkTransaction(kind: "request" | "restock", ref: string): Promise<void> {
+  const { error } = await supabase.rpc("atk_web_cancel", { p_kind: kind, p_ref: ref });
+  if (error) throw atkRpcError(error);
+}
+export async function getAtkSyncStatus(): Promise<AtkSyncStatus> {
+  const { data, error } = await supabase.rpc("atk_sync_status");
+  if (error) throw atkRpcError(error);
+  const d = (data ?? {}) as Record<string, unknown>;
+  return {
+    pendingRequests: Number(d.pending_requests ?? 0), pendingRestocks: Number(d.pending_restocks ?? 0), pendingItems: Number(d.pending_items ?? 0),
+    lastPushAt: (d.last_push_at as string) ?? null, lastPullAt: (d.last_pull_at as string) ?? null, lastPullCount: Number(d.last_pull_count ?? 0),
+    isAdmin: Boolean(d.is_admin), syncKey: (d.sync_key as string) ?? null,
+  };
+}
+export async function rotateAtkSyncKey(): Promise<string> {
+  const { data, error } = await supabase.rpc("atk_rotate_sync_key");
+  if (error) throw atkRpcError(error);
+  return String(data);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1451,9 +1526,37 @@ export async function getAtkRestocks(params?: { dateFrom?: string; dateTo?: stri
 
 interface AgendaEventRow {
   id: string; title: string; location: string | null; event_date: string; event_time: string | null; color: string | null; created_by: string | null; created_at: string;
+  kategori?: string | null; end_time?: string | null; notes?: string | null; pic?: string | null; task_id?: string | null;
 }
+const AGENDA_CATS: AgendaCategory[] = ["kunjungan", "event", "meeting", "pelatihan", "libur", "lainnya"];
 function mapAgendaEventRow(r: AgendaEventRow): AgendaEvent {
-  return { id: r.id, title: r.title, location: r.location ?? "", eventDate: r.event_date, eventTime: r.event_time ?? "", color: r.color ?? "blue", createdBy: r.created_by ?? "", createdAt: r.created_at };
+  const cat = (AGENDA_CATS as string[]).includes(r.kategori ?? "") ? (r.kategori as AgendaCategory) : "event";
+  return {
+    id: r.id, title: r.title, location: r.location ?? "", eventDate: r.event_date, eventTime: r.event_time ?? "", color: r.color ?? "blue",
+    createdBy: r.created_by ?? "", createdAt: r.created_at,
+    category: cat, endTime: r.end_time ?? "", notes: r.notes ?? "", pic: r.pic ?? "", taskId: r.task_id ?? null,
+  };
+}
+/** Kolom tambahan (migrasi 025) belum ada → error 42703 / PGRST204. */
+function isMissingColumn(err: { code?: string; message?: string } | null): boolean {
+  return !!err && (err.code === "42703" || err.code === "PGRST204" || /column .* (does not exist|could not find)|Could not find the '.*' column/i.test(err.message ?? ""));
+}
+function agendaRow(input: Partial<AgendaEventInput>, full: boolean): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (input.title !== undefined) row.title = input.title;
+  if (input.location !== undefined) row.location = input.location || "";
+  if (input.eventDate !== undefined) row.event_date = input.eventDate;
+  if (input.eventTime !== undefined) row.event_time = input.eventTime || "";
+  if (input.color !== undefined) row.color = input.color || "blue";
+  if (input.createdBy !== undefined) row.created_by = input.createdBy || "";
+  if (full) {
+    if (input.category !== undefined) row.kategori = input.category;
+    if (input.endTime !== undefined) row.end_time = input.endTime || "";
+    if (input.notes !== undefined) row.notes = input.notes || "";
+    if (input.pic !== undefined) row.pic = input.pic || "";
+    if (input.taskId !== undefined) row.task_id = input.taskId || null;
+  }
+  return row;
 }
 export async function getAgendaEvents(params?: { from?: string; to?: string }): Promise<AgendaEvent[]> {
   let q = supabase.from("agenda_events").select("*").order("event_date", { ascending: true }).order("event_time", { ascending: true });
@@ -1463,11 +1566,23 @@ export async function getAgendaEvents(params?: { from?: string; to?: string }): 
   if (error) throw error;
   return (data as AgendaEventRow[] ?? []).map(mapAgendaEventRow);
 }
-export async function addAgendaEvent(input: { title: string; location?: string; eventDate: string; eventTime?: string; color?: string; createdBy?: string }): Promise<void> {
-  const { error } = await supabase.from("agenda_events").insert({
-    title: input.title, location: input.location || "", event_date: input.eventDate, event_time: input.eventTime || "", color: input.color || "blue", created_by: input.createdBy || "",
-  });
+export async function addAgendaEvent(input: AgendaEventInput): Promise<void> {
+  const base = { location: "", eventTime: "", color: "blue", createdBy: "", ...input };
+  let { error } = await supabase.from("agenda_events").insert(agendaRow(base, true));
+  if (isMissingColumn(error)) {
+    console.warn("agenda_events: kolom migrasi 025 belum ada — simpan tanpa jenis/catatan.");
+    ({ error } = await supabase.from("agenda_events").insert(agendaRow(base, false)));
+  }
   if (error) throw error;
+}
+export async function updateAgendaEvent(id: string, input: Partial<AgendaEventInput>): Promise<void> {
+  const full = { ...agendaRow(input, true), updated_at: new Date().toISOString() };
+  let { data, error } = await supabase.from("agenda_events").update(full).eq("id", id).select("id");
+  if (isMissingColumn(error)) {
+    ({ data, error } = await supabase.from("agenda_events").update(agendaRow(input, false)).eq("id", id).select("id"));
+  }
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/025_kalender_agenda.sql).");
 }
 export async function deleteAgendaEvent(id: string): Promise<void> {
   const { error } = await supabase.from("agenda_events").delete().eq("id", id);
@@ -1936,6 +2051,8 @@ export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
   if (isPrbOnly(profile) && !PRB_TABS.includes(tab)) return false;
   if (tab === "activitylog") return profile.isMasterAdmin === true;
+  // Kalender (agenda + penugasan) sama dengan widget di Home: terbuka untuk semua akun non-PRB.
+  if (tab === "calendar") return true;
   return profile.allowedTabs === null || profile.allowedTabs.includes(tab);
 }
 

@@ -113,9 +113,11 @@ export interface EmployeeRequest {
   processedAt: string | null;
 }
 
-/** ATK (alat tulis kantor) — data disinkronkan dari Excel/VBA lewat
- *  tombol "Sinkron ke CIKOPS". CIKOPS cuma untuk laporan, input
- *  tetap dilakukan di Excel. */
+/** ATK (alat tulis kantor) — sinkron dua arah dengan Excel/VBA
+ *  (migrasi 026): Excel mengirim lewat "Sinkron ke CIKOPS", CIKOPS bisa
+ *  input permintaan/restock/barang baru yang lalu ditarik Excel lewat
+ *  "Tarik dari CIKOPS". `source` = asal input; `pulled` = sudah ada di Excel. */
+export type AtkSource = "excel" | "web";
 export interface AtkItem {
   id: string;
   kodeBarang: string;
@@ -123,6 +125,9 @@ export interface AtkItem {
   satuan: string;
   stok: number;
   updatedAt: string;
+  minStok: number;
+  source: AtkSource;
+  pulled: boolean;
 }
 
 export interface AtkRequest {
@@ -138,6 +143,9 @@ export interface AtkRequest {
   satuan: string;
   helper: string;
   createdAt: string;
+  source: AtkSource;
+  pulled: boolean;
+  createdBy: string;
 }
 
 export interface AtkRestock {
@@ -152,9 +160,26 @@ export interface AtkRestock {
   jumlah: number;
   satuan: string;
   createdAt: string;
+  source: AtkSource;
+  pulled: boolean;
+  createdBy: string;
+}
+
+export interface AtkSyncStatus {
+  pendingRequests: number;
+  pendingRestocks: number;
+  pendingItems: number;
+  lastPushAt: string | null;
+  lastPullAt: string | null;
+  lastPullCount: number;
+  isAdmin: boolean;
+  syncKey: string | null;
 }
 
 /** Agenda/Kalender & Pengumuman — widget Dashboard. */
+/** Jenis agenda di kalender (kolom `kategori`, migrasi 025). */
+export type AgendaCategory = "kunjungan" | "event" | "meeting" | "pelatihan" | "libur" | "lainnya";
+
 export interface AgendaEvent {
   id: string;
   title: string;
@@ -164,6 +189,27 @@ export interface AgendaEvent {
   color: string;
   createdBy: string;
   createdAt: string;
+  /** Kolom migrasi 025 — kosong/default bila migrasi belum dijalankan. */
+  category: AgendaCategory;
+  endTime: string;
+  notes: string;
+  pic: string;
+  /** Penugasan driver yang ditautkan (tasks.id), mis. untuk kunjungan. */
+  taskId: string | null;
+}
+
+export interface AgendaEventInput {
+  title: string;
+  location?: string;
+  eventDate: string;
+  eventTime?: string;
+  endTime?: string;
+  category?: AgendaCategory;
+  notes?: string;
+  pic?: string;
+  taskId?: string | null;
+  color?: string;
+  createdBy?: string;
 }
 
 export interface Announcement {

@@ -98,12 +98,6 @@ import {
   getEmployeeRequests,
   updateEmployeeRequestStatus,
   deleteEmployeeRequest,
-  getAtkItems,
-  getAtkRequests,
-  getAtkRestocks,
-  getAgendaEvents,
-  addAgendaEvent,
-  deleteAgendaEvent,
   getAnnouncements,
   addAnnouncement,
   sendClaimNotificationEmails,
@@ -127,7 +121,7 @@ import {
   updateGasStation,
   deleteGasStation,
 } from "@/lib/api";
-import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, GiftSelection, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, AtkItem, AtkRequest, AtkRestock, AgendaEvent, Announcement } from "@/lib/types";
+import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, GiftSelection, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, Announcement } from "@/lib/types";
 import { computeCanteenKPI } from "@/lib/types";
 import type { DriverType } from "@/lib/types";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
@@ -173,6 +167,8 @@ import { getLockerStatusGrid } from "@/lib/lockerApi";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
 import SecurityTab from "./SecurityTab";
+import CalendarAgenda from "./CalendarAgenda";
+import AtkTab from "./AtkTab";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
@@ -203,6 +199,7 @@ export type DashboardTab =
   | "employeerequests"
   | "atk"
   | "security"
+  | "calendar"
   | "activitylog";
 
 interface NavTab { id: DashboardTab; icon: string; labelId: string; labelEn: string; descId?: string; descEn?: string }
@@ -260,6 +257,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelId: "Sistem",
     labelEn: "System",
     tabs: [
+      { id: "calendar", icon: "📅", labelId: "Kalender", labelEn: "Calendar", descId: "Agenda kunjungan, event & penugasan driver", descEn: "Visits, events & driver tasks" },
       { id: "reports", icon: "📈", labelId: "Report", labelEn: "Reports", descId: "Laporan & analisis data", descEn: "Reports & data analysis" },
       { id: "masterdata", icon: "🗄️", labelId: "Master Data", labelEn: "Master Data", descId: "Kelola master data sistem", descEn: "Manage system master data" },
       { id: "activitylog", icon: "📋", labelId: "Log Aktivitas", labelEn: "Activity Log", descId: "Riwayat aktivitas sistem", descEn: "System activity history" },
@@ -388,6 +386,8 @@ export default function DashboardPage() {
 const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "employees" | "jobtypes">("drivers");
 
   const [dateFilter, setDateFilter] = useState(todayStr());
+  /** Dari Kalender: buka Penugasan pada tanggal tertentu. */
+  const openTasksOn = useCallback((d: string) => { setDateFilter(d); setActiveTab("tasks"); }, [setActiveTab]);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [slipTasks, setSlipTasks] = useState<TaskDetail[] | null>(null);
   const [search, setSearch] = useState("");
@@ -984,7 +984,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       {activeTab !== "tasks" && (
         <div key={activeTab} className="tabContent">
           <TabErrorBoundary label={activeTab}>
-          {activeTab === "home" && <HomeTab setActiveTab={setActiveTab} myProfile={myProfile} activeGroupId={activeHomeGroup} setActiveGroupId={setActiveHomeGroup} />}
+          {activeTab === "home" && <HomeTab setActiveTab={setActiveTab} openTasksOn={openTasksOn} myProfile={myProfile} activeGroupId={activeHomeGroup} setActiveGroupId={setActiveHomeGroup} />}
           {activeTab === "overview" && <OverviewTab setActiveTab={setActiveTab} myProfile={myProfile} />}
           {activeTab === "vehicles" && <VehiclesTab myProfile={myProfile} />}
           {activeTab === "claims" && <ClaimsTab myProfile={myProfile} />}
@@ -1004,8 +1004,9 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "gift" && <GiftMasterPanel cardStyle={{ background: "linear-gradient(180deg, var(--surface2), var(--surface))", border: "1px solid var(--border2)", borderRadius: "var(--r2)", boxShadow: "var(--shadow-md)" }} />}
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
-          {activeTab === "atk" && <AtkTab />}
+          {activeTab === "atk" && <AtkTab myProfile={myProfile} />}
           {activeTab === "security" && <SecurityTab myProfile={myProfile} />}
+          {activeTab === "calendar" && <CalendarAgenda variant="full" myProfile={myProfile} onOpenTasks={openTasksOn} />}
           {activeTab === "activitylog" && <ActivityLogTab />}
           </TabErrorBoundary>
         </div>
@@ -1881,176 +1882,6 @@ async function getOverviewKantong(profile: MyProfile | null): Promise<Kantong | 
    yang lama tetap ada terpisah, tidak diganti.
 ════════════════════════════════════════════════════════════ */
 /* ════════════════════════════════════════════════════════════
-   WIDGET — Kalender bulan interaktif, titik penanda di tanggal yang
-   ada agenda-nya.
-════════════════════════════════════════════════════════════ */
-function CalendarWidget({ events, onPickDate, selectedDate }: { events: AgendaEvent[]; onPickDate?: (dateStr: string) => void; selectedDate?: string | null }) {
-  const { lang } = useLang();
-  const [viewDate, setViewDate] = useState(new Date());
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const eventDates = useMemo(() => new Set(events.map((e) => e.eventDate)), [events]);
-
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const startOffset = (firstDay.getDay() + 6) % 7; // Senin = 0
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthsId = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-  const monthsEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const dowId = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
-  const dowEn = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-
-  const cells: (number | null)[] = Array(startOffset).fill(null).concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
-
-  return (
-    <div className="neonCard" style={{ padding: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, color: "var(--t2)" }}>‹</button>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)" }}>{(lang === "id" ? monthsId : monthsEn)[month]} {year}</div>
-        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, color: "var(--t2)" }}>›</button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
-        {(lang === "id" ? dowId : dowEn).map((d) => (
-          <div key={d} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: "var(--t3)", padding: "4px 0" }}>{d}</div>
-        ))}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
-        {cells.map((d, i) => {
-          if (d === null) return <div key={i} />;
-          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-          const isToday = dateStr === todayStr;
-          const hasEvent = eventDates.has(dateStr);
-          const isSelected = selectedDate === dateStr;
-          return (
-            <button
-              key={i}
-              onClick={() => onPickDate?.(dateStr)}
-              title={hasEvent ? (lang === "en" ? "Has agenda — click to view" : "Ada agenda — klik untuk lihat") : undefined}
-              style={{
-                position: "relative", aspectRatio: "1", borderRadius: 8, cursor: "pointer",
-                border: isSelected ? "2px solid var(--brand)" : "2px solid transparent",
-                background: isToday ? "var(--accent-solid)" : hasEvent ? "var(--orange-soft)" : "transparent",
-                color: isToday ? "var(--accent-solid-text)" : hasEvent ? "var(--orange-text)" : "var(--t2)",
-                fontSize: 12, fontWeight: isToday || hasEvent ? 800 : 500,
-              }}
-            >
-              {d}
-            </button>
-          );
-        })}
-      </div>
-      <div style={{ display: "flex", gap: 14, marginTop: 12, fontSize: 10.5, color: "var(--t3)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--accent-solid)", display: "inline-block" }} /> {lang === "en" ? "Today" : "Hari ini"}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--orange-soft)", border: "1px solid var(--orange-text)", display: "inline-block" }} /> {lang === "en" ? "Has agenda" : "Ada agenda"}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
-   WIDGET — Agenda Mendatang
-════════════════════════════════════════════════════════════ */
-const AGENDA_COLORS: Record<string, string> = { blue: "var(--brand)", green: "var(--green)", orange: "var(--orange)", red: "var(--red)", purple: "var(--purple)" };
-
-function AgendaWidget({
-  events, onAdd, onDelete, filterDate, onClearFilter,
-}: {
-  events: AgendaEvent[];
-  onAdd: (e: { title: string; location: string; eventDate: string; eventTime: string }) => void;
-  onDelete: (id: string) => void;
-  filterDate?: string | null;
-  onClearFilter?: () => void;
-}) {
-  const { lang } = useLang();
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [date, setDate] = useState(filterDate || new Date().toISOString().slice(0, 10));
-  const [time, setTime] = useState("09:00");
-
-  useEffect(() => { if (filterDate) setDate(filterDate); }, [filterDate]);
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const list = filterDate
-    ? events.filter((e) => e.eventDate === filterDate)
-    : events.filter((e) => e.eventDate >= todayStr).slice(0, 5);
-
-  function formatDateLabelShort(d: string) {
-    const dt = new Date(d + "T00:00:00");
-    return dt.toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
-  }
-
-  return (
-    <div className="neonCard" style={{ padding: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)" }}>
-          {filterDate ? (lang === "en" ? "Agenda" : "Agenda") : (lang === "en" ? "Upcoming Agenda" : "Agenda Mendatang")}
-        </div>
-        <button onClick={() => setShowForm((v) => !v)} style={{ background: "none", border: "none", color: "var(--brand)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-          {showForm ? (lang === "en" ? "Cancel" : "Batal") : `+ ${lang === "en" ? "Add" : "Tambah"}`}
-        </button>
-      </div>
-
-      {filterDate && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--orange-text)", background: "var(--orange-soft)", padding: "4px 10px", borderRadius: "var(--pill)" }}>
-            📅 {formatDateLabelShort(filterDate)}
-          </div>
-          <button onClick={onClearFilter} style={{ background: "none", border: "none", color: "var(--t3)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
-            {lang === "en" ? "Show all" : "Tampilkan semua"} ✕
-          </button>
-        </div>
-      )}
-      {!filterDate && <div style={{ marginBottom: 14 }} />}
-
-      {showForm && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14, padding: 12, borderRadius: 10, background: "var(--bg2)" }}>
-          <input className={styles.formInput} placeholder={lang === "en" ? "Title" : "Judul"} value={title} onChange={(e) => setTitle(e.target.value)} />
-          <input className={styles.formInput} placeholder={lang === "en" ? "Location" : "Lokasi"} value={location} onChange={(e) => setLocation(e.target.value)} />
-          <div style={{ display: "flex", gap: 8 }}>
-            <input type="date" className={styles.formInput} value={date} onChange={(e) => setDate(e.target.value)} />
-            <input type="time" className={styles.formInput} value={time} onChange={(e) => setTime(e.target.value)} />
-          </div>
-          <button
-            className="pillBtn"
-            disabled={!title.trim()}
-            onClick={() => { onAdd({ title: title.trim(), location: location.trim(), eventDate: date, eventTime: time }); setTitle(""); setLocation(""); setShowForm(false); }}
-          >
-            {lang === "en" ? "Save" : "Simpan"}
-          </button>
-        </div>
-      )}
-
-      {list.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: "var(--t3)", textAlign: "center", padding: "12px 0" }}>
-          {filterDate ? (lang === "en" ? "No agenda on this date." : "Tidak ada agenda di tanggal ini.") : (lang === "en" ? "No upcoming agenda." : "Belum ada agenda mendatang.")}
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {list.map((e) => (
-            <div key={e.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", position: "relative" }}>
-              <div style={{ width: 3, alignSelf: "stretch", borderRadius: 2, background: AGENDA_COLORS[e.color] ?? "var(--brand)", flexShrink: 0 }} />
-              {!filterDate && <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--t3)", width: 42, flexShrink: 0, paddingTop: 1 }}>{e.eventTime || "-"}</div>}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {filterDate && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand)", marginBottom: 2 }}>{e.eventTime || "-"}</div>}
-                {!filterDate && <div style={{ fontSize: 10.5, color: "var(--t3)", marginBottom: 2 }}>{formatDateLabelShort(e.eventDate)}</div>}
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{e.title}</div>
-                {e.location && <div style={{ fontSize: 11.5, color: "var(--t3)" }}>{e.location}</div>}
-              </div>
-              <button onClick={() => onDelete(e.id)} style={{ background: "none", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 12, padding: 2 }}>✕</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
    WIDGET — Aksi Cepat
 ════════════════════════════════════════════════════════════ */
 function QuickActionsWidget({ setActiveTab }: { setActiveTab: (t: DashboardTab) => void }) {
@@ -2161,11 +1992,13 @@ function fmtRpShort(n: number): string {
 
 function HomeTab({
   setActiveTab,
+  openTasksOn,
   myProfile,
   activeGroupId,
   setActiveGroupId,
 }: {
   setActiveTab: (t: DashboardTab) => void;
+  openTasksOn: (date: string) => void;
   myProfile: MyProfile | null;
   activeGroupId?: string;
   setActiveGroupId: (id: string | undefined) => void;
@@ -2177,9 +2010,7 @@ function HomeTab({
   const visibleGroups = NAV_GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((t) => canAccessTab(myProfile, t.id)) })).filter((g) => g.tabs.length > 0);
   const filteredGroup = activeGroupId ? visibleGroups.find((g) => g.id === activeGroupId) : undefined;
 
-  const [agendaEvents, setAgendaEvents] = useState<AgendaEvent[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [selectedAgendaDate, setSelectedAgendaDate] = useState<string | null>(null);
   const [weekTasks, setWeekTasks] = useState<TaskDetail[]>([]);
   const [gateLogs, setGateLogs] = useState<VehicleGateLog[]>([]);
   const [gateLoadedAt, setGateLoadedAt] = useState<number | null>(null);
@@ -2195,9 +2026,7 @@ function HomeTab({
 
   const loadWidgets = useCallback(async () => {
     try {
-      const [ag, an] = await Promise.all([getAgendaEvents(), getAnnouncements()]);
-      setAgendaEvents(ag);
-      setAnnouncements(an);
+      setAnnouncements(await getAnnouncements());
     } catch (e) {
       console.warn("Gagal memuat widget dashboard:", e);
     }
@@ -2299,22 +2128,6 @@ function HomeTab({
     })();
   }, [prbOnly]);
 
-  async function handleAddAgenda(e: { title: string; location: string; eventDate: string; eventTime: string }) {
-    try {
-      await addAgendaEvent(e);
-      loadWidgets();
-    } catch (err) {
-      alert(`Gagal menambah agenda: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  async function handleDeleteAgenda(id: string) {
-    try {
-      await deleteAgendaEvent(id);
-      loadWidgets();
-    } catch (err) {
-      alert(`Gagal menghapus agenda: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
   async function handleAddAnnouncement(a: { title: string; body: string }) {
     try {
       await addAnnouncement({ ...a, createdBy: myProfile?.fullName ?? "" });
@@ -2634,8 +2447,7 @@ function HomeTab({
 
       {/* ── Kolom kanan ── */}
       {!prbOnly && <div className={styles.homeSide}>
-        <CalendarWidget events={agendaEvents} selectedDate={selectedAgendaDate} onPickDate={(d) => setSelectedAgendaDate(d === selectedAgendaDate ? null : d)} />
-        <AgendaWidget events={agendaEvents} onAdd={handleAddAgenda} onDelete={handleDeleteAgenda} filterDate={selectedAgendaDate} onClearFilter={() => setSelectedAgendaDate(null)} />
+        <CalendarAgenda variant="mini" myProfile={myProfile} onOpenTasks={openTasksOn} onOpenCalendar={() => setActiveTab("calendar")} />
         <AnnouncementWidget announcements={announcements} onAdd={handleAddAnnouncement} canManage={myProfile?.role === "admin"} />
       </div>}
     </div>
@@ -7020,279 +6832,6 @@ function EmployeeRequestsTab() {
     </div>
   );
 }
-
-/* ════════════════════════════════════════════════════════════
-   ATK (ALAT TULIS KANTOR) — murni laporan. Input tetap dilakukan di
-   Excel (form VBA yang sudah ada), data masuk ke sini lewat tombol
-   "Sinkron ke CIKOPS" (lihat vba/modSyncCikops.bas). Tidak ada
-   tambah/edit/hapus dari Dashboard — cuma lihat & export laporan.
-════════════════════════════════════════════════════════════ */
-
-function AtkTab() {
-  const { lang } = useLang();
-  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
-  const [subView, setSubView] = useState<"stok" | "permintaan" | "restock">("permintaan");
-
-  const [items, setItems] = useState<AtkItem[]>([]);
-  const [requests, setRequests] = useState<AtkRequest[]>([]);
-  const [restocks, setRestocks] = useState<AtkRestock[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [range, setRange] = useState<ReportRangeState>(defaultReportRange());
-  const { from: dateFrom, to: dateTo } = reportRangeToDates(range);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    const errors: string[] = [];
-    try {
-      setItems(await getAtkItems());
-    } catch (e) {
-      errors.push(`Stok: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    try {
-      setRequests(await getAtkRequests({ dateFrom, dateTo }));
-    } catch (e) {
-      errors.push(`Permintaan: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    try {
-      setRestocks(await getAtkRestocks({ dateFrom, dateTo }));
-    } catch (e) {
-      errors.push(`Restock: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    if (errors.length > 0) setLoadError(errors.join(" | "));
-    setLastUpdated(new Date());
-    setLoading(false);
-  }, [dateFrom, dateTo]);
-
-  useEffect(() => {
-    load();
-    const interval = setInterval(load, 20000);
-    return () => clearInterval(interval);
-  }, [load]);
-
-  const lowStockItems = useMemo(() => items.filter((i) => Number(i.stok) <= 5), [items]);
-  const totalRequestQty = useMemo(() => requests.reduce((s, r) => s + Number(r.jumlah || 0), 0), [requests]);
-  const totalRestockQty = useMemo(() => restocks.reduce((s, r) => s + Number(r.jumlah || 0), 0), [restocks]);
-  const animatedItems = useCountUp(items.length);
-  const animatedLowStock = useCountUp(lowStockItems.length);
-  const animatedRequests = useCountUp(requests.length);
-
-  const itemColumns = useMemo<ReportColumn<AtkItem>[]>(() => [
-    { key: "kode", labelId: "Kode Barang", labelEn: "Item Code", get: (i) => i.kodeBarang ?? "" },
-    { key: "nama", labelId: "Nama Barang", labelEn: "Item Name", get: (i) => i.namaBarang ?? "" },
-    { key: "satuan", labelId: "Satuan", labelEn: "Unit", get: (i) => i.satuan ?? "" },
-    { key: "stok", labelId: "Stok Saat Ini", labelEn: "Current Stock", get: (i) => i.stok ?? 0, align: "right" },
-    { key: "updated", labelId: "Terakhir Diperbarui", labelEn: "Last Updated", get: (i) => (i.updatedAt ? formatDateTime(i.updatedAt) : "-") },
-  ], []);
-
-  const requestColumns = useMemo<ReportColumn<AtkRequest>[]>(() => [
-    { key: "requestId", labelId: "No. Request", labelEn: "Request No.", get: (r) => r.requestId ?? "" },
-    { key: "tanggal", labelId: "Tanggal", labelEn: "Date", get: (r) => r.tanggal ?? "" },
-    { key: "nama", labelId: "Nama Pemohon", labelEn: "Requester", get: (r) => r.nama ?? "" },
-    { key: "nik", labelId: "NIK", labelEn: "Employee ID", get: (r) => r.nik ?? "" },
-    { key: "departemen", labelId: "Departemen", labelEn: "Department", get: (r) => r.departemen ?? "" },
-    { key: "barang", labelId: "Nama Barang", labelEn: "Item Name", get: (r) => r.namaBarang ?? "" },
-    { key: "jumlah", labelId: "Jumlah", labelEn: "Quantity", get: (r) => r.jumlah ?? 0, align: "right" },
-    { key: "satuan", labelId: "Satuan", labelEn: "Unit", get: (r) => r.satuan ?? "" },
-    { key: "helper", labelId: "Helper (Pengambil Barang)", labelEn: "Helper (Item Picker)", get: (r) => r.helper ?? "" },
-  ], []);
-
-  const restockColumns = useMemo<ReportColumn<AtkRestock>[]>(() => [
-    { key: "updateId", labelId: "No. Update", labelEn: "Update No.", get: (r) => r.updateId ?? "" },
-    { key: "tanggal", labelId: "Tanggal", labelEn: "Date", get: (r) => r.tanggal ?? "" },
-    { key: "petugas", labelId: "Petugas", labelEn: "Staff", get: (r) => r.nama ?? "" },
-    { key: "departemen", labelId: "Departemen", labelEn: "Department", get: (r) => r.departemen ?? "" },
-    { key: "barang", labelId: "Nama Barang", labelEn: "Item Name", get: (r) => r.namaBarang ?? "" },
-    { key: "jumlah", labelId: "Jumlah Masuk", labelEn: "Quantity In", get: (r) => r.jumlah ?? 0, align: "right" },
-    { key: "satuan", labelId: "Satuan", labelEn: "Unit", get: (r) => r.satuan ?? "" },
-  ], []);
-
-  function handleExportClick(format: ExportFormat, exportLang: ReportLang) {
-    try {
-      const periodLabel = reportRangeLabel(range, exportLang);
-      const runner = format === "csv" ? exportGenericCsv : format === "excel" ? exportGenericExcel : exportGenericPdf;
-      if (subView === "stok") {
-        runner({ rows: items, columns: itemColumns, lang: exportLang, titleId: "Laporan Stok ATK", titleEn: "Office Supplies Stock Report", filename: "Laporan_Stok_ATK" });
-      } else if (subView === "permintaan") {
-        runner({
-          rows: requests, columns: requestColumns, lang: exportLang, titleId: "Laporan Permintaan ATK", titleEn: "Office Supplies Request Report",
-          periodLabel, filename: "Laporan_Permintaan_ATK",
-          summaryRows: [{ label: exportLang === "en" ? "Total Quantity Requested" : "Total Jumlah Diminta", value: totalRequestQty }],
-        });
-      } else {
-        runner({
-          rows: restocks, columns: restockColumns, lang: exportLang, titleId: "Laporan Restock ATK", titleEn: "Office Supplies Restock Report",
-          periodLabel, filename: "Laporan_Restock_ATK",
-          summaryRows: [{ label: exportLang === "en" ? "Total Quantity Restocked" : "Total Jumlah Masuk", value: totalRestockQty }],
-        });
-      }
-    } catch (e) {
-      console.error("[AtkTab export error]", e);
-      alert(`Gagal membuat laporan: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  const exportPicker = useExportLanguagePicker(handleExportClick);
-
-  const currentEmptyDisabled =
-    subView === "stok" ? items.length === 0 : subView === "permintaan" ? requests.length === 0 : restocks.length === 0;
-
-  let tableBody: React.ReactNode;
-  if (loading) {
-    tableBody = <SkeletonRows rows={5} />;
-  } else if (subView === "stok") {
-    tableBody = items.length === 0 ? (
-      <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{lang === "en" ? "No data yet — sync from Excel first." : "Belum ada data — sinkron dari Excel dulu."}</div>
-    ) : (
-      <div style={{ overflowX: "auto" }}>
-        <table className="tableCompact" style={{ minWidth: 600, width: "100%" }}>
-          <thead><tr><th>Kode</th><th>{lang === "en" ? "Item Name" : "Nama Barang"}</th><th>{lang === "en" ? "Unit" : "Satuan"}</th><th style={{ textAlign: "right" }}>Stok</th></tr></thead>
-          <tbody>
-            {items.map((i) => (
-              <tr key={i.id}>
-                <td style={{ fontFamily: "var(--mono)" }}>{i.kodeBarang}</td>
-                <td style={{ fontWeight: 700 }}>{i.namaBarang}</td>
-                <td>{i.satuan}</td>
-                <td style={{ textAlign: "right", fontWeight: 700, color: Number(i.stok) <= 5 ? "var(--red)" : "var(--t1)" }}>{i.stok}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  } else if (subView === "permintaan") {
-    tableBody = requests.length === 0 ? (
-      <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{lang === "en" ? "No requests in this period." : "Belum ada permintaan di periode ini."}</div>
-    ) : (
-      <div style={{ overflowX: "auto" }}>
-        <table className="tableCompact" style={{ minWidth: 900, width: "100%" }}>
-          <thead><tr><th>Tanggal</th><th>Pemohon</th><th>Departemen</th><th>Barang</th><th style={{ textAlign: "right" }}>Jumlah</th><th>Helper</th></tr></thead>
-          <tbody>
-            {requests.map((r) => (
-              <tr key={r.id}>
-                <td>{formatDateLabel(r.tanggal)}</td>
-                <td style={{ fontWeight: 700 }}>{r.nama}</td>
-                <td>{r.departemen || "-"}</td>
-                <td>{r.namaBarang}</td>
-                <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>{r.jumlah} {r.satuan}</td>
-                <td style={{ color: "var(--t3)" }}>{r.helper || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  } else {
-    tableBody = restocks.length === 0 ? (
-      <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{lang === "en" ? "No restock records in this period." : "Belum ada restock di periode ini."}</div>
-    ) : (
-      <div style={{ overflowX: "auto" }}>
-        <table className="tableCompact" style={{ minWidth: 800, width: "100%" }}>
-          <thead><tr><th>Tanggal</th><th>Petugas</th><th>Barang</th><th style={{ textAlign: "right" }}>Jumlah Masuk</th></tr></thead>
-          <tbody>
-            {restocks.map((r) => (
-              <tr key={r.id}>
-                <td>{formatDateLabel(r.tanggal)}</td>
-                <td style={{ fontWeight: 700 }}>{r.nama || "-"}</td>
-                <td>{r.namaBarang}</td>
-                <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>{r.jumlah} {r.satuan}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)" }}>📎 {lang === "en" ? "Office Supplies (ATK)" : "Alat Tulis Kantor (ATK)"}</div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>
-            {lang === "en" ? "Reporting only — data synced from Excel." : "Khusus laporan — data disinkron dari Excel."}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {lastUpdated ? (
-            <span style={{ fontSize: 11.5, color: "var(--t3)" }}>
-              {lang === "en" ? "Updated" : "Diperbarui"}: {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            </span>
-          ) : null}
-          <button
-            onClick={load}
-            disabled={loading}
-            style={{ padding: "8px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", background: "var(--bg2)", color: "var(--t2)", fontWeight: 700, fontSize: 12.5, cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}
-          >
-            {loading ? "..." : "🔄"} {lang === "en" ? "Refresh Data" : "Refresh Data"}
-          </button>
-        </div>
-      </div>
-
-      {loadError ? (
-        <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 16, fontSize: 12.5, fontFamily: "var(--mono)" }}>
-          ⚠️ {loadError}
-        </div>
-      ) : null}
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
-        <div className="statPop" style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", marginBottom: 6 }}>{lang === "en" ? "Total Items" : "Total Jenis Barang"}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, color: "var(--t1)", fontFamily: "var(--mono)" }}>{animatedItems}</div>
-        </div>
-        <div className="statPop" style={{ ...cardStyle, padding: 18, background: lowStockItems.length > 0 ? "linear-gradient(135deg, var(--red), #c0392b)" : undefined }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: lowStockItems.length > 0 ? "rgba(255,255,255,0.85)" : "var(--t3)", marginBottom: 6 }}>⚠️ {lang === "en" ? "Low Stock (≤5)" : "Stok Menipis (≤5)"}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, color: lowStockItems.length > 0 ? "#fff" : "var(--t1)", fontFamily: "var(--mono)" }}>{animatedLowStock}</div>
-        </div>
-        <div className="statPop" style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", marginBottom: 6 }}>{lang === "en" ? "Requests (period)" : "Permintaan (periode)"}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, color: "var(--brand)", fontFamily: "var(--mono)" }}>{animatedRequests}</div>
-        </div>
-      </div>
-
-      <div className="neonCard" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, padding: "16px 18px" }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setSubView("permintaan")}
-              style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: subView === "permintaan" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: subView === "permintaan" ? "#fff" : "var(--t2)" }}
-            >
-              {lang === "en" ? "Requests" : "Permintaan"}
-            </button>
-            <button
-              onClick={() => setSubView("restock")}
-              style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: subView === "restock" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: subView === "restock" ? "#fff" : "var(--t2)" }}
-            >
-              Restock
-            </button>
-            <button
-              onClick={() => setSubView("stok")}
-              style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: subView === "stok" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: subView === "stok" ? "#fff" : "var(--t2)" }}
-            >
-              {lang === "en" ? "Current Stock" : "Stok Saat Ini"}
-            </button>
-          </div>
-          <ReportExportButtons onExport={exportPicker.requestExport} disabled={currentEmptyDisabled} />
-        </div>
-
-        {subView !== "stok" ? (
-          <div style={{ padding: "0 18px 14px" }}>
-            <ReportRangePicker value={range} onChange={setRange} inputClassName={styles.formInput} />
-          </div>
-        ) : null}
-
-        {tableBody}
-      </div>
-
-      {exportPicker.pending ? (
-        <LanguagePickerModal key={exportPicker.pending} format={exportPicker.pending} onConfirm={exportPicker.confirm} onClose={exportPicker.cancel} />
-      ) : null}
-    </div>
-  );
-}
-
 
 /* ════════════════════════════════════════════════════════════
    MASTER DATA — the missing piece: until now there was no way to add
