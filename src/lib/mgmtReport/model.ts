@@ -3,7 +3,7 @@
    dan pratinjau di aplikasi. Satu sumber angka, tiga format keluaran.
 ════════════════════════════════════════════════════════════ */
 
-export type ModuleKey = "fleet" | "claims" | "canteen" | "atk" | "security";
+export type ModuleKey = "fleet" | "claims" | "canteen" | "atk" | "ga" | "security";
 
 export type ReportLang = "id" | "en";
 export type Granularity = "auto" | "day" | "week" | "month";
@@ -28,6 +28,7 @@ const META_ID: Record<ModuleKey, { title: string; short: string; accent: string;
   claims: { title: "Klaim Driver", short: "Klaim", accent: "#0F9D74", desc: "Pengeluaran operasional driver per kategori" },
   canteen: { title: "Kantin", short: "Kantin", accent: "#E08A00", desc: "Efisiensi order & sisa makanan per shift" },
   atk: { title: "Alat Tulis Kantor (ATK)", short: "ATK", accent: "#7A5AF0", desc: "Pemakaian, departemen, dan stok kritis" },
+  ga: { title: "Cleaning, Gardening & TGA", short: "GA", accent: "#0EA5B7", desc: "Achievement plan vs actual ISS, aktivitas teknisi GA, event & improvement" },
   security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Kendaraan & visitor, transporter, pelanggaran, kejadian, patroli" },
 };
 const META_EN: Record<ModuleKey, { title: string; short: string; accent: string; desc: string }> = {
@@ -35,6 +36,7 @@ const META_EN: Record<ModuleKey, { title: string; short: string; accent: string;
   claims: { title: "Driver Claims", short: "Claims", accent: "#0F9D74", desc: "Driver operating expenses by category" },
   canteen: { title: "Canteen", short: "Canteen", accent: "#E08A00", desc: "Order efficiency & food waste per shift" },
   atk: { title: "Office Supplies (ATK)", short: "Supplies", accent: "#7A5AF0", desc: "Usage, departments and critical stock" },
+  ga: { title: "Cleaning, Gardening & TGA", short: "GA", accent: "#0EA5B7", desc: "ISS plan vs actual achievement, GA technician activities, events & improvements" },
   security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Vehicles & visitors, transporters, violations, incidents, patrol" },
 };
 /** Metadata modul dalam bahasa yang diminta (default: bahasa aktif). */

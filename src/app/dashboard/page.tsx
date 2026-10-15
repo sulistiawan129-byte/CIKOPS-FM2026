@@ -169,6 +169,7 @@ import MgmtReportTab from "./MgmtReportTab";
 import SecurityTab from "./SecurityTab";
 import CalendarAgenda from "./CalendarAgenda";
 import AtkTab from "./AtkTab";
+import GaTab from "./GaTab";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
@@ -198,6 +199,7 @@ export type DashboardTab =
   | "printer"
   | "employeerequests"
   | "atk"
+  | "gafacility"
   | "security"
   | "calendar"
   | "activitylog";
@@ -240,6 +242,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "printer", icon: "🖨️", labelId: "Printer", labelEn: "Printer", descId: "Manajemen printer & permintaan", descEn: "Printer management & requests" },
       { id: "employeerequests", icon: "📨", labelId: "Permintaan Karyawan", labelEn: "Employee Requests", descId: "Pengajuan permintaan dari karyawan", descEn: "Employee-submitted requests" },
       { id: "atk", icon: "✏️", labelId: "ATK", labelEn: "Office Supplies", descId: "Pengajuan ATK & perlengkapan", descEn: "Office supplies requests" },
+      { id: "gafacility", icon: "🧹", labelId: "Cleaning & Gardening", labelEn: "Cleaning & Gardening", descId: "Cleaning Service, Gardener & TGA (sinkron Excel)", descEn: "Cleaning, gardening & GA technicians (Excel sync)" },
     ],
   },
   {
@@ -1005,6 +1008,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}
+          {activeTab === "gafacility" && <GaTab myProfile={myProfile} />}
           {activeTab === "security" && <SecurityTab myProfile={myProfile} />}
           {activeTab === "calendar" && <CalendarAgenda variant="full" myProfile={myProfile} onOpenTasks={openTasksOn} />}
           {activeTab === "activitylog" && <ActivityLogTab />}

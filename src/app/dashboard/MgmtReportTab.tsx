@@ -17,7 +17,7 @@ import {
 import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
-const ALL: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "security"];
+const ALL: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 /** Rentang periode untuk mode kalender (minggu Senin–Minggu, bulan, kuartal, tahun) yang memuat tanggal anchor. */

@@ -25,7 +25,7 @@ const GREEN = "4ADE9A";
 const RED_T = "FF9B9B";
 const TONE: Record<string, string> = { good: GREEN, bad: RED_T, neutral: MUT };
 /** Versi terang warna modul untuk teks/angka di latar gelap. */
-const ACC_LIGHT: Record<ModuleKey, string> = { fleet: "8FB2FF", claims: "4ADE9A", canteen: "F7BE5C", atk: "BBA6FF", security: "FF9499" };
+const ACC_LIGHT: Record<ModuleKey, string> = { fleet: "8FB2FF", claims: "4ADE9A", canteen: "F7BE5C", atk: "BBA6FF", ga: "67D8E6", security: "FF9499" };
 const HEAD = "Bahnschrift";
 const BODY = "Segoe UI";
 const W = 13.333;
@@ -171,7 +171,7 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
     header(s, tr("Catatan metodologi", "Methodology notes"), "#4D8DFF", RPT);
     const notes = report.lang === "en" ? [
       `Reporting period ${report.periodLabel}; compared with ${report.prevLabel} (previous calendar period for full months, quarters or years; otherwise the same-length period immediately before).`,
-      "Data source: CIKOPS-FM app (driver assignments, fleet & gate, driver claims, daily canteen reports, office supplies transactions, monthly security input).",
+      "Data source: CIKOPS-FM app (driver assignments, fleet & gate, driver claims, daily canteen reports, office supplies transactions, ISS GA Excel sync (cleaning, gardening, TGA), monthly security input).",
       "Fleet utilisation = active vehicles used at least once ÷ total active vehicles.",
       "Canteen efficiency = (portions ordered − leftover) ÷ portions ordered.",
       "Critical supplies stock = out of stock or under 14 days' cover based on this period's average usage.",
@@ -179,7 +179,7 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
       "Security: transporter violations read directly from G-C (Accept cases; cases counted per report, types per finding).",
     ] : [
       `Periode laporan ${report.periodLabel}; pembanding ${report.prevLabel} (periode kalender sebelumnya untuk bulan/kuartal/tahun penuh; selain itu rentang sama panjang tepat sebelumnya).`,
-      "Sumber data: aplikasi CIKOPS-FM (penugasan driver, armada & gate, klaim driver, laporan kantin harian, transaksi ATK, input bulanan security).",
+      "Sumber data: aplikasi CIKOPS-FM (penugasan driver, armada & gate, klaim driver, laporan kantin harian, transaksi ATK, sinkron Excel ISS GA (cleaning, gardening, TGA), input bulanan security).",
       "Utilisasi armada = kendaraan aktif yang dipakai minimal sekali ÷ total kendaraan aktif.",
       "Efisiensi kantin = (porsi dipesan − sisa) ÷ porsi dipesan.",
       "Stok ATK kritis = stok habis atau hanya cukup < 14 hari berdasarkan pemakaian rata-rata periode ini.",

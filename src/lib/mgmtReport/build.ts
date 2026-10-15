@@ -7,6 +7,8 @@ import {
 import type { Plant } from "../types";
 import { computeAtk, computeCanteen, computeClaims, computeFleet } from "./compute";
 import { computeSecurity } from "./security";
+import { computeGa } from "./ga";
+import { getGaEvents, getGaImprovements, getGaInventory, getGaPlan, getGaTga } from "../ga/api";
 import { atkTrend, canteenTrend, claimsTrend, fleetTrend } from "./trend";
 import { fetchGcCases, getSecurityConfig, getSecurityMonths } from "../security/api";
 import { DEFAULT_KHUSUS, monthKeyOf } from "../security/model";
@@ -66,6 +68,18 @@ export async function buildMgmtReport(p: {
       const requests = allReq.filter((r) => inR(r.tanggal, p.from, p.to));
       const prevRequests = allReq.filter((r) => inR(r.tanggal, prev.from, prev.to));
       out.push(atkTrend(computeAtk({ from: p.from, to: p.to, requests, prevRequests, restocks, items }), months, allReq));
+    } else if (key === "ga") {
+      const [plan, tga, events, imps, inv] = await Promise.all([
+        safe(() => getGaPlan(winFrom, p.to), []),
+        safe(() => getGaTga(), []),
+        safe(() => getGaEvents(), []),
+        safe(() => getGaImprovements(), []),
+        safe(() => getGaInventory(), []),
+      ]);
+      use();
+      const t = new Date();
+      const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+      out.push(computeGa({ from: p.from, to: p.to, prevFrom: prev.from, prevTo: prev.to, today, months, plan, tga, events, imps, inv }));
     } else if (key === "security") {
       const [rows, cfg, gc] = await Promise.all([
         safe(() => getSecurityMonths(monthKeyOf(winFrom), monthKeyOf(p.to)), {}),
