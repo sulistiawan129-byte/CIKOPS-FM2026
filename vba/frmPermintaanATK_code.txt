@@ -1,0 +1,515 @@
+Option Explicit
+
+' ============================================================
+' frmPermintaanATK  (versi tampilan baru)
+'
+' CARA PASANG: buka form di VBA Editor -> klik kanan -> View Code ->
+' hapus semua isi lama -> paste seluruh kode ini -> Save.
+' TIDAK perlu mengubah desain form: nama kontrol tetap sama
+' (txtTanggal, cboNama, txtNIK, txtDept, txtHelper, cboBarang,
+' txtStok, txtJumlah, txtSatuan, lstBarang, cmdTambah, cmdSubmit,
+' cmdClear, cmdClose). Tata letak, warna, dan huruf diatur ulang
+' otomatis saat form dibuka.
+'
+' Logika simpan TIDAK berubah: tetap ke sheet TransaksiPermintaan
+' kolom A-J + UpdateStok "KURANG" seperti sebelumnya.
+'
+' Tambahan:
+'   - Validasi nama karyawan wajib diisi.
+'   - Tanggal dd/mm/yyyy dibaca manual (tidak tergantung Regional
+'     Settings - mencegah tanggal & bulan tertukar).
+'   - Klik dua kali barang di daftar untuk menghapusnya.
+'   - Barang yang sama digabung jumlahnya di daftar.
+'   - Ringkasan jumlah barang & unit, sisa stok setelah ditambah.
+' ============================================================
+
+' ---- warna tema ----
+Private Const C_NAVY As Long = &H6B2F0A      ' RGB(10,47,107)
+Private Const C_BLUE As Long = &HC06515      ' RGB(21,101,192)
+Private Const C_RED As Long = &H2A19D7       ' RGB(215,25,42)
+Private Const C_BG As Long = &HF9F3EE        ' RGB(238,243,249)
+Private Const C_CARD As Long = &HFFFFFF
+Private Const C_LINE As Long = &HEADED5      ' RGB(213,222,234)
+Private Const C_TEXT As Long = &H3F2313      ' RGB(19,35,63)
+Private Const C_MUTED As Long = &H856B5B     ' RGB(91,107,133)
+Private Const C_READ As Long = &HFBF7F4      ' RGB(244,247,251)
+Private Const C_GREEN As Long = &H5F8A0F     ' RGB(15,138,95)
+
+Private lblCount As Object
+Private lblInfoStok As Object
+
+
+' ===== Inisialisasi form =====
+Private Sub UserForm_Initialize()
+    Dim wsK As Worksheet, wsB As Worksheet
+    Set wsK = ThisWorkbook.Sheets("MasterDataKaryawan")
+    Set wsB = ThisWorkbook.Sheets("MasterBarang")
+
+    TerapkanTampilan
+
+    ' Set tanggal hari ini
+    txtTanggal.Value = Format(Date, "dd/mm/yyyy")
+
+    Dim i As Long
+    cboNama.Clear
+    For i = 2 To wsK.Cells(wsK.Rows.Count, 1).End(xlUp).Row
+        If Trim(wsK.Cells(i, 2).Value) <> "" Then cboNama.AddItem wsK.Cells(i, 2).Value
+    Next i
+
+    cboBarang.Clear
+    For i = 2 To wsB.Cells(wsB.Rows.Count, 1).End(xlUp).Row
+        If Trim(wsB.Cells(i, 2).Value) <> "" Then cboBarang.AddItem wsB.Cells(i, 2).Value
+    Next i
+
+    ' ListBox: Nama Barang | Jumlah | Satuan | KodeBarang(hidden)
+    With lstBarang
+        .Clear
+        .ColumnCount = 4
+        .ColumnWidths = "196;56;70;0"
+    End With
+    PerbaruiRingkasan
+End Sub
+
+' ===== Isi NIK & Dept saat nama dipilih =====
+Private Sub cboNama_Change()
+    Dim ws As Worksheet, r As Range
+    Set ws = ThisWorkbook.Sheets("MasterDataKaryawan")
+    Set r = Nothing
+    If Trim(cboNama.Value) <> "" Then Set r = ws.Range("B:B").Find(What:=cboNama.Value, LookIn:=xlValues, LookAt:=xlWhole)
+    If Not r Is Nothing Then
+        txtNIK.Value = ws.Cells(r.Row, 1).Value
+        txtDept.Value = ws.Cells(r.Row, 3).Value
+    Else
+        txtNIK.Value = ""
+        txtDept.Value = ""
+    End If
+End Sub
+
+' ===== Tampilkan stok & satuan saat barang dipilih =====
+Private Sub cboBarang_Change()
+    Dim ws As Worksheet, r As Range
+    Set ws = ThisWorkbook.Sheets("MasterBarang")
+    Set r = Nothing
+    If Trim(cboBarang.Value) <> "" Then Set r = ws.Range("B:B").Find(What:=cboBarang.Value, LookIn:=xlValues, LookAt:=xlWhole)
+    If Not r Is Nothing Then
+        txtSatuan.Value = ws.Cells(r.Row, 3).Value
+        txtStok.Value = ws.Cells(r.Row, 4).Value
+        Dim sisa As Double
+        sisa = Val(txtStok.Value) - JumlahDiDaftar(cboBarang.Value)
+        If Val(txtStok.Value) <= 0 Then
+            InfoStok "Stok habis", C_RED
+        ElseIf sisa < Val(txtStok.Value) Then
+            InfoStok "Sudah di daftar: " & JumlahDiDaftar(cboBarang.Value) & "  " & ChrW(183) & "  sisa " & sisa, C_MUTED
+        Else
+            InfoStok "Tersedia " & txtStok.Value & " " & txtSatuan.Value, C_GREEN
+        End If
+    Else
+        txtSatuan.Value = ""
+        txtStok.Value = ""
+        InfoStok "", C_MUTED
+    End If
+End Sub
+
+' Enter di kolom jumlah = langsung tambah ke daftar
+Private Sub txtJumlah_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+    If KeyCode = vbKeyReturn Then
+        KeyCode = 0
+        cmdTambah_Click
+    End If
+End Sub
+
+' ===== Tambah barang ke list =====
+Private Sub cmdTambah_Click()
+    On Error GoTo ErrHandler
+    Dim jumlah As Long
+    If Trim(cboBarang.Text) = "" Then
+        MsgBox "Pilih barang terlebih dahulu.", vbExclamation: cboBarang.SetFocus: Exit Sub
+    End If
+    If cboBarang.ListIndex < 0 And GetKodeBarang(cboBarang.Value) = "" Then
+        MsgBox "Barang """ & cboBarang.Text & """ tidak ada di MasterBarang. Pilih dari daftar.", vbExclamation: cboBarang.SetFocus: Exit Sub
+    End If
+    If Trim(txtJumlah.Value) = "" Then
+        MsgBox "Masukkan jumlah.", vbExclamation: txtJumlah.SetFocus: Exit Sub
+    End If
+    If Not IsNumeric(txtJumlah.Value) Then
+        MsgBox "Jumlah harus berupa angka.", vbExclamation: txtJumlah.SetFocus: Exit Sub
+    End If
+    jumlah = CLng(Val(txtJumlah.Value))
+    If jumlah <= 0 Then
+        MsgBox "Jumlah harus lebih besar dari 0.", vbExclamation: txtJumlah.SetFocus: Exit Sub
+    End If
+
+    ' total (sudah ada di daftar + baru) tidak boleh melebihi stok
+    Dim sudahDiDaftar As Long
+    sudahDiDaftar = JumlahDiDaftar(cboBarang.Value)
+    If Val(txtStok.Value) < (jumlah + sudahDiDaftar) Then
+        MsgBox "Stok tidak mencukupi." & vbCrLf & _
+               "Stok tersedia: " & txtStok.Value & vbCrLf & _
+               "Sudah ada di daftar: " & sudahDiDaftar & vbCrLf & _
+               "Total kalau ditambah: " & (jumlah + sudahDiDaftar), vbExclamation: Exit Sub
+    End If
+
+    ' barang yang sama digabung jumlahnya
+    Dim k As Long
+    For k = 0 To lstBarang.ListCount - 1
+        If lstBarang.List(k, 0) = cboBarang.Value Then
+            lstBarang.List(k, 1) = CStr(Val(lstBarang.List(k, 1)) + jumlah)
+            GoTo Selesai
+        End If
+    Next k
+
+    Dim kode As String, idx As Long
+    kode = GetKodeBarang(cboBarang.Value)
+    lstBarang.AddItem cboBarang.Value                     ' kolom 0
+    idx = lstBarang.ListCount - 1
+    lstBarang.List(idx, 1) = CStr(jumlah)                 ' kolom 1 = Jumlah
+    lstBarang.List(idx, 2) = txtSatuan.Value              ' kolom 2 = Satuan
+    lstBarang.List(idx, 3) = kode                         ' kolom 3 = Kode (tersembunyi)
+
+Selesai:
+    cboBarang.Value = ""
+    txtJumlah.Value = ""
+    txtSatuan.Value = ""
+    txtStok.Value = ""
+    InfoStok "", C_MUTED
+    PerbaruiRingkasan
+    cboBarang.SetFocus
+    Exit Sub
+ErrHandler:
+    MsgBox "Error saat tambah barang: " & Err.Description, vbCritical
+End Sub
+
+' Klik dua kali item di daftar = hapus
+Private Sub lstBarang_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
+    If lstBarang.ListIndex < 0 Then Exit Sub
+    If MsgBox("Hapus """ & lstBarang.List(lstBarang.ListIndex, 0) & """ dari daftar?", vbQuestion + vbYesNo, "Hapus barang") = vbYes Then
+        lstBarang.RemoveItem lstBarang.ListIndex
+        PerbaruiRingkasan
+    End If
+End Sub
+
+' ===== Clear seluruh form (termasuk list) =====
+Private Sub cmdClear_Click()
+    cboBarang.Value = ""
+    txtJumlah.Value = ""
+    txtSatuan.Value = ""
+    txtStok.Value = ""
+    lstBarang.Clear
+    txtHelper.Value = ""
+    InfoStok "", C_MUTED
+    PerbaruiRingkasan
+End Sub
+
+' ===== Submit: simpan ke sheet & update stok =====
+Private Sub cmdSubmit_Click()
+    On Error GoTo ErrHandler
+
+    Dim tanggalInput As Date
+    If Not BacaTanggal(txtTanggal.Value, tanggalInput) Then
+        MsgBox "Format tanggal tidak valid. Gunakan dd/mm/yyyy, contoh " & Format(Date, "dd/mm/yyyy") & ".", vbExclamation
+        txtTanggal.SetFocus
+        Exit Sub
+    End If
+    If Trim(cboNama.Value) = "" Then
+        MsgBox "Pilih nama karyawan terlebih dahulu.", vbExclamation: cboNama.SetFocus: Exit Sub
+    End If
+    If lstBarang.ListCount = 0 Then
+        MsgBox "Belum ada barang yang ditambahkan.", vbExclamation: cboBarang.SetFocus: Exit Sub
+    End If
+
+    Dim reqID As String
+    reqID = GenerateRequestID()
+
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("TransaksiPermintaan")
+
+    Dim i As Long, nextRow As Long
+    For i = 0 To lstBarang.ListCount - 1
+        nextRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+        ws.Cells(nextRow, 1).Value = reqID                                  ' RequestID
+        ws.Cells(nextRow, 2).Value = tanggalInput                           ' Tanggal (as Date)
+        ws.Cells(nextRow, 3).Value = cboNama.Value                          ' Nama
+        ws.Cells(nextRow, 4).Value = txtNIK.Value                           ' NIK
+        ws.Cells(nextRow, 5).Value = txtDept.Value                          ' Dept
+        ws.Cells(nextRow, 6).Value = lstBarang.List(i, 3)                   ' Kode Barang
+        ws.Cells(nextRow, 7).Value = lstBarang.List(i, 0)                   ' Nama Barang
+        ws.Cells(nextRow, 8).Value = CLng(lstBarang.List(i, 1))             ' Jumlah
+        ws.Cells(nextRow, 9).Value = lstBarang.List(i, 2)                   ' Satuan
+        ws.Cells(nextRow, 10).Value = txtHelper.Value                       ' Helper
+
+        UpdateStok CStr(lstBarang.List(i, 3)), CLng(lstBarang.List(i, 1)), "KURANG"
+    Next i
+
+    ws.Columns(2).NumberFormat = "dd/mm/yyyy"
+
+    MsgBox "Permintaan disimpan." & vbCrLf & vbCrLf & _
+           "Request ID : " & reqID & vbCrLf & _
+           "Nama       : " & cboNama.Value & vbCrLf & _
+           "Barang     : " & lstBarang.ListCount & " jenis", vbInformation, "Berhasil"
+    Call cmdClear_Click
+    cboNama.Value = ""
+    cboNama.SetFocus
+    Exit Sub
+ErrHandler:
+    MsgBox "Error saat Submit: " & Err.Description, vbCritical
+End Sub
+
+' ===== Tutup form =====
+Private Sub cmdClose_Click()
+    Unload Me
+End Sub
+
+' ===== Fungsi helper: ambil Kode Barang berdasarkan Nama =====
+Private Function GetKodeBarang(ByVal NamaBarang As String) As String
+    Dim ws As Worksheet, r As Range
+    If Trim(NamaBarang) = "" Then Exit Function
+    Set ws = ThisWorkbook.Sheets("MasterBarang")
+    Set r = ws.Range("B:B").Find(What:=NamaBarang, LookIn:=xlValues, LookAt:=xlWhole)
+    If Not r Is Nothing Then GetKodeBarang = ws.Cells(r.Row, 1).Value
+End Function
+
+Private Function JumlahDiDaftar(ByVal nama As String) As Long
+    Dim k As Long
+    For k = 0 To lstBarang.ListCount - 1
+        If lstBarang.List(k, 0) = nama Then JumlahDiDaftar = JumlahDiDaftar + Val(lstBarang.List(k, 1))
+    Next k
+End Function
+
+' dd/mm/yyyy dibaca manual (aman dari Regional Settings)
+Private Function BacaTanggal(ByVal s As String, ByRef hasil As Date) As Boolean
+    Dim p() As String
+    s = Trim(Replace(Replace(s, "-", "/"), ".", "/"))
+    p = Split(s, "/")
+    If UBound(p) = 2 Then
+        If IsNumeric(p(0)) And IsNumeric(p(1)) And IsNumeric(p(2)) Then
+            Dim d As Integer, m As Integer, y As Integer
+            d = CInt(p(0)): m = CInt(p(1)): y = CInt(p(2))
+            If y < 100 Then y = y + 2000
+            If m >= 1 And m <= 12 And d >= 1 And d <= 31 Then
+                hasil = DateSerial(y, m, d)
+                If Day(hasil) = d Then BacaTanggal = True
+            End If
+        End If
+    End If
+End Function
+
+Private Sub PerbaruiRingkasan()
+    If lblCount Is Nothing Then Exit Sub
+    Dim k As Long, unit As Double
+    For k = 0 To lstBarang.ListCount - 1
+        unit = unit + Val(lstBarang.List(k, 1))
+    Next k
+    If lstBarang.ListCount = 0 Then
+        lblCount.Caption = "Belum ada barang"
+    Else
+        lblCount.Caption = lstBarang.ListCount & " barang  " & ChrW(183) & "  " & unit & " unit"
+    End If
+    ' Tombol tetap aktif (tombol nonaktif di Windows tampil berbayang);
+    ' warnanya saja yang dibuat pudar saat daftar masih kosong.
+    If lstBarang.ListCount > 0 Then
+        cmdSubmit.BackColor = C_BLUE
+    Else
+        cmdSubmit.BackColor = &HE0B78F       ' RGB(143,183,224) biru pudar
+    End If
+    cmdSubmit.ForeColor = &HFFFFFF
+End Sub
+
+Private Sub InfoStok(ByVal t As String, ByVal warna As Long)
+    If lblInfoStok Is Nothing Then Exit Sub
+    lblInfoStok.Caption = t
+    lblInfoStok.ForeColor = warna
+End Sub
+
+
+' ============================================================
+' TAMPILAN (dipanggil sekali saat form dibuka)
+' ============================================================
+Private Sub TerapkanTampilan()
+    Dim c As Object
+
+    Me.Caption = "Form Permintaan ATK & Sembako"
+    Me.BackColor = C_BG
+    On Error Resume Next
+    Set Me.Picture = LoadPicture("")      ' hapus gambar latar lama
+    On Error GoTo 0
+    Me.Width = 732
+    Me.Height = 492
+
+    ' sembunyikan judul/gambar lama, rapikan label lama
+    For Each c In Me.Controls
+        Select Case TypeName(c)
+            Case "Image": c.Visible = False
+            Case "Label"
+                Dim cap As String
+                cap = UCase(Trim(c.Caption))
+                If InStr(cap, "FORM PERMINTAAN") > 0 Then c.Visible = False
+        End Select
+    Next c
+
+    ' ---- header ----
+    Dim lb As Object
+    Set lb = BuatLabel("hdr", 0, 0, 732, 60, "", C_NAVY)
+    Set lb = BuatLabel("hdrAccent", 0, 60, 732, 3, "", C_RED)
+    Set lb = BuatLabel("hdrTitle", 20, 11, 560, 24, "Form Permintaan ATK & Sembako", -1)
+    Gaya lb, 15, True, &HFFFFFF
+    Set lb = BuatLabel("hdrSub", 20, 35, 560, 16, "General Affairs  " & ChrW(183) & "  Frisian Flag Indonesia " & ChrW(8212) & " Plant Cikarang", -1)
+    Gaya lb, 9, False, &HF6DECD
+
+    ' ---- kartu kiri & kanan ----
+    Kartu "cardL", 14, 76, 330, 330
+    Kartu "cardR", 354, 76, 364, 330
+    Set lb = BuatLabel("secL", 30, 88, 300, 14, "DATA PEMOHON", -1): Gaya lb, 9, True, C_BLUE
+    Set lb = BuatLabel("secR", 370, 88, 330, 14, "BARANG YANG DIMINTA", -1): Gaya lb, 9, True, C_BLUE
+
+    ' ---- kolom kiri ----
+    Field "TANGGAL", "Tanggal (dd/mm/yyyy)", txtTanggal, 30, 108, 298, False
+    Field "NAMA KARYAWAN", "Nama karyawan", cboNama, 30, 152, 298, False
+    Field "NIK", "NIK", txtNIK, 30, 196, 110, True
+    Field "DEPARTEMEN", "Departemen", txtDept, 150, 196, 178, True
+    Field "HELPER", "Helper (yang mengambil barang)", txtHelper, 30, 240, 298, False
+    Set lb = BuatLabel("hintL", 30, 290, 298, 40, "Pilih nama dari daftar " & ChrW(8212) & " NIK dan departemen terisi otomatis. Ketik beberapa huruf untuk mencari.", -1)
+    lb.WordWrap = True
+    Gaya lb, 8.5, False, C_MUTED
+
+    ' ---- kolom kanan ----
+    Field "NAMA BARANG", "Nama barang", cboBarang, 370, 108, 332, False
+    Field "STOK", "Stok", txtStok, 370, 152, 64, True
+    Field "QTY", "Jumlah", txtJumlah, 442, 152, 64, False
+    Field "SATUAN", "Satuan", txtSatuan, 514, 152, 74, True
+    With cmdTambah
+        .Caption = "+  Tambah"
+        .Move 596, 167, 106, 22
+    End With
+    TombolGaya cmdTambah, C_GREEN, &HFFFFFF, True
+    Set lblInfoStok = BuatLabel("infoStok", 370, 193, 332, 14, "", -1)
+    Gaya lblInfoStok, 8.5, True, C_MUTED
+
+    Set lb = BuatLabel("lhBarang", 374, 210, 190, 13, "BARANG", -1): Gaya lb, 8, True, C_MUTED
+    Set lb = BuatLabel("lhJml", 572, 210, 50, 13, "JUMLAH", -1): Gaya lb, 8, True, C_MUTED
+    Set lb = BuatLabel("lhSat", 628, 210, 70, 13, "SATUAN", -1): Gaya lb, 8, True, C_MUTED
+    With lstBarang
+        .Move 370, 224, 332, 150
+        .Font.Name = "Segoe UI": .Font.Size = 10
+        .BackColor = C_CARD: .ForeColor = C_TEXT
+        .SpecialEffect = 0
+        .BorderStyle = 1
+        .BorderColor = C_LINE
+    End With
+    Set lblCount = BuatLabel("count", 370, 380, 160, 14, "", -1)
+    Gaya lblCount, 9, True, C_TEXT
+    Set lb = BuatLabel("hintR", 520, 380, 182, 14, "Klik 2x item untuk menghapus", -1)
+    Gaya lb, 8, False, C_MUTED
+    lb.TextAlign = 3
+
+    ' ---- tombol bawah ----
+    cmdClear.Caption = "Bersihkan"
+    cmdClear.Move 14, 420, 96, 32
+    TombolGaya cmdClear, C_CARD, C_TEXT, False
+    cmdClose.Caption = "Tutup"
+    cmdClose.Move 116, 420, 96, 32
+    TombolGaya cmdClose, C_CARD, C_TEXT, False
+    cmdSubmit.Caption = "SIMPAN PERMINTAAN"
+    cmdSubmit.Move 528, 420, 190, 32
+    TombolGaya cmdSubmit, C_BLUE, &HFFFFFF, True
+
+    ' ---- urutan Tab ----
+    txtTanggal.TabIndex = 0
+    cboNama.TabIndex = 1
+    txtHelper.TabIndex = 2
+    cboBarang.TabIndex = 3
+    txtJumlah.TabIndex = 4
+    cmdTambah.TabIndex = 5
+    cmdSubmit.TabIndex = 6
+    txtNIK.TabStop = False
+    txtDept.TabStop = False
+    txtStok.TabStop = False
+    txtSatuan.TabStop = False
+
+    ' combo: cari otomatis saat mengetik
+    cboNama.MatchEntry = 1
+    cboBarang.MatchEntry = 1
+    cboNama.ListRows = 12
+    cboBarang.ListRows = 12
+End Sub
+
+' Posisikan label lama (dicari dari teksnya) di atas kontrol input
+Private Sub Field(ByVal capLama As String, ByVal capBaru As String, ctl As Object, _
+                  ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal bacaSaja As Boolean)
+    Dim c As Object, ketemu As Boolean
+    For Each c In Me.Controls
+        If TypeName(c) = "Label" Then
+            If UCase(Trim(c.Caption)) = capLama Then
+                ' urutan penting: matikan AutoSize/WordWrap DULU supaya
+                ' ukuran label tidak menyusut saat huruf diganti
+                c.AutoSize = False
+                c.WordWrap = False
+                c.BackStyle = 0
+                c.BorderStyle = 0
+                c.SpecialEffect = 0
+                c.Font.Name = "Segoe UI": c.Font.Size = 8.5: c.Font.Bold = True
+                c.ForeColor = C_MUTED
+                c.Caption = capBaru
+                c.Move x, y - 1, w, 15
+                ketemu = True
+                Exit For
+            End If
+        End If
+    Next c
+    If Not ketemu Then
+        Dim lb As Object
+        Set lb = BuatLabel("lbl_" & Replace(capLama, " ", "_"), x, y - 1, w, 15, capBaru, -1)
+        Gaya lb, 8.5, True, C_MUTED
+    End If
+    ctl.Move x, y + 15, w, 22
+    ctl.Font.Name = "Segoe UI"
+    ctl.Font.Size = 10
+    ctl.ForeColor = C_TEXT
+    ctl.BackColor = IIf(bacaSaja, C_READ, C_CARD)
+    ctl.SpecialEffect = 0
+    ctl.BorderStyle = 1
+    ctl.BorderColor = C_LINE
+    If bacaSaja Then ctl.Locked = True
+End Sub
+
+Private Function BuatLabel(ByVal nm As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single, _
+                           ByVal t As String, ByVal warnaLatar As Long) As Object
+    Dim lb As Object
+    Set lb = Me.Controls.Add("Forms.Label.1", "zz_" & nm, True)
+    lb.AutoSize = False
+    lb.WordWrap = False
+    lb.Move x, y, w, h
+    lb.Caption = t
+    lb.Font.Name = "Segoe UI"
+    If warnaLatar = -1 Then
+        lb.BackStyle = 0
+    Else
+        lb.BackStyle = 1
+        lb.BackColor = warnaLatar
+        lb.ZOrder 1
+    End If
+    Set BuatLabel = lb
+End Function
+
+Private Sub Kartu(ByVal nm As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single)
+    Dim lb As Object
+    Set lb = BuatLabel(nm, x, y, w, h, "", C_CARD)
+    lb.BorderStyle = 1
+    lb.BorderColor = C_LINE
+    lb.ZOrder 1
+End Sub
+
+Private Sub Gaya(lb As Object, ByVal size As Single, ByVal tebal As Boolean, ByVal warna As Long)
+    lb.Font.Name = "Segoe UI"
+    lb.Font.Size = size
+    lb.Font.Bold = tebal
+    lb.ForeColor = warna
+End Sub
+
+Private Sub TombolGaya(b As Object, ByVal latar As Long, ByVal teks As Long, ByVal tebal As Boolean)
+    b.BackColor = latar
+    b.ForeColor = teks
+    b.Font.Name = "Segoe UI"
+    b.Font.Size = 10
+    b.Font.Bold = tebal
+    b.TakeFocusOnClick = False
+End Sub

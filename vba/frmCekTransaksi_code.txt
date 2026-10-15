@@ -1,0 +1,434 @@
+Option Explicit
+
+' ============================================================
+' Form CETAK BUKTI TRANSAKSI  (versi tampilan baru)
+'
+' CARA PASANG: buka form di VBA Editor -> klik kanan -> View Code ->
+' hapus semua isi lama -> paste seluruh kode ini -> Save.
+' Desain form TIDAK perlu diubah: nama kontrol tetap sama
+' (txtRequestID, cmdCari, lstDetail, cmdCetak, cmdTutup).
+'
+' Tambahan:
+'   - Saat dibuka, permintaan TERAKHIR langsung tampil (tinggal cetak).
+'   - Cari cukup dengan beberapa digit terakhir Request ID; Enter = Cari.
+'   - Info pemohon (tanggal, nama, NIK, departemen, helper) tampil di form.
+'   - Tombol CETAK membuka pratinjau cetak sheet CetakLaporan langsung.
+'   - Lembar bukti di sheet CetakLaporan dirapikan (header, total,
+'     3 kolom tanda tangan).
+' ============================================================
+
+' ---- warna tema ----
+Private Const C_NAVY As Long = &H6B2F0A      ' RGB(10,47,107)
+Private Const C_BLUE As Long = &HC06515      ' RGB(21,101,192)
+Private Const C_RED As Long = &H2A19D7       ' RGB(215,25,42)
+Private Const C_BG As Long = &HF9F3EE        ' RGB(238,243,249)
+Private Const C_CARD As Long = &HFFFFFF
+Private Const C_LINE As Long = &HEADED5      ' RGB(213,222,234)
+Private Const C_TEXT As Long = &H3F2313      ' RGB(19,35,63)
+Private Const C_MUTED As Long = &H856B5B     ' RGB(91,107,133)
+Private Const C_READ As Long = &HFBF7F4      ' RGB(244,247,251)
+Private Const C_GREEN As Long = &H5F8A0F     ' RGB(15,138,95)
+
+Private infoVal(1 To 5) As Object
+Private lblStatus As Object
+Private lblTotal As Object
+Private sudahDimuat As Boolean
+
+
+Private Sub UserForm_Initialize()
+    TerapkanTampilan
+
+    ' tampilkan permintaan terakhir
+    Dim ws As Worksheet, lastRow As Long
+    Set ws = ThisWorkbook.Sheets("TransaksiPermintaan")
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    If lastRow >= 2 Then
+        txtRequestID.Value = ws.Cells(lastRow, 1).Value
+        CariData True
+    End If
+End Sub
+
+Private Sub txtRequestID_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+    If KeyCode = vbKeyReturn Then
+        KeyCode = 0
+        CariData False
+    End If
+End Sub
+
+Private Sub cmdCari_Click()
+    CariData False
+End Sub
+
+Private Sub CariData(ByVal diam As Boolean)
+    Dim wsSrc As Worksheet, wsDst As Worksheet
+    Dim r As Range
+    Dim i As Long, n As Long, rowCetak As Long
+    Dim requestID As String
+    Dim lb As Object
+    Dim sep As String
+    Dim totalQty As Double
+
+    ' ====== Validasi Input ======
+    requestID = Trim(Me.txtRequestID.Value)
+    If requestID = "" Then
+        If Not diam Then MsgBox "Masukkan Request ID terlebih dahulu!", vbExclamation, "Input Kosong"
+        Exit Sub
+    End If
+
+    Set lb = Me.lstDetail
+    Set wsSrc = ThisWorkbook.Sheets("TransaksiPermintaan")
+    Set wsDst = ThisWorkbook.Sheets("CetakLaporan")
+
+    ' ====== Cari Request ID (persis, lalu sebagian dari yang terbaru) ======
+    Set r = wsSrc.Range("A:A").Find(requestID, LookIn:=xlValues, LookAt:=xlWhole)
+    If r Is Nothing Then
+        Set r = wsSrc.Range("A:A").Find(requestID, After:=wsSrc.Range("A1"), LookIn:=xlValues, LookAt:=xlPart, SearchDirection:=xlPrevious)
+        If Not r Is Nothing Then
+            If r.Row = 1 Then Set r = Nothing
+        End If
+        If Not r Is Nothing Then
+            requestID = CStr(r.Value)
+            ' baris PERTAMA dari request ini
+            Set r = wsSrc.Range("A:A").Find(requestID, LookIn:=xlValues, LookAt:=xlWhole)
+        End If
+    End If
+    If r Is Nothing Then
+        Status "Request ID """ & requestID & """ tidak ditemukan.", C_RED
+        If Not diam Then MsgBox "Request ID '" & requestID & "' tidak ditemukan di sheet TransaksiPermintaan.", vbExclamation, "Data Tidak Ditemukan"
+        Exit Sub
+    End If
+    txtRequestID.Value = requestID
+
+    ' ====== Bersihkan Sheet & ListBox ======
+    wsDst.Cells.Clear
+    wsDst.Cells.ClearFormats
+    lb.Clear
+    lb.ColumnCount = 4
+    sep = Application.International(xlListSeparator)
+    lb.ColumnWidths = "70" & sep & "300" & sep & "60" & sep & "80"
+
+    ' ====== Info pemohon ======
+    infoVal(1).Caption = wsSrc.Cells(r.Row, 2).Text
+    infoVal(2).Caption = wsSrc.Cells(r.Row, 3).Value
+    infoVal(3).Caption = IIf(Trim(wsSrc.Cells(r.Row, 4).Value) = "", "-", wsSrc.Cells(r.Row, 4).Value)
+    infoVal(4).Caption = IIf(Trim(wsSrc.Cells(r.Row, 5).Value) = "", "-", wsSrc.Cells(r.Row, 5).Value)
+    infoVal(5).Caption = IIf(Trim(wsSrc.Cells(r.Row, 10).Value) = "", "-", wsSrc.Cells(r.Row, 10).Value)
+
+    ' ====== HEADER CETAK ======
+    With wsDst
+        .Columns("A").ColumnWidth = 6
+        .Columns("B").ColumnWidth = 14
+        .Columns("C").ColumnWidth = 40
+        .Columns("D").ColumnWidth = 10
+        .Columns("E").ColumnWidth = 12
+        .Columns("F").ColumnWidth = 4
+
+        .Range("A1:E1").Merge
+        .Range("A1").Value = "BUKTI PERMINTAAN BARANG"
+        With .Range("A1:E1")
+            .Font.Size = 16
+            .Font.Bold = True
+            .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(10, 47, 107)
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+        End With
+        .Rows(1).RowHeight = 30
+        .Range("A2:E2").Merge
+        .Range("A2").Value = "General Affairs (GA) - PT Frisian Flag Indonesia, Plant Cikarang"
+        With .Range("A2:E2")
+            .HorizontalAlignment = xlCenter
+            .Font.Italic = True
+            .Font.Color = RGB(91, 107, 133)
+            .Borders(xlEdgeBottom).Color = RGB(215, 25, 42)
+            .Borders(xlEdgeBottom).Weight = xlMedium
+        End With
+
+        .Range("A4").Value = "Request ID": .Range("C4").Value = ": " & requestID
+        .Range("A5").Value = "Tanggal":    .Range("C5").Value = ": " & wsSrc.Cells(r.Row, 2).Text
+        .Range("A6").Value = "Nama Karyawan": .Range("C6").Value = ": " & wsSrc.Cells(r.Row, 3).Value
+        .Range("A7").Value = "NIK":        .Range("C7").Value = ": " & wsSrc.Cells(r.Row, 4).Value
+        .Range("A8").Value = "Departemen": .Range("C8").Value = ": " & wsSrc.Cells(r.Row, 5).Value
+        .Range("A9").Value = "Helper / Pengambil": .Range("C9").Value = ": " & wsSrc.Cells(r.Row, 10).Value
+        .Range("A4:A9").Font.Bold = True
+        .Range("C4").Font.Bold = True
+    End With
+
+    ' ====== HEADER TABEL ======
+    With wsDst
+        .Range("A11:E11").Value = Array("No", "Kode Barang", "Nama Barang", "Jumlah", "Satuan")
+        With .Range("A11:E11")
+            .Font.Bold = True
+            .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(21, 101, 192)
+            .HorizontalAlignment = xlCenter
+        End With
+    End With
+
+    ' ====== ISI DATA ======
+    rowCetak = 12
+    n = 1
+    For i = r.Row To wsSrc.Cells(wsSrc.Rows.Count, "A").End(xlUp).Row
+        If wsSrc.Cells(i, 1).Value = requestID Then
+            lb.AddItem
+            lb.List(lb.ListCount - 1, 0) = wsSrc.Cells(i, 6).Value
+            lb.List(lb.ListCount - 1, 1) = wsSrc.Cells(i, 7).Value
+            lb.List(lb.ListCount - 1, 2) = wsSrc.Cells(i, 8).Value
+            lb.List(lb.ListCount - 1, 3) = wsSrc.Cells(i, 9).Value
+
+            wsDst.Cells(rowCetak, 1).Value = n
+            wsDst.Cells(rowCetak, 2).Value = wsSrc.Cells(i, 6).Value
+            wsDst.Cells(rowCetak, 3).Value = wsSrc.Cells(i, 7).Value
+            wsDst.Cells(rowCetak, 4).Value = wsSrc.Cells(i, 8).Value
+            wsDst.Cells(rowCetak, 5).Value = wsSrc.Cells(i, 9).Value
+            If rowCetak Mod 2 = 1 Then wsDst.Range("A" & rowCetak & ":E" & rowCetak).Interior.Color = RGB(244, 247, 251)
+            totalQty = totalQty + Val(wsSrc.Cells(i, 8).Value)
+            n = n + 1
+            rowCetak = rowCetak + 1
+        End If
+    Next i
+
+    ' total
+    With wsDst
+        .Range("A" & rowCetak & ":C" & rowCetak).Merge
+        .Range("A" & rowCetak).Value = "TOTAL (" & (n - 1) & " jenis barang)"
+        .Range("A" & rowCetak).HorizontalAlignment = xlRight
+        .Range("D" & rowCetak).Value = totalQty
+        .Range("A" & rowCetak & ":E" & rowCetak).Font.Bold = True
+        .Range("A" & rowCetak & ":E" & rowCetak).Interior.Color = RGB(227, 238, 251)
+        With .Range("A11:E" & rowCetak)
+            .Borders.LineStyle = xlContinuous
+            .Borders.Color = RGB(194, 207, 226)
+            .VerticalAlignment = xlCenter
+        End With
+        .Range("A12:A" & rowCetak).HorizontalAlignment = xlCenter
+        .Range("D12:D" & rowCetak).HorizontalAlignment = xlCenter
+    End With
+
+    ' ====== TANDA TANGAN ======
+    Dim startTT As Long
+    startTT = rowCetak + 3
+    With wsDst
+        .Range("A" & startTT & ":B" & startTT).Merge
+        .Range("A" & startTT).Value = "Diajukan oleh,"
+        .Range("C" & startTT).Value = "Diambil oleh (Helper),"
+        .Range("D" & startTT & ":E" & startTT).Merge
+        .Range("D" & startTT).Value = "Disetujui GA,"
+        .Range("A" & startTT & ":E" & startTT).Font.Bold = True
+        .Range("A" & startTT & ":E" & startTT + 5).HorizontalAlignment = xlCenter
+
+        .Range("A" & startTT + 5 & ":B" & startTT + 5).Merge
+        .Range("A" & startTT + 5).Value = "( " & wsSrc.Cells(r.Row, 3).Value & " )"
+        .Range("C" & startTT + 5).Value = "( " & IIf(Trim(wsSrc.Cells(r.Row, 10).Value) = "", "____________________", wsSrc.Cells(r.Row, 10).Value) & " )"
+        .Range("D" & startTT + 5 & ":E" & startTT + 5).Merge
+        .Range("D" & startTT + 5).Value = "(____________________)"
+
+        .Range("A" & startTT + 8 & ":E" & startTT + 8).Merge
+        .Range("A" & startTT + 8).Value = "Dicetak " & Format(Now, "dd/mm/yyyy hh:nn") & " - Inventory ATK Frisian Flag Cikarang"
+        .Range("A" & startTT + 8).Font.Size = 8
+        .Range("A" & startTT + 8).Font.Color = RGB(122, 136, 160)
+        .Range("A" & startTT + 8).HorizontalAlignment = xlCenter
+    End With
+    wsDst.Cells.Font.Name = "Segoe UI"
+    wsDst.Range("A1").Font.Size = 16
+
+    ' ====== PENGATURAN HALAMAN ======
+    With wsDst.PageSetup
+        .PrintArea = "A1:E" & startTT + 8
+        .Orientation = xlPortrait
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = False
+        .CenterHorizontally = True
+        .TopMargin = Application.InchesToPoints(0.5)
+        .BottomMargin = Application.InchesToPoints(0.5)
+        .LeftMargin = Application.InchesToPoints(0.7)
+        .RightMargin = Application.InchesToPoints(0.7)
+    End With
+
+    sudahDimuat = True
+    lblTotal.Caption = (n - 1) & " jenis barang  " & ChrW(183) & "  " & totalQty & " unit"
+    Status "Siap dicetak " & ChrW(8212) & " klik CETAK untuk pratinjau.", C_GREEN
+End Sub
+
+Private Sub cmdCetak_Click()
+    If Not sudahDimuat Or lstDetail.ListCount = 0 Then
+        MsgBox "Cari Request ID dulu sebelum mencetak.", vbExclamation, "Belum Ada Data"
+        Exit Sub
+    End If
+    Me.Hide
+    ThisWorkbook.Sheets("CetakLaporan").PrintPreview
+    Me.Show
+End Sub
+
+Private Sub cmdTutup_Click()
+    Unload Me
+End Sub
+
+Private Sub Status(ByVal t As String, ByVal warna As Long)
+    If lblStatus Is Nothing Then Exit Sub
+    lblStatus.Caption = t
+    lblStatus.ForeColor = warna
+End Sub
+
+
+' ============================================================
+' TAMPILAN
+' ============================================================
+Private Sub TerapkanTampilan()
+    Dim c As Object, lb As Object, i As Long
+
+    Me.Caption = "Cetak Bukti Transaksi"
+    Me.BackColor = C_BG
+    On Error Resume Next
+    Set Me.Picture = LoadPicture("")
+    On Error GoTo 0
+    Me.Width = 612
+    Me.Height = 500
+
+    For Each c In Me.Controls
+        Select Case TypeName(c)
+            Case "Image": c.Visible = False
+            Case "Label"
+                If InStr(UCase(c.Caption), "CETAK BUKTI") > 0 Then c.Visible = False
+        End Select
+    Next c
+
+    ' header
+    Set lb = BuatLabel("hdr", 0, 0, 612, 58, "", C_NAVY)
+    Set lb = BuatLabel("hdrAccent", 0, 58, 612, 3, "", C_RED)
+    Set lb = BuatLabel("hdrTitle", 20, 10, 560, 24, "Cetak Bukti Transaksi", -1)
+    Gaya lb, 15, True, &HFFFFFF
+    Set lb = BuatLabel("hdrSub", 20, 34, 560, 16, "Cari nomor permintaan, periksa isinya, lalu cetak", -1)
+    Gaya lb, 9, False, &HF6DECD
+
+    ' kartu cari
+    Kartu "cardCari", 14, 74, 584, 72
+    Field "REQUEST ID", "Request ID  (boleh ketik beberapa digit terakhir)", txtRequestID, 30, 86, 420, False
+    cmdCari.Caption = "Cari"
+    cmdCari.Move 460, 101, 122, 22
+    TombolGaya cmdCari, C_BLUE, &HFFFFFF, True
+    Set lblStatus = BuatLabel("status", 30, 126, 552, 14, "", -1)
+    Gaya lblStatus, 8.5, True, C_MUTED
+
+    ' kartu detail
+    Kartu "cardDetail", 14, 156, 584, 252
+    Dim caps
+    caps = Array("Tanggal", "Nama karyawan", "NIK", "Departemen", "Helper / pengambil")
+    Dim xs, ys, wd
+    xs = Array(30, 160, 380, 30, 300)
+    ys = Array(166, 166, 166, 200, 200)
+    wd = Array(120, 210, 200, 260, 280)
+    For i = 0 To 4
+        Set lb = BuatLabel("infCap" & i, CSng(xs(i)), CSng(ys(i)), CSng(wd(i)), 14, CStr(caps(i)), -1)
+        Gaya lb, 8.5, True, C_MUTED
+        Set infoVal(i + 1) = BuatLabel("infVal" & i, CSng(xs(i)), CSng(ys(i)) + 14, CSng(wd(i)), 18, "-", -1)
+        Gaya infoVal(i + 1), 10.5, True, C_TEXT
+    Next i
+
+    Set lb = BuatLabel("lhKode", 34, 240, 70, 13, "KODE", -1): Gaya lb, 8, True, C_MUTED
+    Set lb = BuatLabel("lhNama", 105, 240, 280, 13, "NAMA BARANG", -1): Gaya lb, 8, True, C_MUTED
+    Set lb = BuatLabel("lhJml", 408, 240, 60, 13, "JUMLAH", -1): Gaya lb, 8, True, C_MUTED
+    Set lb = BuatLabel("lhSat", 470, 240, 80, 13, "SATUAN", -1): Gaya lb, 8, True, C_MUTED
+    With lstDetail
+        .Move 30, 254, 552, 126
+        .Font.Name = "Segoe UI": .Font.Size = 10
+        .BackColor = C_CARD: .ForeColor = C_TEXT
+        .SpecialEffect = 0
+        .BorderStyle = 1
+        .BorderColor = C_LINE
+    End With
+    Set lblTotal = BuatLabel("total", 30, 386, 552, 15, "", -1)
+    Gaya lblTotal, 9, True, C_TEXT
+
+    ' tombol
+    cmdTutup.Caption = "Tutup"
+    cmdTutup.Move 14, 422, 100, 32
+    TombolGaya cmdTutup, C_CARD, C_TEXT, False
+    cmdCetak.Caption = "CETAK  /  PRATINJAU"
+    cmdCetak.Move 408, 422, 190, 32
+    TombolGaya cmdCetak, C_BLUE, &HFFFFFF, True
+
+    txtRequestID.TabIndex = 0
+    cmdCari.TabIndex = 1
+    cmdCetak.TabIndex = 2
+End Sub
+
+Private Sub Field(ByVal capLama As String, ByVal capBaru As String, ctl As Object, _
+                  ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal bacaSaja As Boolean)
+    Dim c As Object, ketemu As Boolean
+    For Each c In Me.Controls
+        If TypeName(c) = "Label" Then
+            If UCase(Trim(c.Caption)) = capLama Then
+                c.AutoSize = False
+                c.WordWrap = False
+                c.BackStyle = 0
+                c.BorderStyle = 0
+                c.SpecialEffect = 0
+                c.Font.Name = "Segoe UI": c.Font.Size = 8.5: c.Font.Bold = True
+                c.ForeColor = C_MUTED
+                c.Caption = capBaru
+                c.Move x, y - 1, w, 15
+                ketemu = True
+                Exit For
+            End If
+        End If
+    Next c
+    If Not ketemu Then
+        Dim lb As Object
+        Set lb = BuatLabel("lbl_" & Replace(capLama, " ", "_"), x, y - 1, w, 15, capBaru, -1)
+        Gaya lb, 8.5, True, C_MUTED
+    End If
+    ctl.Move x, y + 15, w, 22
+    ctl.Font.Name = "Segoe UI"
+    ctl.Font.Size = 10
+    ctl.ForeColor = C_TEXT
+    ctl.BackColor = IIf(bacaSaja, C_READ, C_CARD)
+    ctl.SpecialEffect = 0
+    ctl.BorderStyle = 1
+    ctl.BorderColor = C_LINE
+    If bacaSaja Then ctl.Locked = True
+End Sub
+
+Private Function BuatLabel(ByVal nm As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single, _
+                           ByVal t As String, ByVal warnaLatar As Long) As Object
+    Dim lb As Object
+    Set lb = Me.Controls.Add("Forms.Label.1", "zz_" & nm, True)
+    lb.AutoSize = False
+    lb.WordWrap = False
+    lb.Move x, y, w, h
+    lb.Caption = t
+    lb.Font.Name = "Segoe UI"
+    If warnaLatar = -1 Then
+        lb.BackStyle = 0
+    Else
+        lb.BackStyle = 1
+        lb.BackColor = warnaLatar
+        lb.ZOrder 1
+    End If
+    Set BuatLabel = lb
+End Function
+
+Private Sub Kartu(ByVal nm As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single)
+    Dim lb As Object
+    Set lb = BuatLabel(nm, x, y, w, h, "", C_CARD)
+    lb.BorderStyle = 1
+    lb.BorderColor = C_LINE
+    lb.ZOrder 1
+End Sub
+
+Private Sub Gaya(lb As Object, ByVal size As Single, ByVal tebal As Boolean, ByVal warna As Long)
+    lb.Font.Name = "Segoe UI"
+    lb.Font.Size = size
+    lb.Font.Bold = tebal
+    lb.ForeColor = warna
+End Sub
+
+Private Sub TombolGaya(b As Object, ByVal latar As Long, ByVal teks As Long, ByVal tebal As Boolean)
+    b.BackColor = latar
+    b.ForeColor = teks
+    b.Font.Name = "Segoe UI"
+    b.Font.Size = 10
+    b.Font.Bold = tebal
+    b.TakeFocusOnClick = False
+End Sub
