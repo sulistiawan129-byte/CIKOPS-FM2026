@@ -1,559 +1,498 @@
 "use client";
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import type { CSSProperties } from "react";
+
+/* ════════════════════════════════════════════════════════════
+   /gate — Pos Security Plant Cikarang
+   • Kendaraan CIK : KELUAR plant  → KEMBALI
+   • Kendaraan PRB : MASUK CIK     → KELUAR CIK
+   Data & aksi memakai RPC publik yang sama seperti sebelumnya.
+════════════════════════════════════════════════════════════ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  getActiveVehiclesForGate,
-  getActiveDriversForGate,
-  getGateLogsPublic,
-  openGateCheckpoint,
-  closeGateCheckpoint,
+  closeGateCheckpoint, getActiveDriversForGate, getActiveVehiclesForGate, getGateLogsPublic, openGateCheckpoint,
 } from "@/lib/api";
-import type { GateVehicleOption, GateDriverOption, VehicleGateLog } from "@/lib/types";
+import type { GateDriverOption, GateVehicleOption, Plant, VehicleGateLog } from "@/lib/types";
+import s from "./gate.module.css";
 
 type Mode = "light" | "dark";
-const PAGE_SIZE = 6;
+type Tab = "active" | "done" | "all";
+type PlantF = "all" | Plant;
 
-const PLANT_THEME = {
-  CIK: { main: "#2d5bff", soft: "#e8edff", softDark: "rgba(61,123,255,0.15)", text: "#2d5bff", textDark: "#8ab4ff" },
-  PRB: { main: "#ec9a17", soft: "#fdf1d6", softDark: "rgba(255,179,64,0.15)", text: "#a35f00", textDark: "#ffc873" },
-} as const;
+const DEFAULT_TUJUAN = ["Plant Pasar Rebo", "Bank", "Customer", "Bengkel / Servis", "Kantor Pusat"];
+const PAGE = 12;
 
-interface Palette {
-  bg: string; headerBg: string; headerBorder: string;
-  textPrimary: string; textSecondary: string; textMuted: string;
-  cardBg: string; cardBorder: string; inputBg: string; inputBorder: string; inputText: string;
-  tableHeadBg: string; tableRowBorder: string; tableRowHover: string;
-  pillBg: string; pillBgActive: string;
+/* ── util waktu (zona lokal, bukan UTC) ── */
+const pad = (n: number) => String(n).padStart(2, "0");
+const localISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const hhmm = (iso: string | null) => (iso ? (() => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; })() : "–");
+const fmtDur = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}j ${pad(min % 60)}m` : `${min}m`);
+const minsBetween = (a: string | null, b: string | number | null) => (a && b ? Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000)) : null);
+
+/** kejadian pertama & kedua sesuai plant */
+function ev(l: VehicleGateLog) {
+  return l.plant === "CIK"
+    ? { first: l.timeOut, second: l.timeIn, firstLbl: "Keluar", secondLbl: "Kembali", act: "Catat Kembali", running: "Di luar", doneLbl: "Sudah kembali" }
+    : { first: l.timeIn, second: l.timeOut, firstLbl: "Masuk CIK", secondLbl: "Keluar CIK", act: "Catat Keluar CIK", running: "Di dalam", doneLbl: "Sudah keluar" };
 }
-const PALETTE: Record<Mode, Palette> = {
-  light: {
-    bg: "#eef3fc",
-    headerBg: "#ffffff",
-    headerBorder: "#e1e8f5",
-    textPrimary: "#0d1a36",
-    textSecondary: "#44537a",
-    textMuted: "#7886a8",
-    cardBg: "#ffffff",
-    cardBorder: "#e1e8f5",
-    inputBg: "#f6f9ff",
-    inputBorder: "#cfd9ee",
-    inputText: "#0d1a36",
-    tableHeadBg: "#f6f9ff",
-    tableRowBorder: "#eef1f7",
-    tableRowHover: "#f6f9ff",
-    pillBg: "#f1f5f9",
-    pillBgActive: "#0d1a36",
-  },
-  dark: {
-    bg: "#070d1d",
-    headerBg: "#0f1932",
-    headerBorder: "rgba(255,255,255,0.08)",
-    textPrimary: "#eef3ff",
-    textSecondary: "rgba(226,234,248,0.6)",
-    textMuted: "rgba(226,234,248,0.4)",
-    cardBg: "#0f1932",
-    cardBorder: "rgba(255,255,255,0.08)",
-    inputBg: "rgba(255,255,255,0.04)",
-    inputBorder: "rgba(255,255,255,0.12)",
-    inputText: "#eef3ff",
-    tableHeadBg: "rgba(255,255,255,0.03)",
-    tableRowBorder: "rgba(255,255,255,0.06)",
-    tableRowHover: "rgba(255,255,255,0.03)",
-    pillBg: "rgba(255,255,255,0.06)",
-    pillBgActive: "#2d5bff",
-  },
+const pVar = (p: Plant) => ({ ["--p" as string]: p === "PRB" ? "var(--g-prb)" : "var(--g-cik)" });
+
+/* ── ikon ── */
+const I = {
+  sun: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>,
+  moon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" /></svg>,
+  car: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5z" /><path d="M3 12h18" /><circle cx="7.5" cy="17" r="1.8" /><circle cx="16.5" cy="17" r="1.8" /></svg>,
+  out: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h5v16h-5" /><path d="M3 12h11m-4-4 4 4-4 4" /></svg>,
+  in: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4H5v16h5" /><path d="M21 12H10m4-4-4 4 4 4" /></svg>,
+  search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>,
+  pin: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>,
+  clock: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>,
+  check: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5 9-10" /></svg>,
+  empty: <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5z" /><circle cx="7.5" cy="17" r="1.8" /><circle cx="16.5" cy="17" r="1.8" /></svg>,
 };
-
-function controlLabel(plant: "CIK" | "PRB"): string {
-  return plant === "CIK" ? "Check-Out" : "Check-Out";
-}
-function fmtJam(iso: string | null): string {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
-}
-function fmtTgl(iso: string | null): string {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-function fmtTanggalHeader(dateStr: string): { tgl: string; hari: string } {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return {
-    tgl: dt.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }),
-    hari: dt.toLocaleDateString("id-ID", { weekday: "long" }),
-  };
-}
-function driverCode(name: string, idx: number): string {
-  const letters = name.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 3).padEnd(3, "X");
-  return `${letters}-${String(idx + 1).padStart(3, "0")}`;
-}
-function firstEventTime(l: VehicleGateLog): string | null {
-  return l.plant === "CIK" ? l.timeOut : l.timeIn;
-}
-function secondEventTime(l: VehicleGateLog): string | null {
-  return l.plant === "CIK" ? l.timeIn : l.timeOut;
-}
 
 export default function GatePage() {
   const [mode, setMode] = useState<Mode>("light");
-  const [officerName, setOfficerName] = useState("");
+  const [officer, setOfficer] = useState("");
+  const [now, setNow] = useState<Date | null>(null);
+  const today = now ? localISO(now) : "";
 
   const [vehicles, setVehicles] = useState<GateVehicleOption[]>([]);
   const [drivers, setDrivers] = useState<GateDriverOption[]>([]);
   const [logs, setLogs] = useState<VehicleGateLog[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [clock, setClock] = useState("");
 
-  const [tanggal, setTanggal] = useState(todayStr());
+  const [tanggal, setTanggal] = useState("");
   const [vehicleId, setVehicleId] = useState("");
-  const [vehicleSearch, setVehicleSearch] = useState("");
-  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const [plateQ, setPlateQ] = useState("");
   const [driverId, setDriverId] = useState("");
-  const [useManualDriver, setUseManualDriver] = useState(false);
+  const [manual, setManual] = useState(false);
   const [driverManual, setDriverManual] = useState("");
   const [tujuan, setTujuan] = useState("");
-  const [keterangan, setKeterangan] = useState("");
+  const [ket, setKet] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [busyLogId, setBusyLogId] = useState<string | null>(null);
-  const vehicleInputRef = useRef<HTMLDivElement>(null);
+  const [autoDriver, setAutoDriver] = useState("");
 
-  const [tab, setTab] = useState<"active" | "done">("active");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [tab, setTab] = useState<Tab>("active");
+  const [plantF, setPlantF] = useState<PlantF>("all");
+  const [q, setQ] = useState("");
+  const [shown, setShown] = useState(PAGE);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ plate: string; text: string } | null>(null);
+  const plateRef = useRef<HTMLInputElement>(null);
 
+  /* jam & tanggal awal (lokal) */
   useEffect(() => {
+    const d = new Date();
+    setNow(d);
+    setTanggal(localISO(d));
+    const t = setInterval(() => setNow(new Date()), 1000);
     try {
-      const savedMode = window.localStorage.getItem("gate-theme");
-      if (savedMode === "light" || savedMode === "dark") setMode(savedMode);
-      const savedOfficer = window.localStorage.getItem("gate-officer-name");
-      if (savedOfficer) setOfficerName(savedOfficer);
-    } catch {}
+      const m = localStorage.getItem("gate-theme");
+      if (m === "light" || m === "dark") setMode(m);
+      setOfficer(localStorage.getItem("gate-officer-name") ?? "");
+    } catch { /* abaikan */ }
+    return () => clearInterval(t);
   }, []);
 
-  function toggleMode() {
-    const next = mode === "light" ? "dark" : "light";
-    setMode(next);
-    try { window.localStorage.setItem("gate-theme", next); } catch {}
-  }
-  function changeOfficerName() {
-    const name = window.prompt("Nama petugas gate:", officerName || "");
-    if (name !== null) {
-      setOfficerName(name.trim());
-      try { window.localStorage.setItem("gate-officer-name", name.trim()); } catch {}
-    }
-  }
-
-  const P = PALETTE[mode];
-
-  const inputStyle: CSSProperties = {
-    width: "100%",
-    padding: "15px 16px",
-    borderRadius: 12,
-    border: `1.5px solid ${P.inputBorder}`,
-    background: P.inputBg,
-    fontSize: 15.5,
-    color: P.inputText,
-    fontFamily: "inherit",
-    outline: "none",
-    fontWeight: 500,
-  };
-  const labelStyle: CSSProperties = { fontSize: 12, fontWeight: 800, color: P.textMuted, marginBottom: 8, display: "block", letterSpacing: "0.06em" };
-
-  const loadLogs = useCallback(async () => {
-    setLoadingLogs(true);
-    try {
-      setLogs(await getGateLogsPublic(tanggal));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat daftar");
-    } finally {
-      setLoadingLogs(false);
-    }
+  const loadLogs = useCallback(async (silent = false) => {
+    if (!tanggal) return;
+    if (!silent) setLoading(true);
+    try { setLogs(await getGateLogsPublic(tanggal)); setError(""); }
+    catch (e) { setError(e instanceof Error ? e.message : "Gagal memuat aktivitas gate"); }
+    finally { setLoading(false); }
   }, [tanggal]);
 
   useEffect(() => {
-    getActiveVehiclesForGate().then(setVehicles).catch(() => {});
+    getActiveVehiclesForGate().then(setVehicles).catch(() => setError("Gagal memuat daftar kendaraan"));
     getActiveDriversForGate().then(setDrivers).catch(() => {});
   }, []);
-
   useEffect(() => {
     loadLogs();
-    const poll = setInterval(loadLogs, 15000);
-    const clockTimer = setInterval(() => setClock(new Date().toLocaleTimeString("id-ID")), 1000);
-    return () => { clearInterval(poll); clearInterval(clockTimer); };
+    const t = setInterval(() => loadLogs(true), 15000);
+    return () => clearInterval(t);
   }, [loadLogs]);
+  useEffect(() => { setShown(PAGE); }, [tab, plantF, q, tanggal]);
+  useEffect(() => { if (!confirmId) return; const t = setTimeout(() => setConfirmId(null), 3500); return () => clearTimeout(t); }, [confirmId]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3800); return () => clearTimeout(t); }, [toast]);
 
-  useEffect(() => { setPage(1); }, [tab, search, tanggal]);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (vehicleInputRef.current && !vehicleInputRef.current.contains(e.target as Node)) setShowVehicleDropdown(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
-
-  const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
-  const filteredVehicles = vehicles.filter((v) => v.nopol.toLowerCase().includes(vehicleSearch.toLowerCase()));
-  const driverOk = useManualDriver ? driverManual.trim() !== "" : driverId !== "";
-  const canSubmit = vehicleId !== "" && driverOk && !submitting;
-  const activePlant = selectedVehicle ? PLANT_THEME[selectedVehicle.plant] : PLANT_THEME.CIK;
-
-  function pickVehicle(v: GateVehicleOption) {
-    setVehicleId(v.id);
-    setVehicleSearch(`${v.nopol} — ${v.jenis}`);
-    setShowVehicleDropdown(false);
+  function toggleMode() {
+    const m = mode === "light" ? "dark" : "light";
+    setMode(m);
+    try { localStorage.setItem("gate-theme", m); } catch { /* abaikan */ }
+  }
+  function editOfficer() {
+    const n = window.prompt("Nama petugas gate yang sedang bertugas:", officer);
+    if (n === null) return;
+    setOfficer(n.trim());
+    try { localStorage.setItem("gate-officer-name", n.trim()); } catch { /* abaikan */ }
   }
 
-  async function handleSubmit() {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setError("");
-    try {
-      const now = new Date();
-      const [y, m, d] = tanggal.split("-").map(Number);
-      const ts = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
-      await openGateCheckpoint({
-        vehicleId,
-        driverId: useManualDriver ? null : driverId,
-        driverNameManual: useManualDriver ? driverManual.trim() : null,
-        tujuan: tujuan.trim(),
-        keterangan: keterangan.trim(),
-        timestamp: ts,
-      });
-      setVehicleId(""); setVehicleSearch(""); setDriverId(""); setUseManualDriver(false); setDriverManual(""); setTujuan(""); setKeterangan("");
-      await loadLogs();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal mencatat data");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleControl(log: VehicleGateLog) {
-    setBusyLogId(log.id);
-    setError("");
-    try {
-      await closeGateCheckpoint(log.vehicleId);
-      await loadLogs();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal mencatat data");
-    } finally {
-      setBusyLogId(null);
-    }
-  }
-
-  const driverCodeMap = useMemo(() => {
-    const map = new Map<string, string>();
-    let i = 0;
-    for (const l of logs) {
-      if (!map.has(l.driverName)) { map.set(l.driverName, driverCode(l.driverName, i)); i++; }
-    }
-    return map;
+  /* ── turunan data ── */
+  const active = useMemo(() => logs.filter((l) => l.status !== "DONE"), [logs]);
+  const done = useMemo(() => logs.filter((l) => l.status === "DONE"), [logs]);
+  const busyVehicle = useMemo(() => new Map(active.map((l) => [l.vehicleId, l])), [active]);
+  const selected = vehicles.find((v) => v.id === vehicleId) ?? null;
+  const vList = useMemo(() => {
+    const t = plateQ.replace(/\s+/g, "").toLowerCase();
+    return vehicles
+      .filter((v) => !t || v.nopol.replace(/\s+/g, "").toLowerCase().includes(t) || v.jenis.toLowerCase().includes(t))
+      .sort((a, b) => Number(busyVehicle.has(a.id)) - Number(busyVehicle.has(b.id)) || a.plant.localeCompare(b.plant) || a.nopol.localeCompare(b.nopol));
+  }, [vehicles, plateQ, busyVehicle]);
+  const tujuanChips = useMemo(() => {
+    const m = new Map<string, number>();
+    logs.forEach((l) => { const k = l.tujuan.trim(); if (k) m.set(k, (m.get(k) ?? 0) + 1); });
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+    return [...new Set([...top, ...DEFAULT_TUJUAN])].slice(0, 6);
   }, [logs]);
+  const avgDur = useMemo(() => {
+    const ds = done.map((l) => { const e = ev(l); return minsBetween(e.first, e.second); }).filter((x): x is number => x !== null);
+    return ds.length ? Math.round(ds.reduce((a, b) => a + b, 0) / ds.length) : null;
+  }, [done]);
+  const hourly = useMemo(() => {
+    const H = Array.from({ length: 19 }, (_, i) => ({ h: i + 5, out: 0, in: 0 }));
+    const add = (iso: string | null, k: "out" | "in") => {
+      if (!iso) return;
+      const d = new Date(iso);
+      if (localISO(d) !== tanggal) return;
+      const slot = H.find((x) => x.h === d.getHours()) ?? (d.getHours() < 5 ? H[0] : H[H.length - 1]);
+      slot[k]++;
+    };
+    logs.forEach((l) => { add(l.timeOut, "out"); add(l.timeIn, "in"); });
+    return H;
+  }, [logs, tanggal]);
+  const maxH = Math.max(1, ...hourly.map((x) => x.out + x.in));
 
-  const activeLogs = logs.filter((l) => l.status !== "DONE");
-  const doneLogs = logs.filter((l) => l.status === "DONE");
-  const currentList = tab === "active" ? activeLogs : doneLogs;
-  const searchedList = currentList.filter((l) => {
-    const q = search.toLowerCase();
-    if (!q) return true;
-    return l.driverName.toLowerCase().includes(q) || l.nopol.toLowerCase().includes(q) || l.tujuan.toLowerCase().includes(q) || (l.keterangan ?? "").toLowerCase().includes(q);
-  });
-  const totalPages = Math.max(1, Math.ceil(searchedList.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, totalPages);
-  const pageList = searchedList.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const list = useMemo(() => {
+    const base = tab === "active" ? active : tab === "done" ? done : logs;
+    const t = q.trim().toLowerCase();
+    return base
+      .filter((l) => plantF === "all" || l.plant === plantF)
+      .filter((l) => !t || [l.nopol, l.driverName, l.tujuan, l.keterangan ?? "", l.jenis].join(" ").toLowerCase().includes(t))
+      .sort((a, b) => {
+        if (tab === "active") return (ev(a).first ?? "").localeCompare(ev(b).first ?? "");
+        return (ev(b).second ?? ev(b).first ?? b.createdAt).localeCompare(ev(a).second ?? ev(a).first ?? a.createdAt);
+      });
+  }, [tab, active, done, logs, plantF, q]);
+
+  /* ── form ── */
+  function pick(v: GateVehicleOption) {
+    if (busyVehicle.has(v.id)) return;
+    setVehicleId(v.id);
+    setPlateQ(v.nopol);
+    // driver otomatis: driver terakhir yang membawa kendaraan ini hari ini
+    const last = [...logs].filter((l) => l.vehicleId === v.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    if (last) {
+      const d = drivers.find((x) => x.nama.trim().toLowerCase() === last.driverName.trim().toLowerCase());
+      if (d) { setManual(false); setDriverId(d.id); setAutoDriver(d.nama); }
+      else { setManual(true); setDriverManual(last.driverName); setAutoDriver(last.driverName); }
+    } else setAutoDriver("");
+  }
+  function clearVehicle() { setVehicleId(""); setPlateQ(""); setAutoDriver(""); plateRef.current?.focus(); }
+  const driverOk = manual ? driverManual.trim() !== "" : driverId !== "";
+  const canSubmit = !!selected && driverOk && !submitting && !!tanggal;
+
+  async function submit() {
+    if (!canSubmit || !selected) return;
+    setSubmitting(true); setError("");
+    try {
+      const n = new Date();
+      const [y, m, d] = tanggal.split("-").map(Number);
+      const ts = new Date(y, m - 1, d, n.getHours(), n.getMinutes(), n.getSeconds()).toISOString();
+      await openGateCheckpoint({
+        vehicleId: selected.id, driverId: manual ? null : driverId, driverNameManual: manual ? driverManual.trim() : null,
+        tujuan: tujuan.trim(), keterangan: ket.trim(), timestamp: ts,
+      });
+      setToast({ plate: selected.nopol, text: `${selected.plant === "PRB" ? "tercatat MASUK CIK" : "tercatat KELUAR"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
+      const vid = selected.id;
+      setVehicleId(""); setPlateQ(""); setDriverId(""); setManual(false); setDriverManual(""); setTujuan(""); setKet(""); setAutoDriver("");
+      setTab("active");
+      const fresh = await getGateLogsPublic(tanggal);
+      setLogs(fresh);
+      const nl = fresh.filter((l) => l.vehicleId === vid && l.status !== "DONE")[0];
+      if (nl) { setFlashId(nl.id); setTimeout(() => setFlashId(null), 1800); }
+      plateRef.current?.focus();
+    } catch (e) { setError(e instanceof Error ? e.message : "Gagal mencatat kendaraan"); }
+    finally { setSubmitting(false); }
+  }
+
+  async function closeTrip(l: VehicleGateLog) {
+    if (confirmId !== l.id) { setConfirmId(l.id); return; }
+    setConfirmId(null); setBusyId(l.id); setError("");
+    try {
+      await closeGateCheckpoint(l.vehicleId);
+      const n = new Date();
+      setToast({ plate: l.nopol, text: `${l.plant === "PRB" ? "tercatat KELUAR CIK" : "tercatat KEMBALI"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
+      await loadLogs(true);
+    } catch (e) { setError(e instanceof Error ? e.message : "Gagal mencatat data"); }
+    finally { setBusyId(null); }
+  }
+
+  const tglObj = tanggal ? new Date(tanggal + "T00:00:00") : null;
+  const isToday = tanggal === today;
+  const kpiSet = (t: Tab, p: PlantF) => { setTab(t); setPlantF(p); };
+  const cikOut = active.filter((l) => l.plant === "CIK").length;
+  const prbIn = active.filter((l) => l.plant === "PRB").length;
+  const nowMs = now?.getTime() ?? 0;
 
   return (
-    <div style={{ minHeight: "100vh", background: P.bg, fontFamily: "-apple-system,'Segoe UI',sans-serif", transition: "background 0.25s ease", display: "flex", flexDirection: "column" }}>
-      <div style={{ height: 10, background: "linear-gradient(90deg, #1d44d6, #2d5bff, #5b8cff, #2d5bff, #1d44d6)", flexShrink: 0 }} />
-      {/* Header */}
-      <div style={{ background: P.headerBg, borderBottom: `1px solid ${P.headerBorder}`, padding: "16px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#0d1a36", border: "2px solid #2d5bff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-            <img src="/logo.png" alt="CIKOPS" style={{ width: "78%", height: "78%", objectFit: "contain" }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 19, fontWeight: 800, color: P.textPrimary, letterSpacing: "-0.01em" }}>Security Gate Control</div>
-            <div style={{ fontSize: 11.5, color: P.textMuted, fontWeight: 700, letterSpacing: "0.04em" }}>CIKOPS FLEET — VEHICLE ACCESS LOG</div>
-          </div>
+    <div className={`${s.root} ${mode === "dark" ? s.dark : ""}`}>
+      {/* ── HEADER ── */}
+      <header className={s.head}>
+        <div className={s.brand}>
+          <img src="/logo.png" alt="CIKOPS FM" />
+          <div><b>Gate Control</b><small>Pos Security · Plant Cikarang</small></div>
         </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <StatPill icon="●" iconColor={PLANT_THEME.CIK.main} iconBg={mode === "light" ? PLANT_THEME.CIK.soft : PLANT_THEME.CIK.softDark} label="CIK KELUAR" value={activeLogs.filter((l) => l.plant === "CIK").length} P={P} />
-          <StatPill icon="●" iconColor={PLANT_THEME.PRB.main} iconBg={mode === "light" ? PLANT_THEME.PRB.soft : PLANT_THEME.PRB.softDark} label="PRB CHECK-IN" value={activeLogs.filter((l) => l.plant === "PRB").length} P={P} />
-
-          <div style={{ width: 1, height: 30, background: P.headerBorder }} />
-
-          <div style={{ textAlign: "center", fontFamily: "var(--font-mono, monospace)", padding: "4px 12px" }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: P.textPrimary }}>{clock || "--:--:--"}</div>
-            <div style={{ fontSize: 10, color: P.textMuted, fontWeight: 700, letterSpacing: "0.04em" }}>WAKTU SERVER</div>
+        <span className={s.grow} />
+        <div className={s.clock} aria-live="off"><b>{now ? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : "--:--:--"}</b><span>WIB</span></div>
+        {now && (
+          <div className={s.dateChip}>
+            <b>{now.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</b>
+            <small>{now.toLocaleDateString("id-ID", { weekday: "long" })}</small>
           </div>
+        )}
+        <button type="button" className={s.iconBtn} onClick={toggleMode} aria-label={mode === "light" ? "Mode gelap" : "Mode terang"} title={mode === "light" ? "Mode gelap" : "Mode terang"}>{mode === "light" ? I.moon : I.sun}</button>
+        <button type="button" className={s.officer} onClick={editOfficer} title="Ganti nama petugas">
+          <i>{officer ? officer.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() : "SC"}</i>
+          <span><small>Petugas</small><b>{officer || "Atur nama"}</b></span>
+        </button>
+      </header>
 
-          <div style={{ width: 1, height: 30, background: P.headerBorder }} />
-
-          <div style={{ padding: "8px 14px", borderRadius: 12, background: P.pillBg, textAlign: "center" }}>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: P.textPrimary }}>{fmtTanggalHeader(tanggal).tgl}</div>
-            <div style={{ fontSize: 10, color: P.textMuted, fontWeight: 700 }}>{fmtTanggalHeader(tanggal).hari}</div>
+      <main className={s.main}>
+        {tanggal && !isToday && (
+          <div className={s.banner}>
+            Melihat & mencatat untuk tanggal {tglObj?.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            <button type="button" onClick={() => setTanggal(today)}>Kembali ke hari ini</button>
           </div>
+        )}
+        {error && <div className={s.err} role="alert">⚠ {error}</div>}
 
-          <button
-            onClick={toggleMode}
-            title={mode === "light" ? "Mode gelap" : "Mode terang"}
-            style={{ width: 40, height: 40, borderRadius: 12, border: `1.5px solid ${P.cardBorder}`, background: P.cardBg, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", color: P.textPrimary }}
-          >
-            {mode === "light" ? "\u25D1" : "\u2600"}
+        {/* ── KPI ── */}
+        <section className={s.kpis}>
+          <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "CIK" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-cik)" }} onClick={() => kpiSet("active", "CIK")}>
+            <small>{cikOut > 0 && <span className={s.pulse} />}CIK di luar</small><b>{cikOut}</b><em>kendaraan sedang trip</em>
           </button>
-
-          <button
-            onClick={changeOfficerName}
-            title="Nama petugas gate"
-            style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#2fd894,#17a673)", color: "#052b1e", fontWeight: 800, fontSize: 14, cursor: "pointer" }}
-          >
-            {officerName ? officerName.slice(0, 2).toUpperCase() : "SC"}
+          <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "PRB" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-prb)" }} onClick={() => kpiSet("active", "PRB")}>
+            <small>{prbIn > 0 && <span className={s.pulse} />}PRB di dalam</small><b>{prbIn}</b><em>kendaraan Pasar Rebo di CIK</em>
           </button>
-        </div>
-      </div>
-
-      <div style={{ width: "100%", boxSizing: "border-box", margin: "0", padding: "28px 40px", display: "grid", gridTemplateColumns: "minmax(460px, 560px) 1fr", gap: 28, alignItems: "start", flex: 1 }}>
-
-        {/* ── FORM (lebih besar — fokus utama halaman) ── */}
-        <div style={{ background: P.cardBg, borderRadius: 20, border: `1.5px solid ${selectedVehicle ? activePlant.main : P.cardBorder}`, padding: 34, position: "sticky", top: 24, boxShadow: mode === "light" ? "0 4px 24px rgba(15,40,71,0.06)" : "0 4px 24px rgba(0,0,0,0.3)", transition: "border-color 0.25s ease" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 26 }}>
-            <div style={{ width: 46, height: 46, borderRadius: 14, background: mode === "light" ? "#e8edff" : "rgba(47,95,224,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#2d5bff", fontWeight: 800 }}>+</div>
-            <div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: P.textPrimary }}>Catat Kendaraan</div>
-              <div style={{ fontSize: 12.5, color: P.textMuted }}>Input data untuk akses gate.</div>
-            </div>
-          </div>
-
-          {error && (
-            <div style={{ padding: "13px 16px", borderRadius: 12, background: "#fde5e6", color: "#e5484d", fontSize: 13.5, fontWeight: 600, marginBottom: 18 }}>{error}</div>
-          )}
-
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>TANGGAL *</label>
-            <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} style={inputStyle} />
-          </div>
-
-          <div style={{ marginBottom: 20, position: "relative" }} ref={vehicleInputRef}>
-            <label style={labelStyle}>KENDARAAN — KETIK PLAT NOMOR *</label>
-            <input
-              value={vehicleSearch}
-              onChange={(e) => { setVehicleSearch(e.target.value); setVehicleId(""); setShowVehicleDropdown(true); }}
-              onFocus={() => setShowVehicleDropdown(true)}
-              placeholder="Ketik nomor polisi... contoh: B 1234 FFI"
-              style={{ ...inputStyle, fontFamily: "var(--font-mono, monospace)", border: vehicleId ? `1.5px solid ${activePlant.main}` : inputStyle.border }}
-            />
-            {showVehicleDropdown && vehicleSearch.trim() !== "" && (
-              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 6, background: P.cardBg, borderRadius: 14, boxShadow: "0 16px 40px rgba(0,0,0,0.18)", maxHeight: 280, overflowY: "auto", zIndex: 30, border: `1px solid ${P.cardBorder}` }}>
-                {filteredVehicles.length === 0 ? (
-                  <div style={{ padding: 16, color: P.textMuted, fontSize: 14, textAlign: "center" }}>Tidak ditemukan</div>
-                ) : (
-                  filteredVehicles.map((v) => (
-                    <div
-                      key={v.id}
-                      onMouseDown={() => pickVehicle(v)}
-                      style={{ padding: "13px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${P.tableRowBorder}` }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = P.tableRowHover)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <div>
-                        <span style={{ fontWeight: 800, fontSize: 15.5, color: P.textPrimary, fontFamily: "var(--font-mono, monospace)" }}>{v.nopol}</span>
-                        <span style={{ fontSize: 12.5, color: P.textMuted, marginLeft: 8 }}>{v.jenis}{v.color ? ` - ${v.color}` : ""}</span>
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 7, background: mode === "light" ? PLANT_THEME[v.plant].soft : PLANT_THEME[v.plant].softDark, color: mode === "light" ? PLANT_THEME[v.plant].text : PLANT_THEME[v.plant].textDark }}>{v.plant}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>DRIVER *</label>
-              <button type="button" onClick={() => setUseManualDriver((v) => !v)} style={{ background: "none", border: "none", color: "#2d5bff", fontSize: 12.5, fontWeight: 800, cursor: "pointer", padding: 0 }}>
-                {useManualDriver ? "Pilih dari daftar" : "Kelola Driver"}
-              </button>
-            </div>
-            {useManualDriver ? (
-              <input value={driverManual} onChange={(e) => setDriverManual(e.target.value)} placeholder="Nama driver" style={inputStyle} />
-            ) : (
-              <select value={driverId} onChange={(e) => setDriverId(e.target.value)} style={inputStyle}>
-                <option value="" style={{ background: "#ffffff", color: "#0d1a36" }}>-- Pilih Driver --</option>
-                {drivers.map((d) => <option key={d.id} value={d.id} style={{ background: "#ffffff", color: "#0d1a36" }}>{d.nama}</option>)}
-              </select>
-            )}
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>TUJUAN</label>
-            <input value={tujuan} onChange={(e) => setTujuan(e.target.value)} placeholder="Contoh: Antar dokumen ke PRB" style={inputStyle} />
-          </div>
-
-          <div style={{ marginBottom: 28 }}>
-            <label style={labelStyle}>KEPERLUAN / CATATAN</label>
-            <textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Keperluan perjalanan..." rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            style={{
-              width: "100%", padding: 18, borderRadius: 14, border: "none",
-              background: canSubmit ? "linear-gradient(135deg,#2d5bff,#1d44d6)" : (mode === "light" ? "#e1e8f5" : "rgba(255,255,255,0.06)"),
-              color: canSubmit ? "#fff" : P.textMuted, fontWeight: 800, fontSize: 16,
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              boxShadow: canSubmit ? "0 10px 24px rgba(47,95,224,0.3)" : "none",
-            }}
-          >
-            {submitting ? "MENYIMPAN..." : selectedVehicle?.plant === "PRB" ? "+ CATAT CHECK-IN" : "+ CATAT KELUAR"}
+          <button type="button" className={`${s.kpi} ${tab === "done" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-green)" }} onClick={() => kpiSet("done", "all")}>
+            <small>Selesai</small><b>{done.length}</b><em>trip tuntas {isToday ? "hari ini" : ""}</em>
           </button>
-        </div>
+          <button type="button" className={`${s.kpi} ${tab === "all" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-brand)" }} onClick={() => kpiSet("all", "all")}>
+            <small>Total tercatat</small><b>{logs.length}</b><em>{vehicles.length} kendaraan terdaftar</em>
+          </button>
+          <div className={`${s.kpi} ${s.kpiStatic}`} style={{ ["--k" as string]: "#8b6cff" }}>
+            <small>Rata-rata durasi</small><b>{avgDur === null ? "–" : fmtDur(avgDur)}</b><em>dari trip yang selesai</em>
+          </div>
+        </section>
 
-        {/* ── LIST (tabel) ── */}
-        <div style={{ background: P.cardBg, borderRadius: 20, border: `1px solid ${P.cardBorder}`, overflow: "hidden", boxShadow: mode === "light" ? "0 4px 24px rgba(15,40,71,0.05)" : "0 4px 24px rgba(0,0,0,0.25)" }}>
-          <div style={{ padding: "22px 26px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: P.textPrimary }}>Aktivitas Gate</div>
-              <div style={{ fontSize: 12.5, color: P.textMuted, marginTop: 2 }}>Daftar kendaraan yang tercatat hari ini.</div>
+        <div className={s.grid}>
+          {/* ── FORM ── */}
+          <section className={`${s.card} ${s.form} ${selected ? (selected.plant === "PRB" ? s.formPrb : s.formCik) : ""}`} aria-label="Catat kendaraan">
+            <div className={s.cardHead}>
+              <i>{I.car}</i>
+              <div className={s.grow}><b>Catat Kendaraan</b><small>Pilih kendaraan, driver, lalu simpan.</small></div>
             </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <div style={{ position: "relative" }}>
+
+            <div className={s.step}>
+              <div className={s.label}><span><em>1</em>Kendaraan</span>{selected && <button type="button" className={s.link} onClick={clearVehicle}>Ganti</button>}</div>
+              <div className={s.plateWrap}>
                 <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cari driver, kendaraan, tujuan, keterangan..."
-                  style={{ ...inputStyle, width: 260, padding: "10px 14px 10px 34px", fontSize: 13.5 }}
+                  ref={plateRef}
+                  className={`${s.input} ${s.plateInput}`}
+                  value={plateQ}
+                  onChange={(e) => { setPlateQ(e.target.value.toUpperCase()); setVehicleId(""); setAutoDriver(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { const f = vList.find((v) => !busyVehicle.has(v.id)); if (f && !selected) { e.preventDefault(); pick(f); } } }}
+                  placeholder="Ketik / pilih plat nomor"
+                  aria-label="Plat nomor"
+                  autoComplete="off"
                 />
-                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: P.textMuted, fontSize: 13 }}>⌕</span>
+                {plateQ && <button type="button" className={s.plateClear} onClick={clearVehicle} aria-label="Hapus">×</button>}
               </div>
-              <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "10px 12px", fontSize: 13 }} />
-            </div>
-          </div>
-
-          <div style={{ padding: "0 26px 18px", display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setTab("active")}
-              style={{ padding: "8px 16px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 800, background: tab === "active" ? P.pillBgActive : P.pillBg, color: tab === "active" ? "#fff" : P.textSecondary }}
-            >
-              SEDANG AKTIF ({activeLogs.length})
-            </button>
-            <button
-              onClick={() => setTab("done")}
-              style={{ padding: "8px 16px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 800, background: tab === "done" ? P.pillBgActive : P.pillBg, color: tab === "done" ? "#fff" : P.textSecondary }}
-            >
-              SELESAI ({doneLogs.length})
-            </button>
-          </div>
-
-          {loadingLogs ? (
-            <div style={{ padding: 60, textAlign: "center", color: P.textMuted, fontSize: 15 }}>Memuat data...</div>
-          ) : pageList.length === 0 ? (
-            <div style={{ padding: 60, textAlign: "center", color: P.textMuted, fontSize: 15 }}>Tidak ada data.</div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
-                <thead>
-                  <tr style={{ background: P.tableHeadBg }}>
-                    {["NO", "DRIVER", "KENDARAAN", "TUJUAN / KETERANGAN", "CHECK-IN", "CHECK-OUT", "STATUS", "AKSI"].map((h, i) => (
-                      <th key={h} style={{ padding: "12px 16px", fontSize: 11, fontWeight: 800, color: P.textMuted, letterSpacing: "0.05em", textAlign: i === 7 ? "right" : "left", whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageList.map((l, i) => {
-                    const done = l.status === "DONE";
-                    const theme = PLANT_THEME[l.plant];
-                    const first = firstEventTime(l);
-                    const second = secondEventTime(l);
+              {!selected && (
+                <div className={s.vgrid}>
+                  {vList.length === 0 && <div className={s.vempty}>Plat tidak ditemukan</div>}
+                  {vList.slice(0, 60).map((v) => {
+                    const b = busyVehicle.get(v.id);
                     return (
-                      <tr key={l.id} style={{ borderTop: `1px solid ${P.tableRowBorder}` }}>
-                        <td style={{ padding: "16px", fontSize: 13.5, color: P.textMuted }}>{(pageSafe - 1) * PAGE_SIZE + i + 1}</td>
-                        <td style={{ padding: "16px" }}>
-                          <div style={{ fontWeight: 800, fontSize: 14, color: P.textPrimary }}>{l.driverName}</div>
-                          <div style={{ fontSize: 11.5, color: P.textMuted, fontFamily: "var(--font-mono, monospace)" }}>{driverCodeMap.get(l.driverName)}</div>
-                        </td>
-                        <td style={{ padding: "16px" }}>
-                          <div style={{ fontWeight: 800, fontSize: 14, color: P.textPrimary, fontFamily: "var(--font-mono, monospace)" }}>{l.nopol}</div>
-                          <div style={{ fontSize: 11.5, color: P.textMuted }}>{l.jenis}{l.color ? ` - ${l.color}` : ""}</div>
-                        </td>
-                        <td style={{ padding: "16px", fontSize: 13.5, color: P.textSecondary, minWidth: 200, maxWidth: 260 }}>
-                          {l.tujuan || "-"}
-                          {l.keterangan ? <div style={{ fontSize: 11.5, color: P.textMuted, marginTop: 3, lineHeight: 1.35, whiteSpace: "pre-wrap" }}>{l.keterangan}</div> : null}
-                        </td>
-                        <td style={{ padding: "16px", fontSize: 13, color: P.textSecondary }}>
-                          {first ? <>{fmtJam(first)}<div style={{ fontSize: 11, color: P.textMuted }}>{fmtTgl(first)}</div></> : "-"}
-                        </td>
-                        <td style={{ padding: "16px", fontSize: 13, color: P.textSecondary }}>
-                          {second ? <>{fmtJam(second)}<div style={{ fontSize: 11, color: P.textMuted }}>{fmtTgl(second)}</div></> : "-"}
-                        </td>
-                        <td style={{ padding: "16px" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: done ? "#e5f7ef" : (mode === "light" ? theme.soft : theme.softDark), color: done ? "#17a673" : (mode === "light" ? theme.text : theme.textDark) }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: done ? "#17a673" : theme.main }} />
-                            {done ? "SELESAI" : "ON TRIP"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9, border: `1.5px solid ${mode === "light" ? "#cfd9ee" : "rgba(255,255,255,0.12)"}`, fontSize: 12, fontWeight: 700, color: P.textSecondary, marginRight: 6 }}>
-                            ✓ Check-In
-                          </span>
-                          <button
-                            onClick={() => !done && handleControl(l)}
-                            disabled={done || busyLogId === l.id}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 9,
-                              border: `1.5px solid ${done ? (mode === "light" ? "#cfd9ee" : "rgba(255,255,255,0.12)") : "#ec9a17"}`,
-                              background: done ? "transparent" : (mode === "light" ? "#fdf1d6" : "rgba(255,179,64,0.12)"),
-                              color: done ? P.textMuted : "#a35f00",
-                              fontSize: 12, fontWeight: 700,
-                              cursor: done ? "default" : busyLogId === l.id ? "wait" : "pointer",
-                            }}
-                          >
-                            {busyLogId === l.id ? "..." : `✓ ${controlLabel(l.plant)}`}
-                          </button>
-                        </td>
-                      </tr>
+                      <button key={v.id} type="button" className={s.vchip} style={pVar(v.plant)} disabled={!!b} onClick={() => pick(v)} title={b ? `${ev(b).running} sejak ${hhmm(ev(b).first)}` : `${v.nopol} · ${v.jenis}`}>
+                        <b>{v.nopol}</b>
+                        {b ? <small style={{ color: "var(--g-prb-text)", fontWeight: 700 }}>{v.plant === "CIK" ? "Di luar" : "Di dalam"} · {hhmm(ev(b).first)}</small> : <small>{v.plant} · {v.jenis}</small>}
+                      </button>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
-          )}
 
-          {searchedList.length > 0 && (
-            <div style={{ padding: "16px 26px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${P.tableRowBorder}` }}>
-              <div style={{ fontSize: 12.5, color: P.textMuted }}>
-                Menampilkan {(pageSafe - 1) * PAGE_SIZE + 1} - {Math.min(pageSafe * PAGE_SIZE, searchedList.length)} dari {searchedList.length} data
+            {selected && (
+              <div className={`${s.dir} ${selected.plant === "PRB" ? s.dirPrb : s.dirCik}`}>
+                <i>{selected.plant === "PRB" ? I.in : I.out}</i>
+                <div><b>{selected.plant === "PRB" ? "MASUK CIK" : "KELUAR PLANT"}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · {selected.plant === "PRB" ? "Kendaraan Pasar Rebo" : "Kendaraan Cikarang"}</small></div>
+                <span className={s.plate} style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)", fontWeight: 800, fontSize: 15, padding: "6px 10px", borderRadius: 8, border: "2px solid currentColor", whiteSpace: "nowrap" }}>{selected.nopol}</span>
               </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={pageSafe === 1} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${P.tableRowBorder}`, background: P.cardBg, color: P.textSecondary, cursor: pageSafe === 1 ? "default" : "pointer" }}>‹</button>
-                {Array.from({ length: totalPages }).slice(0, 5).map((_, i) => (
-                  <button key={i} onClick={() => setPage(i + 1)} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: pageSafe === i + 1 ? "#2d5bff" : "transparent", color: pageSafe === i + 1 ? "#fff" : P.textSecondary, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{i + 1}</button>
-                ))}
-                <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={pageSafe === totalPages} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${P.tableRowBorder}`, background: P.cardBg, color: P.textSecondary, cursor: pageSafe === totalPages ? "default" : "pointer" }}>›</button>
+            )}
+
+            <div className={s.step}>
+              <div className={s.label}><span><em>2</em>Driver</span>
+                <button type="button" className={s.link} onClick={() => { setManual((v) => !v); setAutoDriver(""); }}>{manual ? "Pilih dari daftar" : "Ketik manual"}</button>
+              </div>
+              {manual ? (
+                <input className={s.input} value={driverManual} onChange={(e) => setDriverManual(e.target.value)} placeholder="Nama driver / pengemudi" />
+              ) : (
+                <select className={s.select} value={driverId} onChange={(e) => { setDriverId(e.target.value); setAutoDriver(""); }}>
+                  <option value="">— Pilih driver —</option>
+                  {drivers.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
+                </select>
+              )}
+              {autoDriver && <div className={s.hint}>✓ Terisi otomatis: <b>{autoDriver}</b> (driver terakhir kendaraan ini)</div>}
+            </div>
+
+            <div className={s.step}>
+              <div className={s.label}><span><em>3</em>Tujuan</span></div>
+              <input className={s.input} value={tujuan} onChange={(e) => setTujuan(e.target.value)} placeholder="Contoh: Antar dokumen ke PRB" />
+              <div className={s.chips}>
+                {tujuanChips.map((t) => <button key={t} type="button" className={`${s.chip} ${tujuan === t ? s.chipOn : ""}`} onClick={() => setTujuan(tujuan === t ? "" : t)}>{t}</button>)}
               </div>
             </div>
-          )}
+
+            <div className={s.step}>
+              <div className={s.label}><span><em>4</em>Keperluan / catatan</span><span style={{ letterSpacing: 0, textTransform: "none", fontWeight: 600 }}>opsional</span></div>
+              <textarea className={s.textarea} rows={2} value={ket} onChange={(e) => setKet(e.target.value)} placeholder="Keperluan perjalanan, barang bawaan, dll." />
+            </div>
+
+            <div className={s.step} style={{ marginBottom: 20 }}>
+              <div className={s.label}><span>Tanggal pencatatan</span></div>
+              <input type="date" className={s.input} value={tanggal} max={today || undefined} onChange={(e) => setTanggal(e.target.value)} />
+            </div>
+
+            <button type="button" className={`${s.submit} ${selected?.plant === "PRB" ? s.submitPrb : ""}`} disabled={!canSubmit} onClick={submit}>
+              {submitting ? "Menyimpan…" : !selected ? "Pilih kendaraan dulu" : !driverOk ? "Pilih driver" : <>{selected.plant === "PRB" ? I.in : I.out} {selected.plant === "PRB" ? "CATAT MASUK CIK" : "CATAT KELUAR"} · {selected.nopol}</>}
+            </button>
+            <div className={s.kbd}>Tips: ketik plat lalu tekan Enter untuk memilih kendaraan teratas.</div>
+          </section>
+
+          <div className={s.side}>
+            {/* ── GRAFIK PER JAM ── */}
+            <section className={`${s.card} ${s.chart}`}>
+              <div className={s.chartHead}>
+                <div><b>Pergerakan per jam</b> <small>· {tglObj?.toLocaleDateString("id-ID", { day: "numeric", month: "long" })}</small></div>
+                <div className={s.legend}><span><i style={{ background: "var(--g-cik)" }} />Keluar</span><span><i style={{ background: "var(--g-green)" }} />Masuk / kembali</span></div>
+              </div>
+              <div className={s.bars}>
+                {hourly.map((x, hi) => {
+                  const tot = x.out + x.in;
+                  const isNow = isToday && now?.getHours() === x.h;
+                  return (
+                    <div key={x.h} className={`${s.barCol} ${isNow ? s.barNow : ""}`}>
+                      <span className={s.barTip} style={hi >= hourly.length - 4 ? { left: "auto", right: 0, transform: "none" } : hi < 3 ? { left: 0, transform: "none" } : undefined}>{pad(x.h)}:00 · {x.out} keluar · {x.in} masuk</span>
+                      <div className={s.barStack} style={{ height: `${Math.max(4, (tot / maxH) * 100)}%` }}>
+                        {x.out > 0 && <span style={{ height: `${(x.out / Math.max(1, tot)) * 100}%`, background: "var(--g-cik)" }} />}
+                        {x.in > 0 && <span style={{ height: `${(x.in / Math.max(1, tot)) * 100}%`, background: "var(--g-green)" }} />}
+                      </div>
+                      <small>{x.h % 2 === 1 ? pad(x.h) : ""}</small>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ── DAFTAR AKTIVITAS ── */}
+            <section className={`${s.card} ${s.list}`}>
+              <div className={s.listHead}>
+                <div><b>Aktivitas Gate</b><small>Diperbarui otomatis tiap 15 detik</small></div>
+                <span className={s.grow} />
+                <label className={s.search}>
+                  {I.search}
+                  <input className={s.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari plat, driver, tujuan…" aria-label="Cari" />
+                </label>
+                <input type="date" className={`${s.input} ${s.dateIn}`} value={tanggal} max={today || undefined} onChange={(e) => setTanggal(e.target.value)} aria-label="Tanggal" />
+              </div>
+              <div className={s.toolbar}>
+                <div className={s.seg} role="tablist">
+                  {([["active", "Sedang berjalan", active.length], ["done", "Selesai", done.length], ["all", "Semua", logs.length]] as [Tab, string, number][]).map(([k, lbl, n]) => (
+                    <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? s.segOn : ""} onClick={() => setTab(k)}>{lbl}<span>{n}</span></button>
+                  ))}
+                </div>
+                <div className={s.seg}>
+                  {([["all", "Semua plant"], ["CIK", "CIK"], ["PRB", "PRB"]] as [PlantF, string][]).map(([k, lbl]) => (
+                    <button key={k} type="button" aria-pressed={plantF === k} className={plantF === k ? s.segOn : ""} onClick={() => setPlantF(k)}>{lbl}</button>
+                  ))}
+                </div>
+              </div>
+
+              {loading && logs.length === 0 ? (
+                <div className={s.cards}>{[0, 1, 2].map((i) => <div key={i} className={s.skel} />)}</div>
+              ) : list.length === 0 ? (
+                <div className={s.empty}>
+                  {I.empty}
+                  <b>{tab === "active" ? "Tidak ada kendaraan yang sedang berjalan" : "Belum ada data"}</b>
+                  {q ? "Coba kata kunci lain." : tab === "active" ? "Semua kendaraan sudah di tempatnya." : "Belum ada pergerakan tercatat pada tanggal ini."}
+                </div>
+              ) : tab === "active" ? (
+                <div className={s.cards}>
+                  {list.slice(0, shown).map((l) => {
+                    const e = ev(l);
+                    const m = minsBetween(e.first, nowMs) ?? 0;
+                    const tone = m >= 480 ? s.tLong : m >= 240 ? s.tWarn : s.tOk;
+                    const conf = confirmId === l.id;
+                    return (
+                      <article key={l.id} className={`${s.trip} ${flashId === l.id ? s.tripFlash : ""}`} style={pVar(l.plant)}>
+                        <div className={s.tripTop}>
+                          <span className={s.plate} style={{ fontFamily: "var(--mono, monospace)", fontSize: 17, fontWeight: 800, letterSpacing: ".05em", padding: "4px 9px", borderRadius: 8, border: "2px solid var(--g-t1)", background: "var(--g-plate-bg)", color: "var(--g-plate-text)", whiteSpace: "nowrap" }}>{l.nopol}</span>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <b style={{ display: "block", fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.driverName}</b>
+                            <small style={{ display: "block", fontSize: 12, color: "var(--g-t3)" }}>{l.jenis}{l.color ? ` · ${l.color}` : ""}</small>
+                          </div>
+                          <span className={`${s.ptag} ${l.plant === "PRB" ? s.ptagPrb : s.ptagCik}`}>{l.plant}</span>
+                        </div>
+                        <div className={s.tripMeta}>
+                          <div>{I.pin}<span>{l.tujuan || "Tujuan tidak diisi"}{l.keterangan ? <><br /><em>{l.keterangan}</em></> : null}</span></div>
+                          <div>{I.clock}<span>{e.firstLbl} {hhmm(e.first)} WIB</span></div>
+                        </div>
+                        <div className={s.tripFoot}>
+                          <div className={`${s.timer} ${tone}`}><small>{e.running}</small><b>{fmtDur(m)}</b></div>
+                          <button type="button" className={`${s.act} ${conf ? s.actConfirm : ""}`} disabled={busyId === l.id} onClick={() => closeTrip(l)}>
+                            {busyId === l.id ? "Menyimpan…" : conf ? <>{I.check} Ketuk lagi untuk konfirmasi</> : <>{l.plant === "PRB" ? I.out : I.in} {e.act}</>}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className={s.done}>
+                  {list.slice(0, shown).map((l) => {
+                    const e = ev(l);
+                    const fin = l.status === "DONE";
+                    const m = minsBetween(e.first, fin ? e.second : nowMs);
+                    return (
+                      <div key={l.id} className={s.doneRow} style={pVar(l.plant)}>
+                        <div><span className={s.plate} style={{ fontFamily: "var(--mono, monospace)", fontWeight: 800, fontSize: 14 }}>{l.nopol}</span><small style={{ display: "block", fontSize: 11.5, color: "var(--g-t3)" }}>{l.plant} · {l.jenis}</small></div>
+                        <div style={{ minWidth: 0 }}><b style={{ fontSize: 13.5 }}>{l.driverName}</b><small style={{ display: "block", fontSize: 11.5, color: fin ? "var(--g-green-text)" : "var(--g-prb-text)", fontWeight: 700 }}>{fin ? e.doneLbl : e.running.toLowerCase() === "di luar" ? "Sedang keluar" : "Sedang di CIK"}</small></div>
+                        <div style={{ color: "var(--g-t2)", minWidth: 0 }}>{l.tujuan || "–"}{l.keterangan ? <small style={{ display: "block", fontSize: 11.5, color: "var(--g-t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.keterangan}</small> : null}</div>
+                        <div className={s.flow}>
+                          <span>{hhmm(e.first)}<small style={{ display: "block" }}>{e.firstLbl}</small></span>
+                          <i />
+                          <span>{fin ? hhmm(e.second) : "…"}<small style={{ display: "block" }}>{e.secondLbl}</small></span>
+                        </div>
+                        <span className={s.dur} style={fin ? undefined : { background: "var(--g-prb-soft)", color: "var(--g-prb-text)" }}>{m === null ? "–" : fmtDur(m)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {list.length > shown && <button type="button" className={s.more} onClick={() => setShown((n) => n + PAGE)}>Tampilkan {Math.min(PAGE, list.length - shown)} lagi · {list.length - shown} tersisa</button>}
+            </section>
+          </div>
         </div>
-      </div>
-      <div style={{ height: 10, background: "linear-gradient(90deg, #1d44d6, #2d5bff, #5b8cff, #2d5bff, #1d44d6)", flexShrink: 0 }} />
-    </div>
-  );
-}
+      </main>
 
-function StatPill({ icon, iconColor, iconBg, label, value, P }: { icon: string; iconColor: string; iconBg: string; label: string; value: number; P: Palette }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px 6px 6px", borderRadius: 14, background: P.pillBg }}>
-      <div style={{ width: 32, height: 32, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: iconColor }}>{icon}</div>
-      <div>
-        <div style={{ fontSize: 17, fontWeight: 800, color: P.textPrimary, lineHeight: 1.1 }}>{value}</div>
-        <div style={{ fontSize: 9.5, fontWeight: 800, color: P.textMuted, letterSpacing: "0.04em" }}>{label}</div>
-      </div>
+      {toast && (
+        <div className={s.toast} role="status"><i>{I.check}</i><span className={s.plate} style={{ fontFamily: "var(--mono, monospace)", padding: "2px 7px", borderRadius: 6, border: "1.5px solid rgba(255,255,255,.6)" }}>{toast.plate}</span>{toast.text}</div>
+      )}
     </div>
   );
 }

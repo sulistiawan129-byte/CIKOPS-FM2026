@@ -734,7 +734,7 @@ function SyncView({ lang, sync, jobs, manpower, onRotated, onError }: { lang: La
       <section className={a.card}>
         <div className={a.cardHead}><div><h2>{L("Pasang di Excel", "Install in Excel")}</h2><p>ISS GA System</p></div></div>
         <ol className={a.steps}>
-          <li>{L("Unduh:", "Download:")} <a className={a.primarySm} href="/downloads/modSyncGA.bas" download>⬇ modSyncGA.bas</a> <a className={a.primarySm} href="/downloads/modGA.bas" download>⬇ modGA.bas (v1.7)</a></li>
+          <li>{L("Unduh:", "Download:")} <a className={a.primarySm} href="/downloads/modSyncGA.bas" download>⬇ modSyncGA.bas</a> <a className={a.primarySm} href="/downloads/modGA.bas" download>⬇ modGA.bas (v1.8)</a></li>
           <li>{L("Alt+F11 → hapus modGA lama → Import modGA.bas & modSyncGA.bas.", "Alt+F11 → remove the old modGA → import modGA.bas & modSyncGA.bas.")}</li>
           <li>{L("Isi SUPABASE_URL, SUPABASE_ANON_KEY dan GA_SYNC_KEY (di bawah) di modSyncGA.", "Fill SUPABASE_URL, SUPABASE_ANON_KEY and GA_SYNC_KEY (below) in modSyncGA.")}</li>
           <li>{L("Jalankan Setup_Tombol sekali (membuat sheet TGA & tombol baru), lalu klik Sinkron CIKOPS → NO (semua periode).", "Run Setup_Tombol once (creates the TGA sheet & new buttons), then click Sinkron CIKOPS → NO (all periods).")}</li>
