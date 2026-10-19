@@ -3,6 +3,9 @@
    Mengambil laporan NC berstatus Accept beserta supplier & jenis temuan.
 
    • Hanya pengguna dashboard CIKOPS yang login (punya baris di profiles).
+   • Kecuali ?board=1 (FM Command Center, tanpa login): HANYA ringkasan bulan
+     berjalan — jumlah, jenis temuan & nama transporter. Tanpa nopol, tanpa
+     data SIM/driver. Di-cache 60 detik agar G-C tidak dibebani layar TV.
    • Kredensial G-C hanya di server (environment variable), tidak pernah
      dikirim ke browser.
    • Nomor SIM tidak dikirim ke browser: diganti hash + 4 digit terakhir.
@@ -76,11 +79,58 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }
 
+/* ── ringkasan publik untuk FM Command Center ── */
+let boardCache: { at: number; body: unknown } | null = null;
+async function boardSummary(db: SupabaseClient, plant: string) {
+  if (boardCache && Date.now() - boardCache.at < 60000) return boardCache.body;
+  const now = new Date(Date.now() + 7 * 3600000); // Asia/Jakarta
+  const today = now.toISOString().slice(0, 10);
+  const from = `${today.slice(0, 7)}-01`;
+  type R = { id: string; tanggal: string; supplier_id: string | null };
+  const reports: R[] = [];
+  for (let off = 0; off < 20000; off += 1000) {
+    const { data, error } = await db.from("nc_reports").select("id, tanggal, supplier_id")
+      .eq("status", "Accept").eq("plant", plant).gte("tanggal", from).lte("tanggal", `${today}T23:59:59`)
+      .order("tanggal", { ascending: true }).range(off, off + 999);
+    if (error) throw new HttpErr(502, `G-C menolak query nc_reports: ${error.message}`);
+    reports.push(...((data || []) as R[]));
+    if (!data || data.length < 1000) break;
+  }
+  const supIds = [...new Set(reports.map((r) => r.supplier_id).filter(Boolean))] as string[];
+  const [{ data: sup }, { data: cat }] = await Promise.all([
+    supIds.length ? db.from("suppliers").select("id, name").in("id", supIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    db.from("nc_categories").select("id, name"),
+  ]);
+  const supName = new Map((sup || []).map((x) => [x.id as string, String(x.name || "").trim()]));
+  const catName = new Map((cat || []).map((c) => [c.id as number, String(c.name || "").trim()]));
+  const findings = new Map<string, string[]>();
+  const ids = reports.map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await db.from("nc_report_findings").select("report_id, category_id").in("report_id", ids.slice(i, i + 200));
+    if (error) throw new HttpErr(502, `G-C menolak query nc_report_findings: ${error.message}`);
+    (data || []).forEach((f) => {
+      const arr = findings.get(f.report_id as string) || [];
+      arr.push(catName.get(f.category_id as number) || "Lainnya");
+      findings.set(f.report_id as string, arr);
+    });
+  }
+  const items = reports.map((r) => {
+    let t = String(r.tanggal);
+    if (t.length > 10 && /(Z|[+-]\d\d:?\d\d)$/.test(t)) t = new Date(Date.parse(t) + 7 * 3600000).toISOString(); // → WIB
+    const jam = t.length > 10 ? t.slice(11, 16) : null;
+    return { d: t.slice(0, 10), jam: jam === "00:00" ? null : jam, transporter: supName.get(r.supplier_id || "") || "-", jenis: findings.get(r.id) || [] };
+  });
+  const body = { ok: true, plant, today, fetchedAt: new Date().toISOString(), items };
+  boardCache = { at: Date.now(), body };
+  return body;
+}
+
 export async function GET(req: Request) {
   try {
-    await requireDashboardUser(req);
     const u = new URL(req.url);
     const plant = env("GC_PLANT") || "Cikarang";
+    if (u.searchParams.get("board")) return json(await boardSummary(await gc(), plant));
+    await requireDashboardUser(req);
     const db = await gc();
 
     if (u.searchParams.get("ping")) {
