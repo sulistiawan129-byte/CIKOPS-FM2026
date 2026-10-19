@@ -315,11 +315,11 @@ export function OverviewBoard({
         <section className={o.card}>
           <div className={o.cardHead}><h2>Fasilitas</h2><span>Bulan ini</span></div>
           <button type="button" className={o.fac} onClick={() => onGo("canteen")}>
-            <span className={o.fundTop}><b>Kantin · snack</b><span>{num(cant.snackUsed)} / {num(cant.snackOrder)} terpakai</span></span>
+            <span className={o.fundTop}><b>Kantin · snack</b><span>{num(cant.snackUsed)} / {num(cant.snackOrder)} terpakai · sisa {num(Math.max(0, cant.snackOrder - cant.snackUsed))}</span></span>
             <span className={o.bar}><i className={o.barGreen} style={{ width: `${pct(cant.snackUsed, cant.snackOrder)}%` }} /></span>
           </button>
           <button type="button" className={o.fac} onClick={() => onGo("canteen")}>
-            <span className={o.fundTop}><b>Kantin · makan</b><span>{num(cant.mealUsed)} / {num(cant.mealOrder)} terpakai</span></span>
+            <span className={o.fundTop}><b>Kantin · makan</b><span>{num(cant.mealUsed)} / {num(cant.mealOrder)} terpakai · sisa {num(Math.max(0, cant.mealOrder - cant.mealUsed))}</span></span>
             <span className={o.bar}><i className={o.barGreen} style={{ width: `${pct(cant.mealUsed, cant.mealOrder)}%` }} /></span>
           </button>
           <div className={o.tiles}>

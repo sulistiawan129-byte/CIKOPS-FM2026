@@ -310,20 +310,26 @@ export function computeCanteen(p: { from: string; to: string; rows: CanteenRepor
   const agg = (rows: CanteenReport[]) => {
     const so = sum(rows.flatMap((r) => r.snackOrder)), sl = sum(rows.flatMap((r) => r.snackLeftover));
     const mo = sum(rows.flatMap((r) => r.mealOrder)), ml = sum(rows.flatMap((r) => r.mealLeftover));
-    return { so, sl, mo, ml, order: so + mo, left: sl + ml, eff: so + mo ? ((so + mo - sl - ml) / (so + mo)) * 100 : 0,
-      sEff: so ? ((so - sl) / so) * 100 : 0, mEff: mo ? ((mo - ml) / mo) * 100 : 0 };
+    return { so, sl, mo, ml, sEff: so ? ((so - sl) / so) * 100 : 0, mEff: mo ? ((mo - ml) / mo) * 100 : 0 };
   };
   const A = agg(cur), P = agg(prev);
-  const effDelta = prev.length ? A.eff - P.eff : null;
-  const leftPerDay = A.left / cur.length;
+  const sDelta = prev.length && P.so ? A.sEff - P.sEff : null;
+  const mDelta = prev.length && P.mo ? A.mEff - P.mEff : null;
+  const days = cur.length;
 
-  const shiftLeft = [0, 1, 2].map((i) => sum(cur.map((r) => (r.snackLeftover[i] || 0) + (r.mealLeftover[i] || 0))));
-  const shiftOrder = [0, 1, 2].map((i) => sum(cur.map((r) => (r.snackOrder[i] || 0) + (r.mealOrder[i] || 0))));
-  const worstShift = shiftLeft.indexOf(Math.max(...shiftLeft));
-  const worstDay = cur.reduce((b, r) => {
-    const l = sum(r.snackLeftover) + sum(r.mealLeftover);
+  // Snack & makan selalu dihitung terpisah — tidak digabung.
+  const shiftOf = (pick: "snack" | "meal") => [0, 1, 2].map((i) => ({
+    order: sum(cur.map((r) => (pick === "snack" ? r.snackOrder[i] : r.mealOrder[i]) || 0)),
+    left: sum(cur.map((r) => (pick === "snack" ? r.snackLeftover[i] : r.mealLeftover[i]) || 0)),
+  }));
+  const sShift = shiftOf("snack"), mShift = shiftOf("meal");
+  const worstOf = (sh: { left: number }[]) => sh.reduce((b, x, i) => (x.left > sh[b].left ? i : b), 0);
+  const sWorst = worstOf(sShift), mWorst = worstOf(mShift);
+  const worstDayOf = (pick: "snack" | "meal") => cur.reduce((b, r) => {
+    const l = sum(pick === "snack" ? r.snackLeftover : r.mealLeftover);
     return l > b.l ? { d: r.reportDate, l } : b;
   }, { d: cur[0].reportDate, l: -1 });
+  const sDay = worstDayOf("snack"), mDay = worstDayOf("meal");
 
   const bs = buckets(p.from, p.to);
   const effBy = (pick: "snack" | "meal") => bs.map((b) => {
@@ -333,50 +339,73 @@ export function computeCanteen(p: { from: string; to: string; rows: CanteenRepor
     return o ? Math.round(((o - l) / o) * 1000) / 10 : 0;
   });
 
+  const effTone = (e: number): Kpi["tone"] => (e >= 95 ? "good" : e >= 90 ? "neutral" : "bad");
+  const deltaTxt = (d: number | null) => (d === null ? "" : ` · ${d >= 0 ? "+" : ""}${fmtNum(d, 1)} ${tr("poin", "pts")} ${vsPrev()}`);
   const kpis: Kpi[] = [
-    { label: tr("Efisiensi keseluruhan", "Overall efficiency"), value: fmtPct(A.eff, 1), sub: effDelta === null ? tr("belum ada data periode lalu", "no prior-period data") : `${effDelta >= 0 ? "+" : ""}${fmtNum(effDelta, 1)} ${tr("poin", "pts")} ${vsPrev()}`, tone: A.eff >= 95 ? "good" : A.eff >= 90 ? "neutral" : "bad" },
-    { label: tr("Total porsi dipesan", "Portions ordered"), value: fmtNum(A.order), sub: `snack ${fmtNum(A.so)} · ${tr("makan", "meals")} ${fmtNum(A.mo)}`, tone: "neutral" },
-    { label: tr("Total sisa", "Total leftover"), value: `${fmtNum(A.left)} ${tr("porsi", "portions")}`, sub: tr(`rata-rata ${fmtNum(leftPerDay, 1)} per hari`, `avg. ${fmtNum(leftPerDay, 1)} per day`), tone: A.left / Math.max(1, A.order) > 0.08 ? "bad" : "neutral" },
-    { label: tr("Efisiensi snack / makan", "Snack / meal efficiency"), value: `${fmtNum(A.sEff, 1)}% / ${fmtNum(A.mEff, 1)}%`, sub: tr(`${cur.length} hari tercatat`, `${cur.length} days recorded`), tone: "neutral" },
+    { label: tr("Snack — efisiensi", "Snack — efficiency"), value: A.so ? fmtPct(A.sEff, 1) : "–",
+      sub: tr(`dipesan ${fmtNum(A.so)} · terpakai ${fmtNum(A.so - A.sl)} · sisa ${fmtNum(A.sl)}`, `ordered ${fmtNum(A.so)} · consumed ${fmtNum(A.so - A.sl)} · leftover ${fmtNum(A.sl)}`) + deltaTxt(sDelta),
+      tone: A.so ? effTone(A.sEff) : "neutral" },
+    { label: tr("Makan — efisiensi", "Meal — efficiency"), value: A.mo ? fmtPct(A.mEff, 1) : "–",
+      sub: tr(`dipesan ${fmtNum(A.mo)} · terpakai ${fmtNum(A.mo - A.ml)} · sisa ${fmtNum(A.ml)}`, `ordered ${fmtNum(A.mo)} · consumed ${fmtNum(A.mo - A.ml)} · leftover ${fmtNum(A.ml)}`) + deltaTxt(mDelta),
+      tone: A.mo ? effTone(A.mEff) : "neutral" },
+    { label: tr("Sisa snack / makan", "Snack / meal leftover"), value: `${fmtNum(A.sl)} / ${fmtNum(A.ml)}`,
+      sub: tr(`porsi · rata-rata ${fmtNum(A.sl / days, 1)} / ${fmtNum(A.ml / days, 1)} per hari`, `portions · avg. ${fmtNum(A.sl / days, 1)} / ${fmtNum(A.ml / days, 1)} per day`), tone: "neutral" },
+    { label: tr("Hari tercatat", "Days recorded"), value: fmtNum(days), sub: tr("laporan harian kantin", "daily canteen reports"), tone: "neutral" },
   ];
 
   const charts: ChartSpec[] = [
-    { id: "canteen-eff", title: `${tr("Efisiensi", "Efficiency")} ${perWord(p.from, p.to)} (%)`, type: "line", labels: bs.map((b) => b.label),
+    { id: "canteen-eff", title: `${tr("Efisiensi snack & makan", "Snack & meal efficiency")} ${perWord(p.from, p.to)} (%)`, type: "line", labels: bs.map((b) => b.label),
       series: [{ name: "Snack", color: PALETTE.green, values: effBy("snack") }, { name: tr("Makan", "Meals"), color: PALETTE.brand, values: effBy("meal") }], unit: "pct" },
-    { id: "canteen-shift", title: tr("Sisa makanan per shift", "Leftover by shift"), type: "bar", labels: ["Shift 1", "Shift 2", "Shift 3"],
-      series: [{ name: tr("Sisa (porsi)", "Leftover (portions)"), color: PALETTE.amber, values: shiftLeft }], unit: "num" },
+    { id: "canteen-shift", title: tr("Sisa per shift — snack & makan", "Leftover by shift — snack & meal"), type: "bar", labels: ["Shift 1", "Shift 2", "Shift 3"],
+      series: [{ name: tr("Sisa snack", "Snack leftover"), color: PALETTE.green, values: sShift.map((x) => x.left) },
+               { name: tr("Sisa makan", "Meal leftover"), color: PALETTE.brand, values: mShift.map((x) => x.left) }], unit: "num" },
     { id: "canteen-mix", title: tr("Dipesan vs terpakai", "Ordered vs consumed"), type: "stacked", labels: ["Snack", tr("Makan", "Meals")],
       series: [{ name: tr("Terpakai", "Consumed"), color: PALETTE.green, values: [A.so - A.sl, A.mo - A.ml] }, { name: tr("Sisa", "Leftover"), color: PALETTE.red, values: [A.sl, A.ml] }], unit: "num" },
   ];
 
+  const catLine = (idName: string, enName: string, o: number, l: number, eff: number, d: number | null) =>
+    tr(`${idName}: ${fmtNum(o - l)} dari ${fmtNum(o)} porsi terpakai, sisa ${fmtNum(l)} — efisiensi ${fmtPct(eff, 1)}${d !== null ? `, ${d >= 0 ? "membaik" : "menurun"} ${fmtNum(Math.abs(d), 1)} poin dari periode lalu` : ""}.`,
+       `${enName}: ${fmtNum(o - l)} of ${fmtNum(o)} portions consumed, ${fmtNum(l)} left over — efficiency ${fmtPct(eff, 1)}${d !== null ? `, ${d >= 0 ? "up" : "down"} ${fmtNum(Math.abs(d), 1)} pts from the prior period` : ""}.`);
+  const shiftLine = (idName: string, enName: string, sh: { order: number; left: number }[], w: number, day: { d: string; l: number }) =>
+    sh[w].left > 0
+      ? tr(`Sisa ${idName} terbanyak di Shift ${w + 1} (${fmtNum(sh[w].left)} porsi, ${fmtPct((sh[w].left / Math.max(1, sh[w].order)) * 100, 1)} dari pesanannya); tertinggi pada ${dShort(day.d)} (${fmtNum(day.l)} porsi).`,
+           `Most ${enName} leftovers on Shift ${w + 1} (${fmtNum(sh[w].left)} portions, ${fmtPct((sh[w].left / Math.max(1, sh[w].order)) * 100, 1)} of its orders); peak on ${dShort(day.d)} (${fmtNum(day.l)} portions).`)
+      : tr(`Tidak ada sisa ${idName} pada periode ini.`, `No ${enName} leftovers this period.`);
   const insights = [
-    tr(`Efisiensi kantin ${fmtPct(A.eff, 1)} — ${fmtNum(A.order - A.left)} dari ${fmtNum(A.order)} porsi terpakai${effDelta !== null ? `, ${effDelta >= 0 ? "membaik" : "menurun"} ${fmtNum(Math.abs(effDelta), 1)} poin dari periode lalu` : ""}.`,
-       `Canteen efficiency ${fmtPct(A.eff, 1)} — ${fmtNum(A.order - A.left)} of ${fmtNum(A.order)} portions consumed${effDelta !== null ? `, ${effDelta >= 0 ? "up" : "down"} ${fmtNum(Math.abs(effDelta), 1)} pts from the prior period` : ""}.`),
-    tr(`Snack ${fmtPct(A.sEff, 1)} vs makan ${fmtPct(A.mEff, 1)}: ${A.sEff < A.mEff ? "snack" : "makan"} lebih banyak menyisakan.`,
-       `Snack ${fmtPct(A.sEff, 1)} vs meals ${fmtPct(A.mEff, 1)}: ${A.sEff < A.mEff ? "snacks" : "meals"} leave more leftovers.`),
-    tr(`Shift ${worstShift + 1} menyumbang sisa terbanyak (${fmtNum(shiftLeft[worstShift])} porsi, ${fmtPct((shiftLeft[worstShift] / Math.max(1, shiftOrder[worstShift])) * 100, 1)} dari pesanannya).`,
-       `Shift ${worstShift + 1} accounts for the most leftovers (${fmtNum(shiftLeft[worstShift])} portions, ${fmtPct((shiftLeft[worstShift] / Math.max(1, shiftOrder[worstShift])) * 100, 1)} of its orders).`),
-    tr(`Sisa tertinggi pada ${dShort(worstDay.d)} (${fmtNum(worstDay.l)} porsi); rata-rata ${fmtNum(leftPerDay, 1)} porsi per hari.`,
-       `Highest leftover on ${dShort(worstDay.d)} (${fmtNum(worstDay.l)} portions); average ${fmtNum(leftPerDay, 1)} portions per day.`),
+    catLine("Snack", "Snack", A.so, A.sl, A.sEff, sDelta),
+    catLine("Makan", "Meals", A.mo, A.ml, A.mEff, mDelta),
+    shiftLine("snack", "snack", sShift, sWorst, sDay),
+    shiftLine("makan", "meal", mShift, mWorst, mDay),
   ];
   const actions: string[] = [];
   const attention: string[] = [];
-  if (A.eff < 92) {
-    actions.push(tr(`Sesuaikan jumlah pesanan harian, terutama Shift ${worstShift + 1}, berdasarkan rata-rata kehadiran.`,
-                    `Align daily order quantities with average attendance, especially for Shift ${worstShift + 1}.`));
-    attention.push(tr(`Kantin: efisiensi ${fmtPct(A.eff, 1)} — sisa makanan ${fmtNum(A.left)} porsi.`, `Canteen: efficiency ${fmtPct(A.eff, 1)} — ${fmtNum(A.left)} portions wasted.`));
+  if (A.so && A.sEff < 92) {
+    actions.push(tr(`Sesuaikan jumlah pesanan snack, terutama Shift ${sWorst + 1}, berdasarkan rata-rata kehadiran.`,
+                    `Align snack order quantities with average attendance, especially for Shift ${sWorst + 1}.`));
+    attention.push(tr(`Kantin snack: efisiensi ${fmtPct(A.sEff, 1)} — sisa ${fmtNum(A.sl)} porsi.`, `Canteen snack: efficiency ${fmtPct(A.sEff, 1)} — ${fmtNum(A.sl)} portions left over.`));
   }
-  if (Math.abs(A.sEff - A.mEff) > 3) actions.push(tr(`Kurangi porsi ${A.sEff < A.mEff ? "snack" : "makan"} atau atur ulang menu untuk menekan sisa.`,
-                                                     `Reduce ${A.sEff < A.mEff ? "snack" : "meal"} portions or rework the menu to cut leftovers.`));
-  if (effDelta !== null && effDelta < -2) actions.push(tr("Efisiensi menurun — cek perubahan menu atau jadwal kerja yang memengaruhi kehadiran.", "Efficiency is falling — check menu changes or work schedules affecting attendance."));
-  if (actions.length === 0) actions.push(tr("Efisiensi kantin sangat baik — pertahankan pola pemesanan saat ini.", "Canteen efficiency is excellent — keep the current ordering pattern."));
+  if (A.mo && A.mEff < 92) {
+    actions.push(tr(`Sesuaikan jumlah pesanan makan, terutama Shift ${mWorst + 1}, berdasarkan rata-rata kehadiran.`,
+                    `Align meal order quantities with average attendance, especially for Shift ${mWorst + 1}.`));
+    attention.push(tr(`Kantin makan: efisiensi ${fmtPct(A.mEff, 1)} — sisa ${fmtNum(A.ml)} porsi.`, `Canteen meals: efficiency ${fmtPct(A.mEff, 1)} — ${fmtNum(A.ml)} portions left over.`));
+  }
+  if ((sDelta !== null && sDelta < -2) || (mDelta !== null && mDelta < -2)) actions.push(tr("Efisiensi menurun — cek perubahan menu atau jadwal kerja yang memengaruhi kehadiran.", "Efficiency is falling — check menu changes or work schedules affecting attendance."));
+  if (actions.length === 0) actions.push(tr("Efisiensi snack & makan sangat baik — pertahankan pola pemesanan saat ini.", "Snack & meal efficiency is excellent — keep the current ordering pattern."));
 
+  const pctOf = (o: number, l: number) => fmtPct(o ? ((o - l) / o) * 100 : 0, 1);
   return {
     key: "canteen", title: meta.title, accent: meta.accent,
-    headline: tr(`Efisiensi ${fmtPct(A.eff, 1)}; sisa ${fmtNum(A.left)} porsi, terbanyak di Shift ${worstShift + 1}.`,
-                 `Efficiency ${fmtPct(A.eff, 1)}; ${fmtNum(A.left)} portions left over, mostly on Shift ${worstShift + 1}.`),
+    headline: tr(`Snack ${fmtPct(A.sEff, 1)} (sisa ${fmtNum(A.sl)} porsi) · Makan ${fmtPct(A.mEff, 1)} (sisa ${fmtNum(A.ml)} porsi).`,
+                 `Snack ${fmtPct(A.sEff, 1)} (${fmtNum(A.sl)} left over) · Meals ${fmtPct(A.mEff, 1)} (${fmtNum(A.ml)} left over).`),
     kpis, charts, insights, actions, attention,
-    table: { title: tr("Ringkasan per shift", "Summary by shift"), headers: ["Shift", tr("Dipesan", "Ordered"), tr("Sisa", "Leftover"), tr("Efisiensi", "Efficiency")], rows: [0, 1, 2].map((i) => [`Shift ${i + 1}`, fmtNum(shiftOrder[i]), fmtNum(shiftLeft[i]), fmtPct(shiftOrder[i] ? ((shiftOrder[i] - shiftLeft[i]) / shiftOrder[i]) * 100 : 0, 1)]) },
+    table: {
+      title: tr("Ringkasan per shift — snack & makan", "Summary by shift — snack & meal"),
+      headers: ["Shift", tr("Sisa snack", "Snack leftover"), tr("Efisiensi snack", "Snack eff."), tr("Sisa makan", "Meal leftover"), tr("Efisiensi makan", "Meal eff.")],
+      rows: [
+        ...[0, 1, 2].map((i) => [`Shift ${i + 1}`, fmtNum(sShift[i].left), pctOf(sShift[i].order, sShift[i].left), fmtNum(mShift[i].left), pctOf(mShift[i].order, mShift[i].left)]),
+        ["Total", fmtNum(A.sl), pctOf(A.so, A.sl), fmtNum(A.ml), pctOf(A.mo, A.ml)],
+      ],
+    },
     empty: false,
   };
 }

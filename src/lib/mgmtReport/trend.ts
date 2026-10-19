@@ -3,7 +3,7 @@
    kalimat tren disisipkan di temuan utama. */
 
 import type { AtkRequest, CanteenReport, Claim, TaskDetail } from "../types";
-import { PALETTE, fmtNum, fmtPct, fmtRpShort, tr, trendChart, trendSentence, type ModuleReport, type MonthSlot } from "./model";
+import { PALETTE, fmtNum, fmtPct, fmtRpShort, tr, trendChart, trendSentence, type ChartSpec, type ModuleReport, type MonthSlot } from "./model";
 
 const inM = (d: string | null | undefined, m: MonthSlot) => !!d && d.slice(0, 10) >= m.from && d.slice(0, 10) <= m.to;
 const sum = (a: number[]) => a.reduce((s, n) => s + (Number(n) || 0), 0);
@@ -35,15 +35,26 @@ export function claimsTrend(r: ModuleReport, months: MonthSlot[], claims: Claim[
 }
 
 export function canteenTrend(r: ModuleReport, months: MonthSlot[], rows: CanteenReport[]): ModuleReport {
-  const vals = months.map((m) => {
+  // Snack & makan dihitung terpisah — dua garis, tidak digabung.
+  const effOf = (pick: "snack" | "meal") => months.map((m) => {
     const rs = rows.filter((x) => inM(x.reportDate, m));
-    const o = sum(rs.flatMap((x) => [...x.snackOrder, ...x.mealOrder]));
-    const l = sum(rs.flatMap((x) => [...x.snackLeftover, ...x.mealLeftover]));
+    const o = sum(rs.flatMap((x) => (pick === "snack" ? x.snackOrder : x.mealOrder)));
+    const l = sum(rs.flatMap((x) => (pick === "snack" ? x.snackLeftover : x.mealLeftover)));
     return o ? Math.round(((o - l) / o) * 1000) / 10 : null;
   });
-  const chart = trendChart({ id: "canteen-trend13", title: tr("Efisiensi kantin per bulan — 13 bulan (%)", "Canteen efficiency per month — 13 months (%)"), months, unit: "pct", goodUp: true,
-    series: [{ name: tr("Efisiensi", "Efficiency"), values: vals, color: PALETTE.amber }] });
-  return attach(r, chart, trendSentence(tr("efisiensi", "efficiency"), vals, months, (n) => fmtPct(n, 1)), true);
+  const sVals = effOf("snack"), mVals = effOf("meal");
+  const partial = months[months.length - 1]?.partial;
+  const chart: ChartSpec = {
+    id: "canteen-trend13", title: tr("Efisiensi snack & makan per bulan — 13 bulan (%)", "Snack & meal efficiency per month — 13 months (%)"),
+    type: "line", labels: months.map((m) => m.label), unit: "pct", goodUp: true,
+    series: [{ name: "Snack", color: PALETTE.green, values: sVals.map((v) => v || 0) }, { name: tr("Makan", "Meals"), color: PALETTE.brand, values: mVals.map((v) => v || 0) }],
+    note: partial ? tr("* bulan berjalan", "* month to date") : undefined,
+  };
+  const sentence = [
+    trendSentence(tr("efisiensi snack", "snack efficiency"), sVals, months, (n) => fmtPct(n, 1)),
+    trendSentence(tr("efisiensi makan", "meal efficiency"), mVals, months, (n) => fmtPct(n, 1)),
+  ].filter(Boolean).join(" ");
+  return attach(r, chart, sentence, true);
 }
 
 export function atkTrend(r: ModuleReport, months: MonthSlot[], requests: AtkRequest[]): ModuleReport {

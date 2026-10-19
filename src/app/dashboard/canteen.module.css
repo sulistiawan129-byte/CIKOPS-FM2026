@@ -27,19 +27,9 @@
 @media (max-width: 720px) { .pickers { margin-left: 0; } }
 .err { padding: 12px 14px; border-radius: 12px; background: var(--red-soft); color: var(--red); font-size: 13px; }
 
-/* atas: ring + kategori */
-.top { display: grid; grid-template-columns: minmax(300px, 1.15fr) repeat(2, minmax(240px, 1fr)); gap: 14px; }
-@media (max-width: 1100px) { .top { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ringCard { grid-column: 1 / -1; } }
+/* atas: kartu Snack & Makan (terpisah, tidak digabung) */
+.top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 620px) { .top { grid-template-columns: 1fr; } }
-.ringCard { display: flex; align-items: center; gap: 18px; padding: 18px; border-radius: 18px; border: 1px solid var(--border2); background: var(--surface); }
-.ringBg { fill: none; stroke: color-mix(in srgb, var(--t3) 14%, transparent); stroke-width: 12; }
-.ringFg { fill: none; stroke: var(--snack); stroke-width: 12; stroke-linecap: round; transition: stroke-dasharray .6s ease; }
-.ringVal { font-size: 22px; font-weight: 800; fill: var(--t1); }
-.ringSub { font-size: 11px; font-weight: 600; fill: var(--t3); }
-.ringText { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
-.ringText > b { font-size: 24px; font-weight: 800; color: var(--t1); letter-spacing: -0.01em; }
-.ringText > b small { font-size: 13px; font-weight: 600; color: var(--t3); letter-spacing: 0; white-space: nowrap; }
-.ringText > span:last-child { font-size: 13px; color: var(--t2); }
 
 .catCard { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 18px; border: 1.5px solid var(--border2); background: var(--surface); color: var(--t1); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; --c: var(--snack); }
 .meal { --c: var(--meal); }
@@ -55,6 +45,7 @@
 .catStats > span { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface2); }
 .catStats small { font-size: 11.5px; font-weight: 600; color: var(--t3); }
 .catStats b { font-size: 15px; font-weight: 800; }
+.catFoot { font-size: 12.5px; color: var(--t2); }
 .track { display: block; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--t3) 14%, transparent); overflow: hidden; }
 .track i { display: block; height: 100%; border-radius: 99px; background: var(--c, var(--snack)); transition: width .5s ease; }
 .trackSnack { background: var(--snack) !important; }
@@ -115,13 +106,19 @@
 .shiftVal small { font-size: 11.5px; font-weight: 600; color: var(--t3); }
 
 .tableBox { overflow-x: auto; }
-.table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13.5px; }
+.table { width: 100%; min-width: 1040px; border-collapse: collapse; font-size: 13.5px; }
 .table th { padding: 0 8px 10px; text-align: left; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
 .table td { padding: 11px 8px; border-top: 1px solid var(--border); color: var(--t1); }
 .table tbody tr { cursor: pointer; transition: background .12s; }
 .table tbody tr:hover { background: var(--surface2); }
 .rowOn { background: color-mix(in srgb, var(--brand) 8%, transparent) !important; }
 .num { text-align: right !important; }
+.groupRow th { padding-bottom: 6px; }
+.group { text-align: center !important; font-size: 12.5px !important; letter-spacing: .06em; border-bottom: 2px solid var(--g); color: var(--g) !important; --g: var(--snack); }
+.groupSnack { --g: var(--snack); }
+.groupMeal { --g: var(--meal); }
+.gStart { border-left: 1px solid var(--border); }
+.totalRow td { border-top: 2px solid var(--border2); font-weight: 800; background: var(--surface2); }
 .muted { color: var(--t2) !important; }
 .del { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--t3); cursor: pointer; }
 .del:hover { background: var(--red-soft); color: var(--red); }
@@ -131,11 +128,9 @@
 .confirm p { margin: 0 0 18px; font-size: 14px; color: var(--t2); }
 .confirmActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-@media (prefers-reduced-motion: reduce) { .track i, .used, .left, .ringFg, .catCard, .ghost { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .track i, .used, .left, .catCard, .ghost { transition: none; } }
 @media (max-width: 620px) {
   .toolbar .seg { display: flex; width: 100%; }
   .toolbar .seg button { flex: 1 1 0; padding: 0 6px; }
   .period { width: 100%; justify-content: space-between; }
-  .ringCard { flex-direction: column; text-align: center; }
-  .ringText { align-items: center; }
 }

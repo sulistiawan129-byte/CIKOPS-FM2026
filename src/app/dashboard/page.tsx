@@ -2022,7 +2022,8 @@ function HomeTab({
   const [kpi, setKpi] = useState<{
     claimWeekTotal: number;
     tasksToday: number;
-    canteenTodayTotal: number;
+    canteenTodaySnack: number;
+    canteenTodayMeal: number;
     opBudgetAvailable: number;
     vehiclesActive: number;
     driversActive: number;
@@ -2092,7 +2093,7 @@ function HomeTab({
             getDrivers("PRB"),
           ]);
           setKpi({
-            claimWeekTotal: 0, tasksToday: tasksToday.length, canteenTodayTotal: 0, opBudgetAvailable: 0,
+            claimWeekTotal: 0, tasksToday: tasksToday.length, canteenTodaySnack: 0, canteenTodayMeal: 0, opBudgetAvailable: 0,
             vehiclesActive: vehicles.filter((v) => v.aktif).length,
             driversActive: drivers.filter((d) => d.aktif).length,
           });
@@ -2113,15 +2114,16 @@ function HomeTab({
           .filter((c) => c.submissionDate >= mondayStr && c.submissionDate <= todayS)
           .reduce((s, c) => s + c.total, 0);
         const canteenToday = canteenMonth.find((r) => r.reportDate === todayS);
-        const canteenTodayTotal = canteenToday
-          ? canteenToday.snackOrder.reduce((a, b) => a + b, 0) + canteenToday.mealOrder.reduce((a, b) => a + b, 0)
-          : 0;
+        // Snack & makan ditampilkan terpisah, tidak digabung.
+        const canteenTodaySnack = canteenToday ? canteenToday.snackOrder.reduce((a, b) => a + b, 0) : 0;
+        const canteenTodayMeal = canteenToday ? canteenToday.mealOrder.reduce((a, b) => a + b, 0) : 0;
         const opBudgetAvailable = (kantongCik?.cashAvailable ?? 0) + (kantongPrb?.cashAvailable ?? 0);
 
         setKpi({
           claimWeekTotal,
           tasksToday: tasksToday.length,
-          canteenTodayTotal,
+          canteenTodaySnack,
+          canteenTodayMeal,
           opBudgetAvailable,
           vehiclesActive: vehicles.filter((v) => v.aktif).length,
           driversActive: drivers.filter((d) => d.aktif).length,
@@ -2291,7 +2293,7 @@ function HomeTab({
                     <button type="button" className={hm.kpi} onClick={() => setActiveTab("canteen")}>
                       <span className={hm.kpiIc}><Icon name="canteen" size={18} /></span>
                       <span className={hm.kpiLabel}>Kantin hari ini</span>
-                      <b className={hm.kpiVal}>{kpi.canteenTodayTotal.toLocaleString("id-ID")}<small> porsi</small></b>
+                      <b className={hm.kpiVal}>{kpi.canteenTodaySnack.toLocaleString("id-ID")}<small> snack · </small>{kpi.canteenTodayMeal.toLocaleString("id-ID")}<small> makan</small></b>
                     </button>
                     <button type="button" className={hm.kpi} onClick={() => setActiveTab("opfund")}>
                       <span className={hm.kpiIc}><Icon name="opfund" size={18} /></span>

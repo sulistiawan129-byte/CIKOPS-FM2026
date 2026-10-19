@@ -90,6 +90,7 @@
 .grid2b { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: .9rem; }
 .shift { display: grid; grid-template-columns: 5rem repeat(3, minmax(0, 1fr)); align-items: center; gap: .6rem; padding: .7rem 0; border-top: 1px solid var(--line); font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .shift b { font-size: .95rem; }
+.shift4 { grid-template-columns: 4.5rem repeat(4, minmax(0, 1fr)); font-size: 1.15rem; }
 .shift small { display: block; font-size: .7rem; font-weight: 600; color: var(--t3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .2rem; }
 .areaVal { display: flex; align-items: flex-end; justify-content: space-between; gap: .6rem; }
 .areaVal .num { font-size: 2.6rem; white-space: nowrap; }

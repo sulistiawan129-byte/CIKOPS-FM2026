@@ -3,7 +3,7 @@
 /* ════════════════════════════════════════════════════════════
    KANTIN — dashboard (admin, baca + hapus). Input harian ada di /canteen.
    - Periode: Harian / Mingguan / Bulanan / Kustom, dengan tombol mundur/maju
-   - Ring efisiensi keseluruhan + kartu Snack & Makan
+   - Snack & Makan selalu terpisah (order, terpakai, sisa, efisiensi) — tidak digabung
    - Grafik harian interaktif (hover = tooltip, klik = pilih hari)
    - Rincian per shift (1/2/3) untuk periode atau hari terpilih
    - Catatan otomatis, tabel harian, ekspor CSV & PDF, hapus laporan
@@ -163,11 +163,9 @@ export default function CanteenTab() {
     const s = (k: keyof Omit<DayAgg, "date">) => dayAggs.reduce((a, d) => a + d[k], 0);
     const snackOrder = s("snackOrder"), snackLeftover = s("snackLeftover"), snackConsumed = s("snackConsumed");
     const mealOrder = s("mealOrder"), mealLeftover = s("mealLeftover"), mealConsumed = s("mealConsumed");
-    const overallOrder = snackOrder + mealOrder, overallConsumed = snackConsumed + mealConsumed;
     return {
       snackOrder, snackLeftover, snackConsumed, snackEff: effOf(snackConsumed, snackOrder),
       mealOrder, mealLeftover, mealConsumed, mealEff: effOf(mealConsumed, mealOrder),
-      overallOrder, overallConsumed, overallEff: effOf(overallConsumed, overallOrder),
     };
   }, [dayAggs]);
 
@@ -190,25 +188,40 @@ export default function CanteenTab() {
     const mPeak = dayAggs.reduce((b, d) => (d.mealLeftover > b.mealLeftover ? d : b), dayAggs[0]);
     if (sPeak.snackLeftover > 0) out.push(`Sisa snack terbanyak ${num(sPeak.snackLeftover)} porsi pada ${dShort(sPeak.date)}.`);
     if (mPeak.mealLeftover > 0) out.push(`Sisa makan terbanyak ${num(mPeak.mealLeftover)} porsi pada ${dShort(mPeak.date)}.`);
-    const allShift = SHIFTS.map((label, i) => ({
+    const worstShift = (pick: (r: CanteenReport) => number[]) => SHIFTS.map((label, i) => ({
       label,
-      left: filteredRows.reduce((a, r) => a + (r.snackLeftover[i] || 0) + (r.mealLeftover[i] || 0), 0),
+      left: filteredRows.reduce((a, r) => a + (pick(r)[i] || 0), 0),
     })).sort((a, b) => b.left - a.left)[0];
-    if (allShift && allShift.left > 0) out.push(`${allShift.label} menyumbang sisa paling banyak (${num(allShift.left)} porsi).`);
+    const sShift = worstShift((r) => r.snackLeftover), mShift = worstShift((r) => r.mealLeftover);
+    if (sShift && sShift.left > 0) out.push(`Sisa snack paling banyak di ${sShift.label} (${num(sShift.left)} porsi).`);
+    if (mShift && mShift.left > 0) out.push(`Sisa makan paling banyak di ${mShift.label} (${num(mShift.left)} porsi).`);
     if (out.length === 0) out.push("Tidak ada sisa makanan pada periode ini.");
     return out;
   }, [dayAggs, filteredRows]);
 
   const autoAnalysis = useMemo(() => {
     if (dayAggs.length === 0) return "Belum ada data tercatat pada periode ini.";
-    return `${periodLabel} — Snack ${totals.snackEff.toFixed(2)}% · Makan ${totals.mealEff.toFixed(2)}% · Keseluruhan ${totals.overallEff.toFixed(1)}% — ${health(totals.overallEff, true).label}. ${insights.join(" ")}`;
+    const part = (name: string, order: number, used: number, left: number, eff: number) =>
+      order > 0 ? `${name}: order ${num(order)}, terpakai ${num(used)}, sisa ${num(left)} (${eff.toFixed(2)}% — ${health(eff, true).label})` : `${name}: belum ada order`;
+    return `${periodLabel} — ${part("Snack", totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}. ${part("Makan", totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}. ${insights.join(" ")}`;
   }, [dayAggs, totals, periodLabel, insights]);
 
   function handleExportCsv() {
-    const lines = [["Tanggal", "Snack Order", "Snack Sisa", "Snack Terpakai", "Makan Order", "Makan Sisa", "Makan Terpakai"].join(",")];
-    dayAggs.forEach((d) => lines.push([d.date, d.snackOrder, d.snackLeftover, d.snackConsumed, d.mealOrder, d.mealLeftover, d.mealConsumed].join(",")));
-    lines.push("");
-    lines.push(["TOTAL", totals.snackOrder, totals.snackLeftover, totals.snackConsumed, totals.mealOrder, totals.mealLeftover, totals.mealConsumed].join(","));
+    // Dua bagian terpisah: SNACK lalu MAKAN, masing-masing dengan total sendiri.
+    const pctCsv = (used: number, order: number) => (order > 0 ? effOf(used, order).toFixed(2) : "");
+    const lines: string[] = [];
+    (["snack", "meal"] as const).forEach((k, idx) => {
+      const name = k === "snack" ? "SNACK" : "MAKAN";
+      if (idx > 0) lines.push("");
+      lines.push(name);
+      lines.push(["Tanggal", "Order", "Terpakai", "Sisa", "Efisiensi %"].join(","));
+      dayAggs.forEach((d) => {
+        const o = k === "snack" ? d.snackOrder : d.mealOrder, u = k === "snack" ? d.snackConsumed : d.mealConsumed, l = k === "snack" ? d.snackLeftover : d.mealLeftover;
+        lines.push([d.date, o, u, l, pctCsv(u, o)].join(","));
+      });
+      const o = k === "snack" ? totals.snackOrder : totals.mealOrder, u = k === "snack" ? totals.snackConsumed : totals.mealConsumed, l = k === "snack" ? totals.snackLeftover : totals.mealLeftover;
+      lines.push([`TOTAL ${name}`, o, u, l, pctCsv(u, o)].join(","));
+    });
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -233,9 +246,6 @@ export default function CanteenTab() {
   if (loading) return <div className={c.loading}>Memuat data kantin…</div>;
 
   const hasData = dayAggs.length > 0;
-  const overall = health(totals.overallEff, hasData);
-  const R = 52, CIRC = 2 * Math.PI * R;
-  const ringLen = (Math.min(100, totals.overallEff) / 100) * CIRC;
 
   // grafik
   const series = dayAggs.map((d) => cat === "snack"
@@ -256,10 +266,11 @@ export default function CanteenTab() {
         <span className={c.catBig}><b>{order > 0 ? pctTxt(eff) : "–"}</b><span>terpakai</span></span>
         <span className={c.track}><i style={{ width: `${Math.min(100, eff)}%` }} /></span>
         <span className={c.catStats}>
-          <span><small>Order</small><b>{num(order)}</b></span>
+          <span><small>Total order</small><b>{num(order)}</b></span>
           <span><small>Terpakai</small><b>{num(used)}</b></span>
-          <span><small>Sisa</small><b className={left > 0 ? c.inkBad : ""}>{num(left)}</b></span>
+          <span><small>Total sisa</small><b className={left > 0 ? c.inkBad : ""}>{num(left)}</b></span>
         </span>
+        <span className={c.catFoot}>{hasData ? `${dayAggs.length} hari tercatat · rata-rata sisa ${num(left / dayAggs.length)} porsi/hari` : "Belum ada laporan pada periode ini."}</span>
       </button>
     );
   };
@@ -269,7 +280,7 @@ export default function CanteenTab() {
       <header className={c.head}>
         <div className={c.headText}>
           <h1>Kantin</h1>
-          <p>Order dan sisa snack &amp; makan per shift, dilaporkan harian dari halaman /canteen.</p>
+          <p>Snack dan makan dilaporkan terpisah — total order, terpakai, dan sisa masing-masing per shift, dari input harian /canteen.</p>
         </div>
         <div className={c.headActions}>
           <button type="button" className={c.ghost} onClick={handleExportCsv} disabled={!hasData}><IcDown />CSV</button>
@@ -304,19 +315,6 @@ export default function CanteenTab() {
       {error && <div className={c.err}>{error}</div>}
 
       <section className={c.top}>
-        <div className={c.ringCard}>
-          <svg viewBox="0 0 132 132" width="132" height="132" role="img" aria-label={`Efisiensi keseluruhan ${pctTxt(totals.overallEff)}`}>
-            <circle cx="66" cy="66" r={R} className={c.ringBg} />
-            {hasData && <circle cx="66" cy="66" r={R} className={c.ringFg} strokeDasharray={`${ringLen} ${CIRC}`} transform="rotate(-90 66 66)" />}
-            <text x="66" y="64" textAnchor="middle" className={c.ringVal}>{hasData ? pctTxt(totals.overallEff) : "–"}</text>
-            <text x="66" y="82" textAnchor="middle" className={c.ringSub}>efisiensi</text>
-          </svg>
-          <div className={c.ringText}>
-            <span className={`${c.badge} ${overall.tone}`}>{overall.label}</span>
-            <b>{num(totals.overallConsumed)}<small> / {num(totals.overallOrder)} porsi terpakai</small></b>
-            <span>{hasData ? `${dayAggs.length} hari tercatat · sisa ${num(totals.snackLeftover + totals.mealLeftover)} porsi` : "Belum ada laporan pada periode ini."}</span>
-          </div>
-        </div>
         {catCard("snack", "Snack", totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}
         {catCard("meal", "Makan", totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}
       </section>
@@ -426,10 +424,16 @@ export default function CanteenTab() {
           <div className={c.tableBox}>
             <table className={c.table}>
               <thead>
+                <tr className={c.groupRow}>
+                  <th />
+                  <th colSpan={4} className={`${c.group} ${c.groupSnack}`}>Snack</th>
+                  <th colSpan={4} className={`${c.group} ${c.groupMeal}`}>Makan</th>
+                  <th colSpan={2} />
+                </tr>
                 <tr>
                   <th>Tanggal</th>
-                  <th className={c.num}>Snack order</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
-                  <th className={c.num}>Makan order</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
+                  <th className={`${c.num} ${c.gStart}`}>Order</th><th className={c.num}>Terpakai</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
+                  <th className={`${c.num} ${c.gStart}`}>Order</th><th className={c.num}>Terpakai</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
                   <th>Pelapor</th>
                   <th aria-label="Aksi" />
                 </tr>
@@ -442,10 +446,12 @@ export default function CanteenTab() {
                   return (
                     <tr key={r.id} className={on ? c.rowOn : ""} onClick={() => setPicked(on ? null : r.reportDate)}>
                       <td><b>{dFull(r.reportDate)}</b></td>
-                      <td className={c.num}>{num(d.snackOrder)}</td>
+                      <td className={`${c.num} ${c.gStart}`}>{num(d.snackOrder)}</td>
+                      <td className={c.num}>{num(d.snackConsumed)}</td>
                       <td className={`${c.num} ${d.snackLeftover > 0 ? c.inkBad : ""}`}>{num(d.snackLeftover)}</td>
                       <td className={c.num}><span className={`${c.badge} ${health(se, d.snackOrder > 0).tone}`}>{d.snackOrder > 0 ? pctTxt(se) : "–"}</span></td>
-                      <td className={c.num}>{num(d.mealOrder)}</td>
+                      <td className={`${c.num} ${c.gStart}`}>{num(d.mealOrder)}</td>
+                      <td className={c.num}>{num(d.mealConsumed)}</td>
                       <td className={`${c.num} ${d.mealLeftover > 0 ? c.inkBad : ""}`}>{num(d.mealLeftover)}</td>
                       <td className={c.num}><span className={`${c.badge} ${health(me, d.mealOrder > 0).tone}`}>{d.mealOrder > 0 ? pctTxt(me) : "–"}</span></td>
                       <td className={c.muted}>{r.submittedBy || "-"}</td>
@@ -456,6 +462,20 @@ export default function CanteenTab() {
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr className={c.totalRow}>
+                  <td>Total periode</td>
+                  <td className={`${c.num} ${c.gStart}`}>{num(totals.snackOrder)}</td>
+                  <td className={c.num}>{num(totals.snackConsumed)}</td>
+                  <td className={`${c.num} ${totals.snackLeftover > 0 ? c.inkBad : ""}`}>{num(totals.snackLeftover)}</td>
+                  <td className={c.num}><span className={`${c.badge} ${health(totals.snackEff, totals.snackOrder > 0).tone}`}>{totals.snackOrder > 0 ? pctTxt(totals.snackEff) : "–"}</span></td>
+                  <td className={`${c.num} ${c.gStart}`}>{num(totals.mealOrder)}</td>
+                  <td className={c.num}>{num(totals.mealConsumed)}</td>
+                  <td className={`${c.num} ${totals.mealLeftover > 0 ? c.inkBad : ""}`}>{num(totals.mealLeftover)}</td>
+                  <td className={c.num}><span className={`${c.badge} ${health(totals.mealEff, totals.mealOrder > 0).tone}`}>{totals.mealOrder > 0 ? pctTxt(totals.mealEff) : "–"}</span></td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
