@@ -10,13 +10,14 @@ export interface Driver {
   email?: string | null;
   tier_id?: string | null;
   plant?: Plant;
-  // Migrasi 014 — tipe driver. Kosong/undefined dianggap "operational".
+  // Migrasi 014/030 — tipe driver. Kosong/undefined dianggap "operational" (Driver Pool).
   driver_type?: DriverType;
   assigned_user?: string | null;
   assigned_user_title?: string | null;
 }
 
-export type DriverType = "operational" | "user";
+/** operational = Driver Pool, user = Driver User, support = Driver Support (migrasi 030). */
+export type DriverType = "operational" | "user" | "support";
 
 export interface Vehicle {
   id: string;

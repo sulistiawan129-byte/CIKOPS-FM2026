@@ -1052,14 +1052,25 @@ export async function getVehicleGateLogs(params?: {
   plant?: Plant | null;
   dateFrom?: string;
   dateTo?: string;
+  /** true = log yang masih aktif (belum DONE) selalu ikut, apa pun tanggalnya —
+   *  supaya log lama yang lupa ditutup tetap terlihat dan bisa ditutup. */
+  includeActive?: boolean;
 }): Promise<VehicleGateLog[]> {
   let q = supabase
     .from("vehicle_gate_logs")
     .select("*, vehicles(nopol, jenis, color), drivers(nama)")
     .order("created_at", { ascending: false });
   if (params?.plant) q = q.eq("plant", params.plant);
-  if (params?.dateFrom) q = q.gte("created_at", params.dateFrom);
-  if (params?.dateTo) q = q.lte("created_at", params.dateTo + "T23:59:59");
+  if (params?.includeActive && (params.dateFrom || params.dateTo)) {
+    const range = [
+      params.dateFrom ? `created_at.gte.${params.dateFrom}` : "",
+      params.dateTo ? `created_at.lte.${params.dateTo}T23:59:59` : "",
+    ].filter(Boolean).join(",");
+    q = q.or(`status.neq.DONE,and(${range})`);
+  } else {
+    if (params?.dateFrom) q = q.gte("created_at", params.dateFrom);
+    if (params?.dateTo) q = q.lte("created_at", params.dateTo + "T23:59:59");
+  }
   const { data, error } = await q;
   if (error) throw error;
   return (data as GateLogRow[] ?? []).map(mapGateLogRow);
@@ -2123,9 +2134,15 @@ export interface DriverInput {
 }
 
 const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/014_driver_type.sql di Supabase SQL Editor dulu.";
+const MIGRATION_030_MSG = "Tipe Driver Support belum diizinkan database — jalankan supabase/030_driver_support.sql di Supabase SQL Editor dulu.";
+/** Constraint lama (014) menolak 'support'. */
+function isDriverTypeCheckViolation(error: { message?: string; code?: string } | null): boolean {
+  return !!error && (error.code === "23514" || /drivers_driver_type_check/i.test(error.message || ""));
+}
 
 export async function addDriver(input: DriverInput, initialPin?: string): Promise<Driver> {
   const { data, error } = await supabase.from("drivers").insert(input).select().single();
+  if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG);
   if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
   if (error) throw error;
   if (initialPin) {
@@ -2136,6 +2153,7 @@ export async function addDriver(input: DriverInput, initialPin?: string): Promis
 
 export async function updateDriver(id: string, input: DriverInput): Promise<void> {
   const { error } = await supabase.from("drivers").update(input).eq("id", id);
+  if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG);
   if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
   if (error) throw error;
 }
@@ -2150,7 +2168,7 @@ export async function getDriverDutyInfo(
     if (error || !data || data.length === 0) return { driver_type: "operational" };
     const r = data[0] as Pick<Driver, "driver_type" | "assigned_user" | "assigned_user_title">;
     return {
-      driver_type: r.driver_type === "user" ? "user" : "operational",
+      driver_type: r.driver_type === "user" || r.driver_type === "support" ? r.driver_type : "operational",
       assigned_user: r.assigned_user ?? null,
       assigned_user_title: r.assigned_user_title ?? null,
     };
