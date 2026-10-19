@@ -191,11 +191,39 @@ function Chart({ title, note, bars }: { title: string; note?: string; bars: Bar[
   );
 }
 
-function AreaTile({ a, onOpen }: { a: AreaCard; onOpen: (t: TabId) => void }) {
-  const max = Math.max(1, ...a.spark);
+/** Grafik mini 14 hari — arahkan kursor / sentuh batang untuk melihat nilainya. */
+function Trend({ bars, label }: { bars: Bar[]; label: string }) {
+  const [hi, setHi] = useState<number | null>(null);
+  const max = Math.max(1, ...bars.map((b) => b.value));
+  const cur = hi ?? bars.length - 1;
+  const b = bars[cur];
   return (
-    <button type="button" className={`${s.card} ${s.area}`} style={{ ["--c" as string]: STATUS_COLOR[a.status] }} onClick={() => onOpen(AREA_TAB[a.key] ?? "rapor")}>
+    <div className={s.trend} onMouseLeave={() => setHi(null)}>
+      <div className={s.trendHead}><span>{label}</span>{b && <b>{b.label} · {b.display}</b>}</div>
+      <div className={s.trendBars} role="list">
+        {bars.map((x, i) => (
+          <span
+            key={i} role="listitem" tabIndex={0} aria-label={`${x.label}: ${x.display}`}
+            className={`${s.tb} ${x.tone ? s["t_" + x.tone] : x.highlight ? s.tbToday : ""} ${i === cur ? s.tbOn : ""}`}
+            style={{ height: `${Math.max(4, (x.value / max) * 100)}%` }}
+            onMouseEnter={() => setHi(i)} onFocus={() => setHi(i)} onClick={(e) => { e.stopPropagation(); setHi(i); }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AreaTile({ a, onOpen, i }: { a: AreaCard; onOpen: (t: TabId) => void; i: number }) {
+  const open = () => onOpen(AREA_TAB[a.key] ?? "rapor");
+  return (
+    <div
+      className={`${s.card} ${s.area} ${s.rise}`} style={{ ["--c" as string]: STATUS_COLOR[a.status], animationDelay: `${120 + i * 70}ms` }}
+      role="button" tabIndex={0} onClick={open} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); } }}
+      aria-label={`${a.name}: ${a.hook}. Buka detail`}
+    >
       <div className={s.cardHead}><span className={s.lbl}>{a.name}</span><Pill st={a.status} /></div>
+      <p className={s.hook}>{a.hook}</p>
       <div className={s.areaVal}>
         <div>
           <div className={s.num}>{a.today}</div>
@@ -206,53 +234,112 @@ function AreaTile({ a, onOpen }: { a: AreaCard; onOpen: (t: TabId) => void }) {
           <span>{a.monthUnit}</span>
         </div>
       </div>
-      <div className={s.spark} aria-hidden="true">{a.spark.map((x, i) => <span key={i} style={{ height: `${Math.max(4, (x / max) * 100)}%` }} />)}</div>
-      <p className={s.story}>{a.story}</p>
-    </button>
+      {a.facts.length > 0 && (
+        <div className={s.facts}>
+          {a.facts.map((f) => (
+            <span key={f.label} className={`${s.fact} ${f.tone ? s["f_" + f.tone] : ""}`}><small>{f.label}</small><b>{f.value}</b></span>
+          ))}
+        </div>
+      )}
+      <Trend bars={a.trend} label={a.trendLabel} />
+    </div>
   );
 }
 
-/* ════════════════ 1 · RINGKASAN ════════════════ */
+const LEVEL_LABEL = { kritis: "Kritis", perhatian: "Perhatian", info: "Info" } as const;
+
+/** Perlu tindakan — dikelompokkan per masalah; klik untuk membuka rincian. */
+function ActionList({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  return (
+    <div className={`${s.card} ${s.flex1} ${s.rise}`} style={{ animationDelay: "80ms" }}>
+      <div className={s.cardHead}><span className={s.lbl}>Perlu tindakan</span><small>{v.groups.length} masalah</small></div>
+      <div className={s.lvlRow}>
+        {(["kritis", "perhatian", "info"] as const).map((k) => (
+          <div key={k} className={`${s.lvl} ${s["s_" + k]}`}><b>{v.counts[k]}</b><span>{LEVEL_LABEL[k]}</span></div>
+        ))}
+      </div>
+      {v.groups.length === 0 ? (
+        <div className={s.allGood}><Icon name="check" size={22} strokeWidth={2.6} /><div><b>Semua aman</b><small>Tidak ada yang perlu ditindaklanjuti.</small></div></div>
+      ) : (
+        <ul className={s.groups}>
+          {v.groups.map((g, i) => {
+            const key = `${g.area}-${g.level}-${i}`;
+            const isOpen = openKey === key;
+            return (
+              <li key={key} className={`${s.grp} ${s["g_" + g.level]}`}>
+                <button type="button" className={s.grpHead} aria-expanded={g.items.length ? isOpen : undefined}
+                  onClick={() => (g.items.length ? setOpenKey(isOpen ? null : key) : onOpen(g.tab as TabId))}>
+                  <span className={s.grpArea}>{g.area}</span>
+                  <span className={s.grpTitle}>{g.title}</span>
+                  {g.items.length > 0 && <span className={s.grpN}>{g.items.length}</span>}
+                  <span className={`${s.chev} ${isOpen ? s.chevOn : ""}`}><Icon name="arrow" size={14} /></span>
+                </button>
+                {isOpen && (
+                  <div className={s.grpBody}>
+                    <ul>{g.items.slice(0, 8).map((x) => <li key={x}>{x}</li>)}</ul>
+                    {g.items.length > 8 && <small className={s.muted}>+{g.items.length - 8} lainnya</small>}
+                    <button type="button" className={s.linkBtn} onClick={() => onOpen(g.tab as TabId)}>Buka halaman {g.area} →</button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className={s.soonLine}><span>Tamu &amp; visitor hari ini</span><Pill st="na">Segera</Pill></div>
+    </div>
+  );
+}
+
+/* ════════════════ 1 · RINGKASAN ════════════════
+   Alur cerita: (1) headline — bagaimana FM hari ini, (2) denyut angka hari ini,
+   (3) 4 area: satu hook + fakta + tren, (4) daftar tindakan yang dikelompokkan. */
 function Rapor({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
-  const deg = v.health === null ? 0 : (v.health / 100) * 360;
+  const R = 46, C = 2 * Math.PI * R;
+  const frac = v.health === null ? 0 : v.health / 100;
+  const col = STATUS_COLOR[v.healthStatus];
   return (
     <div className={s.rapor}>
       <div className={s.col}>
-        <div className={s.top2}>
-          <div className={`${s.card} ${s.health}`}>
-            <div className={s.ring} style={{ background: `conic-gradient(${STATUS_COLOR[v.healthStatus]} 0 ${deg}deg, rgba(255,255,255,.08) ${deg}deg 360deg)` }}>
-              <div className={s.ringIn}><div><div className={s.num} style={{ fontSize: "2.4rem" }}>{v.health ?? "–"}</div><div className={s.muted} style={{ fontSize: ".7rem" }}>dari 100</div></div></div>
-            </div>
-            <div className={s.col} style={{ gap: ".4rem" }}>
-              <div className={s.lbl}>Indeks FM hari ini</div>
-              <div className={s.disp} style={{ fontSize: "1.35rem", fontWeight: 700 }}>{v.healthStatus === "baik" ? "Operasional berjalan baik" : v.healthStatus === "perhatian" ? "Ada area yang perlu perhatian" : v.healthStatus === "kritis" ? "Perlu tindakan segera" : "Menunggu data"}</div>
-              <div className={s.muted} style={{ fontSize: ".78rem" }}>Rata-rata status area: Baik 100 · Perhatian 70 · Kritis 40</div>
-            </div>
-          </div>
-          <div className={s.card}>
+        <div className={`${s.card} ${s.hero} ${s.rise}`} style={{ ["--c" as string]: col }}>
+          <svg className={s.heroRing} viewBox="0 0 110 110" role="img" aria-label={`Indeks FM ${v.health ?? "–"} dari 100`}>
+            <circle cx="55" cy="55" r={R} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="10" />
+            <circle cx="55" cy="55" r={R} fill="none" stroke={col} strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 55 55)" className={s.heroArc} />
+            <text x="55" y="58" textAnchor="middle" className={s.heroVal}>{v.health ?? "–"}</text>
+            <text x="55" y="75" textAnchor="middle" className={s.heroSub}>indeks FM</text>
+          </svg>
+          <div className={s.heroText}>
             <div className={s.lbl}>{v.todayLabel} · bulan berjalan {v.monthLabel}</div>
-            <p className={s.summary} style={{ margin: 0 }}>{v.summary} <b>{v.summary2}</b></p>
+            <h2 className={s.headline}>{v.headline}</h2>
+            <p className={s.headlineSub}>{v.headlineSub}</p>
+          </div>
+          <div className={s.heroAreas}>
+            {v.areas.map((a) => (
+              <button key={a.key} type="button" className={s.dotBtn} style={{ ["--c" as string]: STATUS_COLOR[a.status] }} onClick={() => onOpen(AREA_TAB[a.key] ?? "rapor")} title={a.hook}>
+                <i />{a.name.split(" ")[0]}<small>{STATUS_LABEL[a.status]}</small>
+              </button>
+            ))}
           </div>
         </div>
+
+        <div className={s.pulse}>
+          {v.pulse.map((p, i) => (
+            <button key={p.key} type="button" className={`${s.pulseItem} ${s.rise}`} style={{ animationDelay: `${60 + i * 50}ms`, ["--c" as string]: p.tone ? STATUS_COLOR[p.tone] : "#5b8cff" }} onClick={() => onOpen(p.tab as TabId)}>
+              <small>{p.label}</small>
+              <b className={s.num}>{p.value}</b>
+              <span>{p.unit}</span>
+            </button>
+          ))}
+        </div>
+
         <div className={`${s.areas} ${s.areas2}`}>
-          {v.areas.map((a) => <AreaTile key={a.key} a={a} onOpen={onOpen} />)}
+          {v.areas.map((a, i) => <AreaTile key={a.key} a={a} onOpen={onOpen} i={i} />)}
         </div>
       </div>
       <div className={s.col}>
-        <div className={`${s.card} ${s.flex1}`}>
-          <div className={s.cardHead}><span className={s.lbl}>Perlu perhatian</span><Pill st={v.attention.some((x) => x.level === "kritis") ? "kritis" : v.attention.length ? "perhatian" : "baik"}>{v.attention.length} item</Pill></div>
-          {v.attention.length === 0 ? <div className={s.empty}>Tidak ada yang perlu ditindaklanjuti.</div> : (
-            <ul className={s.list}>
-              {v.attention.slice(0, 9).map((x, i) => (
-                <li key={i} className={s.li}><Pill st={x.level === "info" ? "info" : x.level}>{x.level === "kritis" ? "Kritis" : x.level === "perhatian" ? "Perhatian" : "Info"}</Pill><span>{x.text}</span></li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className={`${s.card} ${s.soon}`}>
-          <div className={s.cardHead}><span className={s.lbl}>Tamu &amp; visitor hari ini</span><Pill st="na">Segera</Pill></div>
-          <div className={s.muted} style={{ fontSize: ".85rem" }}>Tampil otomatis setelah modul Receptionist aktif.</div>
-        </div>
+        <ActionList v={v} onOpen={onOpen} />
       </div>
     </div>
   );
