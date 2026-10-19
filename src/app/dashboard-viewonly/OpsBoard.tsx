@@ -39,7 +39,7 @@ import Link from "next/link";
 import { Chakra_Petch, Inter } from "next/font/google";
 import Icon from "@/components/Icon";
 import { getViewOnlySnapshot, type ViewOnlyGateLog } from "@/lib/api";
-import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
+import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf } from "@/lib/duty";
 import type { TaskDetail, Driver, Vehicle, Plant } from "@/lib/types";
 
 const display = Chakra_Petch({
@@ -112,6 +112,34 @@ function initials(name?: string | null): string {
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Tanggal WIB (YYYY-MM-DD) dari ISO; null bila kosong. */
+function wibDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+}
+const todayWIB = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+
+/** Jam, ditambah tanggal bila bukan hari ini (mis. "12 Okt 06.51"). */
+function fmtWhen(iso: string | null): string {
+  if (!iso) return "—";
+  if (wibDate(iso) === todayWIB()) return fmtTime(iso);
+  return `${new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} ${fmtTime(iso)}`;
+}
+
+/** Waktu log gate mulai "terbuka": PRB = masuk CIK (time_in), CIK = keluar (time_out). */
+function gateOpenedAt(g: ViewOnlyGateLog): string {
+  return (g.plant === "PRB" ? g.timeIn : g.timeOut) ?? g.timeIn ?? g.timeOut ?? g.createdAt;
+}
+
+/** Log gate yang masih terbuka tetapi dibuka SEBELUM hari ini — hampir pasti
+ *  petugas lupa mencatat keluar/kembali. Tidak dihitung sebagai posisi saat ini. */
+function isStaleGate(g: ViewOnlyGateLog): boolean {
+  if (g.status === "DONE") return false;
+  const d = wibDate(gateOpenedAt(g));
+  return !!d && d < todayWIB();
 }
 
 function elapsedMins(iso: string | null): number {
@@ -347,7 +375,7 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
       <div className="av">{initials(r.driver.nama)}</div>
       <div className="d-main">
         <div className="d-top">
-          <div className="d-name">{shortName(r.driver.nama)}</div>
+          <div className="d-name">{shortName(r.driver.nama)}{driverTypeOf(r.driver) === "support" && <span className="d-type">Support</span>}</div>
           <span className="chip">{(r.state === "go" || r.state === "long") && <i className="pdot" />}{chip}</span>
         </div>
         {t ? (
@@ -472,7 +500,7 @@ function GateRow({ g, dir }: { g: ViewOnlyGateLog; dir: "in" | "out" }) {
         <div className="d-name sm">{shortName(g.driverName)}</div>
         <div className="g-text"><span className="plate">{plate(g.nopol)}</span> {dir === "out" ? `ke ${titleCase(g.tujuan) || "—"}` : sentence(g.tujuan) || "—"}{g.keterangan ? <span className="g-note"> · {sentence(g.keterangan)}</span> : null}</div>
       </div>
-      <div className="g-time">{fmtTime(dir === "out" ? g.timeOut : g.timeIn)}</div>
+      <div className="g-time">{fmtWhen(dir === "out" ? g.timeOut : g.timeIn)}</div>
     </div>
   );
 }
@@ -590,13 +618,17 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
     const done = tasks.filter((t) => t.status === "DONE");
     const gate = data?.gate ?? [];
     const gateReady = data?.gateReady ?? false;
-    const masuk = gate.filter((g) => g.plant === "PRB" && g.status !== "DONE");
-    const keluar = gate.filter((g) => g.plant === "CIK" && g.status !== "DONE");
+    // Log yang masih terbuka dari hari sebelumnya (lupa ditutup) tidak dihitung
+    // sebagai posisi kendaraan sekarang — ditampilkan sebagai "Perlu Perhatian".
+    const staleGate = gate.filter(isStaleGate);
+    const masuk = gate.filter((g) => g.plant === "PRB" && g.status !== "DONE" && !isStaleGate(g));
+    const keluar = gate.filter((g) => g.plant === "CIK" && g.status !== "DONE" && !isStaleGate(g));
     const late = going.filter((t) => elapsedMins(startOf(t)) > LATE_MIN);
     const stale = assigned.filter((t) => elapsedMins(t.created_at) > 30);
     const alerts: Alert[] = [
       ...late.map((t): Alert => ({ tone: "red", title: `${shortName(t.driver_nama)} sudah ${fmtDur(elapsedMins(startOf(t)))} bertugas`, sub: `${plate(t.kendaraan)} · ke ${titleCase(t.tujuan) || "—"}` })),
       ...stale.map((t): Alert => ({ tone: "amber", title: `${shortName(t.driver_nama)} belum berangkat`, sub: `Ditugaskan ${fmtDur(elapsedMins(t.created_at))} lalu · ${titleCase(t.tujuan) || "—"}` })),
+      ...staleGate.map((g): Alert => ({ tone: "amber", title: `Log gate belum ditutup · ${plate(g.nopol)}`, sub: `${shortName(g.driverName)} · ${g.plant === "PRB" ? "masuk CIK" : "keluar"} ${fmtWhen(gateOpenedAt(g))} — tutup di Dashboard → Armada → Gate Log` })),
     ];
     const allRows = [...cik.rows, ...prb.rows];
     const opRows = allRows.filter((r) => r.state !== "duty" && r.state !== "off");
@@ -605,6 +637,8 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
     const out = opRows.filter((r) => r.state === "go" || r.state === "long").length;
     return {
       going, assigned, done, masuk, keluar, gate, gateReady, alerts, activeDrivers, out, opCount: opRows.length, userRows,
+      poolRows: allRows.filter((r) => driverTypeOf(r.driver) === "operational").length,
+      supportRows: allRows.filter((r) => driverTypeOf(r.driver) === "support").length,
       totalDrivers: data?.drivers.length ?? 0,
       ready: allRows.filter((r) => r.state === "idle").length,
       vehiclesActive: (data?.vehicles ?? []).filter((v) => v.aktif).length,
@@ -615,7 +649,8 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
 
   const gateEvents = useMemo(() => {
     const ev: { at: number; text: string }[] = [];
-    const add = (iso: string | null, text: string) => { if (iso) ev.push({ at: new Date(iso).getTime(), text: `${text} · ${fmtTime(iso)}` }); };
+    const today = todayWIB();
+    const add = (iso: string | null, text: string) => { if (iso && wibDate(iso) === today) ev.push({ at: new Date(iso).getTime(), text: `${text} · ${fmtTime(iso)}` }); };
     for (const g of m.gate) {
       const who = `${shortName(g.driverName)} (${g.plant}) · ${plate(g.nopol)}`;
       if (g.plant === "CIK") {
@@ -740,6 +775,7 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         :global(.d-top) { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
         :global(.d-name) { font-family: var(--font-display), sans-serif; font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; line-height: 1.2; }
         :global(.d-name.sm) { font-size: 1rem; }
+        :global(.d-type) { margin-left: .5rem; padding: .05rem .4rem; border-radius: .3rem; border: 1px solid currentColor; font-family: var(--font-inter), sans-serif; font-size: .62rem; font-weight: 800; letter-spacing: .08em; vertical-align: middle; color: var(--amber); }
         :global(.d-dest) { display: flex; align-items: flex-start; gap: .4rem; margin-top: .25rem; font-size: 1.05rem; line-height: 1.35; color: var(--t1); }
         :global(.d-dest svg) { color: var(--tone); flex-shrink: 0; margin-top: .2rem; }
         :global(.d-dest b) { font-weight: 700; overflow-wrap: anywhere; }
@@ -848,7 +884,7 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         {error && <div className="err">Gagal memuat data terbaru: {error} — menampilkan data terakhir yang berhasil dimuat.</div>}
 
         <section className="kpis">
-          <Kpi tone="blue" label="Driver aktif" value={m.activeDrivers} sub={`${m.opCount} operasional · ${m.userRows} user`} />
+          <Kpi tone="blue" label="Driver aktif" value={m.activeDrivers} sub={`${m.poolRows} pool · ${m.supportRows} support · ${m.userRows} user`} />
           <Kpi tone="green" label="Standby" value={m.opCount - m.out} sub={`${m.ready} belum ada tugas`} />
           <Kpi tone="cyan" label="Sedang bertugas" value={m.out} sub="tugas ON GOING" />
           <Kpi tone="amber" label="Menunggu berangkat" value={m.assigned.length} sub="belum diterima driver" />

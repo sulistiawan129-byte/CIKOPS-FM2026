@@ -124,7 +124,7 @@ import {
 import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, GiftSelection, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, Announcement } from "@/lib/types";
 import { computeCanteenKPI } from "@/lib/types";
 import type { DriverType } from "@/lib/types";
-import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
+import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf, DRIVER_TYPES, DRIVER_TYPE_LABEL, DRIVER_TYPE_COLOR } from "@/lib/duty";
 import { exportTandaTerima } from "@/lib/tandaTerima";
 import { buildRincianRows } from "@/lib/claimRecap";
 import { exportWeeklyRecapToExcel, exportWeeklyRecapToPdf } from "@/lib/weeklyRecapExport";
@@ -5392,6 +5392,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
         plant: gatePlantFilter === "all" ? null : gatePlantFilter,
         dateFrom: gateDateFrom,
         dateTo: gateDateTo,
+        includeActive: true,
       });
       setGateLogs(logs);
     } catch (e) {
@@ -7092,6 +7093,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
   const [formType, setFormType] = useState<DriverType>("operational");
   const [formUser, setFormUser] = useState("");
   const [formUserTitle, setFormUserTitle] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | DriverType>("all");
   const dutyNow = useNowTick();
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Driver | null>(null);
@@ -7150,7 +7152,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
   setEditing(d);
  setFormNama(d.nama); setFormPhone(d.no_hp || ""); setFormEmail(d.email || ""); setFormAvatar(d.avatar_emoji || AVATAR_EMOJIS[0]); setFormAktif(d.aktif); setFormPin("");
    setFormPlant(d.plant || "CIK");
-   setFormType(d.driver_type === "user" ? "user" : "operational"); setFormUser(d.assigned_user || ""); setFormUserTitle(d.assigned_user_title || "");
+   setFormType(driverTypeOf(d)); setFormUser(d.assigned_user || ""); setFormUserTitle(d.assigned_user_title || "");
    setShowForm(true);
  }
 
@@ -7193,6 +7195,26 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
         <button className="pillBtn" onClick={openAdd}>+ {lang === "en" ? "Add Driver" : "Tambah Driver"}</button>
       </div>
 
+      {/* Klasifikasi: Driver Pool / Driver User / Driver Support */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }} role="group" aria-label={lang === "en" ? "Driver type" : "Tipe driver"}>
+        {(["all", ...DRIVER_TYPES] as ("all" | DriverType)[]).map((k) => {
+          const n = k === "all" ? drivers.length : drivers.filter((d) => driverTypeOf(d) === k).length;
+          const on = typeFilter === k;
+          const color = k === "all" ? "var(--t1)" : DRIVER_TYPE_COLOR[k];
+          return (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setTypeFilter(k)}
+              style={{ padding: "6px 14px", borderRadius: "var(--pill)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, border: `1px solid ${on ? color : "var(--border2)"}`, background: on ? "var(--surface2)" : "transparent", color: on ? color : "var(--t2)" }}
+            >
+              {k === "all" ? (lang === "en" ? "All" : "Semua") : DRIVER_TYPE_LABEL[k]} <span style={{ opacity: 0.7 }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
 
       <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
@@ -7201,7 +7223,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
         ) : drivers.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
         ) : (
-          drivers.map((d) => (
+          drivers.filter((d) => typeFilter === "all" || driverTypeOf(d) === typeFilter).map((d) => (
             <div key={d.id} className="rowHover" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
               <div style={{ width: 38, height: 38, borderRadius: "50%", background: "var(--bg2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{d.avatar_emoji || "🧑"}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -7231,8 +7253,8 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
                   );
                 })()}
               </div>
-              <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: "var(--pill)", background: isUserDriver(d) ? "var(--purple-soft, var(--surface2))" : "var(--brand-soft, var(--surface2))", color: isUserDriver(d) ? "var(--purple)" : "var(--brand)", whiteSpace: "nowrap" }}>
-                {isUserDriver(d) ? "DRIVER USER" : "OPERATIONAL"}
+              <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: "var(--pill)", background: "var(--surface2)", border: `1px solid ${DRIVER_TYPE_COLOR[driverTypeOf(d)]}`, color: DRIVER_TYPE_COLOR[driverTypeOf(d)], whiteSpace: "nowrap" }}>
+                {DRIVER_TYPE_LABEL[driverTypeOf(d)].toUpperCase()}
               </span>
               <div style={{ fontSize: 13, color: "var(--t3)", minWidth: 90 }}>
                 {tiers.find((tr) => tr.id === d.tier_id)?.name || (lang === "en" ? "No tier" : "Tanpa tier")}
@@ -7305,14 +7327,18 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label>{lang === "en" ? "DRIVER TYPE" : "TIPE DRIVER"} *</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {([["operational", "Operational", lang === "en" ? "Takes task assignments" : "Menerima penugasan"], ["user", "Driver User", lang === "en" ? "Dedicated to one user" : "Khusus untuk 1 user"]] as [DriverType, string, string][]).map(([val, title, sub]) => (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {([
+                    ["operational", DRIVER_TYPE_LABEL.operational, lang === "en" ? "Pool — takes task assignments" : "Pool — menerima penugasan"],
+                    ["user", DRIVER_TYPE_LABEL.user, lang === "en" ? "Dedicated to one user" : "Khusus untuk 1 user"],
+                    ["support", DRIVER_TYPE_LABEL.support, lang === "en" ? "Support / backup — takes assignments" : "Pendukung / cadangan — menerima penugasan"],
+                  ] as [DriverType, string, string][]).map(([val, title, sub]) => (
                     <button
                       key={val}
                       type="button"
                       onClick={() => setFormType(val)}
                       style={{
-                        flex: 1, padding: "9px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                        flex: "1 1 150px", padding: "9px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left",
                         border: formType === val ? "1px solid var(--brand)" : "1px solid var(--border2)",
                         background: formType === val ? "var(--bg2)" : "transparent",
                       }}

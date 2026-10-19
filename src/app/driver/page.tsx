@@ -22,7 +22,7 @@ import { computeStats, plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
 import { todayLocalISODate } from "@/lib/dateUtils";
-import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel } from "@/lib/duty";
+import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeLabel } from "@/lib/duty";
 
 type Screen = "splash" | "login" | "app";
 type Tab = "today" | "history" | "claims" | "profile";
@@ -1689,7 +1689,7 @@ function ProfileTab({
           {driver.avatar_emoji || "🧑‍✈️"}
         </div>
         <div className={styles.profileName}>{driver.nama}</div>
-        <div className={styles.profileRoleLabel}>{isUserDriver(driver) ? "DRIVER USER" : "DRIVER"}</div>
+        <div className={styles.profileRoleLabel}>{driverTypeLabel(driver).toUpperCase()}</div>
       </div>
 
       <div className={styles.profileSection}>

@@ -74,7 +74,11 @@ export function GateLogPanel(p: {
     const active = p.logs.filter((l) => l.status !== "DONE").length;
     const durs = p.logs.map(minutes).filter((m): m is number => m !== null);
     const avg = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : null;
-    return { total: p.logs.length, active, done: p.logs.length - active, avg };
+    // Log aktif dari hari sebelumnya = kemungkinan lupa ditutup petugas.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const stale = p.logs.filter((l) => l.status !== "DONE" && dayKey(l) < today).length;
+    return { total: p.logs.length, active, done: p.logs.length - active, avg, stale };
   }, [p.logs]);
 
   const shown = useMemo(() => {
@@ -112,6 +116,12 @@ export function GateLogPanel(p: {
         <div className={g.kpi}><span>Selesai</span><b>{stats.done}</b></div>
         <div className={g.kpi}><span>Rata-rata durasi</span><b>{fmtDur(stats.avg)}</b></div>
       </div>
+
+      {stats.stale > 0 && (
+        <div role="status" style={{ padding: "10px 14px", borderRadius: 12, background: "var(--orange-soft, var(--surface2))", color: "var(--orange)", fontSize: 13, fontWeight: 600 }}>
+          {stats.stale} catatan gate masih aktif dari hari sebelumnya (kemungkinan lupa dicatat keluar/kembali) dan tetap tampil di layar view-only sebagai “Perlu Perhatian”. Periksa lalu klik <b>Tutup</b> atau hapus bila salah input.
+        </div>
+      )}
 
       <div className={g.toolbar}>
         <div className={g.chips} role="group" aria-label="Rentang cepat">
