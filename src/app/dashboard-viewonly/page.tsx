@@ -294,29 +294,33 @@ function Fleet({ v }: { v: FmView }) {
   );
 }
 
-/* ════════════════ 4 · KANTIN ════════════════ */
+/* ════════════════ 4 · KANTIN — snack & makan terpisah ════════════════ */
 function Canteen({ v }: { v: FmView }) {
   const c = v.canteen;
   const effC = (e: number | null) => (e === null ? "#5b6b94" : e >= TARGET.canteenOk ? "#34d399" : e >= TARGET.canteenWarn ? "#fbbf24" : "#fb7185");
   const lastLbl = c.lastDate ? new Date(c.lastDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "";
+  const sub = (order: number, left: number, eff: number | null) => (order ? `sisa ${nf(left)} · efisiensi ${pct(eff, 1)}` : "belum ada order");
   return (
     <>
       <div className={s.kpis}>
-        <Kpi label="Efisiensi hari ini" value={pct(c.effToday, 1)} sub={c.hasToday ? "(order − sisa) ÷ order" : "laporan hari ini belum diinput"} c={effC(c.effToday)} />
-        <Kpi label="Efisiensi bulan ini" value={pct(c.effMonth, 1)} sub={`target ≥ ${TARGET.canteenOk}%`} c={effC(c.effMonth)} />
-        <Kpi label="Porsi dipesan bulan ini" value={nf(c.orderMonth)} sub="snack + makan, 3 shift" c="#5b8cff" />
-        <Kpi label="Sisa bulan ini" value={nf(c.leftMonth)} sub={c.orderMonth ? `${pct((c.leftMonth / c.orderMonth) * 100, 1)} dari order` : "—"} c="#fbbf24" />
+        <Kpi label="Snack hari ini" value={c.hasToday ? nf(c.snack.orderToday) : "–"} sub={c.hasToday ? sub(c.snack.orderToday, c.snack.leftToday, c.snack.effToday) : "laporan hari ini belum diinput"} c={effC(c.snack.effToday)} />
+        <Kpi label="Makan hari ini" value={c.hasToday ? nf(c.meal.orderToday) : "–"} sub={c.hasToday ? sub(c.meal.orderToday, c.meal.leftToday, c.meal.effToday) : "laporan hari ini belum diinput"} c={effC(c.meal.effToday)} />
+        <Kpi label="Snack bulan ini" value={nf(c.snack.orderMonth)} sub={sub(c.snack.orderMonth, c.snack.leftMonth, c.snack.effMonth)} c={effC(c.snack.effMonth)} />
+        <Kpi label="Makan bulan ini" value={nf(c.meal.orderMonth)} sub={sub(c.meal.orderMonth, c.meal.leftMonth, c.meal.effMonth)} c={effC(c.meal.effMonth)} />
       </div>
-      <div className={s.grid2b}>
-        <Chart title={`Efisiensi per hari · ${v.monthLabel}`} note={`hijau ≥ ${TARGET.canteenOk}% · kuning ≥ ${TARGET.canteenWarn}%`} bars={c.daily} />
+      {!c.split && <div className={s.muted} style={{ fontSize: ".85rem" }}>Data snack &amp; makan terpisah belum tersedia — jalankan migrasi supabase/029_fm_canteen_split.sql.</div>}
+      <div className={s.grid3}>
+        <Chart title={`Efisiensi snack per hari · ${v.monthLabel}`} note={`hijau ≥ ${TARGET.canteenOk}% · kuning ≥ ${TARGET.canteenWarn}%`} bars={c.snack.daily} />
+        <Chart title={`Efisiensi makan per hari · ${v.monthLabel}`} note={`hijau ≥ ${TARGET.canteenOk}% · kuning ≥ ${TARGET.canteenWarn}%`} bars={c.meal.daily} />
         <div className={s.card}>
           <div className={s.cardHead}><span className={s.lbl}>Per shift · {c.hasToday ? "hari ini" : lastLbl ? `laporan terakhir ${lastLbl}` : "—"}</span></div>
-          {c.shifts.map((x, i) => (
-            <div key={i} className={s.shift}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={`${s.shift} ${s.shift4}`}>
               <b>Shift {i + 1}</b>
-              <span><small>Order</small>{nf(x.order)}</span>
-              <span><small>Sisa</small>{nf(x.left)}</span>
-              <span><small>Sisa bln ini</small>{pct(x.leftPctMonth, 1)}</span>
+              <span><small>Snack</small>{nf(c.snack.shifts[i].order)}</span>
+              <span><small>Sisa</small>{nf(c.snack.shifts[i].left)}</span>
+              <span><small>Makan</small>{nf(c.meal.shifts[i].order)}</span>
+              <span><small>Sisa</small>{nf(c.meal.shifts[i].left)}</span>
             </div>
           ))}
         </div>

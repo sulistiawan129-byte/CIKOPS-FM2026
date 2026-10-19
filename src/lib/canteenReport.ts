@@ -17,9 +17,6 @@ export interface CanteenTotals {
   mealLeftover: number;
   mealConsumed: number;
   mealEff: number;
-  overallOrder: number;
-  overallConsumed: number;
-  overallEff: number;
 }
 
 function fmtRp(n: number): string {
@@ -115,10 +112,10 @@ export async function exportCanteenToPdf(
 
   const gap = 10;
   const snackCards: Array<[string, string, RGB]> = [
-    ["Ordered", fmtRp(totals.snackOrder), COLOR_GRAY],
-    ["Consumed", fmtRp(totals.snackConsumed), COLOR_GREEN],
-    ["Leftover", fmtRp(totals.snackLeftover), COLOR_RED],
-    ["Efficiency", `${totals.snackEff.toFixed(2)}%`, COLOR_GREEN],
+    ["Total Order", fmtRp(totals.snackOrder), COLOR_GRAY],
+    ["Terpakai", fmtRp(totals.snackConsumed), COLOR_GREEN],
+    ["Total Sisa", fmtRp(totals.snackLeftover), COLOR_RED],
+    ["Efisiensi", `${totals.snackEff.toFixed(2)}%`, COLOR_GREEN],
   ];
   const cardW = (contentWidth - gap * (snackCards.length - 1)) / snackCards.length;
   const cardH = 50;
@@ -128,24 +125,13 @@ export async function exportCanteenToPdf(
   drawSectionTitle(marginX, y, "Ringkasan Meal");
   y += 16;
   const mealCards: Array<[string, string, RGB]> = [
-    ["Ordered", fmtRp(totals.mealOrder), COLOR_GRAY],
-    ["Consumed", fmtRp(totals.mealConsumed), COLOR_BRAND],
-    ["Leftover", fmtRp(totals.mealLeftover), COLOR_RED],
-    ["Efficiency", `${totals.mealEff.toFixed(2)}%`, COLOR_BRAND],
+    ["Total Order", fmtRp(totals.mealOrder), COLOR_GRAY],
+    ["Terpakai", fmtRp(totals.mealConsumed), COLOR_BRAND],
+    ["Total Sisa", fmtRp(totals.mealLeftover), COLOR_RED],
+    ["Efisiensi", `${totals.mealEff.toFixed(2)}%`, COLOR_BRAND],
   ];
   mealCards.forEach(([label, value, accent], i) => drawStatCard(marginX + i * (cardW + gap), y, cardW, cardH, label, value, accent));
   y += cardH + 24;
-
-  drawSectionTitle(marginX, y, "Overall");
-  y += 16;
-  const overallCards: Array<[string, string, RGB]> = [
-    ["Total Ordered", fmtRp(totals.overallOrder), COLOR_GRAY],
-    ["Total Consumed", fmtRp(totals.overallConsumed), COLOR_GREEN],
-    ["Overall Efficiency", `${totals.overallEff.toFixed(1)}%`, COLOR_BRAND],
-  ];
-  const overallCardW = (contentWidth - gap * (overallCards.length - 1)) / overallCards.length;
-  overallCards.forEach(([label, value, accent], i) => drawStatCard(marginX + i * (overallCardW + gap), y, overallCardW, cardH, label, value, accent));
-  y += cardH + 22;
 
   doc.setFont("helvetica", "italic");
   doc.setFontSize(9);
@@ -155,28 +141,36 @@ export async function exportCanteenToPdf(
 
   drawFooter();
 
-  // ── Halaman 2 — detail harian ──
-  doc.addPage();
-  drawHeader();
-  y = 96;
-  drawSectionTitle(marginX, y, "Detail Harian");
-
-  const rows = dayAggs.map((d) => [
-    d.date,
-    fmtRp(d.snackOrder), fmtRp(d.snackLeftover), fmtRp(d.snackConsumed),
-    fmtRp(d.mealOrder), fmtRp(d.mealLeftover), fmtRp(d.mealConsumed),
-  ]);
-
-  autoTable(doc, {
-    startY: y + 14,
-    margin: { left: marginX, right: marginX },
-    head: [["Tanggal", "Snack Order", "Snack Sisa", "Snack Terpakai", "Meal Order", "Meal Sisa", "Meal Terpakai"]],
-    body: rows.length > 0 ? rows : [["Tidak ada data pada periode ini", "", "", "", "", "", ""]],
-    theme: "grid",
-    headStyles: { fillColor: COLOR_BRAND, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
-    bodyStyles: { fontSize: 8.5, textColor: [20, 26, 50] },
-    alternateRowStyles: { fillColor: COLOR_LIGHT_BG },
-    didDrawPage: () => drawFooter(),
+  // ── Detail harian — dua bagian terpisah: Snack, lalu Meal (masing-masing dengan total sendiri) ──
+  const effTxt = (used: number, order: number) => (order > 0 ? `${((used / order) * 100).toFixed(2)}%` : "-");
+  const sections: Array<{ title: string; accent: RGB; pick: (d: CanteenDayAgg) => [number, number, number]; total: [number, number, number] }> = [
+    { title: "Detail Harian — Snack", accent: COLOR_GREEN, pick: (d) => [d.snackOrder, d.snackConsumed, d.snackLeftover], total: [totals.snackOrder, totals.snackConsumed, totals.snackLeftover] },
+    { title: "Detail Harian — Meal", accent: COLOR_BRAND, pick: (d) => [d.mealOrder, d.mealConsumed, d.mealLeftover], total: [totals.mealOrder, totals.mealConsumed, totals.mealLeftover] },
+  ];
+  sections.forEach((sec) => {
+    doc.addPage();
+    drawHeader();
+    y = 96;
+    drawSectionTitle(marginX, y, sec.title);
+    const rows = dayAggs.map((d) => {
+      const [o, u, l] = sec.pick(d);
+      return [d.date, fmtRp(o), fmtRp(u), fmtRp(l), effTxt(u, o)];
+    });
+    const [to, tu, tl] = sec.total;
+    autoTable(doc, {
+      startY: y + 14,
+      margin: { left: marginX, right: marginX },
+      head: [["Tanggal", "Order", "Terpakai", "Sisa", "Efisiensi"]],
+      body: rows.length > 0 ? rows : [["Tidak ada data pada periode ini", "", "", "", ""]],
+      foot: rows.length > 0 ? [["TOTAL", fmtRp(to), fmtRp(tu), fmtRp(tl), effTxt(tu, to)]] : undefined,
+      theme: "grid",
+      headStyles: { fillColor: sec.accent, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
+      bodyStyles: { fontSize: 8.5, textColor: [20, 26, 50] },
+      footStyles: { fillColor: COLOR_LIGHT_BORDER, textColor: COLOR_NAVY, fontStyle: "bold", fontSize: 9 },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+      alternateRowStyles: { fillColor: COLOR_LIGHT_BG },
+      didDrawPage: () => drawFooter(),
+    });
   });
 
   const pageCount = doc.getNumberOfPages();

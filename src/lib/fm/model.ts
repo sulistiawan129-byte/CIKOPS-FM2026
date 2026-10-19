@@ -13,7 +13,8 @@ export interface FmSnapshot {
   gate_daily: { d: string; n: number; done: number; trip: number | null }[] | null;
   gate_hours: { out: number[]; in: number[] } | null;
   gate_open: { plant: string; nopol: string | null; since: string }[] | null;
-  canteen_daily: { d: string; o: number[]; l: number[] }[] | null;
+  /** so/sl = snack order/sisa, mo/ml = makan order/sisa per shift (migrasi 029). o/l = gabungan (lama). */
+  canteen_daily: { d: string; o: number[]; l: number[]; so?: number[]; sl?: number[]; mo?: number[]; ml?: number[] }[] | null;
   atk_daily: { d: string; n: number }[] | null;
   atk_critical: { nama: string; stok: number; satuan: string; u30: number; cover: number | null }[] | null;
   atk_depts: { k: string; n: number }[] | null;
@@ -104,23 +105,37 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
     : docsCrit.length || longOpen.length > 2 || (sameDayPct !== null && sameDayPct < TARGET.sameDayWarn) ? "kritis"
     : docsWarn.length || longOpen.length || (sameDayPct !== null && sameDayPct < TARGET.sameDayOk) ? "perhatian" : "baik";
 
-  /* ── KANTIN ── */
+  /* ── KANTIN — snack & makan selalu dihitung TERPISAH, tidak digabung ── */
   const cd = s.canteen_daily ?? [];
-  const sum = (a: number[]) => a.reduce((x, y) => x + Number(y || 0), 0);
-  const effOf = (rows: typeof cd) => { const o = rows.reduce((a, r) => a + sum(r.o), 0); const l = rows.reduce((a, r) => a + sum(r.l), 0); return o ? ((o - l) / o) * 100 : null; };
+  const canteenSplit = cd.every((r) => Array.isArray(r.so) && Array.isArray(r.mo));   // false = migrasi 029 belum dijalankan
+  const sum = (a: number[] | undefined) => (a ?? []).reduce((x, y) => x + Number(y || 0), 0);
+  type CRow = (typeof cd)[number];
+  type Cat = "snack" | "meal";
+  const ordOf = (r: CRow, k: Cat) => (k === "snack" ? r.so : r.mo) ?? [];
+  const leftOf = (r: CRow, k: Cat) => (k === "snack" ? r.sl : r.ml) ?? [];
+  const effOf = (rows: CRow[], k: Cat) => { const o = rows.reduce((a, r) => a + sum(ordOf(r, k)), 0); const l = rows.reduce((a, r) => a + sum(leftOf(r, k)), 0); return o ? ((o - l) / o) * 100 : null; };
   const effTone = (e: number | null): Status => (e === null ? "na" : e >= TARGET.canteenOk ? "baik" : e >= TARGET.canteenWarn ? "perhatian" : "kritis");
+  const worstTone = (a: Status, b: Status): Status => { const rank: Record<Status, number> = { kritis: 0, perhatian: 1, baik: 2, na: 3 }; return rank[a] <= rank[b] ? a : b; };
+  const minEff = (a: number | null, b: number | null) => (a === null ? b : b === null ? a : Math.min(a, b));
   const cToday = cd.find((r) => r.d === today) ?? null;
   const cLast = cToday ?? (cd.length ? cd[cd.length - 1] : null);      // laporan terakhir bila hari ini belum diinput
-  const effToday = cToday ? effOf([cToday]) : null;
-  const effMonth = effOf(cd);
-  const orderMonth = cd.reduce((a, r) => a + sum(r.o), 0), leftMonth = cd.reduce((a, r) => a + sum(r.l), 0);
-  const shifts = [0, 1, 2].map((i) => {
-    const o = cLast ? Number(cLast.o[i] || 0) : 0, l = cLast ? Number(cLast.l[i] || 0) : 0;
-    const om = cd.reduce((a, r) => a + Number(r.o[i] || 0), 0), lm = cd.reduce((a, r) => a + Number(r.l[i] || 0), 0);
-    return { order: o, left: l, leftPctMonth: om ? (lm / om) * 100 : null };
-  });
-  const worstShift = shifts.reduce<{ i: number; v: number } | null>((b, x, i) => (x.leftPctMonth !== null && (!b || x.leftPctMonth > b.v) ? { i, v: x.leftPctMonth } : b), null);
-  const canteenStatus = effTone(effMonth);
+  const catStats = (k: Cat) => {
+    const effToday = cToday ? effOf([cToday], k) : null;
+    const effMonth = effOf(cd, k);
+    const orderToday = cToday ? sum(ordOf(cToday, k)) : 0, leftToday = cToday ? sum(leftOf(cToday, k)) : 0;
+    const orderMonth = cd.reduce((a, r) => a + sum(ordOf(r, k)), 0), leftMonth = cd.reduce((a, r) => a + sum(leftOf(r, k)), 0);
+    const shifts = [0, 1, 2].map((i) => {
+      const o = cLast ? Number(ordOf(cLast, k)[i] || 0) : 0, l = cLast ? Number(leftOf(cLast, k)[i] || 0) : 0;
+      const om = cd.reduce((a, r) => a + Number(ordOf(r, k)[i] || 0), 0), lm = cd.reduce((a, r) => a + Number(leftOf(r, k)[i] || 0), 0);
+      return { order: o, left: l, leftPctMonth: om ? (lm / om) * 100 : null };
+    });
+    const worstShift = shifts.reduce<{ i: number; v: number } | null>((b, x, i) => (x.leftPctMonth !== null && (!b || x.leftPctMonth > b.v) ? { i, v: x.leftPctMonth } : b), null);
+    return { effToday, effMonth, orderToday, leftToday, orderMonth, leftMonth, shifts, worstShift };
+  };
+  const cSnack = catStats("snack"), cMeal = catStats("meal");
+  const canteenStatus = worstTone(effTone(cSnack.effMonth), effTone(cMeal.effMonth));
+  const catStory = (name: string, c: typeof cSnack) => `${name}: ${nf(c.orderMonth)} porsi, sisa ${nf(c.leftMonth)}${c.worstShift ? ` (terbanyak shift ${c.worstShift.i + 1})` : ""}`;
+  const pair = (a: number | null, b: number | null) => (a === null && b === null ? "–" : `${pct(a, 0)} / ${pct(b, 0)}`);
 
   /* ── ATK ── */
   const ad = s.atk_daily ?? [];
@@ -149,9 +164,9 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
       spark: monthDays.slice(-14).map((d) => td.find((r) => r.d === d)?.n ?? 0),
     },
     {
-      key: "canteen", name: "Kantin", today: pct(effToday, 1), todayUnit: cToday ? "efisiensi hari ini" : "laporan hari ini belum diinput", month: pct(effMonth, 1), monthUnit: "efisiensi bulan ini", status: canteenStatus,
-      story: !cd.length ? "Belum ada laporan kantin bulan ini." : `${nf(orderMonth)} porsi dipesan, sisa ${nf(leftMonth)}${worstShift ? `; sisa terbanyak di shift ${worstShift.i + 1} (${pct(worstShift.v, 0)})` : ""}.`,
-      spark: monthDays.slice(-14).map((d) => effOf(cd.filter((r) => r.d === d)) ?? 0),
+      key: "canteen", name: "Kantin", today: pair(cSnack.effToday, cMeal.effToday), todayUnit: cToday ? "efisiensi snack / makan hari ini" : "laporan hari ini belum diinput", month: pair(cSnack.effMonth, cMeal.effMonth), monthUnit: "snack / makan bulan ini", status: canteenStatus,
+      story: !cd.length ? "Belum ada laporan kantin bulan ini." : !canteenSplit ? "Jalankan migrasi supabase/029 agar snack & makan tampil terpisah." : `${catStory("Snack", cSnack)}; ${catStory("Makan", cMeal)}.`,
+      spark: monthDays.slice(-14).map((d) => { const rs = cd.filter((r) => r.d === d); return minEff(effOf(rs, "snack"), effOf(rs, "meal")) ?? 0; }),
     },
     {
       key: "atk", name: "ATK & Supplies", today: nf(atkToday), todayUnit: "unit keluar hari ini", month: nf(atkMonth), monthUnit: "unit keluar bulan ini", status: atkStatus,
@@ -174,7 +189,9 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
   if (ncToday.length && ncToday.length < TARGET.ncTodayCrit) attention.push({ level: "perhatian", area: "NC", text: `${ncToday.length} pelanggaran hari ini${ncToday[0] ? ` — terakhir ${ncToday[ncToday.length - 1].transporter}` : ""}` });
   for (const r of ncRepeat.slice(0, 2)) attention.push({ level: "perhatian", area: "NC", text: `${r.k}: ${r.n}× pelanggaran bulan ini` });
   if (atkCrit.length - atkOut.length > 0) attention.push({ level: "perhatian", area: "ATK", text: `${atkCrit.length - atkOut.length} item ATK cukup < ${TARGET.atkCoverDays} hari` });
-  if (effToday !== null && effToday < TARGET.canteenWarn) attention.push({ level: "perhatian", area: "Kantin", text: `Efisiensi kantin hari ini ${pct(effToday, 0)}` });
+  if (cSnack.effToday !== null && cSnack.effToday < TARGET.canteenWarn) attention.push({ level: "perhatian", area: "Kantin", text: `Efisiensi snack hari ini ${pct(cSnack.effToday, 0)} — sisa ${nf(cSnack.leftToday)} porsi` });
+  if (cMeal.effToday !== null && cMeal.effToday < TARGET.canteenWarn) attention.push({ level: "perhatian", area: "Kantin", text: `Efisiensi makan hari ini ${pct(cMeal.effToday, 0)} — sisa ${nf(cMeal.leftToday)} porsi` });
+  if (cd.length && !canteenSplit) attention.push({ level: "info", area: "Kantin", text: "Jalankan migrasi supabase/029 agar snack & makan tampil terpisah" });
   if (!cToday && nowMs && new Date(nowMs).getHours() >= 16) attention.push({ level: "info", area: "Kantin", text: "Laporan kantin hari ini belum diinput" });
   for (const d of docsWarn.slice(0, 3)) attention.push({ level: "info", area: "Fleet", text: `${d.doc} ${d.nopol} jatuh tempo ${d.days} hari lagi` });
   const lvlRank = { kritis: 0, perhatian: 1, info: 2 };
@@ -185,7 +202,7 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
   const health = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
   const healthStatus: Status = health === null ? "na" : health >= 85 ? "baik" : health >= 65 ? "perhatian" : "kritis";
   const weakest = areas.filter((a) => a.status === "kritis" || a.status === "perhatian").map((a) => a.name);
-  const summary = `Hari ini: ${nf(tasksToday)} tugas driver, ${nf(gateToday)} pergerakan gate, ${nf(atkToday)} unit ATK keluar${nc ? `, ${nf(ncToday.length)} pelanggaran` : ""}${effToday !== null ? `, efisiensi kantin ${pct(effToday, 0)}` : ""}.`;
+  const summary = `Hari ini: ${nf(tasksToday)} tugas driver, ${nf(gateToday)} pergerakan gate, ${nf(atkToday)} unit ATK keluar${nc ? `, ${nf(ncToday.length)} pelanggaran` : ""}${cToday ? `, kantin snack ${pct(cSnack.effToday, 0)} · makan ${pct(cMeal.effToday, 0)}` : ""}.`;
   const summary2 = weakest.length ? `Perlu perhatian: ${weakest.join(", ")}.` : "Semua area dalam kondisi baik.";
 
   return {
@@ -197,8 +214,9 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
     },
     gate: { today: gateToday, month: gateMonth, avgTrip, open: open.length, longOpen, hours: gateHours },
     canteen: {
-      effToday, effMonth, hasToday: !!cToday, lastDate: cLast?.d ?? null, shifts, orderMonth, leftMonth,
-      daily: dailyBars((d) => effOf(cd.filter((r) => r.d === d)), (n) => pct(n, 0), effTone),
+      split: canteenSplit, hasToday: !!cToday, lastDate: cLast?.d ?? null,
+      snack: { ...cSnack, daily: dailyBars((d) => effOf(cd.filter((r) => r.d === d), "snack"), (n) => pct(n, 0), effTone) },
+      meal: { ...cMeal, daily: dailyBars((d) => effOf(cd.filter((r) => r.d === d), "meal"), (n) => pct(n, 0), effTone) },
     },
     atk: { today: atkToday, month: atkMonth, critical: atkCrit, depts: s.atk_depts ?? [], todayItems: s.atk_today ?? [], daily: dailyBars((d) => Number(ad.find((r) => r.d === d)?.n ?? 0), (n) => nf(n)) },
     nc: {
