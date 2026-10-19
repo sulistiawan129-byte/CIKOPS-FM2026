@@ -1,11 +1,13 @@
 Attribute VB_Name = "modGA"
 '==================================================================
-'  SISTEM LAPORAN GA - PLANT CIKARANG                  Versi 1.7
+'  SISTEM LAPORAN GA - PLANT CIKARANG                  Versi 1.8
 '  - Plan vs Actual Cleaning & Gardening
 '  - Event Plant, Improvement / Inovasi, Inventory Tools
 '  - Aktivitas TGA (Teknisi GA)                                [baru 1.7]
 '  - Laporan Bulanan gabungan + Export PDF
 '  - Sinkron otomatis ke CIKOPS (butuh modul modSyncGA)        [baru 1.7]
+'  - Kelola & Koreksi Data: kosongkan actual, perbarui plan,
+'    hapus baris log, BATALKAN perubahan terakhir             [baru 1.8]
 '
 '  Setelah import modul ini, jalankan sekali: Setup_Tombol
 '  (membangun dashboard MENU + tombol di setiap sheet)
@@ -81,6 +83,12 @@ Private mDbW As Double
 Private mDbH As Double
 Private mLastW As Double
 Private mLastH As Double
+
+' kelola data (v1.8)
+Private Const SH_BAK As String = "GA_BACKUP"
+Private mDiam As Boolean        ' GeneratePlan tanpa dialog (dipanggil dari Perbarui Plan)
+Private mMulai As Date          ' GeneratePlan hanya membuat jadwal >= tanggal ini (0 = semua)
+Private mHasilGen As Long       ' jumlah jadwal yang dibuat GeneratePlan terakhir (-1 = gagal)
 
 '==================================================================
 '  UTILITAS
@@ -360,6 +368,7 @@ Public Sub GeneratePlan()
     Dim kode As Long, warn As String, nWarn As Long, idJob As String, aktif As String
     On Error GoTo EH
 
+    mHasilGen = -1
     per = GetPeriode()
     kode = KodePeriode(per)
     Set wJ = Sh(SH_JOB)
@@ -375,7 +384,7 @@ Public Sub GeneratePlan()
             If Teks(arr(i, 2)) = CStr(kode) Then ada = ada + 1
         Next i
     End If
-    If ada > 0 Then
+    If ada > 0 And Not mDiam Then
         If MsgBox("Plan " & LabelPeriode(per) & " sudah ada (" & ada & " jadwal)." & vbCrLf & vbCrLf & _
                   "Lanjutkan untuk menambah jadwal yang BELUM ADA saja?" & vbCrLf & _
                   "(Actual yang sudah diisi tidak berubah.)", vbQuestion + vbYesNo, "Generate Plan") = vbNo Then Exit Sub
@@ -426,7 +435,7 @@ Public Sub GeneratePlan()
 
         For dd = 1 To nDays
             tgl = DateSerial(Year(per), Month(per), dd)
-            If hariSet(Weekday(tgl, vbMonday)) Then
+            If hariSet(Weekday(tgl, vbMonday)) And tgl >= mMulai Then
                 key = idJob & "|" & Format$(tgl, "yyyymmdd")
                 If Not dict.Exists(key) Then
                     dict(key) = True
@@ -458,7 +467,9 @@ NextJob:
     End If
     SpeedOff
     PerbaruiSemua
-    If n > 0 Then SyncCIKOPS CStr(kode)
+    mHasilGen = n
+    If n > 0 And Not mDiam Then SyncCIKOPS CStr(kode)
+    If mDiam Then Exit Sub
 
     If Len(warn) > 700 Then warn = Left$(warn, 700) & vbCrLf & "... (dan lainnya)"
     MsgBox "Generate plan " & LabelPeriode(per) & " selesai." & vbCrLf & _
@@ -500,6 +511,7 @@ Public Sub HapusPlanPeriode()
                   vbExclamation + vbYesNo, "Hapus Plan") = vbNo Then Exit Sub
     End If
     SpeedOn
+    BackupData "Hapus plan " & LabelPeriode(per)
     ReDim keep(1 To UBound(arr, 1), 1 To D_NCOL)
     For i = 1 To UBound(arr, 1)
         If Teks(arr(i, D_PER)) <> CStr(kode) Then
@@ -519,6 +531,414 @@ Public Sub HapusPlanPeriode()
 EH:
     TampilError Err.Description, "Hapus Plan"
 End Sub
+
+'==================================================================
+'  1b. KELOLA & KOREKSI DATA                                  [v1.8]
+'  Setiap perubahan besar dibackup dulu ke sheet tersembunyi
+'  GA_BACKUP, jadi selalu bisa dibatalkan (pilihan 6).
+'  Semua koreksi ikut terkirim ke CIKOPS.
+'==================================================================
+Public Sub KelolaData()
+    Dim lbl As String, jwb As String, pesan As String
+    lbl = "(periode di MENU belum diisi)"
+    On Error Resume Next
+    lbl = LabelPeriode(GetPeriode())
+    Err.Clear
+    On Error GoTo 0
+    pesan = "Periode MENU: " & lbl & vbCrLf & vbCrLf & _
+        "1  Koreksi actual satu minggu (buka Input Actual)" & vbCrLf & _
+        "2  Kosongkan actual pada rentang tanggal" & vbCrLf & _
+        "3  Perbarui plan periode ini (actual tetap aman)" & vbCrLf & _
+        "4  Hapus SEMUA plan periode ini lalu generate ulang" & vbCrLf & _
+        "5  Hapus baris terpilih (Event/Improvement/Inventory/TGA)" & vbCrLf & _
+        "6  BATALKAN perubahan terakhir" & vbCrLf & _
+        "    " & InfoBackup() & vbCrLf & vbCrLf & _
+        "Ketik nomor pilihan:"
+    jwb = Trim$(InputBox(pesan, "Kelola & Koreksi Data"))
+    Select Case jwb
+        Case "": Exit Sub
+        Case "1": KoreksiActualMinggu
+        Case "2": KosongkanActual
+        Case "3": PerbaruiPlanPeriode
+        Case "4": HapusDanGenerateUlang
+        Case "5": HapusBarisLog
+        Case "6": BatalkanPerubahan
+        Case Else: MsgBox "Pilihan tidak dikenal: " & jwb, vbExclamation, "Kelola Data"
+    End Select
+End Sub
+
+' 1) buka Input Actual pada minggu tertentu
+Public Sub KoreksiActualMinggu()
+    Dim txt As String, d As Date, ok As Boolean, w As Worksheet
+    txt = InputBox("Tanggal di minggu yang mau dikoreksi (dd/mm/yyyy):", "Koreksi Actual", Format$(Date - 7, "dd/mm/yyyy"))
+    If Trim$(txt) = "" Then Exit Sub
+    d = TanggalDariTeks(txt, ok)
+    If Not ok Then
+        MsgBox "Tanggal tidak dikenali: " & txt, vbExclamation, "Koreksi Actual"
+        Exit Sub
+    End If
+    Set w = Sh(SH_INPUT)
+    If Not BolehGanti() Then Exit Sub
+    w.Range("C7").Value = d
+    w.Activate
+    TampilJadwalInti False
+    MsgBox "Jadwal minggu " & Format$(d - Weekday(d, vbMonday) + 1, "dd/mm/yyyy") & " ditampilkan." & vbCrLf & vbCrLf & _
+           "Ubah kolom Actual: 1 = dikerjakan, 0 = tidak, kosongkan = belum diisi." & vbCrLf & _
+           "Lalu klik 'Simpan Actual'. CIKOPS ikut terkoreksi.", vbInformation, "Koreksi Actual"
+End Sub
+
+' 2) kosongkan actual pada rentang tanggal (mis. salah input satu minggu)
+Public Sub KosongkanActual()
+    Dim wD As Worksheet, lr As Long, arr As Variant, blok As Variant, i As Long, n As Long
+    Dim d1 As Date, d2 As Date, ok As Boolean, txt As String, tim As String, t As Date, per As Date
+    Dim pers As Object
+    On Error GoTo EH
+    per = Date
+    On Error Resume Next
+    per = GetPeriode()
+    On Error GoTo EH
+    txt = InputBox("Kosongkan actual MULAI tanggal (dd/mm/yyyy):", "Kosongkan Actual", Format$(per, "dd/mm/yyyy"))
+    If Trim$(txt) = "" Then Exit Sub
+    d1 = TanggalDariTeks(txt, ok)
+    If Not ok Then Err.Raise vbObjectError + 530, , "Tanggal tidak dikenali: " & txt
+    txt = InputBox("SAMPAI tanggal (dd/mm/yyyy):", "Kosongkan Actual", Format$(d1 + 6, "dd/mm/yyyy"))
+    If Trim$(txt) = "" Then Exit Sub
+    d2 = TanggalDariTeks(txt, ok)
+    If Not ok Then Err.Raise vbObjectError + 530, , "Tanggal tidak dikenali: " & txt
+    If d2 < d1 Then Err.Raise vbObjectError + 531, , "Tanggal akhir lebih kecil dari tanggal mulai."
+    tim = Trim$(InputBox("Tim yang dikosongkan (kosongkan = SEMUA tim)." & vbCrLf & "Contoh: Cleaning Service / Gardener", "Kosongkan Actual", ""))
+
+    Set wD = Sh(SH_DATA)
+    lr = LastRow(wD, D_KEY)
+    If lr < 2 Then Err.Raise vbObjectError + 532, , "DATA_PLAN_ACTUAL kosong."
+    arr = Baca(wD.Range(wD.Cells(2, 1), wD.Cells(lr, D_NCOL)))
+    For i = 1 To UBound(arr, 1)
+        t = KeTanggal(arr(i, D_TGL), ok)
+        If ok And t >= d1 And t <= d2 And Teks(arr(i, D_ACT)) <> "" Then
+            If tim = "" Or StrComp(Teks(arr(i, D_TIM)), tim, vbTextCompare) = 0 Then n = n + 1
+        End If
+    Next i
+    If n = 0 Then
+        MsgBox "Tidak ada actual yang terisi pada " & Format$(d1, "dd/mm/yyyy") & " - " & Format$(d2, "dd/mm/yyyy") & _
+               IIf(tim = "", "", " (tim " & tim & ")") & ".", vbInformation, "Kosongkan Actual"
+        Exit Sub
+    End If
+    If MsgBox("Kosongkan " & n & " actual pada " & Format$(d1, "dd/mm/yyyy") & " - " & Format$(d2, "dd/mm/yyyy") & _
+              IIf(tim = "", " (semua tim)", " (tim " & tim & ")") & "?" & vbCrLf & vbCrLf & _
+              "Plan tetap ada; actual bisa diinput ulang lewat Input Actual." & vbCrLf & _
+              "Bisa dibatalkan lewat Kelola Data > 6.", vbQuestion + vbYesNo, "Kosongkan Actual") = vbNo Then Exit Sub
+
+    SpeedOn
+    BackupData "Kosongkan actual " & Format$(d1, "dd/mm/yyyy") & " - " & Format$(d2, "dd/mm/yyyy")
+    blok = Baca(wD.Range(wD.Cells(2, D_ACT), wD.Cells(lr, D_WAKTU)))
+    Set pers = NewDict()
+    For i = 1 To UBound(arr, 1)
+        t = KeTanggal(arr(i, D_TGL), ok)
+        If ok And t >= d1 And t <= d2 And Teks(arr(i, D_ACT)) <> "" Then
+            If tim = "" Or StrComp(Teks(arr(i, D_TIM)), tim, vbTextCompare) = 0 Then
+                blok(i, 1) = Empty
+                blok(i, 2) = Empty
+                blok(i, 3) = Now     ' tanda koreksi -> CIKOPS ikut mengosongkan
+                pers(Format$(t, "yyyymm")) = True
+            End If
+        End If
+    Next i
+    wD.Range(wD.Cells(2, D_ACT), wD.Cells(lr, D_WAKTU)).Value = blok
+    wD.Columns(D_WAKTU).NumberFormat = "dd/mm/yyyy hh:mm"
+    wD.Cells(1, D_WAKTU).NumberFormat = "General"
+    SpeedOff
+    PerbaruiSemua
+    SyncCIKOPS GabungKunci(pers)
+    MsgBox n & " actual sudah dikosongkan." & vbCrLf & "Silakan input ulang lewat Input Actual.", vbInformation, "Kosongkan Actual"
+    Exit Sub
+EH:
+    TampilError Err.Description, "Kosongkan Actual"
+End Sub
+
+' 3) perbarui plan: jadwal yang BELUM ada actual-nya (mulai tanggal tertentu) dibuat ulang
+'    dari DB_PEKERJAAN terbaru. Actual yang sudah diisi tidak disentuh.
+Public Sub PerbaruiPlanPeriode()
+    Dim per As Date, kode As Long, wD As Worksheet, lr As Long, arr As Variant, keep() As Variant
+    Dim i As Long, j As Long, m As Long, nDel As Long, nSisa As Long, d0 As Date, ok As Boolean, txt As String, t As Date
+    On Error GoTo EH
+    per = GetPeriode()
+    kode = KodePeriode(per)
+    d0 = per
+    If Date > per And Date <= DateSerial(Year(per), Month(per) + 1, 0) Then d0 = Date
+    txt = InputBox("PERBARUI PLAN " & UCase$(LabelPeriode(per)) & vbCrLf & vbCrLf & _
+                   "Dipakai setelah DB_PEKERJAAN diubah (hari, petugas, pekerjaan baru / nonaktif)." & vbCrLf & _
+                   "Jadwal yang BELUM ada actual-nya mulai tanggal di bawah dibuat ulang." & vbCrLf & _
+                   "Actual yang sudah diisi tetap aman." & vbCrLf & vbCrLf & _
+                   "Berlaku mulai tanggal (dd/mm/yyyy):", "Perbarui Plan", Format$(d0, "dd/mm/yyyy"))
+    If Trim$(txt) = "" Then Exit Sub
+    d0 = TanggalDariTeks(txt, ok)
+    If Not ok Then Err.Raise vbObjectError + 530, , "Tanggal tidak dikenali: " & txt
+    If Format$(d0, "yyyymm") <> CStr(kode) Then Err.Raise vbObjectError + 533, , "Tanggal harus di dalam periode " & LabelPeriode(per) & "."
+
+    Set wD = Sh(SH_DATA)
+    lr = LastRow(wD, D_KEY)
+    If lr >= 2 Then
+        arr = Baca(wD.Range(wD.Cells(2, 1), wD.Cells(lr, D_NCOL)))
+        For i = 1 To UBound(arr, 1)
+            If Teks(arr(i, D_PER)) = CStr(kode) Then
+                t = KeTanggal(arr(i, D_TGL), ok)
+                If ok And t >= d0 And Teks(arr(i, D_ACT)) = "" Then nDel = nDel + 1
+            End If
+        Next i
+    End If
+    If MsgBox("Perbarui plan " & LabelPeriode(per) & " mulai " & Format$(d0, "dd/mm/yyyy") & "?" & vbCrLf & vbCrLf & _
+              nDel & " jadwal tanpa actual akan dibuat ulang sesuai DB_PEKERJAAN terbaru." & vbCrLf & _
+              "Bisa dibatalkan lewat Kelola Data > 6.", vbQuestion + vbYesNo, "Perbarui Plan") = vbNo Then Exit Sub
+
+    SpeedOn
+    BackupData "Perbarui plan " & LabelPeriode(per) & " mulai " & Format$(d0, "dd/mm/yyyy")
+    If nDel > 0 Then
+        ReDim keep(1 To UBound(arr, 1), 1 To D_NCOL)
+        For i = 1 To UBound(arr, 1)
+            t = KeTanggal(arr(i, D_TGL), ok)
+            If Not (Teks(arr(i, D_PER)) = CStr(kode) And ok And t >= d0 And Teks(arr(i, D_ACT)) = "") Then
+                m = m + 1
+                For j = 1 To D_NCOL
+                    keep(m, j) = arr(i, j)
+                Next j
+            End If
+        Next i
+        wD.Range(wD.Cells(2, 1), wD.Cells(lr, D_NCOL)).ClearContents
+        If m > 0 Then wD.Cells(2, 1).Resize(m, D_NCOL).Value = keep
+    End If
+    SpeedOff
+
+    mDiam = True
+    mMulai = d0
+    GeneratePlan
+    mDiam = False
+    mMulai = 0
+    If mHasilGen < 0 Then Exit Sub
+    SyncCIKOPS CStr(kode)
+    MsgBox "Plan " & LabelPeriode(per) & " sudah diperbarui mulai " & Format$(d0, "dd/mm/yyyy") & "." & vbCrLf & _
+           nDel & " jadwal lama diganti, " & mHasilGen & " jadwal dibuat dari DB_PEKERJAAN terbaru." & vbCrLf & _
+           "Actual yang sudah diisi tidak berubah.", vbInformation, "Perbarui Plan"
+    Exit Sub
+EH:
+    mDiam = False
+    mMulai = 0
+    TampilError Err.Description, "Perbarui Plan"
+End Sub
+
+' 4) hapus total lalu (opsional) generate ulang
+Public Sub HapusDanGenerateUlang()
+    Dim kode As Long, n0 As Long
+    On Error GoTo EH
+    kode = KodePeriode(GetPeriode())
+    n0 = JumlahPlan(kode)
+    HapusPlanPeriode
+    If n0 > 0 And JumlahPlan(kode) = 0 Then
+        If MsgBox("Generate ulang plan " & LabelPeriode(GetPeriode()) & " sekarang dari DB_PEKERJAAN?", _
+                  vbQuestion + vbYesNo, "Generate Ulang") = vbYes Then GeneratePlan
+    End If
+    Exit Sub
+EH:
+    TampilError Err.Description, "Hapus & Generate Ulang"
+End Sub
+
+' 5) hapus baris yang diblok di sheet Event / Improvement / Inventory / TGA
+Public Sub HapusBarisLog()
+    Dim w As Worksheet, nm As String, ar As Range, rw As Range, rg As Range, lr As Long
+    Dim n As Long, contoh As String, k As Long, c As Long
+    On Error GoTo EH
+    Set w = ActiveSheet
+    nm = w.Name
+    If nm <> SH_EVENT And nm <> SH_IMP And nm <> SH_INV And nm <> SH_TGA Then
+        MsgBox "Buka sheet EVENT / IMPROVEMENT / INVENTORY / TGA, blok baris yang mau dihapus," & vbCrLf & _
+               "lalu klik tombol 'Hapus baris terpilih' di sheet tersebut.", vbInformation, "Hapus Baris"
+        Exit Sub
+    End If
+    If TypeName(Selection) <> "Range" Then
+        MsgBox "Blok dulu baris (sel) yang mau dihapus.", vbInformation, "Hapus Baris"
+        Exit Sub
+    End If
+    lr = w.Cells.SpecialCells(xlCellTypeLastCell).Row
+    For Each ar In Selection.Areas
+        For Each rw In ar.Rows
+            If rw.Row >= FIRST_ROW And rw.Row <= lr Then
+                If rg Is Nothing Then
+                    Set rg = w.Rows(rw.Row)
+                ElseIf Intersect(rg, w.Rows(rw.Row)) Is Nothing Then
+                    Set rg = Union(rg, w.Rows(rw.Row))
+                Else
+                    GoTo Lewat
+                End If
+                n = n + 1
+                If k < 5 Then
+                    k = k + 1
+                    contoh = contoh & "- baris " & rw.Row & ": "
+                    For c = 1 To 3
+                        contoh = contoh & Left$(Teks(w.Cells(rw.Row, c).Text), 30) & IIf(c < 3, " | ", "")
+                    Next c
+                    contoh = contoh & vbCrLf
+                End If
+            End If
+Lewat:
+        Next rw
+    Next ar
+    If n = 0 Then
+        MsgBox "Tidak ada baris data yang terpilih (data mulai baris " & FIRST_ROW & ").", vbInformation, "Hapus Baris"
+        Exit Sub
+    End If
+    If MsgBox("Hapus " & n & " baris dari sheet " & nm & "?" & vbCrLf & vbCrLf & contoh & IIf(n > 5, "- ..." & vbCrLf, "") & vbCrLf & _
+              "Data di CIKOPS ikut terhapus saat sinkron." & vbCrLf & _
+              "(Untuk membatalkan: tutup file TANPA menyimpan.)", vbExclamation + vbYesNo, "Hapus Baris") = vbNo Then Exit Sub
+    SpeedOn
+    rg.Delete Shift:=xlUp
+    SpeedOff
+    On Error Resume Next
+    If AdaShape(Sh(SH_MENU), "kpiVal1") Then IsiDashboard
+    On Error GoTo EH
+    SyncCIKOPS ""
+    MsgBox n & " baris dihapus.", vbInformation, "Hapus Baris"
+    Exit Sub
+EH:
+    TampilError Err.Description, "Hapus Baris"
+End Sub
+
+' 6) kembalikan DATA_PLAN_ACTUAL ke kondisi sebelum perubahan terakhir.
+'    Kondisi sekarang disimpan sebagai backup baru (jalankan lagi = ulangi perubahan).
+Public Sub BatalkanPerubahan()
+    Dim wB As Worksheet, wD As Worksheet, lrB As Long, lrD As Long, bak As Variant, cur As Variant
+    Dim lbl As String, wkt As Variant, i As Long, j As Long, beda As Boolean, r As Long
+    Dim dict As Object, pers As Object, ok As Boolean, t As Date
+    On Error GoTo EH
+    If Not AdaSheetGA(SH_BAK) Then
+        MsgBox "Belum ada backup. Backup dibuat otomatis setiap Simpan Actual, Hapus Plan," & vbCrLf & _
+               "Kosongkan Actual dan Perbarui Plan.", vbInformation, "Batalkan"
+        Exit Sub
+    End If
+    Set wB = Sh(SH_BAK)
+    lrB = CLng(Val(Teks(wB.Range("C1").Value)))
+    If lrB < 1 Then
+        MsgBox "Backup kosong.", vbInformation, "Batalkan"
+        Exit Sub
+    End If
+    lbl = Teks(wB.Range("A1").Value)
+    wkt = wB.Range("B1").Value
+    If MsgBox("Kembalikan data plan & actual ke kondisi SEBELUM:" & vbCrLf & vbCrLf & _
+              "   " & lbl & vbCrLf & "   (" & Format$(wkt, "dd/mm/yyyy hh:nn") & ")" & vbCrLf & vbCrLf & _
+              "Perubahan setelah itu hilang. Jalankan Batalkan lagi untuk mengulanginya." & vbCrLf & "Lanjutkan?", _
+              vbQuestion + vbYesNo, "Batalkan Perubahan") = vbNo Then Exit Sub
+
+    SpeedOn
+    Set wD = Sh(SH_DATA)
+    lrD = LastRow(wD, D_KEY)
+    If lrD < 1 Then lrD = 1
+    cur = wD.Range(wD.Cells(1, 1), wD.Cells(lrD, D_NCOL)).Value
+    bak = wB.Range("A3").Resize(lrB, D_NCOL).Value
+    Set dict = NewDict()
+    Set pers = NewDict()
+    For i = 2 To UBound(cur, 1)
+        If Teks(cur(i, D_KEY)) <> "" Then
+            dict(Teks(cur(i, D_KEY))) = i
+            pers(Teks(cur(i, D_PER))) = True
+        End If
+    Next i
+    ' baris yang actual-nya berubah diberi waktu baru supaya CIKOPS menerima nilai lama
+    For i = 2 To UBound(bak, 1)
+        If Teks(bak(i, D_KEY)) <> "" Then
+            pers(Teks(bak(i, D_PER))) = True
+            If dict.Exists(Teks(bak(i, D_KEY))) Then
+                r = dict(Teks(bak(i, D_KEY)))
+                beda = (Teks(cur(r, D_ACT)) <> Teks(bak(i, D_ACT))) Or (Teks(cur(r, D_SPV)) <> Teks(bak(i, D_SPV)))
+                If beda Then bak(i, D_WAKTU) = Now
+            End If
+        End If
+    Next i
+    wD.Range(wD.Cells(1, 1), wD.Cells(IIf(lrD > lrB, lrD, lrB), D_NCOL)).ClearContents
+    wD.Cells(1, 1).Resize(lrB, D_NCOL).Value = bak
+    wD.Columns(D_TGL).NumberFormat = "dd/mm/yyyy"
+    wD.Columns(D_WAKTU).NumberFormat = "dd/mm/yyyy hh:mm"
+    wD.Cells(1, 1).Resize(1, D_NCOL).NumberFormat = "General"
+    ' simpan kondisi sebelum dibatalkan -> bisa diulang
+    wB.Cells.Clear
+    wB.Range("A1").Value = "Batalkan: " & lbl
+    wB.Range("B1").Value = Now
+    wB.Range("C1").Value = UBound(cur, 1)
+    wB.Range("A3").Resize(UBound(cur, 1), D_NCOL).Value = cur
+    SpeedOff
+    PerbaruiSemua
+    If pers.Exists("") Then pers.Remove ""
+    SyncCIKOPS GabungKunci(pers)
+    MsgBox "Data sudah dikembalikan ke kondisi sebelum: " & lbl & ".", vbInformation, "Batalkan Perubahan"
+    Exit Sub
+EH:
+    TampilError Err.Description, "Batalkan Perubahan"
+End Sub
+
+' ---------- helper kelola data ----------
+Private Sub BackupData(ByVal label As String)
+    Dim wD As Worksheet, wB As Worksheet, lr As Long, aktif As Object
+    On Error Resume Next   ' backup gagal tidak boleh menggagalkan proses utama
+    Set wD = Sh(SH_DATA)
+    If AdaSheetGA(SH_BAK) Then
+        Set wB = Sh(SH_BAK)
+    Else
+        Set aktif = ActiveSheet
+        Set wB = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        wB.Name = SH_BAK
+        wB.Visible = xlSheetVeryHidden
+        aktif.Activate
+    End If
+    wB.Cells.Clear
+    lr = LastRow(wD, D_KEY)
+    If lr < 1 Then lr = 1
+    wB.Range("A1").Value = label
+    wB.Range("B1").Value = Now
+    wB.Range("C1").Value = lr
+    wB.Range("A3").Resize(lr, D_NCOL).Value = wD.Range(wD.Cells(1, 1), wD.Cells(lr, D_NCOL)).Value
+End Sub
+
+Private Function InfoBackup() As String
+    Dim wB As Worksheet
+    On Error GoTo Kosong
+    If Not AdaSheetGA(SH_BAK) Then GoTo Kosong
+    Set wB = Sh(SH_BAK)
+    If Teks(wB.Range("A1").Value) = "" Then GoTo Kosong
+    InfoBackup = "(terakhir: " & Left$(Teks(wB.Range("A1").Value), 45) & ", " & Format$(wB.Range("B1").Value, "dd/mm hh:nn") & ")"
+    Exit Function
+Kosong:
+    InfoBackup = "(belum ada backup)"
+End Function
+
+Private Function JumlahPlan(ByVal kode As Long) As Long
+    Dim wD As Worksheet, lr As Long, arr As Variant, i As Long
+    Set wD = Sh(SH_DATA)
+    lr = LastRow(wD, D_KEY)
+    If lr < 2 Then Exit Function
+    arr = Baca(wD.Range(wD.Cells(2, D_PER), wD.Cells(lr, D_PER)))
+    For i = 1 To UBound(arr, 1)
+        If Teks(arr(i, 1)) = CStr(kode) Then JumlahPlan = JumlahPlan + 1
+    Next i
+End Function
+
+Private Function GabungKunci(ByVal d As Object) As String
+    Dim k As Variant
+    For Each k In d.Keys
+        If CStr(k) <> "" Then GabungKunci = GabungKunci & IIf(GabungKunci = "", "", ",") & CStr(k)
+    Next k
+End Function
+
+' "dd/mm/yyyy" (atau d/m/yy) -> tanggal, tidak tergantung setelan regional
+Private Function TanggalDariTeks(ByVal txt As String, ByRef ok As Boolean) As Date
+    Dim p As Variant, d As Long, m As Long, y As Long
+    ok = False
+    txt = Replace(Replace(Trim$(txt), "-", "/"), ".", "/")
+    p = Split(txt, "/")
+    If UBound(p) <> 2 Then Exit Function
+    If Not (IsNumeric(p(0)) And IsNumeric(p(1)) And IsNumeric(p(2))) Then Exit Function
+    d = CLng(p(0)): m = CLng(p(1)): y = CLng(p(2))
+    If y < 100 Then y = y + 2000
+    If m < 1 Or m > 12 Or d < 1 Or d > Day(DateSerial(y, m + 1, 0)) Or y < 2000 Or y > 2100 Then Exit Function
+    TanggalDariTeks = DateSerial(y, m, d)
+    ok = True
+End Function
 
 '==================================================================
 '  2. INPUT ACTUAL MINGGUAN (SPV)
@@ -1033,6 +1453,7 @@ Private Function SimpanInti() As Boolean
     End If
 
     SpeedOn
+    BackupData "Simpan actual oleh " & spv
     lrD = LastRow(wD, D_KEY)
     If lrD < 2 Then Err.Raise vbObjectError + 519, , "DATA_PLAN_ACTUAL kosong."
     keys = Baca(wD.Range(wD.Cells(2, D_KEY), wD.Cells(lrD, D_KEY)))
@@ -1046,9 +1467,12 @@ Private Function SimpanInti() As Boolean
             r = dict(Teks(grid(i, 1)))
             v = Teks(grid(i, IN_ACT))
             If v = "" Then
-                blok(r, 1) = Empty
-                blok(r, 2) = Empty
-                blok(r, 3) = Empty
+                ' actual dikosongkan: waktu koreksi dicatat supaya CIKOPS ikut mengosongkan
+                If Teks(blok(r, 1)) <> "" Then
+                    blok(r, 1) = Empty
+                    blok(r, 2) = Empty
+                    blok(r, 3) = Now
+                End If
             Else
                 blok(r, 1) = CLng(v)
                 blok(r, 2) = spv
@@ -3161,6 +3585,15 @@ Public Sub BuatDashboard()
     Tulisan w, "syn_ic", px + 40 + bw, y1 + 138, 30, 44, Ikon(&HE895&), 15, False, vbWhite, 2, FONT_ICON
     Tulisan w, "syn_t", px + 72 + bw, y1 + 138, bw - 44, 44, "SINKRON CIKOPS", 10.5, True, vbWhite
     Klik w, "KeSinkronCIKOPS", "syn_bg", "syn_ic", "syn_t"
+    If H >= 350 Then
+        Set s = Kotak(w, "kel_bg", px + 22, y1 + 192, pw - 44, 36, vbWhite, 6)
+        s.Line.Visible = -1
+        s.Line.ForeColor.RGB = C_LINE()
+        s.Line.Weight = 1
+        Tulisan w, "kel_ic", px + 30, y1 + 192, 30, 36, Ikon(&HE90F&), 14, False, C_BLUE(), 2, FONT_ICON
+        Tulisan w, "kel_t", px + 62, y1 + 192, pw - 100, 36, "KELOLA & KOREKSI DATA" & Panah(), 10, True, C_BLUE_DK()
+        Klik w, "KelolaData", "kel_bg", "kel_ic", "kel_t"
+    End If
 
     Tulisan w, "cat_lbl", px + 22, y1 + H - 106, pw - 44, 14, "CATAT KEGIATAN", 8.5, True, C_MUTED()
     bw = (pw - 44 - 3 * 8) / 4
@@ -3204,9 +3637,9 @@ Public Sub BuatDashboard()
     Klik w, "RefreshDashboard", "ft_apply"
 
     Tulisan w, "ft_util1", DB_X + mDbW - 290, w.Cells(rF, 1).Top + 26, 110, 14, "Isi ID otomatis", 8, False, C_MUTED(), 3
-    Tulisan w, "ft_util2", DB_X + mDbW - 170, w.Cells(rF, 1).Top + 26, 170, 14, "Hapus plan periode ini", 8, False, C_MUTED(), 3
+    Tulisan w, "ft_util2", DB_X + mDbW - 170, w.Cells(rF, 1).Top + 26, 170, 14, "Kelola & koreksi data" & Panah(), 8.5, True, C_BLUE(), 3
     Klik w, "IsiIDOtomatis", "ft_util1"
-    Klik w, "HapusPlanPeriode", "ft_util2"
+    Klik w, "KelolaData", "ft_util2"
     Tulisan w, "ft_fit", DB_X + mDbW - 280, w.Cells(rF, 1).Top, 145, 22, ChrW(8635) & " Sesuaikan ke layar", 9, True, C_BLUE(), 3
     Tulisan w, "ft_full", DB_X + mDbW - 130, w.Cells(rF, 1).Top, 130, 22, LabelLayar(), 9, True, C_BLUE(), 3
     Klik w, "SesuaikanLayar", "ft_fit"
@@ -3589,6 +4022,7 @@ Public Sub SiapkanSheetTGA()
     HapusTombol w
     w.Columns("E").ColumnWidth = 22
     Tombol w, "E2:E3", "Kembali ke MENU", "KeMenu", False
+    TombolHapusBaris w, "F2:F3"
     w.Activate
     ActiveWindow.DisplayGridlines = False
     w.Range("A5").Select
@@ -3680,6 +4114,11 @@ Private Sub Tombol(ByVal w As Worksheet, ByVal addr As String, ByVal cap As Stri
     s.OnAction = mac
 End Sub
 
+Private Sub TombolHapusBaris(ByVal w As Worksheet, ByVal addr As String)
+    If w.Range(addr).Columns(1).ColumnWidth < 20 Then w.Range(addr).Columns(1).ColumnWidth = 20
+    Tombol w, addr, "Hapus baris terpilih", "HapusBarisLog", False
+End Sub
+
 Public Sub Setup_Tombol()
     Dim w As Worksheet
     On Error GoTo EH
@@ -3690,16 +4129,19 @@ Public Sub Setup_Tombol()
     HapusTombol w
     Tombol w, "E2:E3", "Lampirkan Foto/Dokumen", "LampirkanDokumentasi"
     Tombol w, "F2:F3", "Kembali ke MENU", "KeMenu", False
+    TombolHapusBaris w, "G2:G3"
 
     Set w = Sh(SH_IMP)
     HapusTombol w
     Tombol w, "G2:G3", "Lampirkan Foto/Dokumen", "LampirkanDokumentasi"
     Tombol w, "H2:H3", "Kembali ke MENU", "KeMenu", False
+    TombolHapusBaris w, "I2:I3"
 
     Set w = Sh(SH_INV)
     HapusTombol w
     Tombol w, "F2:F3", "Lampirkan Foto", "LampirkanDokumentasi"
     Tombol w, "G2:H3", "Kembali ke MENU", "KeMenu", False
+    TombolHapusBaris w, "I2:I3"
 
     SiapkanSheetTGA
 
