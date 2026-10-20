@@ -24,6 +24,9 @@ jadi riwayat sebelum sinkron tidak hilang.
 ## Langkah pemasangan (sekali saja)
 
 ### 1. Update aplikasi Security Desk (repo `CIK-G4S`)
+✅ **Sudah dilakukan** — perubahan sudah di-push ke `main` repo `CIK-G4S` (commit f13aaf5) dan
+Vercel otomatis deploy. Langkah upload di bawah hanya cadangan.
+
 File perubahannya ada di folder **`integrasi/security-desk/`** di repo ini, dengan susunan
 folder yang sama persis dengan repo `CIK-G4S`:
 
