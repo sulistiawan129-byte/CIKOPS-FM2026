@@ -235,9 +235,9 @@ end $$;
 /** p_rows = [{key, actual: 1 | 0 | null}] — null = kosongkan. SPV = nama akun yang login. */
 create or replace function ga_set_actual(p_rows jsonb, p_spv text default null) returns int
 language plpgsql security definer set search_path = public as $$
-declare v_spv text; n int;
+declare v_name text := ga_staff_name(); v_spv text; n int;
 begin
-  v_spv := coalesce(nullif(trim(p_spv), ''), ga_staff_name());
+  v_spv := coalesce(nullif(trim(p_spv), ''), v_name);
   update ga_plan g set actual = x.actual, spv = case when x.actual is null then '' else v_spv end,
          waktu_input = now(), sync_id = 'cikops', synced_at = now()
     from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb)) as x(key text, actual smallint)

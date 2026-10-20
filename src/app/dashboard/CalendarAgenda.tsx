@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAgendaEvents, addAgendaEvent, updateAgendaEvent, deleteAgendaEvent, getTasksByRange } from "@/lib/api";
-import type { MyProfile } from "@/lib/api";
+import { roleInfoOf, type MyProfile } from "@/lib/api";
 import type { AgendaCategory, AgendaEvent, AgendaEventInput, TaskDetail, TaskStatus } from "@/lib/types";
 import { toLocalISODate } from "@/lib/dateUtils";
 import { useLang } from "@/lib/providers";
@@ -93,12 +93,15 @@ export default function CalendarAgenda({
   const full = variant === "full";
   const today = iso(new Date());
   const plant = myProfile?.plantScope ?? null;
+  // Receptionist: kalender kunjungan/agenda saja, tanpa penugasan driver
+  const allowTasks = roleInfoOf(myProfile)?.calendarTasks ?? true;
 
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [selected, setSelected] = useState<string | null>(full ? today : null);
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [tasks, setTasks] = useState<TaskDetail[]>([]);
-  const [showTasks, setShowTasks] = useState(true);
+  const [showTasksRaw, setShowTasks] = useState(true);
+  const showTasks = allowTasks && showTasksRaw;
   const [hidden, setHidden] = useState<Set<AgendaCategory>>(new Set());
   const [form, setForm] = useState<{ event: AgendaEvent | null; draft: AgendaEventInput } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -115,9 +118,10 @@ export default function CalendarAgenda({
   }, [lang]);
 
   const loadTasks = useCallback(async () => {
+    if (!allowTasks) return;
     try { setTasks(await getTasksByRange(rangeFrom, rangeTo, plant)); }
     catch (e) { console.warn("Gagal memuat penugasan untuk kalender:", e); }
-  }, [rangeFrom, rangeTo, plant]);
+  }, [rangeFrom, rangeTo, plant, allowTasks]);
 
   useEffect(() => { loadEvents().finally(() => setLoading(false)); }, [loadEvents]);
   useEffect(() => {
@@ -206,9 +210,9 @@ export default function CalendarAgenda({
           <span className={c.sw} />{catLabel(k, lang)}
         </button>
       ))}
-      <button type="button" className={`${c.chip} ${showTasks ? "" : c.chipOff}`} aria-pressed={showTasks} onClick={() => setShowTasks((v) => !v)} style={{ ["--cat" as string]: TASK_COLOR }}>
+      {allowTasks && <button type="button" className={`${c.chip} ${showTasks ? "" : c.chipOff}`} aria-pressed={showTasks} onClick={() => setShowTasks((v) => !v)} style={{ ["--cat" as string]: TASK_COLOR }}>
         <span className={c.sw} />{L("Penugasan driver", "Driver tasks")}
-      </button>
+      </button>}
     </div>
   );
 

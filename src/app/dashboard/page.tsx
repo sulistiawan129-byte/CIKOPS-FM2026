@@ -170,6 +170,7 @@ import { getLockerStatusGrid } from "@/lib/lockerApi";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
 import SecurityTab from "./SecurityTab";
+import AccountsTab, { ExecutiveView } from "./AccountsTab";
 import CalendarAgenda from "./CalendarAgenda";
 import AtkTab from "./AtkTab";
 import GaTab from "./GaTab";
@@ -212,6 +213,8 @@ export type DashboardTab =
   | "receptionist"
   | "security"
   | "calendar"
+  | "executive"
+  | "accounts"
   | "activitylog";
 
 interface NavTab { id: DashboardTab; icon: string; labelId: string; labelEn: string; descId?: string; descEn?: string }
@@ -271,9 +274,11 @@ const NAV_GROUPS: NavGroup[] = [
     labelId: "Sistem",
     labelEn: "System",
     tabs: [
+      { id: "executive", icon: "📺", labelId: "Command Center", labelEn: "Command Center", descId: "Dashboard eksekutif & tarik laporan", descEn: "Executive dashboard & report export" },
       { id: "calendar", icon: "📅", labelId: "Kalender", labelEn: "Calendar", descId: "Agenda kunjungan, event & penugasan driver", descEn: "Visits, events & driver tasks" },
       { id: "reports", icon: "📈", labelId: "Report", labelEn: "Reports", descId: "Laporan & analisis data", descEn: "Reports & data analysis" },
       { id: "masterdata", icon: "🗄️", labelId: "Master Data", labelEn: "Master Data", descId: "Kelola master data sistem", descEn: "Manage system master data" },
+      { id: "accounts", icon: "👥", labelId: "Akun & Role", labelEn: "Accounts & Roles", descId: "Kelola akun tim dan perannya", descEn: "Manage team accounts and roles" },
       { id: "activitylog", icon: "📋", labelId: "Log Aktivitas", labelEn: "Activity Log", descId: "Riwayat aktivitas sistem", descEn: "System activity history" },
     ],
   },
@@ -347,7 +352,12 @@ export default function DashboardPage() {
         setProfileChecked(true);
         // Akun yang dikunci ke satu menu (mis. receptionist): selalu buka menu itu.
         const locked = lockedTabOf(p);
-        if (locked) { setActiveTab(locked as DashboardTab); return; }
+        if (locked) {
+          // Akun tanpa Beranda: buka menu dari URL bila boleh, selain itu menu pertamanya.
+          const fromUrl = tabFromPath(typeof window !== "undefined" ? window.location.pathname : "");
+          setActiveTab((fromUrl && canAccessTab(p, fromUrl) ? fromUrl : locked) as DashboardTab);
+          return;
+        }
         // Akun dengan menu terbatas: buka menu pertamanya, kecuali URL sudah menunjuk menu yang boleh diakses.
         if (p?.allowedTabs && p.allowedTabs.length > 0 && !p.allowedTabs.includes("overview")) {
           const fromUrl = tabFromPath(typeof window !== "undefined" ? window.location.pathname : "");
@@ -401,7 +411,7 @@ export default function DashboardPage() {
   // Akun scope PRB hanya boleh Penugasan, Armada, Master Data — kembalikan ke Home bila tab lain terbuka.
   const lockedTab = lockedTabOf(myProfile) as DashboardTab | null;
   useEffect(() => {
-    if (lockedTab) { if (activeTab !== lockedTab) setActiveTab(lockedTab); return; }
+    if (lockedTab) { if (!canAccessTab(myProfile, activeTab)) setActiveTab(lockedTab); return; }
     if (activeTab !== "home" && myProfile && !canAccessTab(myProfile, activeTab)) setActiveTab("home");
   }, [activeTab, myProfile, setActiveTab, lockedTab]);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -967,6 +977,8 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "gafacility" && <GaTab myProfile={myProfile} />}
           {activeTab === "receptionist" && <ReceptionistTab myProfile={myProfile} />}
           {activeTab === "security" && <SecurityTab myProfile={myProfile} />}
+          {activeTab === "executive" && <ExecutiveView onReports={() => setActiveTab("reports")} />}
+          {activeTab === "accounts" && <AccountsTab myProfile={myProfile} />}
           {activeTab === "calendar" && <CalendarAgenda variant="full" myProfile={myProfile} onOpenTasks={openTasksOn} />}
           {activeTab === "activitylog" && <ActivityLogTab />}
           </TabErrorBoundary>

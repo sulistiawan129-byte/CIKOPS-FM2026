@@ -2037,18 +2037,76 @@ export async function getMyProfile(userId: string): Promise<MyProfile | null> {
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return null;
+    const role = String(data.role || "");
+    const info = ROLE_INFO[role as StaffRole];
     return {
       fullName: data.full_name,
-      role: data.role,
-      plantScope: (data.plant_scope as Plant | null) ?? null,
+      role,
+      // Role baru menentukan plant & menu sendiri; role lama (admin/ga) memakai kolom profil.
+      plantScope: info ? info.plant : ((data.plant_scope as Plant | null) ?? null),
       accessScope: (data.access_scope as "full" | "tasks_only") ?? "full",
-    allowedTabs: (data.allowed_tabs as string[] | null) ?? null,
-      isMasterAdmin: Boolean(data.is_master_admin),
+      allowedTabs: info ? null : ((data.allowed_tabs as string[] | null) ?? null),
+      isMasterAdmin: role === "master" || Boolean(data.is_master_admin),
     };
   } catch {
     return null;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   ROLE PER SCOPE (SQL 039) — setiap admin mengelola modulnya sendiri.
+   Database ikut menjaga hak TULIS per modul; di sini menu & tampilan.
+════════════════════════════════════════════════════════════ */
+export type StaffRole = "master" | "admin_ga_cik" | "admin_ga_prb" | "admin_iss" | "admin_security" | "receptionist" | "management";
+export type ReportModule = "fleet" | "claims" | "canteen" | "atk" | "ga" | "security";
+
+export interface RoleInfo {
+  id: string; en: string; descId: string; descEn: string;
+  /** null = semua menu */
+  tabs: string[] | null;
+  /** boleh Beranda/Ringkasan; false = langsung ke menu pertama */
+  home: boolean;
+  plant: Plant | null;
+  /** modul yang boleh ditarik di Report */
+  reports: ReportModule[];
+  /** Kalender menampilkan penugasan driver */
+  calendarTasks: boolean;
+}
+
+const ALL_REPORTS: ReportModule[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
+export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
+  master: {
+    id: "Master Admin", en: "Master Admin", descId: "Semua modul, semua akun & log aktivitas", descEn: "All modules, all accounts & activity log",
+    tabs: null, home: true, plant: null, reports: ALL_REPORTS, calendarTasks: true,
+  },
+  admin_ga_cik: {
+    id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
+    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "gift", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
+    home: true, plant: "CIK", reports: ["fleet", "claims", "atk"], calendarTasks: true,
+  },
+  admin_ga_prb: {
+    id: "Admin GA PRB", en: "GA Admin PRB", descId: "Fleet PRB: penugasan, armada, driver, pegawai, report", descEn: "Fleet PRB: tasks, vehicles, drivers, employees, reports",
+    tabs: ["tasks", "vehicles", "calendar", "reports", "masterdata", "accounts"], home: true, plant: "PRB", reports: ["fleet"], calendarTasks: true,
+  },
+  admin_iss: {
+    id: "Admin / SPV ISS", en: "ISS Admin / SPV", descId: "Cleaning, Gardening & TGA", descEn: "Cleaning, gardening & TGA",
+    tabs: ["gafacility", "reports", "accounts"], home: false, plant: null, reports: ["ga"], calendarTasks: false,
+  },
+  admin_security: {
+    id: "Admin / SPV Security", en: "Security Admin / SPV", descId: "Modul Security", descEn: "Security module",
+    tabs: ["security", "reports", "accounts"], home: false, plant: null, reports: ["security"], calendarTasks: false,
+  },
+  receptionist: {
+    id: "Receptionist", en: "Receptionist", descId: "Modul Receptionist & kalender kunjungan", descEn: "Receptionist module & visit calendar",
+    tabs: ["receptionist", "calendar"], home: false, plant: null, reports: [], calendarTasks: false,
+  },
+  management: {
+    id: "Management", en: "Management", descId: "Lihat saja: Command Center & tarik laporan", descEn: "View only: Command Center & report export",
+    tabs: ["executive", "reports"], home: false, plant: null, reports: ALL_REPORTS, calendarTasks: false,
+  },
+};
+export const STAFF_ROLES = Object.keys(ROLE_INFO) as StaffRole[];
+export const roleInfoOf = (profile: MyProfile | null): RoleInfo | null => (profile ? ROLE_INFO[profile.role as StaffRole] ?? null : null);
 
 /** Helper — dipakai di sidebar & tempat lain buat cek apakah profil ini
  *  boleh lihat tab tertentu. `allowedTabs === null` artinya akses penuh. */
@@ -2060,24 +2118,42 @@ export function isPrbOnly(profile: MyProfile | null): boolean {
   return profile?.plantScope === "PRB";
 }
 
-/** Role yang dikunci ke SATU menu saja (tanpa Home, Ringkasan, Kalender, atau menu lain).
- *  Kunci ini berlaku apa pun isi allowed_tabs-nya. */
-export const LOCKED_ROLE_TAB: Record<string, string> = { receptionist: "receptionist" };
-
-/** Menu tunggal milik akun ini, atau null bila akun boleh berpindah menu. */
+/** Akun tanpa Beranda (role satu modul / Management): menu pertama yang dibuka, atau null bila akun boleh ke Beranda. */
 export function lockedTabOf(profile: MyProfile | null): string | null {
-  return profile ? LOCKED_ROLE_TAB[profile.role] ?? null : null;
+  const info = roleInfoOf(profile);
+  if (info) return info.home ? null : info.tabs?.[0] ?? null;
+  return profile?.role === "receptionist" ? "receptionist" : null;
+}
+
+/** Management: hanya melihat (database juga menolak perubahan). */
+export const isReadOnly = (profile: MyProfile | null) => profile?.role === "management";
+
+/** Modul yang boleh ditarik di Report. */
+export function reportModulesOf(profile: MyProfile | null): ReportModule[] {
+  return roleInfoOf(profile)?.reports ?? ALL_REPORTS;
 }
 
 /** Label role untuk ditampilkan di kartu profil. */
 export function roleLabel(profile: MyProfile | null): string {
+  const info = roleInfoOf(profile);
+  if (info) return info.id;
   if (profile?.role === "admin") return "Admin";
-  if (profile?.role === "receptionist") return "Receptionist";
   return "GA Manager";
 }
 
 export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  const info = roleInfoOf(profile);
+  if (info) {
+    if (tab === "home" || tab === "overview") return info.home && !(tab === "overview" && info.plant === "PRB");
+    if (tab === "activitylog") return profile.role === "master";
+    if (tab === "driverbudget") return info.tabs === null || info.tabs.includes("opfund");
+    if (tab === "executive") return profile.role === "management" || profile.role === "master";
+    return info.tabs === null || info.tabs.includes(tab);
+  }
+  // ── role lama (admin / ga) ──
+  if (tab === "executive") return false;
+  if (tab === "accounts") return profile.role === "admin";
   const locked = lockedTabOf(profile);
   if (locked) return tab === locked;
   if (isPrbOnly(profile) && !PRB_TABS.includes(tab)) return false;
@@ -2095,8 +2171,30 @@ export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
 /** Izin persis satu menu, tanpa aturan gabungan di atas (untuk sub-tab di dalam halaman). */
 export function hasTabPermission(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  const info = roleInfoOf(profile);
+  if (info) return info.tabs === null || info.tabs.includes(tab);
   return profile.allowedTabs === null || profile.allowedTabs.includes(tab);
 }
+
+/* ── Akun & Role (Edge Function manage-staff-account) ── */
+export interface StaffAccount {
+  id: string; email: string; fullName: string; role: string; plant: string | null;
+  active: boolean; lastSignIn: string | null; createdAt: string | null; self: boolean;
+}
+async function staffFn<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("manage-staff-account", { body });
+  if (error) throw new Error(/not found|404|Failed to send/i.test(error.message)
+    ? "Edge Function manage-staff-account belum di-deploy (lihat BACA-DULU-ROLE.md)."
+    : error.message);
+  if (!data?.ok) throw new Error(data?.error || "Gagal memproses akun.");
+  return data as T;
+}
+export const listStaffAccounts = () => staffFn<{ myRole: string; roles: string[]; rows: StaffAccount[] }>({ action: "list" });
+export const createStaffAccount = (a: { email: string; fullName: string; role: string; password?: string }) =>
+  staffFn<{ id: string; email: string; password: string; generated: boolean; existed: boolean }>({ action: "create", ...a });
+export const updateStaffAccount = (id: string, patch: { fullName?: string; role?: string }) => staffFn<{ ok: true }>({ action: "update", id, ...patch });
+export const resetStaffPassword = (id: string, password?: string) => staffFn<{ password: string; generated: boolean }>({ action: "reset", id, password });
+export const setStaffActive = (id: string, active: boolean) => staffFn<{ ok: true }>({ action: "active", id, active });
 
 export interface ActivityLogEntry {
   id: string;
