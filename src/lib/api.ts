@@ -2084,6 +2084,17 @@ export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (tab === "activitylog") return profile.isMasterAdmin === true;
   // Kalender (agenda + penugasan) sama dengan widget di Home: terbuka untuk semua akun non-PRB.
   if (tab === "calendar") return true;
+  const has = (k: string) => profile.allowedTabs === null || profile.allowedTabs.includes(k);
+  // Gate Log dipisah dari Armada → izinnya ikut "vehicles" (atau "gate" bila diberikan khusus)
+  if (tab === "gate") return has("gate") || has("vehicles");
+  // Budget Driver digabung ke halaman Dana Operasional → menu terbuka bila punya salah satu izin
+  if (tab === "opfund") return has("opfund") || has("driverbudget");
+  return has(tab);
+}
+
+/** Izin persis satu menu, tanpa aturan gabungan di atas (untuk sub-tab di dalam halaman). */
+export function hasTabPermission(profile: MyProfile | null, tab: string): boolean {
+  if (!profile) return true;
   return profile.allowedTabs === null || profile.allowedTabs.includes(tab);
 }
 

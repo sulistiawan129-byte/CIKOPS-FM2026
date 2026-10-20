@@ -23,6 +23,7 @@ import type { DriverReportSummary } from "@/lib/analytics";
 import {
   getMyProfile,
   canAccessTab,
+  hasTabPermission,
   lockedTabOf,
   roleLabel,
   isPrbOnly,
@@ -179,6 +180,8 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import Icon from "@/components/Icon";
 import SideNav, { type SideNavGroup } from "./SideNav";
 import of from "./opfund.module.css";
+import vh from "./vehicles.module.css";
+import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
 
 function todayStr() {
   return toLocalISODate(new Date());
@@ -194,6 +197,7 @@ export type DashboardTab =
   | "claims"
   | "overtime"
   | "driverbudget"
+  | "gate"
   | "opfund"
   | "gasstations"
   | "reports"
@@ -222,6 +226,7 @@ const NAV_GROUPS: NavGroup[] = [
     tabs: [
       { id: "tasks", icon: "🗂️", labelId: "Penugasan", labelEn: "Tasks", descId: "Kelola penugasan kendaraan & driver", descEn: "Manage vehicle & driver tasks" },
       { id: "vehicles", icon: "🚗", labelId: "Armada", labelEn: "Vehicles", descId: "Data kendaraan & kelengkapannya", descEn: "Vehicle data & documents" },
+      { id: "gate", icon: "🚧", labelId: "Gate Log", labelEn: "Gate Log", descId: "Keluar-masuk kendaraan di pos gate", descEn: "Vehicle in/out at the gate post" },
       { id: "gasstations", icon: "⛽", labelId: "Pom Bensin", labelEn: "Gas Stations", descId: "Mapping & transaksi bahan bakar", descEn: "Fuel mapping & transactions" },
     ],
   },
@@ -232,8 +237,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelEn: "Finance",
     tabs: [
       { id: "claims", icon: "🧾", labelId: "Klaim", labelEn: "Claims", descId: "Pengajuan & monitoring klaim", descEn: "Claim submission & monitoring" },
-      { id: "driverbudget", icon: "💳", labelId: "Budget Driver", labelEn: "Driver Budget", descId: "Budget rutin & penggunaan", descEn: "Routine budget & usage" },
-      { id: "opfund", icon: "💰", labelId: "Dana Operasional", labelEn: "Operational Fund", descId: "Pengajuan dana operasional", descEn: "Operational fund requests" },
+      { id: "opfund", icon: "💰", labelId: "Dana Operasional", labelEn: "Operational Fund", descId: "Kas operasional & budget driver per tier", descEn: "Operational cash & driver budget tiers" },
     ],
   },
   {
@@ -280,7 +284,8 @@ const NAV_SHORT_ID: Record<string, string> = { fleet: "Fleet", finance: "Finance
 const NAV_SHORT_EN: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Facility", security: "Security", system: "System" };
 
 /** Menu yang punya alamat sendiri: /dashboard/<id>. */
-const URL_TABS = new Set<DashboardTab>(["home", "overview", "tasks", ...NAV_GROUPS.flatMap((g) => g.tabs.map((t) => t.id))]);
+// "driverbudget" tetap punya alamat lama → dibuka sebagai tab Budget Driver di Dana Operasional
+const URL_TABS = new Set<DashboardTab>(["home", "overview", "tasks", "driverbudget", ...NAV_GROUPS.flatMap((g) => g.tabs.map((t) => t.id))]);
 function tabFromPath(pathname: string): DashboardTab | null {
   const m = pathname.match(/^\/dashboard\/([a-z]+)\/?$/);
   const id = m?.[1] as DashboardTab | undefined;
@@ -684,7 +689,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       {/* ── Sidebar: rail grup + panel menu ── */}
       <SideNav
         groups={sideGroups}
-        activeTab={activeTab}
+        activeTab={activeTab === "driverbudget" ? "opfund" : activeTab}
         onSelect={(id) => { setActiveTab(id as DashboardTab); if (id === "home") setActiveHomeGroup(undefined); }}
         lang={lang === "en" ? "en" : "id"}
         appName={t.appName}
@@ -857,6 +862,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         const labelOf = (id: DashboardTab) => {
           if (id === "home") return lang === "en" ? "Dashboard" : "Dashboard";
           if (id === "overview") return lang === "en" ? "Overview" : "Ringkasan";
+          if (id === "driverbudget") return lang === "en" ? "Operational Fund" : "Dana Operasional";
           for (const g of NAV_GROUPS) {
             const f = g.tabs.find((x) => x.id === id);
             if (f) return lang === "en" ? f.labelEn : f.labelId;
@@ -931,9 +937,9 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "home" && <HomeTab setActiveTab={setActiveTab} openTasksOn={openTasksOn} myProfile={myProfile} activeGroupId={activeHomeGroup} setActiveGroupId={setActiveHomeGroup} />}
           {activeTab === "overview" && <OverviewTab setActiveTab={setActiveTab} myProfile={myProfile} />}
           {activeTab === "vehicles" && <VehiclesTab myProfile={myProfile} />}
+          {activeTab === "gate" && <GateTab myProfile={myProfile} />}
           {activeTab === "claims" && <ClaimsTab myProfile={myProfile} />}
-          {activeTab === "driverbudget" && <DriverBudgetTab myProfile={myProfile} />}
-          {activeTab === "opfund" && <OpFundTab myProfile={myProfile} />}
+          {(activeTab === "opfund" || activeTab === "driverbudget") && <OpFundPage myProfile={myProfile} initial={activeTab === "driverbudget" ? "budget" : "fund"} />}
           {activeTab === "gasstations" && <GasStationsTab />}
           {activeTab === "reports" && <MgmtReportTab myProfile={myProfile} />}
         {activeTab === "masterdata" && (
@@ -945,7 +951,16 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 )}
           {activeTab === "canteen" && <CanteenTab />}
           {activeTab === "locker" && <LockerTab />}
-          {activeTab === "gift" && <GiftMasterPanel cardStyle={{ background: "linear-gradient(180deg, var(--surface2), var(--surface))", border: "1px solid var(--border2)", borderRadius: "var(--r2)", boxShadow: "var(--shadow-md)" }} />}
+          {activeTab === "gift" && (
+            <ModulePage>
+              <ModuleHeader
+                kicker={lang === "en" ? "Facility · Distribution" : "Fasilitas · Pembagian"}
+                title={lang === "en" ? "Gift & Uniform Distribution" : "Pembagian Gift / Seragam"}
+                desc={lang === "en" ? "Run distribution programs (gifts, uniforms, merchandise): registration links, officer verification, stock per size, and participant tracking." : "Kelola program pembagian (gift, seragam, merchandise): link pendaftaran, verifikasi petugas, stok per ukuran, dan pantau peserta."}
+              />
+              <GiftMasterPanel cardStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 18, boxShadow: "var(--shadow-sm)" }} />
+            </ModulePage>
+          )}
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}
@@ -2662,13 +2677,14 @@ function ActivityLogTab() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div className="sectionHeading">{lang === "en" ? "Activity Log" : "Log Aktivitas"}</div>
-      <div style={{ fontSize: 12.5, color: "var(--t3)", marginBottom: 18 }}>
-        {lang === "en"
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "System · Audit" : "Sistem · Audit"}
+        title={lang === "en" ? "Activity Log" : "Log Aktivitas"}
+        desc={lang === "en"
           ? "Complete audit trail of who changed what, across Claims, Operational Fund, and Master Data. Visible only to master admin."
           : "Jejak audit lengkap siapa mengubah apa, mencakup Claims, Dana Operasional, dan Master Data. Cuma bisa dilihat oleh master admin."}
-      </div>
+      />
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
         <select
@@ -2769,7 +2785,7 @@ function ActivityLogTab() {
           })
         )}
       </div>
-    </div>
+    </ModulePage>
   );
 }
 
@@ -3175,6 +3191,11 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
 
   return (
     <div className={cs.root}>
+      <ModuleHeader
+        kicker={en ? "Finance · Claims" : "Finance · Klaim"}
+        title={en ? "Driver Claims" : "Klaim Driver"}
+        desc={en ? "Driver expense claims (fuel, tolls, parking, service, and more), weekly recaps, and condolence wreaths." : "Pengajuan klaim pengeluaran driver (bensin, tol, parkir, servis, dan lainnya), rekap mingguan, serta karangan bunga duka cita."}
+      />
       {notice && (
         <div className={cs.notice} role="status">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m8 12.5 2.8 2.8L16 9.5" /></svg>
@@ -3660,6 +3681,8 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
   const [formAmount, setFormAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DriverTier | null>(null);
+  const [tierFilter, setTierFilter] = useState("");
+  const [driverQ, setDriverQ] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3769,92 +3792,83 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
   const inputStyle: CSSProperties = {};
   const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
 
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const noTier = drivers.filter((d) => !d.tier_id).length;
+  const budgetTotal = tiers.reduce((x, tr) => x + tr.amountPerMonth * tr.activeDriverCount, 0) || 1;
+  const visibleDrivers = drivers.filter((d) => (!tierFilter || (tierFilter === "none" ? !d.tier_id : d.tier_id === tierFilter)) &&
+    (!driverQ || d.nama.toLowerCase().includes(driverQ.toLowerCase())));
+
   return (
-    <div style={{ padding: 20 }}>
-      <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
-        <div style={{ display: "flex", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge blue small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="4" /><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>{animatedTotalDrivers}</div><div className="statLabel">{lang === "en" ? "Total Drivers" : "Total Driver"}</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge teal small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>Rp {fmtRp(animatedTotalBudget)}</div><div className="statLabel">{lang === "en" ? "Budget/Month" : "Budget/Bulan"}</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge purple small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>Rp {fmtRp(animatedYearlyBudget)}</div><div className="statLabel">{lang === "en" ? "Per Year" : "Per Tahun"}</div></div>
-          </div>
-        </div>
+    <div className={of.wrap}>
+      <div className={of.tiles4}>
+        <div className={of.tile} style={{ ["--c" as string]: "var(--brand)" }}><span className={of.tileLabel}><i />{L("Total driver", "Total drivers")}</span><b>{animatedTotalDrivers}</b><small>{L("aktif di plant ini", "active in this plant")}</small></div>
+        <div className={of.tile} style={{ ["--c" as string]: "var(--green)" }}><span className={of.tileLabel}><i />{L("Budget / bulan", "Budget / month")}</span><b>Rp {fmtRp(animatedTotalBudget)}</b><small>{L("jumlah semua tier", "sum of all tiers")}</small></div>
+        <div className={of.tile} style={{ ["--c" as string]: "var(--purple)" }}><span className={of.tileLabel}><i />{L("Per tahun", "Per year")}</span><b>Rp {fmtRp(animatedYearlyBudget)}</b><small>{L("proyeksi 12 bulan", "12-month projection")}</small></div>
+        <div className={of.tile} style={{ ["--c" as string]: noTier ? "var(--orange)" : "var(--green)" }}><span className={of.tileLabel}><i />{L("Belum punya tier", "Without a tier")}</span><b>{noTier}</b><small>{noTier ? L("atur di daftar driver →", "assign in the driver list →") : L("semua driver sudah diatur 👍", "all drivers assigned 👍")}</small></div>
       </div>
 
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <ReportExportButtons onExport={tierExportPicker.requestExport} disabled={tiers.length === 0} />
-      </div>
+      {error && <div className={of.errBox}>{error}</div>}
       {tierExportPicker.pending && <LanguagePickerModal format={tierExportPicker.pending} onConfirm={tierExportPicker.confirm} onClose={tierExportPicker.cancel} />}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
-        <div style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{lang === "en" ? "Operational Allowance Tiers" : "Tier Uang Operasional"}</div>
-            <button className="pillBtn" onClick={openAdd} style={{ padding: "6px 14px", fontSize: 12 }}>+ Tambah</button>
-          </div>
-          {loading ? (
-            <div style={{ textAlign: "center", padding: 30, color: "var(--t3)" }}>Memuat...</div>
-          ) : tiers.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 30, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
-          ) : (
-            tiers.map((t) => (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: "var(--bg2)", marginBottom: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)" }}>{t.name}</div>
-                  <div style={{ fontSize: 12.5, color: "var(--t3)" }}>{t.activeDriverCount} driver · Rp {fmtRp(t.amountPerMonth)}/orang</div>
-                </div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: t.color }}>Rp {fmtRp(t.amountPerMonth * t.activeDriverCount)}</div>
-                <button onClick={() => openEdit(t)} style={{ border: "none", background: "none", cursor: "pointer" }}>✏️</button>
-                <button onClick={() => setConfirmDelete(t)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--red)" }}>🗑️</button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-            {lang === "en" ? "Assign Tier per Driver" : "Assign Tier per Driver"}
-          </div>
-          <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 14 }}>
-            {lang === "en" ? "New — links each driver to their allowance tier." : "Baru — hubungkan tiap driver ke tier uang operasionalnya."}
-          </div>
-          {drivers.map((d) => (
-            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ flex: 1, fontSize: 12.5, color: "var(--t1)" }}>{d.nama}</div>
-              <select
-                className={styles.formSelect}
-                style={{ width: "auto", fontSize: 13, padding: "6px 10px" }}
-                value={d.tier_id || ""}
-                onChange={(e) => handleAssignTier(d.id, e.target.value)}
-              >
-                <option value="">-</option>
-                {tiers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+      <div className={of.grid2}>
+        <section className={of.card}>
+          <div className={of.cardHead}>
+            <h3>{L("Tier uang operasional", "Allowance tiers")}</h3>
+            <div className={of.headBtns}>
+              <ReportExportButtons onExport={tierExportPicker.requestExport} disabled={tiers.length === 0} />
+              <button type="button" className={of.btnPrimary} onClick={openAdd}>+ {L("Tier", "Tier")}</button>
             </div>
-          ))}
-        </div>
+          </div>
+          {tiers.length > 0 && (
+            <div className={of.stackLight}>
+              {tiers.map((tr) => tr.amountPerMonth * tr.activeDriverCount > 0 && (
+                <span key={tr.id} style={{ width: `${((tr.amountPerMonth * tr.activeDriverCount) / budgetTotal) * 100}%`, background: tr.color }} title={`${tr.name}: Rp ${fmtRp(tr.amountPerMonth * tr.activeDriverCount)}`} />
+              ))}
+            </div>
+          )}
+          {loading ? <div className={of.empty}>{L("Memuat…", "Loading…")}</div> : tiers.length === 0 ? (
+            <div className={of.empty}>{L("Belum ada tier. Buat tier pertama, mis. \"Driver Senior — Rp 2.000.000/bulan\".", "No tiers yet.")}</div>
+          ) : (
+            <ul className={of.tierList}>
+              {tiers.map((tr) => (
+                <li key={tr.id} style={{ ["--c" as string]: tr.color }}>
+                  <button type="button" className={`${of.tierMain} ${tierFilter === tr.id ? of.tierOn : ""}`} onClick={() => setTierFilter(tierFilter === tr.id ? "" : tr.id)} title={L("Tampilkan driver di tier ini", "Show drivers in this tier")}>
+                    <i />
+                    <span><b>{tr.name}</b><small>{tr.activeDriverCount} driver · Rp {fmtRp(tr.amountPerMonth)}/{L("orang", "person")}</small></span>
+                    <strong>Rp {fmtRp(tr.amountPerMonth * tr.activeDriverCount)}</strong>
+                  </button>
+                  <button type="button" className={of.iconBtn} onClick={() => openEdit(tr)} aria-label={L("Ubah", "Edit")}>✏️</button>
+                  <button type="button" className={of.iconBtn} onClick={() => setConfirmDelete(tr)} aria-label={L("Hapus", "Delete")}>🗑️</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={of.card}>
+          <div className={of.cardHead}><h3>{L("Tier per driver", "Tier per driver")}</h3><span>{visibleDrivers.length}</span></div>
+          <div className={of.filterRow}>
+            <input className={of.searchInput} value={driverQ} onChange={(e) => setDriverQ(e.target.value)} placeholder={L("Cari driver…", "Search driver…")} />
+            <button type="button" className={`${of.chip} ${!tierFilter ? of.chipOn : ""}`} onClick={() => setTierFilter("")}>{L("Semua", "All")}</button>
+            <button type="button" className={`${of.chip} ${tierFilter === "none" ? of.chipOn : ""}`} onClick={() => setTierFilter(tierFilter === "none" ? "" : "none")}>{L("Tanpa tier", "No tier")} {noTier ? `(${noTier})` : ""}</button>
+          </div>
+          <ul className={of.driverList}>
+            {visibleDrivers.map((d) => {
+              const tr = tiers.find((x) => x.id === d.tier_id);
+              return (
+                <li key={d.id} style={{ ["--c" as string]: tr?.color ?? "var(--border2)" }}>
+                  <span className={of.drvAv}>{d.avatar_emoji || "🧑‍✈️"}</span>
+                  <span className={of.drvName}><b>{d.nama}</b><small>{tr ? `Rp ${fmtRp(tr.amountPerMonth)}/${L("bulan", "month")}` : L("belum diatur", "not assigned")}</small></span>
+                  <select className={of.select} value={d.tier_id || ""} onChange={(e) => handleAssignTier(d.id, e.target.value)}>
+                    <option value="">— {L("pilih tier", "choose tier")} —</option>
+                    {tiers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </li>
+              );
+            })}
+            {visibleDrivers.length === 0 && <li className={of.empty}>{L("Tidak ada driver.", "No drivers.")}</li>}
+          </ul>
+        </section>
       </div>
 
       {showForm && (
@@ -4014,6 +4028,32 @@ function ForecastCard({ plant }: { plant: Plant }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Dana Operasional + Budget Driver (digabung) — tab mengikuti izin masing-masing. */
+function OpFundPage({ myProfile, initial }: { myProfile: MyProfile | null; initial: "fund" | "budget" }) {
+  const { lang } = useLang();
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const canFund = hasTabPermission(myProfile, "opfund");
+  const canBudget = hasTabPermission(myProfile, "driverbudget");
+  const [view, setView] = useState<"fund" | "budget">(initial === "budget" && canBudget ? "budget" : canFund ? "fund" : "budget");
+  useEffect(() => { if (initial === "budget" && canBudget) setView("budget"); }, [initial, canBudget]);
+  const tabs = [
+    ...(canFund ? [{ id: "fund" as const, label: L("Dana Operasional", "Operational Fund"), icon: "💰" }] : []),
+    ...(canBudget ? [{ id: "budget" as const, label: L("Budget Driver", "Driver Budget"), icon: "💳" }] : []),
+  ];
+  return (
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Finance · Dana Operasional", "Finance · Operational Fund")}
+        title={L("Dana Operasional", "Operational Fund")}
+        desc={L("Kas operasional plant, outstanding klaim, dan budget bulanan driver per tier — dalam satu halaman.",
+          "Plant operating cash, outstanding claims, and monthly driver budgets per tier — in one place.")}
+      />
+      {tabs.length > 1 && <ModuleTabs tabs={tabs} value={view} onChange={setView} label={L("Bagian Dana Operasional", "Operational Fund sections")} />}
+      {view === "fund" ? <OpFundTab myProfile={myProfile} /> : <DriverBudgetTab myProfile={myProfile} />}
+    </ModulePage>
   );
 }
 
@@ -4327,10 +4367,10 @@ gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h
     <div className={of.wrap}>
       <div className={of.topBar}>
         <div className={of.titleBlock}>
-          <span className={of.titleIcon}>💰</span>
+          <span className={of.titleIcon}>📅</span>
           <div>
-            <h2>{L("Dana Operasional", "Operational Fund")}</h2>
-            <p>{L("Periode", "Period")} <b>{kantong.period}</b> · {L("reset terakhir", "last reset")} {kantong.lastReset}</p>
+            <p>{L("Periode", "Period")} <b>{kantong.period}</b></p>
+            <p>{L("reset terakhir", "last reset")} {kantong.lastReset}</p>
           </div>
         </div>
         <div className={of.topActions}>
@@ -5030,14 +5070,12 @@ function GasStationsTab() {
   const maxGrowth = Math.max(...growthByMonth.map((g) => g.cumulative), 1);
 
 return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--t1)" }}>{lang === "en" ? "Gas Stations" : "Pom Bensin"}</div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>
-            {new Date().toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </div>
-        </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "Fleet · Fuel" : "Fleet · Bahan Bakar"}
+        title={lang === "en" ? "Gas Stations" : "Pom Bensin"}
+        desc={lang === "en" ? "Map of gas stations drivers use, the fuel types each one sells, and data completeness." : "Peta SPBU yang dipakai driver, jenis BBM yang tersedia di tiap titik, dan kelengkapan datanya."}
+        actions={
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ fontSize: 13.5, color: "var(--t3)", marginRight: 4 }}>{totalStations} {lang === "en" ? "stations saved" : "SPBU tersimpan"}</span>
           <button
@@ -5057,7 +5095,8 @@ return (
             + {lang === "en" ? "Manual Input" : "Input Manual"}
           </button>
         </div>
-      </div>
+        }
+      />
 
       {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
 
@@ -5255,7 +5294,7 @@ return (
           </div>
         </ModalPortal>
       )}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -5295,25 +5334,14 @@ const BLANK_VEHICLE_FORM: VehicleFormState = {
   plant: "CIK",
 };
 
-function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
-  const isAdmin = myProfile?.role === "admin";
+/* ── GATE LOG — modul sendiri (dulu tab di dalam Armada) ── */
+function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
   const { lang, t } = useLang();
-  const [viewMode, setViewMode] = useState<"list" | "gatelog">("list");
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Vehicle | null>(null);
-  const [form, setForm] = useState<VehicleFormState>(BLANK_VEHICLE_FORM);
-  const [confirmDelete, setConfirmDelete] = useState<Vehicle | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  // ── Gate Log ──
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
   const [gateLogs, setGateLogs] = useState<VehicleGateLog[]>([]);
   const [loadingGateLogs, setLoadingGateLogs] = useState(false);
-  const [gatePlantFilter, setGatePlantFilter] = useState<"all" | Plant>("all");
+  const [gatePlantFilter, setGatePlantFilter] = useState<"all" | Plant>(myProfile?.plantScope ?? "all");
   const [gateDateFrom, setGateDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
@@ -5339,9 +5367,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     }
   }, [gatePlantFilter, gateDateFrom, gateDateTo]);
 
-  useEffect(() => {
-    if (viewMode === "gatelog") loadGateLogs();
-  }, [viewMode, loadGateLogs]);
+  useEffect(() => { loadGateLogs(); }, [loadGateLogs]);
 
   async function handleForceCloseGateLog(log: VehicleGateLog) {
     setBusyGateLogId(log.id);
@@ -5366,6 +5392,108 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     }
   }
 
+  return (
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Fleet · Pos Security", "Fleet · Security post")}
+        title="Gate Log"
+        desc={L("Catatan keluar-masuk kendaraan di pos gate: jam keluar, jam kembali, KM, dan driver. Petugas gate menginput lewat halaman /gate.",
+          "Vehicle in/out records at the gate post: departure, return, mileage and driver. Gate officers log entries on the /gate page.")}
+        actions={<>
+          <a className={vh.headLink} href="/gate" target="_blank" rel="noopener noreferrer">🚧 {L("Buka halaman petugas gate ↗", "Open gate officer page ↗")}</a>
+          <button type="button" className={vh.btn} onClick={loadGateLogs} disabled={loadingGateLogs}>{loadingGateLogs ? "…" : "↻"} {L("Muat ulang", "Refresh")}</button>
+        </>}
+      />
+      <GateLogPanel
+        logs={gateLogs}
+        loading={loadingGateLogs}
+        dateFrom={gateDateFrom}
+        dateTo={gateDateTo}
+        onDateFrom={setGateDateFrom}
+        onDateTo={setGateDateTo}
+        onQuickRange={(days) => {
+          const d = new Date(); const from = new Date(); from.setDate(d.getDate() - days);
+          setGateDateFrom(from.toISOString().slice(0, 10)); setGateDateTo(d.toISOString().slice(0, 10));
+        }}
+        plant={gatePlantFilter}
+        onPlant={setGatePlantFilter}
+        busyId={busyGateLogId}
+        onForceClose={handleForceCloseGateLog}
+        onDelete={setConfirmDeleteGateLog}
+        onExport={() => exportGateLogsToCsv(gateLogs)}
+      />
+      {confirmDeleteGateLog && (
+        <ModalPortal onOverlayClick={() => setConfirmDeleteGateLog(null)} maxWidth={380}>
+          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>
+              {lang === "en" ? "Delete this gate log entry?" : "Hapus catatan gate ini?"}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
+              <strong style={{ color: "var(--t1)" }}>{confirmDeleteGateLog.nopol}</strong> — {confirmDeleteGateLog.driverName} ({formatDateLabel(confirmDeleteGateLog.createdAt.slice(0, 10))}) {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDeleteGateLog(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
+                {t.actionCancel}
+              </button>
+              <button onClick={handleDeleteGateLog} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                {t.actionYesDelete}
+              </button>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+    </ModulePage>
+  );
+}
+
+/* ── ARMADA KENDARAAN — tampilan baru: ringkasan, filter interaktif, kartu & tabel ── */
+type DocKey = "KIR" | "Service" | "STNK";
+interface DocState { key: DocKey; last: string | null; next: string | null; early: string | null; days: number | null; level: "none" | "ok" | "soon" | "due" | "over" }
+const DOC_INTERVAL_DAYS: Record<DocKey, number> = { KIR: 182, Service: 182, STNK: 365 };
+
+function vehicleDocs(v: Vehicle): DocState[] {
+  return ([["KIR", v.kir_date], ["Service", v.service_date], ["STNK", v.stnk_date]] as [DocKey, string | null | undefined][]).map(([key, last]) => {
+    const { next, nextEarly } = nextDocDate(key, last);
+    if (!next) return { key, last: last ?? null, next: null, early: null, days: null, level: "none" };
+    const days = daysUntil(next);
+    const earlyDays = nextEarly ? daysUntil(nextEarly) : null;
+    const level: DocState["level"] = days <= 0 ? "over" : days <= 7 ? "due" : days <= 30 || (earlyDays !== null && earlyDays <= 0) ? "soon" : "ok";
+    return { key, last: last ?? null, next, early: nextEarly, days, level };
+  });
+}
+const DOC_RANK: Record<DocState["level"], number> = { over: 0, due: 1, soon: 2, none: 3, ok: 4 };
+function worstDoc(docs: DocState[]): DocState {
+  return [...docs].sort((a, b) => DOC_RANK[a.level] - DOC_RANK[b.level] || (a.days ?? 9999) - (b.days ?? 9999))[0];
+}
+
+function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
+  const isAdmin = myProfile?.role === "admin";
+  const { lang, t } = useLang();
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
+  const [form, setForm] = useState<VehicleFormState>(BLANK_VEHICLE_FORM);
+  const [confirmDelete, setConfirmDelete] = useState<Vehicle | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Filter & tampilan
+  const [q, setQ] = useState("");
+  const [plantF, setPlantF] = useState<"all" | Plant>("all");
+  const [statusF, setStatusF] = useState<"all" | "active" | "maint" | "attention" | "over">("all");
+  const [sortBy, setSortBy] = useState<"due" | "nopol" | "odo" | "year">("due");
+  const [view, setView] = useState<"grid" | "table">(() => {
+    try { return (localStorage.getItem("cikops_vehicle_view") as "grid" | "table") || "grid"; } catch { return "grid"; }
+  });
+  const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => { try { localStorage.setItem("cikops_vehicle_view", view); } catch { /* privat */ } }, [view]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -5387,7 +5515,9 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
   function driverName(id: string | null | undefined) {
     return drivers.find((d) => d.id === id)?.nama || "-";
   }
-
+  function driverOf(id: string | null | undefined) {
+    return drivers.find((d) => d.id === id) ?? null;
+  }
   function openAdd() {
     setEditing(null);
     setForm({ ...BLANK_VEHICLE_FORM, plant: myProfile?.plantScope ?? BLANK_VEHICLE_FORM.plant });
@@ -5460,260 +5590,221 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     }
   }
 
- const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "var(--t2)",
-    marginBottom: 5,
-    display: "block",
-  };
+  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
+
+  const rows = useMemo(() => vehicles.map((v) => {
+    const docs = vehicleDocs(v);
+    return { v, docs, worst: worstDoc(docs) };
+  }), [vehicles]);
+
+  const stats = useMemo(() => ({
+    total: rows.length,
+    active: rows.filter((r) => r.v.aktif).length,
+    maint: rows.filter((r) => !r.v.aktif).length,
+    over: rows.filter((r) => r.docs.some((d) => d.level === "over")).length,
+    attention: rows.filter((r) => r.docs.some((d) => d.level === "due" || d.level === "soon")).length,
+    noDocs: rows.filter((r) => r.docs.every((d) => d.level === "none")).length,
+  }), [rows]);
+
+  const upcoming = useMemo(() => rows.flatMap((r) => r.docs.filter((d) => d.next && d.level !== "ok").map((d) => ({ v: r.v, d })))
+    .sort((a, b) => (a.d.days ?? 0) - (b.d.days ?? 0)).slice(0, 8), [rows]);
+
+  const list = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const out = rows.filter(({ v, docs }) => {
+      if (plantF !== "all" && (v.plant || "CIK") !== plantF) return false;
+      if (statusF === "active" && !v.aktif) return false;
+      if (statusF === "maint" && v.aktif) return false;
+      if (statusF === "over" && !docs.some((d) => d.level === "over")) return false;
+      if (statusF === "attention" && !docs.some((d) => d.level === "due" || d.level === "soon")) return false;
+      if (!needle) return true;
+      return [v.nopol, v.jenis, v.dept, v.color, v.fuel, driverName(v.default_driver_id)].join(" ").toLowerCase().includes(needle);
+    });
+    out.sort((a, b) => {
+      if (sortBy === "nopol") return a.v.nopol.localeCompare(b.v.nopol);
+      if (sortBy === "odo") return (b.v.odometer || 0) - (a.v.odometer || 0);
+      if (sortBy === "year") return (b.v.year || 0) - (a.v.year || 0);
+      return DOC_RANK[a.worst.level] - DOC_RANK[b.worst.level] || (a.worst.days ?? 9999) - (b.worst.days ?? 9999);
+    });
+    return out;
+  }, [rows, q, plantF, statusF, sortBy, drivers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fmtD = (ds: string | null) => (ds ? new Date(ds).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—");
+  const dueText = (d: DocState) => d.level === "none" ? L("Belum diisi", "Not set") : (d.days ?? 0) <= 0 ? L(`Lewat ${Math.abs(d.days ?? 0)} hr`, `${Math.abs(d.days ?? 0)}d overdue`) : L(`${d.days} hari lagi`, `in ${d.days}d`);
+  const levelLabel: Record<DocState["level"], string> = { over: L("Lewat", "Overdue"), due: L("≤ 7 hari", "≤ 7 days"), soon: L("Segera", "Soon"), ok: "OK", none: L("Kosong", "Empty") };
+  const lockedPlant = myProfile?.plantScope ?? null;
+
+  const KPIS: { id: typeof statusF; label: string; value: number; foot: string; tone: string; icon: string }[] = [
+    { id: "all", label: L("Total armada", "Fleet"), value: stats.total, foot: stats.noDocs ? `${stats.noDocs} ${L("belum ada data dokumen", "without document data")}` : `${stats.active} ${L("aktif", "active")} · ${stats.maint} maint.`, tone: "brand", icon: "🚗" },
+    { id: "active", label: L("Siap jalan", "Ready"), value: stats.active, foot: stats.total ? `${Math.round((stats.active / stats.total) * 100)}% ${L("dari armada", "of fleet")}` : "—", tone: "green", icon: "✅" },
+    { id: "maint", label: "Maintenance", value: stats.maint, foot: L("sedang tidak beroperasi", "out of service"), tone: "orange", icon: "🔧" },
+    { id: "attention", label: L("Dokumen segera", "Docs due soon"), value: stats.attention, foot: L("KIR / service / STNK ≤ 30 hari", "KIR / service / STNK ≤ 30 days"), tone: "gold", icon: "⏳" },
+    { id: "over", label: L("Dokumen lewat", "Docs overdue"), value: stats.over, foot: L("lewat jatuh tempo — perlu tindakan", "past due — needs action"), tone: "red", icon: "⛔" },
+  ];
 
   return (
-    <div style={{ padding: 20 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setViewMode("list")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "list" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "list" ? "#fff" : "var(--t2)" }}
-          >
-            {lang === "en" ? "Vehicle Fleet" : "Armada Kendaraan"}
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Fleet · Armada", "Fleet · Vehicles")}
+        title={L("Armada Kendaraan", "Vehicle Fleet")}
+        desc={L("Status armada, driver tetap, dan jadwal KIR, service, serta STNK — kendaraan yang perlu perhatian otomatis naik ke atas.",
+          "Fleet status, assigned drivers, and KIR, service and STNK schedules — vehicles needing attention float to the top.")}
+        actions={<button type="button" className={vh.primary} onClick={openAdd}>+ {L("Tambah kendaraan", "Add vehicle")}</button>}
+      />
+
+      {error && <div className={vh.err}>{error}</div>}
+
+      <div className={vh.kpis}>
+        {KPIS.map((k) => (
+          <button key={k.id} type="button" className={`${vh.kpi} ${vh["k_" + k.tone]} ${statusF === k.id ? vh.kpiOn : ""}`} onClick={() => setStatusF(statusF === k.id ? "all" : k.id)} aria-pressed={statusF === k.id}>
+            <span className={vh.kpiIcon}>{k.icon}</span>
+            <span className={vh.kpiBody}><small>{k.label}</small><b>{loading ? "…" : k.value}</b><em>{k.foot}</em></span>
           </button>
-          {!isPrbOnly(myProfile) && <button
-            onClick={() => setViewMode("gatelog")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "gatelog" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "gatelog" ? "#fff" : "var(--t2)" }}
-          >
-            🚧 Gate Log
-          </button>}
-        </div>
-        {viewMode === "list" && (
-          <button className="pillBtn" onClick={openAdd}>
-            + {lang === "en" ? "Add Vehicle" : "Tambah Kendaraan"}
-          </button>
-        )}
+        ))}
       </div>
 
-      {viewMode === "gatelog" && (
-        <GateLogPanel
-          logs={gateLogs}
-          loading={loadingGateLogs}
-          dateFrom={gateDateFrom}
-          dateTo={gateDateTo}
-          onDateFrom={setGateDateFrom}
-          onDateTo={setGateDateTo}
-          onQuickRange={(days) => {
-            const d = new Date(); const from = new Date(); from.setDate(d.getDate() - days);
-            setGateDateFrom(from.toISOString().slice(0, 10)); setGateDateTo(d.toISOString().slice(0, 10));
-          }}
-          plant={gatePlantFilter}
-          onPlant={setGatePlantFilter}
-          busyId={busyGateLogId}
-          onForceClose={handleForceCloseGateLog}
-          onDelete={setConfirmDeleteGateLog}
-          onExport={() => exportGateLogsToCsv(gateLogs)}
-        />
+      {upcoming.length > 0 && (
+        <section className={vh.upcoming}>
+          <div className={vh.upHead}><b>📅 {L("Jatuh tempo terdekat", "Coming due")}</b><small>{L("Klik untuk membuka kendaraan", "Click to open the vehicle")}</small></div>
+          <div className={vh.upList}>
+            {upcoming.map(({ v, d }) => (
+              <button key={v.id + d.key} type="button" className={`${vh.upItem} ${vh["lv_" + d.level]}`} onClick={() => { setOpenId(v.id); setStatusF("all"); setQ(v.nopol); }}>
+                <span className={vh.upDoc}>{d.key}</span>
+                <span className={vh.upPlate}>{v.nopol}</span>
+                <span className={vh.upDays}>{dueText(d)}</span>
+                <small>{fmtD(d.next)}</small>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
-      <div style={{ display: viewMode === "list" ? "block" : "none" }}>
-      {error && (
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            background: "var(--red-soft)",
-            color: "var(--red)",
-            marginBottom: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
+      <div className={vh.toolbar}>
+        <div className={vh.search}>
+          <span>⌕</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari nopol, tipe, driver, departemen…", "Search plate, type, driver, department…")} />
+          {q && <button type="button" onClick={() => setQ("")} aria-label={L("Hapus", "Clear")}>✕</button>}
         </div>
-      )}
+        {!lockedPlant && (
+          <div className={vh.seg}>
+            {(["all", "CIK", "PRB"] as const).map((p) => (
+              <button key={p} type="button" className={plantF === p ? vh.segOn : ""} onClick={() => setPlantF(p)}>{p === "all" ? L("Semua plant", "All plants") : p}</button>
+            ))}
+          </div>
+        )}
+        <label className={vh.sort}>
+          <span>{L("Urutkan", "Sort")}</span>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="due">{L("Perlu perhatian dulu", "Needs attention first")}</option>
+            <option value="nopol">{L("Nomor polisi", "Plate number")}</option>
+            <option value="odo">{L("Odometer tertinggi", "Highest odometer")}</option>
+            <option value="year">{L("Tahun terbaru", "Newest year")}</option>
+          </select>
+        </label>
+        <div className={vh.seg} role="group" aria-label={L("Tampilan", "View")}>
+          <button type="button" className={view === "grid" ? vh.segOn : ""} onClick={() => setView("grid")} aria-pressed={view === "grid"}>▦ {L("Kartu", "Cards")}</button>
+          <button type="button" className={view === "table" ? vh.segOn : ""} onClick={() => setView("table")} aria-pressed={view === "table"}>☰ {L("Tabel", "Table")}</button>
+        </div>
+      </div>
+      <p className={vh.count}>{list.length} {L("dari", "of")} {stats.total} {L("kendaraan", "vehicles")}{statusF !== "all" && <> · <button type="button" className={vh.linkBtn} onClick={() => setStatusF("all")}>{L("hapus filter", "clear filter")}</button></>}</p>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
-          {lang === "en" ? "Loading vehicles..." : "Memuat kendaraan..."}
-        </div>
+        <div className={vh.grid}>{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={vh.skel} />)}</div>
       ) : vehicles.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
-          {lang === "en" ? "No vehicles yet." : "Belum ada kendaraan."}
+        <div className={vh.empty}>
+          <span>🚗</span><b>{L("Belum ada kendaraan", "No vehicles yet")}</b>
+          <small>{L("Tambahkan armada pertama untuk mulai memantau dokumen dan penugasan.", "Add your first vehicle to start tracking documents and tasks.")}</small>
+          <button type="button" className={vh.primary} onClick={openAdd}>+ {L("Tambah kendaraan", "Add vehicle")}</button>
         </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: 14,
-          }}
-        >
-          {vehicles.map((v) => {
+      ) : list.length === 0 ? (
+        <div className={vh.empty}><span>🔎</span><b>{L("Tidak ada yang cocok", "No matches")}</b><small>{L("Ubah kata kunci atau filter.", "Change the search or filters.")}</small></div>
+      ) : view === "grid" ? (
+        <div className={vh.grid}>
+          {list.map(({ v, docs, worst }, i) => {
+            const drv = driverOf(v.default_driver_id);
+            const open = openId === v.id;
             return (
-              <div key={v.id} className="statPop" style={{ ...cardStyle, padding: 16, position: "relative" }}>
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 4,
-                    borderRadius: "var(--r2) 0 0 var(--r2)",
-                    background: v.aktif ? "var(--green)" : "var(--orange)",
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                  <div>
-                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-     <span style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 15, color: "var(--t1)" }}>
-      {v.nopol}
-    </span>
-    <span
-      style={{
-       fontSize: 9.5, fontWeight: 800, padding: "1px 7px", borderRadius: 6,
-       background: "var(--bg2)", color: PLANT_COLOR[v.plant || "CIK"], border: `1px solid ${PLANT_COLOR[v.plant || "CIK"]}33`,
-     }}
-   >
-      {v.plant || "CIK"}
-    </span>
-  </div>
-                    <div style={{ fontSize: 13, color: "var(--t3)" }}>
-                      {v.jenis} · {v.year}
+              <article key={v.id} className={`${vh.card} ${v.aktif ? "" : vh.cardMaint} ${open ? vh.cardOpen : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}>
+                <div className={`${vh.cardTop} ${vh["lv_" + worst.level]}`}>
+                  <span className={vh.statusDot} />
+                  <span>{v.aktif ? L("Aktif", "Active") : "Maintenance"}</span>
+                  <span className={vh.cardTopRight}>{worst.level === "ok" ? L("Dokumen aman", "Docs OK") : worst.level === "none" ? L("Dokumen belum diisi", "No document data") : `${worst.key} · ${dueText(worst)}`}</span>
+                </div>
+                <div className={vh.cardBody}>
+                  <div className={vh.identity}>
+                    <div className={vh.plate}><b>{v.nopol}</b><small>{(v.plant || "CIK")}</small></div>
+                    <div className={vh.model}>
+                      <b>{v.jenis || "—"}</b>
+                      <span>{[v.year, v.color, v.fuel].filter(Boolean).join(" · ") || "—"}</span>
                     </div>
                   </div>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "3px 10px",
-                      borderRadius: "var(--pill)",
-                      background: v.aktif ? "var(--green-soft)" : "var(--orange-soft)",
-                      color: v.aktif ? "var(--green)" : "var(--orange)",
-                      height: "fit-content",
-                    }}
-                  >
-                    {v.aktif ? (lang === "en" ? "Active" : "Aktif") : (lang === "en" ? "Maintenance" : "Maintenance")}
-                  </span>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12, fontSize: 12 }}>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>Driver</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{driverName(v.default_driver_id)}</div>
+                  <div className={vh.facts}>
+                    <div><small>Driver</small><b>{drv ? <>{drv.avatar_emoji || "🧑‍✈️"} {drv.nama}</> : "—"}</b></div>
+                    <div><small>{L("Departemen", "Department")}</small><b>{v.dept || "—"}</b></div>
+                    <div><small>Odometer</small><b>{fmtRp(v.odometer || 0)} km</b></div>
                   </div>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>{lang === "en" ? "Dept" : "Departemen"}</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{v.dept || "-"}</div>
+                  <div className={vh.docs}>
+                    {docs.map((d) => {
+                      const pct = d.days === null ? 0 : Math.max(0, Math.min(100, (d.days / DOC_INTERVAL_DAYS[d.key]) * 100));
+                      return (
+                        <button key={d.key} type="button" className={`${vh.doc} ${vh["lv_" + d.level]}`} onClick={() => setOpenId(open ? null : v.id)} title={`${d.key}: ${L("terakhir", "last")} ${fmtD(d.last)} · ${L("jatuh tempo", "due")} ${fmtD(d.next)}`}>
+                          <span className={vh.docRing} style={{ ["--p" as string]: d.level === "none" ? 0 : d.level === "over" ? 100 : pct }}><i>{d.key === "Service" ? "SVC" : d.key}</i></span>
+                          <span className={vh.docText}><b>{levelLabel[d.level]}</b><small>{d.level === "none" ? "—" : dueText(d)}</small></span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>BBM</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{v.fuel || "-"}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>Odometer</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{fmtRp(v.odometer || 0)} km</div>
-                  </div>
-                </div>
-
-                <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginBottom: 12 }}>
-                  {([ ["KIR", v.kir_date], ["Service", v.service_date], ["STNK", v.stnk_date] ] as [string, string | null | undefined][]).map(([label, lastDate]) => {
-                    const docType = label as "KIR" | "STNK" | "Service";
-                    const { next, nextEarly } = nextDocDate(docType, lastDate);
-                    // Hari menuju next date (pakai nextEarly dulu kalau ada — Service 3 bulan)
-                    const daysToNext = daysUntil(next);
-                    const daysToEarly = nextEarly ? daysUntil(nextEarly) : null;
-                    // Warna: pakai countdown yang paling dekat
-                    const effectiveDays = daysToEarly !== null && daysToEarly <= 0
-                      ? daysToNext   // early sudah lewat → pakai countdown ke batas akhir
-                      : daysToEarly !== null
-                      ? daysToEarly  // Service dalam window 3-6 bulan → warnai dari early
-                      : daysToNext;
-                    const fmtDate = (ds: string) =>
-                      new Date(ds).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" });
-                    const intervalLabel = docType === "KIR" ? "(6 bln)" : docType === "STNK" ? "(1 thn)" : "(3–6 bln)";
-                    return (
-                      <div key={label} style={{ marginBottom: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
-                          <span style={{ color: "var(--t3)", fontWeight: 600 }}>{label} <span style={{ fontSize: 10, fontWeight: 400 }}>{intervalLabel}</span></span>
-                          {next ? (
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: `${urgencyColor(effectiveDays)}18`, color: urgencyColor(effectiveDays) }}>
-                              {daysToNext <= 0 ? (lang === "en" ? "Overdue" : "Lewat") : `${daysToNext}h`}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 11, color: "var(--t3)" }}>—</span>
-                          )}
+                  {open && (
+                    <div className={vh.detail}>
+                      {docs.map((d) => (
+                        <div key={d.key}>
+                          <b>{d.key}</b>
+                          <span>{L("Terakhir", "Last")}: {fmtD(d.last)}</span>
+                          <span>{L("Jatuh tempo", "Due")}: <strong className={vh["tx_" + d.level]}>{fmtD(d.next)}</strong></span>
+                          {d.key === "Service" && d.early && <span>⚡ {L("Reminder awal", "Early reminder")}: {fmtD(d.early)}</span>}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                          <span style={{ color: "var(--t3)" }}>
-                            {lang === "en" ? "Last:" : "Terakhir:"} {lastDate ? fmtDate(lastDate) : "—"}
-                          </span>
-                          <span style={{ color: next ? urgencyColor(effectiveDays) : "var(--t3)", fontWeight: next ? 600 : 400 }}>
-                            {next
-                              ? `${lang === "en" ? "Due:" : "Jatuh:"} ${fmtDate(next)}`
-                              : (lang === "en" ? "Not set" : "Belum diisi")}
-                          </span>
-                        </div>
-                        {/* Service: tampilkan juga reminder 3 bulan kalau belum lewat */}
-                        {nextEarly && daysToEarly !== null && daysToEarly > 0 && (
-                          <div style={{ fontSize: 10.5, color: "var(--orange)", marginTop: 2, textAlign: "right" }}>
-                            ⚡ {lang === "en" ? "Early reminder:" : "Reminder awal:"} {fmtDate(nextEarly)} ({daysToEarly}h)
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => openEdit(v)}
-                    style={{
-                      flex: 1,
-                      padding: "7px",
-                      borderRadius: 8,
-                      border: "1px solid var(--border2)",
-                      background: "var(--surface2)",
-                      color: "var(--t2)",
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✏️ {t.actionEdit}
-                  </button>
-                  {isAdmin && (
-                  <button
-                    onClick={() => setConfirmDelete(v)}
-                    style={{
-                      padding: "7px 12px",
-                      borderRadius: 8,
-                      border: "1px solid var(--red)",
-                      background: "var(--red-soft)",
-                      color: "var(--red)",
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    🗑️
-                  </button>
-                   )}
+                <div className={vh.cardFoot}>
+                  <button type="button" className={vh.linkBtn} onClick={() => setOpenId(open ? null : v.id)}>{open ? L("Tutup detail", "Hide details") : L("Detail dokumen", "Document details")}</button>
+                  <span className={vh.grow} />
+                  <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️ {t.actionEdit}</button>
+                  {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
+      ) : (
+        <div className={vh.tableWrap}>
+          <table className={vh.table}>
+            <thead><tr>
+              <th>{L("Nopol", "Plate")}</th><th>{L("Kendaraan", "Vehicle")}</th><th>Status</th><th>Driver</th><th>{L("Dept", "Dept")}</th><th>Odometer</th><th>KIR</th><th>Service</th><th>STNK</th><th />
+            </tr></thead>
+            <tbody>
+              {list.map(({ v, docs }) => (
+                <tr key={v.id}>
+                  <td><span className={vh.plateSm}>{v.nopol}</span></td>
+                  <td><b>{v.jenis || "—"}</b><br /><small>{[v.year, v.fuel, v.plant].filter(Boolean).join(" · ")}</small></td>
+                  <td><span className={`${vh.pill} ${v.aktif ? vh.pillOk : vh.pillWarn}`}>{v.aktif ? L("Aktif", "Active") : "Maint."}</span></td>
+                  <td>{driverName(v.default_driver_id)}</td>
+                  <td>{v.dept || "—"}</td>
+                  <td className={vh.num}>{fmtRp(v.odometer || 0)} km</td>
+                  {docs.map((d) => <td key={d.key}><span className={`${vh.pill} ${vh["pl_" + d.level]}`}>{d.level === "none" ? "—" : dueText(d)}</span></td>)}
+                  <td className={vh.rowAct}>
+                    <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️</button>
+                    {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      </div>
 
+      <div>
       {showForm && (
         <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={560}>
           <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
@@ -5864,28 +5955,9 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
         </ModalPortal>
       )}
 
-      {confirmDeleteGateLog && (
-        <ModalPortal onOverlayClick={() => setConfirmDeleteGateLog(null)} maxWidth={380}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>
-              {lang === "en" ? "Delete this gate log entry?" : "Hapus catatan gate ini?"}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{confirmDeleteGateLog.nopol}</strong> — {confirmDeleteGateLog.driverName} ({formatDateLabel(confirmDeleteGateLog.createdAt.slice(0, 10))}) {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDeleteGateLog(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionCancel}
-              </button>
-              <button onClick={handleDeleteGateLog} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionYesDelete}
-              </button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-    </div>
+
+      </div>
+    </ModulePage>
   );
 }
 
@@ -6061,23 +6133,15 @@ function PrinterTab() {
     }
   }
 
+  const Lp = (id: string, en: string) => (lang === "en" ? en : id);
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setViewMode("list")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "list" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "list" ? "#fff" : "var(--t2)" }}
-          >
-            🖨️ {lang === "en" ? "Printer List" : "Daftar Printer"}
-          </button>
-          <button
-            onClick={() => setViewMode("requests")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "requests" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "requests" ? "#fff" : "var(--t2)" }}
-          >
-            📋 {lang === "en" ? "Employee Requests" : "Permintaan Karyawan"}
-          </button>
-        </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={Lp("Fasilitas · Printer", "Facility · Printers")}
+        title="Printer"
+        desc={Lp("Daftar printer kantor beserta link Control Panel, dan catatan permintaan karyawan: reset kuota, tambah kuota, dan pengambilan toner.",
+          "Office printers with their Control Panel links, plus employee requests: quota reset, extra quota and toner pickup.")}
+        actions={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {viewMode === "list" ? (
           <button className="pillBtn" onClick={openAddPrinter}>+ {lang === "en" ? "Add Printer" : "Tambah Printer"}</button>
         ) : (
@@ -6101,7 +6165,13 @@ function PrinterTab() {
             )}
           </>
         )}
-      </div>
+        </div>}
+      />
+      <ModuleTabs
+        tabs={[{ id: "list", label: Lp("Daftar Printer", "Printer List"), icon: "🖨️" }, { id: "requests", label: Lp("Permintaan Karyawan", "Employee Requests"), icon: "📋", badge: requests.length || undefined }]}
+        value={viewMode}
+        onChange={setViewMode}
+      />
 
       {viewMode === "list" && (
         <>
@@ -6393,7 +6463,7 @@ function PrinterTab() {
           </div>
         </ModalPortal>
       )}
-    </div>
+    </ModulePage>
   );
 }
 /* ════════════════════════════════════════════════════════════
@@ -6571,15 +6641,13 @@ function EmployeeRequestsTab() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)" }}>
-          📨 {lang === "en" ? "Employee Requests" : "Permintaan Karyawan"}
-        </div>
-        <div style={{ fontSize: 12, color: "var(--t3)" }}>
-          {lang === "en" ? "Public link:" : "Link publik:"} <code style={{ background: "var(--bg2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--mono)" }}>/request</code>
-        </div>
-      </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "Facility · Employee Requests" : "Fasilitas · Permintaan Karyawan"}
+        title={lang === "en" ? "Employee Requests" : "Permintaan Karyawan"}
+        desc={lang === "en" ? "Requests employees submit via the public form: driver / vehicle, printer quota, GA technician, and others." : "Permintaan yang dikirim karyawan lewat form publik: driver / kendaraan, kuota printer, teknisi GA, dan lainnya."}
+        actions={<a href="/request" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 40, padding: "0 14px", borderRadius: 11, border: "1px solid var(--border2)", background: "var(--surface)", color: "var(--t1)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>📝 {lang === "en" ? "Open public form ↗" : "Buka form publik ↗"}</a>}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
         <div className="statPop" style={{ ...cardStyle, padding: 18, background: pendingCount > 0 ? "linear-gradient(135deg, var(--orange), #d9730d)" : undefined, border: pendingCount === 0 ? "1px solid var(--border2)" : undefined }}>
@@ -6773,7 +6841,7 @@ function EmployeeRequestsTab() {
           </div>
         </ModalPortal>
       )}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -6801,38 +6869,26 @@ function MasterDataTab({
 
   const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
 
+  const subTabs = ([
+    { id: "drivers", label: lang === "en" ? "Drivers" : "Driver", icon: "🧑‍✈️" },
+    { id: "employees", label: lang === "en" ? "Employees" : "Pegawai", icon: "👤" },
+    { id: "jobtypes", label: lang === "en" ? "Job Types" : "Jenis Pekerjaan", icon: "🧰" },
+    { id: "settings", label: lang === "en" ? "Settings" : "Pengaturan", icon: "⚙️" },
+  ] as const).filter((s) => !restrictedToDriversOnly || s.id === "drivers" || s.id === "employees");
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
-        {([
-     { id: "drivers", label: lang === "en" ? "Drivers" : "Driver", icon: "🧑‍✈️" },
-     { id: "employees", label: lang === "en" ? "Employees" : "Pegawai", icon: "👤" },
-     { id: "jobtypes", label: lang === "en" ? "Job Types" : "Jenis Pekerjaan", icon: "🧰" },
-     { id: "settings", label: lang === "en" ? "Settings" : "Pengaturan", icon: "⚙️" },
-   ] as const)
-     .filter((s) => !restrictedToDriversOnly || s.id === "drivers" || s.id === "employees")
-     .map((s) => (
-          <button
-            key={s.id}
-            className="tabPill"
-            onClick={() => setSub(s.id)}
-            style={{
-              padding: "9px 18px", borderRadius: "var(--pill)", border: "none", cursor: "pointer",
-              fontSize: 13, fontWeight: 700,
-              background: sub === s.id ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "var(--surface2)",
-              color: sub === s.id ? "#fff" : "var(--t2)",
-            }}
-          >
-            {s.icon} {s.label}
-          </button>
-        ))}
-      </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "System · Master Data" : "Sistem · Master Data"}
+        title="Master Data"
+        desc={lang === "en" ? "Shared reference data for all modules: drivers, employees (also used by Receptionist & the TGA app), job types, and app settings." : "Data acuan bersama untuk semua modul: driver, pegawai (dipakai juga oleh Receptionist & aplikasi TGA), jenis pekerjaan, dan pengaturan aplikasi."}
+      />
+      <ModuleTabs tabs={subTabs.map((x) => ({ ...x }))} value={sub} onChange={(v) => setSub(v)} />
 
       {sub === "drivers" && <DriversMasterPanel cardStyle={cardStyle} myProfile={myProfile} />}
       {sub === "employees" && <EmployeesMasterPanel cardStyle={cardStyle} />}
       {sub === "jobtypes" && <JobTypesMasterPanel cardStyle={cardStyle} />}
       {sub === "settings" && <SettingsPanel cardStyle={cardStyle} />}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -9284,8 +9340,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     <div style={{ ...cardStyle, padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>🎁 Pembagian Gift / Seragam</div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>Kelola program pembagian dan pantau peserta</div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: "var(--t1)" }}>{lang === "en" ? "Distribution events" : "Event pembagian"}</div>
+          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>{lang === "en" ? "Links to share and the list of programs" : "Link untuk dibagikan dan daftar program"}</div>
         </div>
         <button onClick={openCreate} style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           + Event Baru

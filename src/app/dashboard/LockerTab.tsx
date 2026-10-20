@@ -23,6 +23,8 @@ import {
   type LockerStatus,
   type LockerStatusEntry,
 } from "@/lib/lockerApi";
+import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
+import lk from "./locker.module.css";
 
 /* ════════════════════════════════════════════════════════════
    LOCKER TAB — self-contained styles, shares ModalPortal with the
@@ -62,39 +64,30 @@ const BLANK_FORM: LockerInput = {
 };
 
 export default function LockerTab() {
-  const { lang, t } = useLang();
+  const { lang } = useLang();
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [sub, setSub] = useState<"overview" | "manage">("overview");
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        {([
-          { id: "overview", label: lang === "en" ? "Overview" : "Ringkasan", icon: "🔐" },
-          { id: "manage", label: lang === "en" ? "Manage Lockers" : "Kelola Locker", icon: "🗄️" },
-        ] as const).map((s) => (
-          <button
-            key={s.id}
-            className="tabPill"
-            onClick={() => setSub(s.id)}
-            style={{
-              padding: "9px 18px",
-              borderRadius: "var(--pill)",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 700,
-              background: sub === s.id ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "var(--surface2)",
-              color: sub === s.id ? "#fff" : "var(--t2)",
-            }}
-          >
-            {s.icon} {s.label}
-          </button>
-        ))}
-      </div>
-
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Fasilitas · Locker", "Facility · Lockers")}
+        title="Locker"
+        desc={L("Status locker karyawan & peserta magang secara langsung — klik locker untuk melihat penghuni, PIN, dan mengakhiri pemakaian.",
+          "Live status of employee & intern lockers — click a locker to see its occupant and PIN, or end the usage.")}
+        actions={<a className={lk.headLink} href="/locker" target="_blank" rel="noopener noreferrer">🔑 {L("Halaman pendaftaran ↗", "Registration page ↗")}</a>}
+      />
+      <ModuleTabs
+        tabs={[
+          { id: "overview", label: L("Ringkasan", "Overview"), icon: "🔐" },
+          { id: "manage", label: L("Kelola Locker", "Manage Lockers"), icon: "🗄️" },
+        ]}
+        value={sub}
+        onChange={setSub}
+      />
       {sub === "overview" && <LockerOverviewPanel />}
       {sub === "manage" && <LockerManagePanel />}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -112,6 +105,7 @@ function LockerOverviewPanel() {
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<LockerRow[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [gridFilter, setGridFilter] = useState<"all" | LockerStatus>("all");
 
   const [reportOpen, setReportOpen] = useState(false);
   const [reportRows, setReportRows] = useState<LockerRow[]>([]);
@@ -225,100 +219,104 @@ function LockerOverviewPanel() {
 
   const used = entries.filter((e) => e.status === "Terisi").length;
   const available = entries.length - used;
+  const pct = entries.length ? Math.round((used / entries.length) * 100) : 0;
+  const shown = entries.filter((e) => gridFilter === "all" || e.status === gridFilter);
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, position: "relative", minWidth: 220 }}>
-          <input
-            className="premiumInput"
-            style={inputStyle}
-            placeholder={lang === "en" ? "Search name or locker number..." : "Cari nama atau nomor locker..."}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+    <div className={lk.wrap}>
+      <div className={lk.kpis}>
+        <div className={lk.occupancy}>
+          <div className={lk.ring} style={{ ["--p" as string]: pct }}><div><b>{pct}%</b><small>{L("terisi", "used")}</small></div></div>
+          <div className={lk.occText}>
+            <small>{L("Tingkat keterisian", "Occupancy")}</small>
+            <b>{used} / {entries.length} locker</b>
+            <span className={lk.occBar}><span style={{ width: `${pct}%` }} /></span>
+            <em>{available > 0 ? L(`${available} locker siap dipakai`, `${available} lockers ready`) : L("Semua locker terisi", "All lockers in use")}</em>
+          </div>
+        </div>
+        {([
+          { id: "all", label: L("Total locker", "Total lockers"), value: entries.length, tone: "brand", icon: "🗄️" },
+          { id: "Terisi", label: L("Terisi", "In use"), value: used, tone: "red", icon: "🔒" },
+          { id: "Available", label: L("Tersedia", "Available"), value: available, tone: "green", icon: "🔓" },
+        ] as const).map((k) => (
+          <button key={k.id} type="button" className={`${lk.kpi} ${lk["k_" + k.tone]} ${gridFilter === k.id ? lk.kpiOn : ""}`} onClick={() => setGridFilter(k.id)} aria-pressed={gridFilter === k.id}>
+            <span className={lk.kpiIcon}>{k.icon}</span>
+            <span><small>{k.label}</small><b>{loading ? "…" : k.value}</b></span>
+          </button>
+        ))}
+      </div>
+
+      <div className={lk.toolbar}>
+        <div className={lk.searchWrap}>
+          <div className={lk.search}>
+            <span>⌕</span>
+            <input
+              placeholder={L("Cari nama penghuni atau nomor locker…", "Search occupant name or locker number…")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && <button type="button" onClick={() => setSearch("")} aria-label={L("Hapus", "Clear")}>✕</button>}
+          </div>
           {searchResults !== null && (
-            <div style={{ ...cardStyle, position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 20, maxHeight: 280, overflowY: "auto" }}>
+            <div className={lk.results}>
               {searching ? (
-                <div style={{ padding: 16, textAlign: "center", color: "var(--t3)", fontSize: 12.5 }}>{t.actionLoading}</div>
+                <div className={lk.resEmpty}>{t.actionLoading}</div>
               ) : searchResults.length === 0 ? (
-                <div style={{ padding: 16, textAlign: "center", color: "var(--t3)", fontSize: 12.5 }}>
-                  {lang === "en" ? "No results found." : "Tidak ada hasil ditemukan."}
-                </div>
+                <div className={lk.resEmpty}>{L("Tidak ada hasil ditemukan.", "No results found.")}</div>
               ) : (
                 searchResults.map((r) => (
-                  <div
+                  <button
                     key={r.id}
-                    className="rowHover"
+                    type="button"
+                    className={lk.resItem}
                     onClick={() => {
                       openDetail(r.number);
                       setSearch("");
                       setSearchResults(null);
                     }}
-                    style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer" }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>
-                      <span>{r.nama || "-"}</span>
-                      <span>Locker {r.number}</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--t3)" }}>PIN {r.pin} · {r.extra || "-"} · {r.periode || "-"}</div>
-                  </div>
+                    <span className={lk.resNo}>{r.number}</span>
+                    <span><b>{r.nama || "-"}</b><small>PIN {r.pin} · {r.extra || "-"} · {r.periode || "-"}</small></span>
+                  </button>
                 ))
               )}
             </div>
           )}
         </div>
-        <button onClick={openReport} style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-          {lang === "en" ? "Report" : "Report"}
-        </button>
+        <div className={lk.legend}>
+          <span><i className={lk.dotFree} />{L("Tersedia", "Available")}</span>
+          <span><i className={lk.dotUsed} />{L("Terisi", "In use")}</span>
+        </div>
+        <button type="button" className={lk.btnDark} onClick={openReport}>📋 {L("Daftar penghuni", "Occupant report")}</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 13, marginBottom: 20 }}>
-        <div className="statPop" style={{ ...cardStyle, padding: 16, textAlign: "center" }}>
-          <div className="numGrad" style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--mono)" }}>{entries.length}</div>
-          <div style={{ fontSize: 12.5, color: "var(--t3)" }}>{lang === "en" ? "Total Lockers" : "Total Locker"}</div>
-        </div>
-        <div className="statPop" style={{ ...cardStyle, padding: 16, textAlign: "center" }}>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "var(--red)" }}>{used}</div>
-          <div style={{ fontSize: 12.5, color: "var(--t3)" }}>{lang === "en" ? "Used" : "Terisi"}</div>
-        </div>
-        <div className="statPop" style={{ ...cardStyle, padding: 16, textAlign: "center" }}>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "var(--green)" }}>{available}</div>
-          <div style={{ fontSize: 12.5, color: "var(--t3)" }}>{lang === "en" ? "Available" : "Tersedia"}</div>
-        </div>
-      </div>
-
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
+      {error && <div className={lk.err}>{error}</div>}
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionLoading}</div>
+        <div className={lk.grid}>{Array.from({ length: 16 }, (_, i) => <div key={i} className={lk.skel} />)}</div>
+      ) : entries.length === 0 ? (
+        <div className={lk.empty}><span>🗄️</span><b>{L("Belum ada locker", "No lockers yet")}</b><small>{L("Tambahkan locker di tab Kelola Locker.", "Add lockers in the Manage tab.")}</small></div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 12 }}>
-          {entries.map((e, i) => (
-            <button
-              key={e.number}
-              onClick={() => openDetail(e.number)}
-              className="statPop"
-              style={{
-                animationDelay: `${i * 0.02}s`,
-                height: 84,
-                borderRadius: 14,
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 3,
-                color: "#fff",
-                fontWeight: 700,
-                background: e.status === "Terisi" ? "linear-gradient(150deg, var(--red), #b5322c)" : "linear-gradient(150deg, var(--green), #0f8a5c)",
-              }}
-            >
-              <span style={{ fontSize: 19 }}>{e.number}</span>
-              <span style={{ fontSize: 10.5, opacity: 0.9, fontWeight: 600 }}>{e.status}</span>
-            </button>
-          ))}
+        <div className={lk.grid}>
+          {shown.map((e, i) => {
+            const isUsed = e.status === "Terisi";
+            return (
+              <button
+                key={e.number}
+                type="button"
+                onClick={() => openDetail(e.number)}
+                className={`${lk.door} ${isUsed ? lk.doorUsed : lk.doorFree}`}
+                style={{ animationDelay: `${Math.min(i, 40) * 0.012}s` }}
+                title={isUsed ? L(`Locker ${e.number} — terisi`, `Locker ${e.number} — in use`) : L(`Locker ${e.number} — tersedia`, `Locker ${e.number} — available`)}
+              >
+                <span className={lk.vent} />
+                <span className={lk.doorNo}>{e.number}</span>
+                <span className={lk.handle} />
+                <span className={lk.doorState}><i />{isUsed ? L("Terisi", "In use") : L("Kosong", "Free")}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -619,41 +617,33 @@ function LockerManagePanel() {
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          className="premiumInput"
-          style={{ ...inputStyle, flex: 1, minWidth: 180 }}
-          placeholder={lang === "en" ? "Search number / name..." : "Cari nomor / nama..."}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          className="premiumInput"
-          style={{ ...inputStyle, width: "auto" }}
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as "all" | LockerStatus)}
-        >
-          <option value="all">{lang === "en" ? "All Status" : "Semua Status"}</option>
-          <option value="Terisi">Terisi</option>
-          <option value="Available">Available</option>
-        </select>
-        <button onClick={openBulkConfirm} style={{ padding: "10px 16px", borderRadius: 10, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
-          📧 {lang === "en" ? "Send Confirmation Email" : "Kirim Email Konfirmasi"}
-        </button>
-        <button className="pillBtn" onClick={openAdd}>+ {lang === "en" ? "Add Locker" : "Tambah Locker"}</button>
+    <div className={lk.wrap}>
+      <div className={lk.toolbar}>
+        <div className={lk.search}>
+          <span>⌕</span>
+          <input placeholder={lang === "en" ? "Search number / name..." : "Cari nomor / nama..."} value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className={lk.seg}>
+          {(["all", "Terisi", "Available"] as const).map((st) => (
+            <button key={st} type="button" className={filterStatus === st ? lk.segOn : ""} onClick={() => setFilterStatus(st)}>
+              {st === "all" ? (lang === "en" ? "All" : "Semua") : st === "Terisi" ? (lang === "en" ? "In use" : "Terisi") : (lang === "en" ? "Available" : "Tersedia")}
+            </button>
+          ))}
+        </div>
+        <button type="button" className={lk.btn} onClick={openBulkConfirm}>📧 {lang === "en" ? "Send confirmation email" : "Kirim email konfirmasi"}</button>
+        <button type="button" className={lk.btnPrimary} onClick={openAdd}>+ {lang === "en" ? "Add locker" : "Tambah locker"}</button>
       </div>
 
       {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
 
-      <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
+      <div className={lk.tableCard}>
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionLoading}</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760, fontSize: 13 }}>
+            <table className={lk.table}>
               <thead>
                 <tr style={{ background: "var(--bg2)" }}>
                   {["No. Locker", "PIN", "Status", "Nama", "Email", "Periode", "Selesai", "Aksi"].map((h) => (

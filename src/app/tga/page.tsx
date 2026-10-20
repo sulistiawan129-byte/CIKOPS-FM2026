@@ -59,6 +59,7 @@ export default function TgaAppPage() {
   const [data, setData] = useState<TgaMyData | null>(null);
   const [requestors, setRequestors] = useState<TgaRequestor[]>(() => (typeof window === "undefined" ? [] : tgaCachedRequestors()));
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [reqErr, setReqErr] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [form, setForm] = useState<{ id: string | null; draft: TgaDraft } | null>(null);
   const [detail, setDetail] = useState<TgaActivity | null>(null);
@@ -98,6 +99,14 @@ export default function TgaAppPage() {
     return () => clearTimeout(t);
   }, []);
 
+  // Data karyawan = tabel employees yang sama dengan dashboard utama, driver & receptionist
+  const loadRequestors = useCallback(() => {
+    if (!token) return;
+    tgaRequestors(token)
+      .then((list) => { setRequestors(list); setReqErr(null); })
+      .catch((e) => setReqErr(e instanceof Error ? e.message : String(e)));
+  }, [token]);
+
   const flash = useCallback((m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); }, []);
 
   const signOut = useCallback(async (msg?: string) => {
@@ -133,7 +142,7 @@ export default function TgaAppPage() {
   useEffect(() => {
     if (screen !== "app" || !token) return;
     load();
-    tgaRequestors(token).then(setRequestors).catch(() => {});
+    loadRequestors();
     const onVis = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVis);
     // Cek tugas baru tiap 20 detik selama aplikasi terbuka
@@ -158,7 +167,7 @@ export default function TgaAppPage() {
 
   const formOpen = form !== null;
   useEffect(() => {
-    if (formOpen && token) tgaRequestors(token).then(setRequestors).catch(() => {});
+    if (formOpen && token) loadRequestors();
   }, [formOpen, token]);
 
   const acts = useMemo(() => data?.activities ?? [], [data]);
@@ -276,7 +285,7 @@ export default function TgaAppPage() {
       )}
 
       {form && (
-        <FormSheet key={form.id ?? "new"} id={form.id} initial={form.draft} today={today} recentLokasi={recentLokasi} requestors={requestors} recentReqIds={recentReqIds}
+        <FormSheet key={form.id ?? "new"} id={form.id} initial={form.draft} today={today} recentLokasi={recentLokasi} requestors={requestors} reqErr={reqErr} onRetryReq={loadRequestors} recentReqIds={recentReqIds}
           onClose={() => setForm(null)}
           onSave={async (draft) => {
             const r = await tgaSave(token, form.id, draft);
@@ -799,8 +808,8 @@ function Detail({ a, today, onClose, onDone, onAccept, onEdit, onDelete }: {
 }
 
 /* ════════════ FORM ════════════ */
-function FormSheet({ id, initial, today, recentLokasi, requestors, recentReqIds, onClose, onSave, onSessionLost }: {
-  id: string | null; initial: TgaDraft; today: string; recentLokasi: string[]; requestors: TgaRequestor[]; recentReqIds: string[];
+function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRetryReq, recentReqIds, onClose, onSave, onSessionLost }: {
+  id: string | null; initial: TgaDraft; today: string; recentLokasi: string[]; requestors: TgaRequestor[]; reqErr: string | null; onRetryReq: () => void; recentReqIds: string[];
   onClose: () => void; onSave: (d: TgaDraft) => Promise<void>; onSessionLost: () => void;
 }) {
   const [d, setD] = useState<TgaDraft>(initial);
@@ -941,7 +950,7 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, recentReqIds,
       </div>
 
       {picker && (
-        <RequestorPicker requestors={requestors} recentIds={recentReqIds} current={d.requestor_id}
+        <RequestorPicker requestors={requestors} error={reqErr} onRetry={onRetryReq} recentIds={recentReqIds} current={d.requestor_id}
           onClose={() => setPicker(false)}
           onPick={(r) => { setD((x) => ({ ...x, request_by: r.nama, requestor_id: r.id ?? null, departemen: r.dept || "" })); setPicker(false); }}
           onGuest={(nama) => { setD((x) => ({ ...x, request_by: nama, requestor_id: null, departemen: x.requestor_id ? "" : x.departemen })); setPicker(false); }} />
@@ -958,8 +967,8 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, recentReqIds,
 }
 
 /* ════════════ PILIH REQUESTOR (Data Karyawan) ════════════ */
-function RequestorPicker({ requestors, recentIds, current, onClose, onPick, onGuest }: {
-  requestors: TgaRequestor[]; recentIds: string[]; current: string | null;
+function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClose, onPick, onGuest }: {
+  requestors: TgaRequestor[]; error: string | null; onRetry: () => void; recentIds: string[]; current: string | null;
   onClose: () => void; onPick: (r: TgaRequestor) => void; onGuest: (nama: string) => void;
 }) {
   const [q, setQ] = useState("");
@@ -1014,7 +1023,18 @@ function RequestorPicker({ requestors, recentIds, current, onClose, onPick, onGu
             <p className={s.pickerHead}>Semua karyawan</p>
           </>
         )}
-        {requestors.length === 0 && <div className={s.emptyBox}><b>Data karyawan belum tersedia</b><small>Minta admin mengisi Data Karyawan (Receptionist → Data Master), atau periksa koneksi.</small></div>}
+        {requestors.length === 0 && (error ? (
+          <div className={s.emptyBox}>
+            <b>Gagal memuat data karyawan</b>
+            <small>{error}</small>
+            <button type="button" className={s.ghostBtn} style={{ marginTop: 10 }} onClick={onRetry}>⟳ Coba lagi</button>
+          </div>
+        ) : (
+          <div className={s.emptyBox}>
+            <b>Memuat data karyawan…</b>
+            <small>Diambil dari Master Data Karyawan (sama dengan dashboard &amp; driver).</small>
+          </div>
+        ))}
         {list.slice(0, LIMIT).map((r) => <Row key={r.id ?? r.nama} r={r} />)}
         {list.length > LIMIT && <p className={s.count} style={{ textAlign: "center", padding: 10 }}>+{list.length - LIMIT} lainnya — ketik nama untuk mempersempit</p>}
         {requestors.length > 0 && list.length === 0 && <p className={s.count} style={{ textAlign: "center", padding: 14 }}>Tidak ada karyawan yang cocok.</p>}

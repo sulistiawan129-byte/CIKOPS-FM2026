@@ -37,7 +37,7 @@ $$;
 
 -- ── 3) Daftar karyawan untuk aplikasi (id, nama, NIK, departemen, jabatan) ──
 create or replace function tga_requestors(p_token text) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql volatile security definer set search_path = public as $$
 begin
   perform tga_user_of(p_token);
   return coalesce((select jsonb_agg(jsonb_build_object(
