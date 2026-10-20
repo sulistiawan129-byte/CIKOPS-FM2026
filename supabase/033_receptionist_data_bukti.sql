@@ -143,6 +143,9 @@ end $$;
 revoke all on function rcp_receipt(text) from public;
 grant execute on function rcp_receipt(text) to anon, authenticated;
 
+-- Minta API Supabase (PostgREST) memuat ulang daftar tabel/kolom/fungsi baru.
+notify pgrst, 'reload schema';
+
 -- ── 4) Cek hasil ──
 select 'karyawan dengan email' as cek, count(*)::text as hasil from employees where coalesce(email, '') <> ''
 union all select 'booking bernomor', count(*)::text from rcp_room_bookings where receipt_no is not null

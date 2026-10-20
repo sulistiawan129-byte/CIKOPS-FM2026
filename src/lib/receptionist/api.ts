@@ -151,7 +151,11 @@ export async function getRcpEmployees(): Promise<RcpEmployee[]> {
   return ((data ?? []) as EmpRow[]).map((r) => ({ id: r.id, nama: r.nama, nik: r.nik ?? "", departement: r.departement ?? "", email: r.email ?? "", noHp: r.no_hp ?? "", jabatan: r.jabatan ?? "", aktif: r.aktif ?? true, createdAt: r.created_at }));
 }
 export type RcpEmployeeInput = Omit<RcpEmployee, "id" | "createdAt">;
-const MIGRATION_033_MSG = "Kolom email/no HP karyawan belum ada — jalankan supabase/033_receptionist_data_bukti.sql di Supabase SQL Editor.";
+/** Pesan bila kolom migrasi 033 tidak dikenali — sertakan error asli supaya penyebabnya jelas. */
+const migration033Msg = (e: { code?: string; message?: string }) =>
+  e.code === "PGRST204"
+    ? `Kolom karyawan belum dikenali API Supabase (cache skema lama). Jalankan di SQL Editor:  notify pgrst, 'reload schema';  lalu coba lagi. Bila masih gagal, pastikan supabase/033_receptionist_data_bukti.sql sudah berhasil dijalankan. [${e.code}: ${e.message ?? ""}]`
+    : `Kolom email/no HP karyawan belum ada — jalankan supabase/033_receptionist_data_bukti.sql di Supabase SQL Editor. [${e.code ?? ""}: ${e.message ?? ""}]`;
 const empRow = (e: RcpEmployeeInput) => ({
   nama: e.nama.trim(), nik: e.nik.trim() || null, departement: e.departement.trim() || null, email: e.email.trim().toLowerCase() || null,
   no_hp: e.noHp.trim() || null, jabatan: e.jabatan.trim() || null, aktif: e.aktif,
@@ -160,7 +164,7 @@ const missingCol = (e: { code?: string; message?: string } | null) => !!e && (e.
 export async function saveRcpEmployee(id: string | null, e: RcpEmployeeInput): Promise<void> {
   const row = { ...empRow(e), ...(id ? { updated_at: new Date().toISOString() } : {}) };
   const { error } = id ? await supabase.from("employees").update(row).eq("id", id) : await supabase.from("employees").insert(row);
-  if (missingCol(error)) throw new Error(MIGRATION_033_MSG);
+  if (missingCol(error)) throw new Error(migration033Msg(error!));
   if (error) throw friendly(error);
 }
 export async function importRcpEmployees(rows: RcpEmployeeInput[], existing: RcpEmployee[]): Promise<{ created: number; updated: number }> {
@@ -179,7 +183,7 @@ export async function importRcpEmployees(rows: RcpEmployeeInput[], existing: Rcp
       if (!hit.jabatan && r.jabatan) patch.jabatan = r.jabatan.trim();
       if (Object.keys(patch).length) {
         const { error } = await supabase.from("employees").update(patch).eq("id", hit.id);
-        if (missingCol(error)) throw new Error(MIGRATION_033_MSG);
+        if (missingCol(error)) throw new Error(migration033Msg(error!));
         if (error) throw friendly(error);
         updated++;
       }
@@ -187,7 +191,7 @@ export async function importRcpEmployees(rows: RcpEmployeeInput[], existing: Rcp
   }
   for (let i = 0; i < inserts.length; i += 300) {
     const { error } = await supabase.from("employees").insert(inserts.slice(i, i + 300));
-    if (missingCol(error)) throw new Error(MIGRATION_033_MSG);
+    if (missingCol(error)) throw new Error(migration033Msg(error!));
     if (error) throw friendly(error);
     created += inserts.slice(i, i + 300).length;
   }
