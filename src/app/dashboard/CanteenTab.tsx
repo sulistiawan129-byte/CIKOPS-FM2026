@@ -16,6 +16,7 @@ import { getAllCanteenReports, deleteCanteenReport } from "@/lib/api";
 import type { CanteenReport } from "@/lib/types";
 import { exportCanteenToPdf } from "@/lib/canteenReport";
 import c from "./canteen.module.css";
+import { ModuleHeader } from "./ModuleShell";
 
 type PeriodMode = "day" | "week" | "month" | "custom";
 type Cat = "snack" | "meal";
@@ -277,16 +278,15 @@ export default function CanteenTab() {
 
   return (
     <div className={c.wrap}>
-      <header className={c.head}>
-        <div className={c.headText}>
-          <h1>Kantin</h1>
-          <p>Snack dan makan dilaporkan terpisah — total order, terpakai, dan sisa masing-masing per shift, dari input harian /canteen.</p>
-        </div>
-        <div className={c.headActions}>
+      <ModuleHeader
+        kicker="Fasilitas · Kantin"
+        title="Kantin"
+        desc="Snack dan makan dilaporkan terpisah — total order, terpakai, dan sisa per shift, dari input harian staf kantin di /canteen."
+        actions={<>
           <button type="button" className={c.ghost} onClick={handleExportCsv} disabled={!hasData}><IcDown />CSV</button>
           <button type="button" className={c.ghost} onClick={handleExportPdf} disabled={!hasData || exportingPdf}><IcDown />{exportingPdf ? "Membuat…" : "PDF"}</button>
-        </div>
-      </header>
+        </>}
+      />
 
       <div className={c.toolbar}>
         <div className={c.seg} role="group" aria-label="Mode periode">

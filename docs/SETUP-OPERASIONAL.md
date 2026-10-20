@@ -687,8 +687,8 @@ Sebelum skrip dijalankan, kalender tetap bisa dipakai, tetapi jenis/catatan/PIC 
 - **TGA app:** Profil tab → **🔔 Aktifkan notifikasi** → allow → press **Kirim tes**.
 - **Driver app:** Profil tab → section *Notifikasi* → **Aktifkan** → **Tes**.
 - **iPhone:** iOS 16.4+, and the app must be added to the **Home Screen** and opened from its icon.
-- **Driver APK via Median** keeps using OneSignal (no change). Web push is for drivers who use the
-  installed app (PWA) / the APK from GitHub.
+- **OneSignal / APK Median sudah dihapus.** Semua notifikasi driver & TGA memakai Web Push ini.
+  Driver memakai APK **CIKOPS Driver** dari GitHub (atau pasang sebagai PWA), lalu aktifkan notifikasi.
 
 ### 3. How it rings
 | Situation | What happens |
@@ -759,8 +759,7 @@ Enter it in Vercel → Settings → Environment Variables → `TWA_SHA256` → *
 Check it: open `https://<domain>/.well-known/assetlinks.json` — it should show `com.cikops.tga` and `com.cikops.driver`.
 Before this is set, the app still works but shows a thin address bar at the top.
 
-### Note for Driver
-The driver app currently uses **Median** (an APK with OneSignal notifications). The Driver APK from GitHub
-**does not have the Median/OneSignal bridge**, so OneSignal-based task notifications do not reach it.
-Recommendation: TGA → use the GitHub APK; Driver → keep using the Median APK,
-unless you want to move driver notifications to web push.
+### Catatan untuk driver
+OneSignal / APK Median sudah tidak dipakai. Driver yang masih memakai APK Median harus pindah ke APK
+**CIKOPS Driver** (GitHub Actions di atas), lalu Profil → Notifikasi → **Aktifkan** supaya tetap
+mendapat notifikasi tugas.

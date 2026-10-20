@@ -542,21 +542,6 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           <button className={styles.iconBtn} aria-label="Notifications" title={lang === "en" ? "Notifications" : "Notifikasi"}>
             <Icon name="bell" size={18} />
           </button>
-          {activeTab === "tasks" && (
-            <>
-              {!isPrbOnly(myProfile) && <button
-                className={styles.iconBtn}
-                onClick={() => setReportModalOpen(true)}
-                aria-label="Laporan & Analytics"
-                title="Laporan & Analytics"
-              >
-                <Icon name="reports" size={18} />
-              </button>}
-              <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
-                {isMobile ? "+ Tugaskan" : "+ Tugaskan Driver"}
-              </button>
-            </>
-          )}
           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 12, marginLeft: 2, borderLeft: "1px solid var(--border)" }}>
             <div
               style={{
@@ -616,6 +601,17 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       })()}
       {activeTab === "tasks" && (
       <div key="tasks" className={`${styles.body} ${tk.page} tabContent`}>
+        <div style={{ marginBottom: 14 }}><ModuleHeader
+          kicker={lang === "en" ? "Fleet · Driver tasks" : "Fleet · Penugasan driver"}
+          title={lang === "en" ? "Tasks" : "Penugasan"}
+          desc={lang === "en" ? "Assign drivers, follow trips live, and print task slips." : "Tugaskan driver, pantau perjalanan secara langsung, dan cetak slip tugas."}
+          actions={<>
+            {!isPrbOnly(myProfile) && <button type="button" onClick={() => setReportModalOpen(true)} title="Laporan & Analytics" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 14px", borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface)", color: "var(--t1)", fontWeight: 700, cursor: "pointer" }}>
+              <Icon name="reports" size={16} /> {lang === "en" ? "Report" : "Laporan"}
+            </button>}
+            <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>{isMobile ? "+ Tugaskan" : "+ Tugaskan Driver"}</button>
+          </>}
+        /></div>
         <TaskBoardBar
           date={dateFilter}
           today={todayStr()}
