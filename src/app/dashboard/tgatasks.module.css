@@ -1,0 +1,43 @@
+/* Papan tugas TGA (kanban 4 kolom) */
+.board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1200px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .board { grid-template-columns: 1fr; } }
+.col { --tone: var(--brand); display: flex; flex-direction: column; min-width: 0; padding: 12px; border-radius: 16px; background: var(--surface2); border: 1px solid var(--border); border-top: 3px solid var(--tone); }
+.tone_orange { --tone: var(--orange); }
+.tone_red { --tone: var(--red); }
+.tone_blue { --tone: var(--brand); }
+.tone_green { --tone: var(--green); }
+.colHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.colHead b { font-size: 14px; color: var(--t1); }
+.colHead span { min-width: 24px; height: 22px; padding: 0 8px; border-radius: 99px; display: grid; place-items: center; background: var(--tone); color: #fff; font-size: 12px; font-weight: 800; }
+.colHint { margin: 2px 0 10px; font-size: 11.5px; color: var(--t3); }
+.cards { display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow-y: auto; }
+.none { margin: 6px 0; text-align: center; color: var(--t3); font-size: 13px; }
+.card { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; border-radius: 13px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 6px 16px -14px rgba(10, 20, 50, .5); }
+.urgent { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); }
+.cardTop { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ref { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--t3); }
+.title { font-size: 13.5px; line-height: 1.35; color: var(--t1); }
+.meta { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 12px; color: var(--t2); }
+.foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.who { flex: 1 1 110px; display: flex; flex-direction: column; min-width: 0; font-size: 12.5px; color: var(--t1); }
+.who em { font-style: normal; color: var(--orange-text, var(--orange)); font-weight: 700; }
+.who small { font-size: 11px; color: var(--t3); }
+.actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: auto; }
+.actions button { min-height: 30px; }
+.actions button:last-child { width: 30px; height: 30px; }
+
+.techPick { display: flex; flex-wrap: wrap; gap: 8px; }
+.techPick button {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; text-align: left;
+  min-width: 150px; padding: 8px 12px; border-radius: 12px; border: 1.5px solid var(--border2); background: var(--surface2); color: var(--t1); font: inherit; cursor: pointer;
+}
+.techPick i { grid-row: span 2; font-style: normal; font-size: 18px; }
+.techPick b { font-size: 13px; }
+.techPick small { font-size: 11px; color: var(--t3); }
+.techOn { border-color: var(--brand) !important; background: color-mix(in srgb, var(--brand) 12%, var(--surface)) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.catPick, .quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.catPick button, .quick button { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface2); color: var(--t2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.quick { margin-top: 6px; }
+.quick button { border-style: dashed; padding: 4px 10px; font-size: 12px; }
+.catOn { border-color: var(--brand) !important; color: var(--brand) !important; background: color-mix(in srgb, var(--brand) 12%, var(--surface)) !important; font-weight: 700 !important; }

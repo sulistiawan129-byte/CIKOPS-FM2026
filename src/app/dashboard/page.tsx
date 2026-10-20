@@ -178,6 +178,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
 import Icon from "@/components/Icon";
 import SideNav, { type SideNavGroup } from "./SideNav";
+import of from "./opfund.module.css";
 
 function todayStr() {
   return toLocalISODate(new Date());
@@ -4293,139 +4294,134 @@ function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
     { label: "Cash Available (A4)", value: kantong.cashAvailable, color: "var(--green)" },
     { label: lang === "en" ? "Claim Submitted (A5)" : "Klaim Diajukan (A5)", value: kantong.claimSubmitted, color: "var(--brand)" },
     { label: lang === "en" ? "Claim Paid (A6)" : "Klaim Dibayar (A6)", value: kantong.claimPaid, color: "var(--purple)" },
-    { label: lang === "en" ? "Unsubmitted Claim (A7)" : "Klaim Belum Diajukan (A7)", value: kantong.unsubmittedClaim, color: "var(--gold2)" },
+    { label: lang === "en" ? "Unsubmitted Claim (A7)" : "Klaim Belum Diajukan (A7)", value: kantong.unsubmittedClaim, color: "#eab308" },
   ];
 
   const fundHealthPct = kantong.totalBudget > 0
     ? Math.max(0, 100 - Math.min(100, (Math.abs(gap) / kantong.totalBudget) * 100))
     : 100;
   const healthColor = fundHealthPct >= 90 ? "var(--green)" : fundHealthPct >= 70 ? "var(--brand)" : fundHealthPct >= 50 ? "var(--orange)" : "var(--red)";
-  const RG = 52, CIRCG = 2 * Math.PI * RG;
-  const gaugeOffset = CIRCG * (1 - fundHealthPct / 100);
 
   const trendData = history.map((h) => ({
     period: h.period,
 gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h.claimPaid + h.unsubmittedClaim - h.totalBudget,
   }));
-  const chartW = 640, chartH = 140, chartPad = 30;
-  const maxAbsGap = Math.max(...trendData.map((d) => Math.abs(d.gap)), 1);
-  const midY = chartH / 2;
-  const trendPoints = trendData.map((d, i) => {
-    const x = chartPad + (trendData.length > 1 ? (i / (trendData.length - 1)) * (chartW - chartPad * 2) : 0);
-    const y = midY - (d.gap / maxAbsGap) * (midY - chartPad / 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const pctOf = (v: number) => (kantong.totalBudget > 0 ? (v / kantong.totalBudget) * 100 : 0);
+  const compTotal = composition.reduce((x, c) => x + Math.max(0, c.value), 0) || 1;
+  const statusTone = gap === 0 ? "ok" : gap > 0 ? "warn" : "bad";
+  const insights: { icon: string; text: string; tone: "ok" | "warn" | "bad" | "info" }[] = [
+    gap === 0
+      ? { icon: "✅", tone: "ok", text: L("Outstanding sama persis dengan total cash — pembukuan seimbang.", "Outstanding matches total cash — books are balanced.") }
+      : { icon: gap > 0 ? "⚠️" : "🔻", tone: gap > 0 ? "warn" : "bad", text: gap > 0
+          ? L(`Outstanding melebihi total cash Rp ${fmtRp(gap)} — cek ulang alokasi / klaim.`, `Outstanding exceeds total cash by Rp ${fmtRp(gap)} — recheck allocations / claims.`)
+          : L(`Masih ada Rp ${fmtRp(-gap)} yang belum tercatat di outstanding.`, `Rp ${fmtRp(-gap)} not yet accounted for in outstanding.`) },
+    { icon: "💵", tone: pctOf(kantong.cashAvailable) < 20 ? "warn" : "info", text: L(`Kas tersedia ${pctOf(kantong.cashAvailable).toFixed(0)}% dari total cash (Rp ${fmtRp(kantong.cashAvailable)}).`, `Cash available is ${pctOf(kantong.cashAvailable).toFixed(0)}% of total (Rp ${fmtRp(kantong.cashAvailable)}).`) },
+    ...(kantong.unsubmittedClaim > 0 ? [{ icon: "🧾", tone: "warn" as const, text: L(`Klaim belum diajukan Rp ${fmtRp(kantong.unsubmittedClaim)} — ajukan sebelum periode ditutup.`, `Rp ${fmtRp(kantong.unsubmittedClaim)} of claims not yet submitted.`) }] : []),
+    ...(kantong.claimSubmitted > 0 ? [{ icon: "⏳", tone: "info" as const, text: L(`Klaim diajukan menunggu dibayar: Rp ${fmtRp(kantong.claimSubmitted)}.`, `Submitted claims awaiting payment: Rp ${fmtRp(kantong.claimSubmitted)}.`) }] : []),
+  ];
+  const maxTrend = Math.max(1, ...trendData.map((d) => Math.abs(d.gap)));
 
   return (
-    <div style={{ padding: 20 }}>
-      {PlantSwitcher}
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ fontSize: 12, color: "var(--t3)" }}>
-          {lang === "en" ? "Period" : "Periode"}: <strong style={{ color: "var(--t1)" }}>{kantong.period}</strong> · Reset: {kantong.lastReset}
+    <div className={of.wrap}>
+      <div className={of.topBar}>
+        <div className={of.titleBlock}>
+          <span className={of.titleIcon}>💰</span>
+          <div>
+            <h2>{L("Dana Operasional", "Operational Fund")}</h2>
+            <p>{L("Periode", "Period")} <b>{kantong.period}</b> · {L("reset terakhir", "last reset")} {kantong.lastReset}</p>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setShowEdit(true)} style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-            ✏️ {lang === "en" ? "Edit Values" : "Edit Nilai"}
-          </button>
-          <button onClick={() => setShowResetConfirm(true)} style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--red)", background: "var(--red-soft)", color: "var(--red)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-            🔄 {lang === "en" ? "Reset Period" : "Reset Periode"}
-          </button>
+        <div className={of.topActions}>
+          {lockedPlant ? (
+            <span className={of.plantLocked}><i />{lockedPlant}</span>
+          ) : (
+            <div className={of.plantSeg} role="group" aria-label="Plant">
+              {(["CIK", "PRB"] as Plant[]).map((p) => (
+                <button key={p} type="button" className={viewPlant === p ? of.plantOn : ""} onClick={() => setViewPlant(p)} aria-pressed={viewPlant === p}>{p}</button>
+              ))}
+            </div>
+          )}
+          <button type="button" className={of.btn} onClick={() => setShowEdit(true)}>✏️ {L("Edit nilai", "Edit values")}</button>
+          <button type="button" className={`${of.btn} ${of.btnDanger}`} onClick={() => setShowResetConfirm(true)}>🔄 {L("Reset periode", "Reset period")}</button>
           <ReportExportButtons onExport={opFundExportPicker.requestExport} disabled={history.length === 0} />
         </div>
       </div>
       {opFundExportPicker.pending && <LanguagePickerModal format={opFundExportPicker.pending} onConfirm={opFundExportPicker.confirm} onClose={opFundExportPicker.cancel} />}
 
-      <div className="heroGlow statPop" style={{ borderRadius: "var(--r3)", boxShadow: "var(--shadow-lg)", padding: "24px 26px", marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: healthColor, display: "inline-block" }} />
-          <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 1, color: "var(--t3)", textTransform: "uppercase" }}>
-            💰 {lang === "en" ? `Operational Fund Health — ${viewPlant}` : `Kesehatan Dana Operasional — ${viewPlant}`}
-          </span>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 28, alignItems: "center" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <svg viewBox="0 0 120 120" width={104} height={104}>
-              <defs>
-                <linearGradient id="fundGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--brand)" />
-                  <stop offset="100%" stopColor="var(--gold)" />
-                </linearGradient>
-              </defs>
-              <circle cx={60} cy={60} r={RG} fill="none" stroke="var(--border)" strokeWidth={8} />
-              <circle className="gaugeAnimated" cx={60} cy={60} r={RG} fill="none" stroke="url(#fundGrad)" strokeWidth={8} strokeLinecap="round" strokeDasharray={CIRCG} strokeDashoffset={gaugeReady ? gaugeOffset : CIRCG} transform="rotate(-90 60 60)" />
-              <text x={60} y={57} textAnchor="middle" fontSize={22} fontWeight={800} fill="url(#fundGrad)" fontFamily="var(--mono)">{Math.round(fundHealthPct)}</text>
-              <text x={60} y={72} textAnchor="middle" fontSize={9.5} fill="var(--t3)">/ 100</text>
-            </svg>
-            <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 700, color: healthColor }}>{gapText}</div>
+      {/* ── Hero: total, outstanding, gap + komposisi ── */}
+      <section className={of.hero}>
+        <div className={of.heroMain}>
+          <div className={of.ring} style={{ ["--p" as string]: gaugeReady ? fundHealthPct : 0, ["--c" as string]: healthColor }}>
+            <div><b>{Math.round(fundHealthPct)}</b><small>{L("kesehatan", "health")}</small></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-            <div style={{ padding: "0 16px", borderLeft: "none" }}>
-              <div className="numGrad" style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--mono)" }}>Rp {fmtRp(animatedTotalBudget)}</div>
-              <div style={{ fontSize: 12, color: "var(--t2)", fontWeight: 600, marginTop: 3 }}>Total Cash Operational (A)</div>
+          <div className={of.heroNums}>
+            <div className={of.heroNum}>
+              <small>Total Cash Operational (A)</small>
+              <strong>Rp {fmtRp(animatedTotalBudget)}</strong>
             </div>
-            <div style={{ padding: "0 16px", borderLeft: "1px solid var(--border2)" }}>
-              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--gold2)" }}>Rp {fmtRp(animatedOutstanding)}</div>
-              <div style={{ fontSize: 12, color: "var(--t2)", fontWeight: 600, marginTop: 3 }}>Outstanding (B)</div>
+            <div className={of.heroNum}>
+              <small>Outstanding (B)</small>
+              <strong>Rp {fmtRp(animatedOutstanding)}</strong>
             </div>
-            <div style={{ padding: "0 16px", borderLeft: "1px solid var(--border2)" }}>
-              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--mono)", color: gapColor }}>{gap >= 0 ? "+" : "−"}Rp {fmtRp(animatedGapAbs)}</div>
-              <div style={{ fontSize: 12, color: "var(--t2)", fontWeight: 600, marginTop: 3 }}>GAP = B − A</div>
+            <div className={of.heroNum}>
+              <small>GAP = B − A</small>
+              <strong className={of["gap_" + statusTone]}>{gap >= 0 ? "+" : "−"}Rp {fmtRp(animatedGapAbs)}</strong>
+              <span className={`${of.status} ${of["st_" + statusTone]}`}>{gapText}</span>
             </div>
           </div>
         </div>
+        <div className={of.stack} role="img" aria-label={L("Komposisi outstanding", "Outstanding composition")}>
+          {composition.map((c) => c.value > 0 && (
+            <span key={c.label} style={{ width: `${(c.value / compTotal) * 100}%`, background: c.color }} title={`${c.label}: Rp ${fmtRp(c.value)}`} />
+          ))}
+        </div>
+        <div className={of.legend}>
+          {composition.map((c) => <span key={c.label}><i style={{ background: c.color }} />{c.label}</span>)}
+        </div>
+      </section>
+
+      {/* ── Tiles per pos ── */}
+      <div className={of.tiles}>
+        {composition.map((c, i) => {
+          const pct = pctOf(c.value);
+          return (
+            <div key={c.label} className={of.tile} style={{ ["--c" as string]: c.color, animationDelay: `${i * 0.04}s` }}>
+              <span className={of.tileLabel}><i />{c.label}</span>
+              <b>Rp {fmtRp(c.value)}</b>
+              <span className={of.tileBar}><span style={{ width: `${Math.min(100, pct)}%` }} /></span>
+              <small>{pct.toFixed(1).replace(".", ",")}% {L("dari total cash", "of total cash")}</small>
+            </div>
+          );
+        })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16, marginBottom: 18 }}>
-        <div className="statPop" style={{ ...cardStyle, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-            {lang === "en" ? "Budget Composition" : "Komposisi Cash"}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16 }}>
-            {lang === "en" ? "Each segment relative to Total Cash Operational" : "Tiap segmen relatif terhadap Total Cash Operational"}
-          </div>
-          {composition.map((c, i) => {
-            const pct = kantong.totalBudget > 0 ? (c.value / kantong.totalBudget) * 100 : 0;
-            return (
-              <div key={c.label} className="staggerItem" style={{ marginBottom: i === composition.length - 1 ? 0 : 12, animationDelay: `${i * 0.05}s` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                  <span style={{ color: "var(--t2)", fontWeight: 600 }}>{c.label}</span>
-                  <span style={{ color: "var(--t3)" }}>Rp {fmtRp(c.value)} · {pct.toFixed(0)}%</span>
-                </div>
-                <div style={{ height: 7, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, background: c.color, borderRadius: 4, transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className={of.grid2}>
+        <section className={of.card}>
+          <div className={of.cardHead}><h3>{L("Catatan cepat", "Quick insights")}</h3><span>{insights.length}</span></div>
+          <ul className={of.insights}>
+            {insights.map((x, i) => <li key={i} className={of["in_" + x.tone]}><span>{x.icon}</span><p>{x.text}</p></li>)}
+          </ul>
+        </section>
 
-        <div className="statPop" style={{ ...cardStyle, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-            {lang === "en" ? "Gap Trend by Period" : "Tren Gap per Periode"}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16 }}>
-            {lang === "en" ? "Positive = over budget, negative = under" : "Positif = melebihi budget, negatif = di bawah"}
-          </div>
+        <section className={of.card}>
+          <div className={of.cardHead}><h3>{L("Tren gap per periode", "Gap trend by period")}</h3><span>{trendData.length}</span></div>
+          <p className={of.cardSub}>{L("Batang ke atas = melebihi budget, ke bawah = di bawah budget", "Up = over budget, down = under budget")}</p>
           {trendData.length < 2 ? (
-            <div style={{ fontSize: 12.5, color: "var(--t3)", padding: "20px 0", textAlign: "center" }}>
-              {lang === "en" ? "Not enough periods yet for a trend." : "Belum cukup periode untuk membuat tren."}
-            </div>
+            <div className={of.empty}>{L("Belum cukup periode untuk membuat tren.", "Not enough periods yet for a trend.")}</div>
           ) : (
-            <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height={chartH}>
-              <line x1={chartPad} x2={chartW - chartPad} y1={midY} y2={midY} stroke="var(--border2)" strokeWidth={1} strokeDasharray="4 4" />
-              <polyline points={trendPoints} fill="none" stroke={gap >= 0 ? "var(--orange)" : "var(--brand)"} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-              {trendData.map((d, i) => {
-                const x = chartPad + (trendData.length > 1 ? (i / (trendData.length - 1)) * (chartW - chartPad * 2) : 0);
-                return (
-                  <text key={d.period} x={x} y={chartH - 6} textAnchor="middle" fontSize={9.5} fill="var(--t3)">
-                    {d.period.slice(2)}
-                  </text>
-                );
-              })}
-            </svg>
+            <div className={of.trend}>
+              {trendData.map((d) => (
+                <div key={d.period} className={of.trendCol} title={`${d.period}: ${d.gap >= 0 ? "+" : "−"}Rp ${fmtRp(Math.abs(d.gap))}`}>
+                  <div className={of.trendUp}>{d.gap > 0 && <span style={{ height: `${(d.gap / maxTrend) * 100}%` }} />}</div>
+                  <div className={of.trendDown}>{d.gap < 0 && <span style={{ height: `${(-d.gap / maxTrend) * 100}%` }} />}</div>
+                  <small>{d.period.slice(2)}</small>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+        </section>
       </div>
 
       <ForecastCard plant={viewPlant} />

@@ -3,6 +3,7 @@
 /* Akun aplikasi TGA (/tga): admin GA membuat nama + PIN untuk tiap teknisi.
    Data lewat RPC tga_admin_* (034_tga_app.sql) — PIN disimpan sebagai hash bcrypt. */
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useState } from "react";
 import { tgaAdminDeleteUser, tgaAdminSaveUser, tgaAdminUsers, type TgaUserRow } from "@/lib/tga/api";
 import type { GaManpower } from "@/lib/ga/model";
@@ -127,7 +128,7 @@ function AccountModal({ lang, initial, onClose, onSaved }: { lang: Lang; initial
     finally { setBusy(false); }
   }
 
-  return (
+  return createPortal(
     <div className={a.overlay} onClick={onClose}>
       <form className={a.modal} onSubmit={submit} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="tga-acc-title">
         <div className={a.modalHead}>
@@ -156,6 +157,7 @@ function AccountModal({ lang, initial, onClose, onSaved }: { lang: Lang; initial
           <button type="submit" className={a.primary} disabled={busy}>{busy ? L("Menyimpan…", "Saving…") : L("Simpan", "Save")}</button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }

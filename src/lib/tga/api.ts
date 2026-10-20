@@ -2,7 +2,9 @@
 // Semua lewat RPC SECURITY DEFINER (034_tga_app.sql) — teknisi tidak butuh akun Supabase.
 import { supabase } from "@/lib/supabaseClient";
 
-export type TgaStatus = "selesai" | "proses" | "pending" | "butuh_part";
+export type TgaStatus = "selesai" | "proses" | "pending" | "butuh_part" | "baru" | "batal";
+/** Asal kegiatan: dicatat sendiri, ditugaskan admin, atau permintaan karyawan (/request). */
+export type TgaSource = "mandiri" | "tugas" | "permintaan";
 export type TgaPriority = "normal" | "urgent";
 
 export interface TgaActivity {
@@ -25,6 +27,13 @@ export interface TgaActivity {
   selesai_at: string | null;
   created_at: string;
   updated_at: string | null;
+  sumber?: TgaSource;
+  assigned_by?: string;
+  assigned_at?: string | null;
+  accepted_at?: string | null;
+  request_phone?: string;
+  /** Tugas belum diambil siapa pun (siapa cepat) */
+  pool?: boolean;
 }
 
 export interface TgaDraft {
@@ -42,7 +51,7 @@ export interface TgaDraft {
   catatan: string;
 }
 
-export interface TgaMyData { nama: string; today: string; activities: TgaActivity[]; month_count: number }
+export interface TgaMyData { nama: string; today: string; activities: TgaActivity[]; pool?: TgaActivity[]; month_count: number }
 /** Karyawan dari Data Karyawan (employees). id kosong bila 035 belum dijalankan. */
 export interface TgaRequestor { id?: string; nama: string; dept: string; nik?: string; jabatan?: string }
 
@@ -62,7 +71,14 @@ export const TGA_STATUS: { id: TgaStatus; label: string; short: string; tone: st
   { id: "pending", label: "Pending", short: "Pending", tone: "orange" },
   { id: "butuh_part", label: "Butuh part", short: "Part", tone: "red" },
 ];
-export const tgaStatusLabel = (s: string) => TGA_STATUS.find((x) => x.id === s)?.label ?? s;
+/** Status di luar pilihan form: tugas baru (menunggu diterima) & dibatalkan admin. */
+export const TGA_STATUS_EXTRA: { id: TgaStatus; label: string; short: string; tone: string }[] = [
+  { id: "baru", label: "Tugas baru", short: "Baru", tone: "red" },
+  { id: "batal", label: "Dibatalkan", short: "Batal", tone: "gray" },
+];
+export const tgaStatusInfo = (s: string) => [...TGA_STATUS, ...TGA_STATUS_EXTRA].find((x) => x.id === s);
+export const tgaStatusLabel = (s: string) => tgaStatusInfo(s)?.label ?? s;
+export const TGA_SOURCE_LABEL: Record<TgaSource, string> = { mandiri: "Dicatat sendiri", tugas: "Ditugaskan admin", permintaan: "Permintaan karyawan" };
 
 export const TGA_CATEGORIES: { id: string; icon: string; hue: number; quick: string[] }[] = [
   { id: "Listrik", icon: "⚡", hue: 45, quick: ["Ganti lampu", "Perbaiki stop kontak", "Cek MCB / panel", "Pasang kabel"] },
@@ -128,6 +144,10 @@ export async function tgaLogout(token: string) {
 
 export const tgaMyData = (token: string, days = 60) => rpc<TgaMyData>("tga_my_data", { p_token: token, p_days: days });
 export const tgaSave = (token: string, id: string | null, d: TgaDraft) => rpc<TgaActivity>("tga_save_activity", { p_token: token, p_id: id, p_data: d });
+/** Terima tugas sendiri / ambil permintaan yang belum diambil → status Proses. */
+export const tgaAccept = (token: string, id: string) => rpc<TgaActivity>("tga_accept", { p_token: token, p_id: id });
+export const tgaPushSubscribe = (token: string, s: { endpoint: string; p256dh: string; auth: string; ua: string }) =>
+  rpc<boolean>("tga_push_subscribe", { p_token: token, p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_ua: s.ua }).then(() => undefined);
 export const tgaDelete = (token: string, id: string) => rpc<null>("tga_delete_activity", { p_token: token, p_id: id });
 const REQ_CACHE = "cikops_tga_requestors";
 /** Cache daftar karyawan di HP supaya pemilih requestor langsung tampil (diperbarui tiap form dibuka). */
@@ -146,6 +166,16 @@ export const tgaAdminSaveUser = (u: { id: string | null; nama: string; no_hp: st
   rpc<null>("tga_admin_save_user", { p_id: u.id, p_nama: u.nama, p_no_hp: u.no_hp, p_pin: u.pin, p_aktif: u.aktif });
 export const tgaAdminDeleteUser = (id: string) => rpc<null>("tga_admin_delete_user", { p_id: id });
 
+/** Dashboard: buat / ubah / alihkan tugas. userId null = ke semua TGA (siapa cepat). */
+export const tgaAdminAssign = (id: string | null, userId: string | null, d: Record<string, unknown>) =>
+  rpc<TgaActivity>("tga_admin_assign", { p_id: id, p_user_id: userId, p_data: d });
+export const tgaAdminCancel = (id: string, reason = "") => rpc<null>("tga_admin_cancel", { p_id: id, p_reason: reason });
+/** Halaman publik /request: karyawan minta bantuan TGA. */
+export const tgaRequestPublic = (r: { nama: string; dept: string; phone: string; kategori: string; lokasi: string; activity: string; prioritas: string }) =>
+  rpc<{ id: string; ref_no: string }>("tga_request_public", {
+    p_name: r.nama, p_dept: r.dept, p_phone: r.phone, p_kategori: r.kategori, p_lokasi: r.lokasi, p_activity: r.activity, p_prioritas: r.prioritas,
+  });
+
 /** Semua kegiatan dari aplikasi (untuk dashboard GA; RLS: staf). Kosong bila 034 belum dijalankan. */
 export async function tgaAllActivities(): Promise<TgaActivity[]> {
   const { data, error } = await supabase.from("tga_activities").select("*").order("tanggal", { ascending: false }).order("created_at", { ascending: false }).limit(5000);
@@ -157,5 +187,6 @@ export async function tgaAllActivities(): Promise<TgaActivity[]> {
     ...r,
     jam_mulai: r.jam_mulai ? String(r.jam_mulai).slice(0, 5) : null,
     jam_selesai: r.jam_selesai ? String(r.jam_selesai).slice(0, 5) : null,
+    pool: r.user_id == null,
   })) as TgaActivity[];
 }

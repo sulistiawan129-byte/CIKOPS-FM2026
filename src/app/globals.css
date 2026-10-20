@@ -11,7 +11,7 @@
 /* ═══════════════ CIKOPS THEME v2 — light modern + aksen biru kobalt ═══════════════
    Nama token dipertahankan supaya semua modul otomatis ikut tema baru. */
 :root {
-  --bg: #eef3fc;
+  --bg: #f3f5f9;
   --bg2: #e7eefb;
   --bg3: #dce6f8;
   --surface: #ffffff;
@@ -90,7 +90,7 @@
 
 [data-theme="dark"] {
   /* Tema EXECUTIVE — sama dengan Dashboard-ViewOnly */
-  --bg: #050b1c;
+  --bg: #0b1220;
   --bg2: rgba(20, 34, 70, 0.7);
   --bg3: rgba(28, 46, 92, 0.75);
   --surface: rgba(12, 22, 48, 0.88);
@@ -146,13 +146,8 @@ body {
   font-family: var(--font);
   font-size: var(--fs-base);
   line-height: 1.55;
-  background:
-    radial-gradient(60rem 30rem at 12% -12%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 60%),
-    radial-gradient(50rem 28rem at 100% 110%, color-mix(in srgb, var(--neon) 10%, transparent), transparent 60%),
-    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 24px 24px,
-    var(--bg);
-  background-attachment: fixed;
+  /* Latar solid & bersih untuk semua modul (tanpa grid / gradasi / blob) */
+  background: var(--bg);
   color: var(--t1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -162,46 +157,7 @@ body {
   overscroll-behavior-y: none;
   position: relative;
 }
-/* Two soft, slowly-drifting light blobs — replaces the static dot-grid /
-   fully-static mesh with something that reads as quietly alive instead of
-   a flat printed backdrop, without being distracting or looping fast
-   enough to draw the eye away from actual content. */
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(70px);
-  pointer-events: none;
-  z-index: -1;
-}
-body::before {
-  width: 440px;
-  height: 440px;
-  top: -140px;
-  left: -120px;
-  background: var(--blob1);
-  animation: bgDrift1 24s ease-in-out infinite;
-}
-body::after {
-  width: 380px;
-  height: 380px;
-  bottom: -120px;
-  right: -100px;
-  background: var(--blob2);
-  animation: bgDrift2 28s ease-in-out infinite;
-}
-@keyframes bgDrift1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(70px, 50px) scale(1.1); }
-}
-@keyframes bgDrift2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-60px, 55px) scale(1.06); }
-}
-@media (prefers-reduced-motion: reduce) {
-  body::before, body::after { animation: none; }
-}
+
 
 button {
   font-family: inherit;
@@ -937,7 +893,6 @@ h1, h2, h3 {
 h1, h2, h3 { font-family: var(--font-display); }
 h1 { letter-spacing: .01em; }
 .sectionHeading { font-family: var(--font-display); letter-spacing: .14em !important; }
-[data-theme="dark"] body::before, [data-theme="dark"] body::after { opacity: .55; }
 [data-theme="dark"] .navItemActive { background: linear-gradient(140deg, #6cc4ff, #3a86ff) !important; color: #04122e !important; box-shadow: 0 8px 22px -8px rgba(58, 134, 255, .8); }
 [data-theme="dark"] .navItemActive span { color: #04122e !important; }
 [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { color-scheme: dark; }
