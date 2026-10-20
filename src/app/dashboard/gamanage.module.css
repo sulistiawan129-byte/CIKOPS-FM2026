@@ -1,0 +1,105 @@
+/* Cleaning & Gardening — input di CIKOPS */
+.wrap { display: flex; flex-direction: column; gap: 14px; }
+.modeNote { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--brand) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); }
+.modeNote > span { font-size: 18px; }
+.modeNote p { flex: 1; margin: 0; font-size: 13px; color: var(--t2); }
+.modeNote b { color: var(--t1); }
+.readOnly { padding: 10px 12px; border-radius: 12px; background: var(--surface2); border: 1px dashed var(--border2); font-size: 12.5px; color: var(--t2); }
+
+/* Checklist */
+.dayHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #0f2140, #1d3f86 70%, #2457c5); box-shadow: 0 18px 36px -24px rgba(15, 33, 64, .8); }
+.dayNav { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.dayNav > div { display: flex; flex-direction: column; min-width: 210px; }
+.dayNav small { font-size: 11.5px; opacity: .7; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+.dayNav b { font-family: var(--font-display); font-size: 21px; }
+.navBtn { width: 38px; height: 38px; border-radius: 11px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .1); color: #fff; font-size: 20px; cursor: pointer; }
+.navBtn:hover { background: rgba(255, 255, 255, .2); }
+.dateInput { height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .1); color: #fff; font: inherit; color-scheme: dark; }
+.dayStats { display: flex; align-items: center; gap: 14px; }
+.ring { --p: 0; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(#4ade80 calc(var(--p) * 1%), rgba(255, 255, 255, .15) 0); transition: background .6s ease; }
+.ring > div { width: 58px; height: 58px; border-radius: 50%; background: #13295a; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring b { font-family: var(--mono); font-size: 16px; line-height: 1; }
+.ring small { font-size: 9.5px; opacity: .75; }
+.statList { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.statList span { display: flex; align-items: center; gap: 7px; }
+.statList b { margin-left: auto; padding-left: 14px; font-family: var(--mono); }
+.statList i { width: 9px; height: 9px; border-radius: 3px; }
+.dDone { background: #4ade80; } .dNot { background: #f87171; } .dEmpty { background: rgba(255, 255, 255, .4); }
+
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.weekDay { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--t1); font: inherit; cursor: pointer; box-shadow: var(--shadow-sm); transition: transform .15s ease, border-color .15s ease; }
+.weekDay:hover { transform: translateY(-2px); }
+.weekDay small { font-size: 11px; font-weight: 700; color: var(--t3); text-transform: uppercase; }
+.weekDay b { font-family: var(--font-display); font-size: 19px; }
+.weekDay em { font-style: normal; font-size: 10.5px; color: var(--t3); }
+.weekBar { width: 70%; height: 5px; border-radius: 99px; background: var(--surface2); overflow: hidden; }
+.weekBar span { display: block; height: 100%; border-radius: 99px; background: var(--orange); }
+.weekBar .barFull { background: var(--green); }
+.weekOn { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.weekToday small { color: var(--brand); }
+
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; align-items: start; padding-bottom: 70px; }
+.group { border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; }
+.groupHead { display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.groupHead b { flex: 1; font-size: 13.5px; }
+.groupHead > span { font-family: var(--mono); font-size: 12px; font-weight: 800; color: var(--t3); }
+.rows { list-style: none; margin: 0; padding: 4px 8px 8px; }
+.row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; transition: background .15s ease; }
+.row:last-child { border-bottom: 0; }
+.rDone { border-left-color: var(--green); }
+.rNot { border-left-color: var(--red); }
+.rChanged { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.rowMain { flex: 1; min-width: 0; display: flex; flex-direction: column; padding-left: 4px; }
+.rowMain b { font-size: 13.5px; }
+.rowMain small { font-size: 11.5px; color: var(--t3); }
+.rowMain em { font-style: normal; font-size: 10.5px; color: var(--t3); }
+.tri { display: flex; gap: 4px; flex-shrink: 0; }
+.tri button { width: 40px; height: 36px; border-radius: 10px; border: 1.5px solid var(--border2); background: var(--surface); color: var(--t3); font: inherit; font-size: 16px; font-weight: 900; cursor: pointer; transition: all .12s ease; }
+.tri button:disabled { cursor: default; opacity: .7; }
+.tri .tDone { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 6px 14px -8px var(--green); }
+.tri .tNot { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 6px 14px -8px var(--red); }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 40px 16px; border-radius: 18px; border: 2px dashed var(--border2); background: var(--surface); text-align: center; }
+.empty > span { font-size: 30px; }
+.empty small { color: var(--t3); }
+.saveBar { position: sticky; bottom: 14px; z-index: 30; display: flex; align-items: center; gap: 10px; margin-top: -60px; padding: 10px 12px 10px 18px; border-radius: 16px; background: #0f2140; color: #fff; box-shadow: 0 18px 40px -16px rgba(10, 20, 50, .8); animation: barIn .2s ease both; }
+.saveBar > span { flex: 1; font-size: 13.5px; }
+@keyframes barIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* Master */
+.masterTop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dayLoad { display: flex; align-items: center; gap: 18px; padding: 12px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.dayLoad > b { font-size: 13px; color: var(--t2); max-width: 120px; }
+.dayLoadBars { flex: 1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.dayLoadBars div { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.dayLoadBars i { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 54px; }
+.dayLoadBars span { width: 60%; max-width: 34px; min-height: 3px; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, #7aa7ff, var(--brand)); }
+.dayLoadBars em { font-style: normal; font-size: 11px; font-weight: 800; color: var(--t2); }
+.dayLoadBars small { font-size: 10.5px; color: var(--t3); font-weight: 700; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--t2); font-weight: 600; cursor: pointer; }
+.rowOff { opacity: .55; }
+.days { display: inline-flex; gap: 3px; }
+.days i { width: 24px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 10.5px; font-weight: 800; background: var(--surface2); color: var(--t3); }
+.days .dayOn { background: var(--brand); color: #fff; }
+.dayPick { display: flex; gap: 6px; flex-wrap: wrap; }
+.dayPick button { width: 52px; height: 42px; border-radius: 12px; border: 1.5px solid var(--border2); background: var(--surface2); color: var(--t2); font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.dayPick .dayPickOn { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 8px 16px -10px var(--brand); }
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.person { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface2); }
+.person > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.person b { font-size: 13.5px; }
+.person small { font-size: 11.5px; color: var(--t3); }
+.avatar { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--grad-brand); color: #fff; font-weight: 800; font-size: 13px; }
+.personAct { display: flex; gap: 4px; }
+
+.formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wide { grid-column: 1 / -1; }
+@media (max-width: 560px) { .formGrid { grid-template-columns: 1fr; } .week { gap: 4px; } }
+
+/* Mode */
+.modeCard { display: flex; flex-direction: column; gap: 12px; }
+.modeC { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+.modeRow { display: flex; align-items: stretch; gap: 10px; }
+.modeOpt { flex: 1; display: flex; flex-direction: column; gap: 3px; padding: 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface2); opacity: .65; }
+.modeOpt small { font-size: 12px; color: var(--t3); }
+.modeOptOn { opacity: 1; border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--surface)); }
+.modeArrow { align-self: center; font-size: 20px; color: var(--t3); }

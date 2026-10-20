@@ -27,7 +27,7 @@ export interface GaPlan {
   waktuInput: string | null;
 }
 export interface GaJob { id: string; tim: string; lokasi: string; tipe: string; area: string; frek: string; hari: string; petugas: string; aktif: boolean; catatan: string }
-export interface GaManpower { id: string; nama: string; tim: string; jabatan: string; areaTugas: string; status: string }
+export interface GaManpower { id: string; nama: string; tim: string; jabatan: string; areaTugas: string; status: string; noHp?: string }
 export interface GaEvent { id: number; tanggal: string | null; nama: string; deskripsi: string; waktu: string; support: string; dokumentasi: string }
 export interface GaImprovement { id: number; tanggal: string | null; kategori: string; jenis: string; deskripsi: string; area: string; petugas: string; pengawas: string; dokumentasi: string }
 export interface GaInventory { id: number; kode: string; nama: string; jenis: string; area: string; status: string; foto: string; jumlah: number | null; tglUpdate: string | null }
@@ -40,7 +40,14 @@ export interface GaTga {
 export interface GaSyncStatus {
   lastSyncAt: string | null; lastComputer: string | null; lastPlanAt: string | null; lastMasterAt: string | null; lastLogsAt: string | null;
   jobs: number; plan: number; isAdmin: boolean; syncKey: string | null;
+  /** "cikops" = CIKOPS sumber utama (038), Excel hanya menarik; "excel" = mode lama */
+  master: "excel" | "cikops"; masterSince: string | null; lastPullAt: string | null; lastPullComputer: string | null;
 }
+
+/** Hari jadwal (sama dengan kolom Hari 1–4 di DB_PEKERJAAN Excel). */
+export const GA_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"] as const;
+export const GA_DAY_SHORT: Record<string, string> = { Senin: "Sen", Selasa: "Sel", Rabu: "Rab", Kamis: "Kam", Jumat: "Jum", Sabtu: "Sab", Minggu: "Min" };
+export const jobDays = (hari: string) => hari.split(",").map((h) => h.trim()).filter(Boolean);
 
 export interface GaSummary {
   plan: number; done: number; tidak: number; belum: number; notDue: number; due: number; inputted: number;

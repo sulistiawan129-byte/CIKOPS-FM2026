@@ -55,7 +55,7 @@ export async function getGaJobs(): Promise<GaJob[]> {
 export async function getGaManpower(): Promise<GaManpower[]> {
   const { data, error } = await supabase.from("ga_manpower").select("*").order("nama");
   if (error) throw notReady(error);
-  return (data ?? []).map((r) => ({ id: r.id, nama: r.nama ?? "", tim: r.tim ?? "", jabatan: r.jabatan ?? "", areaTugas: r.area_tugas ?? "", status: r.status ?? "" }));
+  return (data ?? []).map((r) => ({ id: r.id, nama: r.nama ?? "", tim: r.tim ?? "", jabatan: r.jabatan ?? "", areaTugas: r.area_tugas ?? "", status: r.status ?? "", noHp: r.no_hp ?? "" }));
 }
 export async function getGaEvents(): Promise<GaEvent[]> {
   const { data, error } = await supabase.from("ga_events").select("*").order("tanggal", { ascending: false });
@@ -100,6 +100,8 @@ export async function getGaSyncStatus(): Promise<GaSyncStatus> {
     lastSyncAt: (d.last_sync_at as string) ?? null, lastComputer: (d.last_computer as string) ?? null,
     lastPlanAt: (d.last_plan_at as string) ?? null, lastMasterAt: (d.last_master_at as string) ?? null, lastLogsAt: (d.last_logs_at as string) ?? null,
     jobs: Number(d.jobs ?? 0), plan: Number(d.plan ?? 0), isAdmin: Boolean(d.is_admin), syncKey: (d.sync_key as string) ?? null,
+    master: d.master === "cikops" ? "cikops" : "excel", masterSince: (d.master_since as string) ?? null,
+    lastPullAt: (d.last_pull_at as string) ?? null, lastPullComputer: (d.last_pull_computer as string) ?? null,
   };
 }
 export async function rotateGaSyncKey(): Promise<string> {
@@ -107,3 +109,29 @@ export async function rotateGaSyncKey(): Promise<string> {
   if (error) throw notReady(error);
   return String(data);
 }
+
+/* ── Input dari CIKOPS (038: CIKOPS sumber utama, Excel mengikuti) ── */
+function need038(error: { code?: string; message?: string }): Error {
+  if (error.code === "PGRST202" || /could not find the function/i.test(error.message ?? "")) {
+    return new Error("Fitur input CIKOPS belum aktif — jalankan supabase/038_ga_cikops_master.sql di Supabase.");
+  }
+  return new Error(error.message ?? String(error));
+}
+async function rpc038<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) throw need038(error);
+  return data as T;
+}
+export const setGaMaster = (mode: "excel" | "cikops") => rpc038<{ master: string }>("ga_set_master", { p_mode: mode });
+export interface GaJobInput { id?: string; tim: string; lokasi: string; tipe: string; area: string; hari: string[]; petugas: string; aktif: boolean; catatan: string; frek?: string }
+export const saveGaJob = (id: string | null, d: GaJobInput) => rpc038<{ id: string }>("ga_save_job", { p_id: id, p_data: d });
+export const deleteGaJob = (id: string) => rpc038<{ plan_removed: number }>("ga_delete_job", { p_id: id });
+export interface GaManpowerInput { nama: string; tim: string; jabatan: string; area_tugas: string; status: string; no_hp: string }
+export const saveGaManpower = (id: string | null, d: GaManpowerInput) => rpc038<{ id: string }>("ga_save_manpower", { p_id: id, p_data: d });
+export const deleteGaManpower = (id: string) => rpc038<null>("ga_delete_manpower", { p_id: id });
+export const generateGaPlan = (periode: number, from: string | null, rebuild: boolean) =>
+  rpc038<{ added: number; removed: number; total: number }>("ga_generate_plan", { p_periode: periode, p_from: from, p_rebuild: rebuild });
+export const setGaActual = (rows: { key: string; actual: 0 | 1 | null }[]) => rpc038<number>("ga_set_actual", { p_rows: rows, p_spv: null });
+export type GaLogTable = "events" | "improvements" | "inventory";
+export const saveGaLog = (table: GaLogTable, id: number | null, d: Record<string, unknown>) => rpc038<number>("ga_save_log", { p_table: table, p_id: id, p_data: d });
+export const deleteGaLog = (table: GaLogTable, id: number) => rpc038<null>("ga_delete_log", { p_table: table, p_id: id });
