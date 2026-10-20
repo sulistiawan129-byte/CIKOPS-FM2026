@@ -12,6 +12,7 @@ akun Supabase/Vercel ada di `docs/PINDAH-AKUN.md`.
 | 3 | `025` … `038` | Kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA, notifikasi |
 | 4 | `039_roles.sql` | Role per modul |
 | 5 | `040_keamanan.sql` | Pengetatan keamanan (jalankan `supabase/tools/AUDIT-keamanan.sql` sebelum & sesudah) |
+| 6 | `041_pengingat_dokumen.sql` | Riwayat pengingat KIR/servis/STNK + cara menjadwalkan `vehicle-document-reminder` |
 | – | `supabase/seed/*.sql` | Impor data sekali pakai (riwayat security, klaim Jan–Jun 2026). Tidak perlu untuk project baru tanpa data lama |
 
 ## Edge Function & secret
@@ -21,7 +22,7 @@ akun Supabase/Vercel ada di `docs/PINDAH-AKUN.md`.
 | `send-driver-credentials`, `send-claim-email`, `send-task-email`, `send-receptionist-email`, `send-gift-passcode` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
 | `send-locker-email` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOCKER_ADMIN_EMAIL` (opsional) |
 | `send-web-push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
-| `vehicle-document-reminder` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` (jadwal harian, lihat bab Armada di bawah) |
+| `vehicle-document-reminder` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Dijadwalkan harian lewat Supabase Cron dengan header `Authorization: Bearer <service_role>` (lihat `041_pengingat_dokumen.sql`) |
 
 Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase secrets set NAMA=nilai`.
 

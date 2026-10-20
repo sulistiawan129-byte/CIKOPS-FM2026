@@ -1,4 +1,13 @@
 import { supabase } from "./supabaseClient";
+
+/** Update yang ditolak RLS tidak memberi error — 0 baris berubah. Jangan tampilkan "tersimpan". */
+function noChangeError(): Error {
+  return new Error("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.");
+}
+
+/** Batas hari kalender WIB untuk filter kolom timestamp (created_at disimpan dalam UTC). */
+const dayStartWIB = (d: string) => `${d}T00:00:00+07:00`;
+const dayEndWIB = (d: string) => `${d}T23:59:59.999+07:00`;
 import { todayLocalISODate } from "./dateUtils";
 import { plantLocation } from "./types";
 import type {
@@ -501,9 +510,9 @@ export async function createTaskBatch(input: CreateTaskBatchInput): Promise<{ cr
   const batchId: string = row?.batch_id ?? "";
   // Best-effort: isi lokasi asal untuk seluruh hari di batch ini (migrasi 017)
   if (batchId && input.lokasiAsal?.trim()) {
-    try {
-      await supabase.rpc("set_task_origin_batch", { p_batch_id: batchId, p_asal: input.lokasiAsal.trim() });
-    } catch { /* abaikan — default lokasi plant tetap berlaku */ }
+    // rpc() tidak melempar error — cek hasilnya; gagal = lokasi default plant tetap berlaku
+    const { error: originErr } = await supabase.rpc("set_task_origin_batch", { p_batch_id: batchId, p_asal: input.lokasiAsal.trim() });
+    if (originErr) console.warn("Lokasi asal tidak tersimpan:", originErr.message);
   }
   return { createdCount: row?.created_count ?? 0, batchId };
 }
@@ -674,7 +683,8 @@ export async function updateVehicle(
   id: string,
   input: Partial<VehicleInput>
 ): Promise<void> {
-  const { error } = await supabase.from("vehicles").update(input).eq("id", id);
+  const { data: updated, error } = await supabase.from("vehicles").update(input).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -889,7 +899,8 @@ export async function addWreath(input: AddWreathInput): Promise<void> {
 }
 
 export async function setWreathClaimed(id: string, claimed: boolean): Promise<void> {
-  const { error } = await supabase.from("condolence_wreaths").update({ claimed }).eq("id", id);
+  const { data: updated, error } = await supabase.from("condolence_wreaths").update({ claimed }).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -1060,13 +1071,13 @@ export async function getVehicleGateLogs(params?: {
   if (params?.plant) q = q.eq("plant", params.plant);
   if (params?.includeActive && (params.dateFrom || params.dateTo)) {
     const range = [
-      params.dateFrom ? `created_at.gte.${params.dateFrom}` : "",
-      params.dateTo ? `created_at.lte.${params.dateTo}T23:59:59` : "",
+      params.dateFrom ? `created_at.gte.${dayStartWIB(params.dateFrom)}` : "",
+      params.dateTo ? `created_at.lte.${dayEndWIB(params.dateTo)}` : "",
     ].filter(Boolean).join(",");
     q = q.or(`status.neq.DONE,and(${range})`);
   } else {
-    if (params?.dateFrom) q = q.gte("created_at", params.dateFrom);
-    if (params?.dateTo) q = q.lte("created_at", params.dateTo + "T23:59:59");
+    if (params?.dateFrom) q = q.gte("created_at", dayStartWIB(params.dateFrom));
+    if (params?.dateTo) q = q.lte("created_at", dayEndWIB(params.dateTo));
   }
   const { data, error } = await q;
   if (error) throw error;
@@ -1089,7 +1100,8 @@ export async function forceCloseGateLog(log: VehicleGateLog): Promise<void> {
   const updates: { status: "DONE"; time_out?: string; time_in?: string } = { status: "DONE" };
   if (!log.timeOut) updates.time_out = now;
   if (!log.timeIn) updates.time_in = now;
-  const { error } = await supabase.from("vehicle_gate_logs").update(updates).eq("id", log.id);
+  const { data: updated, error } = await supabase.from("vehicle_gate_logs").update(updates).eq("id", log.id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -1203,8 +1215,8 @@ export async function getPrinterRequests(params?: { dateFrom?: string; dateTo?: 
     .from("printer_requests")
     .select("*, printers(no_eq, location)")
     .order("created_at", { ascending: false });
-  if (params?.dateFrom) q = q.gte("created_at", params.dateFrom);
-  if (params?.dateTo) q = q.lte("created_at", params.dateTo + "T23:59:59");
+  if (params?.dateFrom) q = q.gte("created_at", dayStartWIB(params.dateFrom));
+  if (params?.dateTo) q = q.lte("created_at", dayEndWIB(params.dateTo));
   const { data, error } = await q;
   if (error) throw error;
   return (data as PrinterRequestRow[] ?? []).map(mapPrinterRequestRow);
@@ -1385,7 +1397,8 @@ export async function updateEmployeeRequestStatus(id: string, status: EmployeeRe
   const updates: { status: EmployeeRequestStatus; admin_notes?: string; processed_at?: string } = { status };
   if (adminNotes !== undefined) updates.admin_notes = adminNotes;
   if (status === "DONE" || status === "REJECTED") updates.processed_at = new Date().toISOString();
-  const { error } = await supabase.from("employee_requests").update(updates).eq("id", id);
+  const { data: updated, error } = await supabase.from("employee_requests").update(updates).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -1801,7 +1814,7 @@ claimPaid: number;
 }
 
 export async function updateKantongBudget(input: KantongInput): Promise<void> {
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("kantong")
     .update({
       total_budget: input.totalBudget,
@@ -1814,8 +1827,10 @@ export async function updateKantongBudget(input: KantongInput): Promise<void> {
       last_reset: input.lastReset,
     })
     .eq("period", input.period)
-    .eq("plant", input.plant);
+    .eq("plant", input.plant)
+    .select("id");
   if (error) throw error;
+  if (!updated?.length) throw noChangeError();
 }
 
 /** Creates the very first Dana Operasional row for the current period —
@@ -2238,7 +2253,8 @@ export async function addDriver(input: DriverInput, initialPin?: string): Promis
 }
 
 export async function updateDriver(id: string, input: DriverInput): Promise<void> {
-  const { error } = await supabase.from("drivers").update(input).eq("id", id);
+  const { data: updated, error } = await supabase.from("drivers").update(input).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG);
   if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
   if (error) throw error;
@@ -2299,7 +2315,8 @@ export async function addEmployee(input: EmployeeInput): Promise<void> {
 }
 
 export async function updateEmployee(id: string, input: EmployeeInput): Promise<void> {
-  const { error } = await supabase.from("employees").update(input).eq("id", id);
+  const { data: updated, error } = await supabase.from("employees").update(input).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -2320,7 +2337,8 @@ export async function addJobType(label: string): Promise<void> {
 }
 
 export async function updateJobType(id: string, label: string): Promise<void> {
-  const { error } = await supabase.from("job_types").update({ label }).eq("id", id);
+  const { data: updated, error } = await supabase.from("job_types").update({ label }).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 

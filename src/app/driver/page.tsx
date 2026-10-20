@@ -21,7 +21,7 @@ import type { Claim, Driver, TaskDetail } from "@/lib/types";
 import { computeStats, plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
-import { todayLocalISODate } from "@/lib/dateUtils";
+import { todayLocalISODate, toLocalISODate } from "@/lib/dateUtils";
 import { enablePush, disablePush, pushState, testPush, type PushState, type PushSubData } from "@/lib/push";
 import { supabase } from "@/lib/supabaseClient";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeLabel } from "@/lib/duty";
@@ -1386,7 +1386,7 @@ function claimWeekKey(dateStr: string): string {
   const diffToMonday = day === 0 ? -6 : 1 - day;
   const monday = new Date(d);
   monday.setDate(d.getDate() + diffToMonday);
-  return monday.toISOString().slice(0, 10); // "YYYY-MM-DD" of the Monday
+  return toLocalISODate(monday); // "YYYY-MM-DD" of the Monday
 }
 
 function ClaimsTab({

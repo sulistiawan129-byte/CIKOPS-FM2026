@@ -105,6 +105,12 @@ function buildEmailHtml(hits: DocHit[]): string {
 }
 
 serve(async (req) => {
+  // Hanya dijadwalkan (Supabase Cron) atau dipanggil dengan service role / CRON_SECRET — bukan publik.
+  const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  if (!bearer || (bearer !== SUPABASE_SERVICE_ROLE_KEY && (!cronSecret || bearer !== cronSecret))) {
+    return new Response(JSON.stringify({ error: "Tidak diizinkan." }), { status: 401 });
+  }
   try {
     if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
       return new Response(JSON.stringify({ error: "GMAIL_USER / GMAIL_APP_PASSWORD belum diset" }), { status: 500 });
@@ -146,7 +152,7 @@ serve(async (req) => {
         const threshold = matchThreshold(daysLeft);
         if (!threshold) continue;
 
-        const { data: existing } = await supabase
+        const { data: existing, error: exErr } = await supabase
           .from("vehicle_doc_notifications")
           .select("id")
           .eq("vehicle_id", v.id)
@@ -154,6 +160,8 @@ serve(async (req) => {
           .eq("threshold", threshold)
           .eq("doc_date", dateVal)
           .maybeSingle();
+        // tabel riwayat wajib ada (SQL 041), kalau tidak email yang sama terkirim setiap hari
+        if (exErr) throw new Error(`vehicle_doc_notifications: ${exErr.message}. Jalankan supabase/041_pengingat_dokumen.sql.`);
 
         if (existing) continue;
 
@@ -196,7 +204,7 @@ serve(async (req) => {
 
     await client.close();
 
-    await supabase.from("vehicle_doc_notifications").insert(
+    const { error: logErr } = await supabase.from("vehicle_doc_notifications").insert(
       hits.map((h) => ({
         vehicle_id: h.vehicle.id,
         doc_type: h.docType,
@@ -204,6 +212,7 @@ serve(async (req) => {
         doc_date: h.docDate,
       }))
     );
+    if (logErr) throw new Error(`Email terkirim, tetapi riwayat gagal disimpan: ${logErr.message}`);
 
     return new Response(JSON.stringify({ sent: true, count: hits.length }), { status: 200 });
   } catch (err) {

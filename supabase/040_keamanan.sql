@@ -141,6 +141,14 @@ begin
   if to_regclass('public.vehicles') is not null then
     create policy driver_vehicles on vehicles for select to authenticated using (my_driver_id() is not null);
   end if;
+  -- notifikasi realtime "Ada klaim baru" di aplikasi driver: klaim miliknya sendiri
+  if to_regclass('public.claims') is not null then
+    create policy driver_own_claims on claims for select to authenticated using (driver_id = my_driver_id());
+  end if;
+  -- impor peserta gift dari CSV (Master Data) membuat baris tanpa passcode
+  if to_regclass('public.gift_registrations') is not null then
+    alter table gift_registrations alter column passcode_hash drop not null;
+  end if;
 
   -- /gift: daftar event yang sedang buka (tanpa login)
   if to_regclass('public.gift_events') is not null then

@@ -4,6 +4,7 @@
    memantau alur Baru → Diterima/Proses → Selesai, mengalihkan, dan membatalkan.
    Permintaan karyawan dari /request masuk ke kolom "Belum diambil". */
 
+import { toLocalISODate } from "@/lib/dateUtils";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -57,14 +58,14 @@ export default function TgaTasks({ lang, onChanged }: { lang: Lang; onChanged?: 
     return () => clearInterval(id);
   }, [load]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate(new Date());
   const cols = useMemo(() => {
     const r = rows ?? [];
     return [
       { id: "pool", title: L("Belum diambil", "Unclaimed"), hint: L("Siapa cepat · permintaan karyawan", "First come · employee requests"), tone: "orange", items: r.filter((x) => x.status === "baru" && x.pool) },
       { id: "wait", title: L("Menunggu diterima", "Awaiting acceptance"), hint: L("Sudah ditugaskan", "Assigned"), tone: "red", items: r.filter((x) => x.status === "baru" && !x.pool) },
       { id: "work", title: L("Dikerjakan", "In progress"), hint: L("Proses · pending · butuh part", "Working · pending · needs part"), tone: "blue", items: r.filter((x) => ["proses", "pending", "butuh_part"].includes(x.status)) },
-      { id: "done", title: L("Selesai hari ini", "Done today"), hint: L("Ditutup teknisi", "Closed by technician"), tone: "green", items: r.filter((x) => x.status === "selesai" && (x.selesai_at ?? "").slice(0, 10) === today) },
+      { id: "done", title: L("Selesai hari ini", "Done today"), hint: L("Ditutup teknisi", "Closed by technician"), tone: "green", items: r.filter((x) => x.status === "selesai" && x.selesai_at && toLocalISODate(new Date(x.selesai_at)) === today) },
     ];
   }, [rows, lang, today]); // eslint-disable-line react-hooks/exhaustive-deps
 

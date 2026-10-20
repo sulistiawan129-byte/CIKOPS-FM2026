@@ -1588,7 +1588,7 @@ function addMonths(dateStr: string, months: number): string {
   // Use original day, clamped to last day of target month
   const originalDay = new Date(dateStr).getDate();
   d.setDate(Math.min(originalDay, lastDay));
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 /**
@@ -1931,12 +1931,12 @@ function HomeTab({
     (async () => {
       try {
         const now = new Date();
-        const todayS = now.toISOString().slice(0, 10);
+        const todayS = toLocalISODate(now);
         const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         const dow = (now.getDay() + 6) % 7; // Senin = 0
         const monday = new Date(now);
         monday.setDate(now.getDate() - dow);
-        const mondayStr = monday.toISOString().slice(0, 10);
+        const mondayStr = toLocalISODate(monday);
 
         if (prbOnly) {
           const [tasksToday, vehicles, drivers] = await Promise.all([
@@ -4793,9 +4793,9 @@ function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
   const [gatePlantFilter, setGatePlantFilter] = useState<"all" | Plant>(myProfile?.plantScope ?? "all");
   const [gateDateFrom, setGateDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
-    return d.toISOString().slice(0, 10);
+    return toLocalISODate(d);
   });
-  const [gateDateTo, setGateDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [gateDateTo, setGateDateTo] = useState(() => toLocalISODate(new Date()));
   const [confirmDeleteGateLog, setConfirmDeleteGateLog] = useState<VehicleGateLog | null>(null);
   const [busyGateLogId, setBusyGateLogId] = useState<string | null>(null);
 
@@ -4862,7 +4862,7 @@ function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
         onDateTo={setGateDateTo}
         onQuickRange={(days) => {
           const d = new Date(); const from = new Date(); from.setDate(d.getDate() - days);
-          setGateDateFrom(from.toISOString().slice(0, 10)); setGateDateTo(d.toISOString().slice(0, 10));
+          setGateDateFrom(toLocalISODate(from)); setGateDateTo(toLocalISODate(d));
         }}
         plant={gatePlantFilter}
         onPlant={setGatePlantFilter}
@@ -5519,9 +5519,9 @@ function PrinterTab() {
   const [savingRequest, setSavingRequest] = useState(false);
   const [reqDateFrom, setReqDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
+    return toLocalISODate(d);
   });
-  const [reqDateTo, setReqDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reqDateTo, setReqDateTo] = useState(() => toLocalISODate(new Date()));
 
   const [reqPrinterId, setReqPrinterId] = useState("");
   const [reqType, setReqType] = useState<PrinterRequestType>("RESET_KUOTA");
@@ -5940,7 +5940,7 @@ function printRequestReceipt(params: {
 }) {
   const w = window.open("", "_blank", "width=520,height=760");
   if (!w) return;
-  const refNo = `REQ-${new Date(params.createdAt).toISOString().slice(0, 10).replace(/-/g, "")}-${params.refId.slice(0, 6).toUpperCase()}`;
+  const refNo = `REQ-${toLocalISODate(new Date(params.createdAt)).replace(/-/g, "")}-${params.refId.slice(0, 6).toUpperCase()}`;
   const rows = params.lines
     .filter((l) => l.value)
     .map((l) => `<tr><td style="padding:5px 0;color:#7886a8;width:38%;vertical-align:top;">${l.label}</td><td style="padding:5px 0;font-weight:700;color:#0d1a36;">: ${l.value}</td></tr>`)
@@ -7445,7 +7445,7 @@ async function exportGiftReportExcel2Sheets(opts: {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${opts.filename}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `${opts.filename}_${toLocalISODate(new Date())}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

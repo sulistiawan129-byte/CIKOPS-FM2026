@@ -1,4 +1,5 @@
 "use client";
+import { toLocalISODate } from "@/lib/dateUtils";
 import { useState, useEffect } from "react";
 import type { CSSProperties } from "react";
 import { submitEmployeeRequest, submitPrinterRequestPublic, getPrinterLocationsPublic } from "@/lib/api";
@@ -31,7 +32,7 @@ function todayLabel(): string {
   return new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
 }
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate(new Date());
 }
 
 interface Receipt {
@@ -199,7 +200,7 @@ export default function RequestPage() {
 
   if (receipt) {
     const kindLabel = receipt.kind === "DRIVER" ? "Request Driver / Kendaraan" : receipt.kind === "PRINTER" ? "Permintaan Kuota Printer" : receipt.kind === "TGA" ? "Perbaikan / Teknisi GA" : "Permintaan Lainnya";
-    const refNo = receipt.refNo || `REQ-${new Date(receipt.createdAt).toISOString().slice(0, 10).replace(/-/g, "")}-${receipt.refId.slice(0, 6).toUpperCase()}`;
+    const refNo = receipt.refNo || `REQ-${toLocalISODate(new Date(receipt.createdAt)).replace(/-/g, "")}-${receipt.refId.slice(0, 6).toUpperCase()}`;
     return (
       <div style={{ minHeight: "100vh", background: "#eef3fc", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
         <div style={{ width: "100%", maxWidth: 480 }}>

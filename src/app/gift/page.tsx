@@ -92,10 +92,11 @@ export default function GiftPage() {
 
       // Send email via edge function
       try {
-        await supabase.functions.invoke("send-gift-passcode", {
+        // invoke() tidak melempar error untuk status 4xx/5xx — cek hasilnya sendiri
+        const { data: mail, error: mailErr } = await supabase.functions.invoke("send-gift-passcode", {
           body: { email: email.trim(), nama: nama.trim(), eventName: selectedEvent.name, passcode: pc, selections: sels },
         });
-        setEmailSent(true);
+        setEmailSent(!mailErr && !mail?.error);
       } catch {
         setEmailSent(false); // email gagal tapi pendaftaran berhasil
       }
