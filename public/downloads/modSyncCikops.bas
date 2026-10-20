@@ -362,7 +362,8 @@ Private Function SyncStokBarang() As Long
             json = "{""p_kode_barang"":" & JQ(kode) & _
                    ",""p_nama_barang"":" & JQ(nama) & _
                    ",""p_satuan"":" & JQ(satuan) & _
-                   ",""p_stok"":" & NumStr(stok) & "}"
+                   ",""p_stok"":" & NumStr(stok) & _
+                   ",""p_key"":" & JQ(CIKOPS_SYNC_KEY) & "}"
             errDetail = ""
             If PostJson(SUPABASE_URL & "/rest/v1/rpc/atk_upsert_item", json, "return=minimal", errDetail) Then
                 count = count + 1

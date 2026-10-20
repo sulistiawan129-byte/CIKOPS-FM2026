@@ -64,3 +64,29 @@ select c.relname as view_name,
 
 -- 6) Bucket Storage publik (file bisa dibuka tanpa login)
 select id as bucket, public as publik from storage.buckets order by id;
+
+-- 7) Isi fungsi yang dipakai halaman tanpa login tetapi TIDAK ada di repo
+--    (gate, locker, gift, login driver). Kirim hasilnya untuk ditinjau.
+select p.proname as fungsi, p.prosecdef as security_definer,
+       has_function_privilege('anon', p.oid, 'execute') as anon_bisa,
+       pg_get_functiondef(p.oid) as definisi
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.proname in (
+   'get_active_drivers_for_gate', 'get_active_vehicles_for_gate', 'get_gate_logs_public', 'open_gate_checkpoint',
+   'close_gate_checkpoint', 'register_locker', 'verify_locker_release', 'release_locker_by_user',
+   'get_locker_by_confirm_token', 'confirm_locker_answer', 'get_employee_by_nik', 'generate_unique_locker_pin',
+   'admin_release_locker', 'start_bulk_confirmation', 'get_confirmation_recipient_count',
+   'find_gift_registration_by_nik', 'find_gift_registrations_by_name', 'find_gift_registration_by_sequence_no',
+   'claim_gift_registration', 'get_printer_locations_public', 'get_driver_by_email', 'get_claims_by_driver',
+   'create_task_batch', 'delete_task_batch', 'admin_update_task_status', 'admin_cancel_task')
+ order by 1;
+
+-- 8) Akun DRIVER yang punya profil staf (seharusnya 0 baris)
+select u.email, p.role, 'PERLU DICEK: driver punya akses staf' as status
+  from profiles p join auth.users u on u.id = p.id
+  join drivers d on lower(d.email) = lower(u.email)
+ order by 1;
+
+-- 9) Trigger pada auth.users (trigger lama memberi role 'ga' ke setiap akun baru)
+select tgname as trigger_name, pg_get_triggerdef(t.oid) as definisi
+  from pg_trigger t where t.tgrelid = 'auth.users'::regclass and not t.tgisinternal;

@@ -2702,7 +2702,7 @@ export async function getGiftRegistrations(eventId: string): Promise<GiftRegistr
 export function generateGiftPasscode(): string {
   const arr = new Uint32Array(1);
   crypto.getRandomValues(arr);
-  return String(arr[0] % 10000).padStart(4, "0");
+  return String(arr[0] % 100000000).padStart(8, "0");
 }
 
 export async function registerGift(input: {
