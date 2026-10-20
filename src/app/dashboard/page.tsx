@@ -177,6 +177,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { toLocalISODate } from "@/lib/dateUtils";
 import Icon from "@/components/Icon";
+import SideNav, { type SideNavGroup } from "./SideNav";
 
 function todayStr() {
   return toLocalISODate(new Date());
@@ -272,6 +273,10 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/** Label pendek grup untuk rail sidebar. */
+const NAV_SHORT_ID: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Fasilitas", security: "Security", system: "Sistem" };
+const NAV_SHORT_EN: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Facility", security: "Security", system: "System" };
 
 /** Menu yang punya alamat sendiri: /dashboard/<id>. */
 const URL_TABS = new Set<DashboardTab>(["home", "overview", "tasks", ...NAV_GROUPS.flatMap((g) => g.tabs.map((t) => t.id))]);
@@ -655,118 +660,42 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
     );
   }
 
+  // Grup sidebar: Dashboard (Beranda + Ringkasan) lalu grup menu yang boleh diakses.
+  const sideGroups: SideNavGroup[] = [
+    ...(!lockedTab ? [{
+      id: "dashboard", icon: "home", label: "Dashboard", short: "Dashboard",
+      items: [
+        { id: "home", label: lang === "en" ? "Home" : "Beranda" },
+        ...(!isPrbOnly(myProfile) ? [{ id: "overview", label: lang === "en" ? "Overview" : "Ringkasan" }] : []),
+      ],
+    }] : []),
+    ...NAV_GROUPS.map((g) => ({
+      id: g.id,
+      icon: g.id,
+      label: lang === "en" ? g.labelEn : g.labelId,
+      short: (lang === "en" ? NAV_SHORT_EN : NAV_SHORT_ID)[g.id] ?? (lang === "en" ? g.labelEn : g.labelId),
+      items: g.tabs.filter((tb) => canAccessTab(myProfile, tb.id)).map((tb) => ({ id: tb.id, label: lang === "en" ? tb.labelEn : tb.labelId, desc: lang === "en" ? tb.descEn : tb.descId })),
+    })).filter((g) => g.items.length > 0),
+  ];
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", gap: isMobile ? 0 : 18, padding: isMobile ? 0 : 16, alignItems: "flex-start" }}>
-      {/* Mobile sidebar backdrop */}
-      {isMobile && sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(6,13,24,0.6)", zIndex: 299 }}
-        />
-      )}
-
-      {/* ── Sidebar (floating, berlabel) ── */}
-      <aside
-        className="premiumChrome"
-        style={{
-          width: 256,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          position: isMobile ? "fixed" : "sticky",
-          top: isMobile ? 0 : 16,
-          left: isMobile ? (sidebarOpen ? 0 : -290) : "auto",
-          height: isMobile ? "100vh" : "calc(100vh - 32px)",
-          borderRadius: isMobile ? "0 26px 26px 0" : 26,
-          zIndex: 300,
-          transition: "left 0.25s ease",
-          padding: "18px 12px 12px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "2px 8px 14px" }}>
-          <img src="/logo.png" alt="CIKOPS" style={{ width: 40, height: 40, objectFit: "contain" }} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", letterSpacing: "-0.01em" }}>{t.appName}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span className={liveConnected ? styles.livePulseDot : undefined} style={liveConnected ? undefined : { width: 7, height: 7, borderRadius: "50%", background: "var(--t3)" }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: liveConnected ? "var(--green-text)" : "var(--t3)", letterSpacing: "0.04em" }}>
-                {liveConnected ? "LIVE" : (lang === "en" ? "Connecting…" : "Menyambungkan…")}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <nav style={{ flex: 1, overflowY: "auto", padding: "2px 2px 8px", minHeight: 0 }}>
-          {!lockedTab && <button
-            className={`navItem ${activeTab === "home" ? "navItemActive" : ""}`}
-            onClick={() => { setActiveTab("home"); setActiveHomeGroup(undefined); setSidebarOpen(false); }}
-          >
-            <span><Icon name="home" /></span>
-            Dashboard
-          </button>}
-          {!isPrbOnly(myProfile) && !lockedTab && <button
-            className={`navItem ${activeTab === "overview" ? "navItemActive" : ""}`}
-            onClick={() => { setActiveTab("overview"); setSidebarOpen(false); }}
-          >
-            <span><Icon name="overview" /></span>
-            {lang === "id" ? "Ringkasan" : "Overview"}
-          </button>}
-          {NAV_GROUPS.map((group) => {
-            const visibleTabs = group.tabs.filter((tabItem) => canAccessTab(myProfile, tabItem.id));
-            if (visibleTabs.length === 0) return null;
-            return (
-              <div key={group.id}>
-                <div className="navSectionLabel">{lang === "id" ? group.labelId : group.labelEn}</div>
-                {visibleTabs.map((tabItem) => (
-                  <button
-                    key={tabItem.id}
-                    className={`navItem ${activeTab === tabItem.id ? "navItemActive" : ""}`}
-                    onClick={() => { setActiveTab(tabItem.id); setSidebarOpen(false); }}
-                  >
-                    <span><Icon name={tabItem.id} /></span>
-                    {lang === "id" ? tabItem.labelId : tabItem.labelEn}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </nav>
-
-        {!isPrbOnly(myProfile) && !lockedTab && <a
-          href="/dashboard-viewonly"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.tvLink}
-          title={lang === "en" ? "Open Dashboard-ViewOnly in a new tab (no login needed)" : "Buka Dashboard-ViewOnly di tab baru (tanpa login)"}
-        >
-          <span className={styles.tvLinkIc}><Icon name="eye" size={18} /></span>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <b>Dashboard-ViewOnly</b>
-            <small>{lang === "en" ? "No login · view only" : "Tanpa login · lihat saja"}</small>
-          </span>
-          <Icon name="external" size={15} />
-        </a>}
-
-        <div style={{ marginTop: 8, padding: 10, borderRadius: 16, background: "var(--surface2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--grad-brand)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
-            {(myProfile?.fullName || user?.email || "?").charAt(0).toUpperCase()}
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {myProfile?.fullName || user?.email?.split("@")[0] || "-"}
-            </div>
-            <div style={{ fontSize: 11.5, color: "var(--t3)" }}>{roleLabel(myProfile)}</div>
-          </div>
-          <button
-            onClick={() => signOut()}
-            title={t.actionSignOut}
-            aria-label={t.actionSignOut}
-            style={{ width: 34, height: 34, borderRadius: 11, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--red)", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}
-          >
-            <Icon name="logout" size={16} />
-          </button>
-        </div>
-      </aside>
+      {/* ── Sidebar: rail grup + panel menu ── */}
+      <SideNav
+        groups={sideGroups}
+        activeTab={activeTab}
+        onSelect={(id) => { setActiveTab(id as DashboardTab); if (id === "home") setActiveHomeGroup(undefined); }}
+        lang={lang === "en" ? "en" : "id"}
+        appName={t.appName}
+        live={liveConnected}
+        userName={myProfile?.fullName || user?.email?.split("@")[0] || "-"}
+        userRole={roleLabel(myProfile)}
+        onSignOut={() => signOut()}
+        publicHref={!isPrbOnly(myProfile) && !lockedTab ? "/dashboard-viewonly" : undefined}
+        isMobile={isMobile}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       {/* ── Main content wrapper ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
