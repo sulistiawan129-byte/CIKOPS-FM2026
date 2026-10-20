@@ -2,6 +2,7 @@
 
 import { supabase } from "../supabaseClient";
 import type { GaEvent, GaImprovement, GaInventory, GaJob, GaManpower, GaPlan, GaSyncStatus, GaTga } from "./model";
+import { tgaAllActivities } from "../tga/api";
 
 function notReady(error: { code?: string; message?: string }): Error {
   if (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST202" || /does not exist|Could not find/i.test(error.message ?? "")) {
@@ -80,7 +81,14 @@ export async function getGaInventory(): Promise<GaInventory[]> {
 export async function getGaTga(): Promise<GaTga[]> {
   const { data, error } = await supabase.from("ga_tga").select("*").order("tanggal", { ascending: false }).order("baris", { ascending: false });
   if (error) throw notReady(error);
-  return (data ?? []).map((r) => ({ id: r.id, tanggal: r.tanggal, namaTga: r.nama_tga ?? "", activity: r.activity ?? "", requestBy: r.request_by ?? "" }));
+  const excel: GaTga[] = (data ?? []).map((r) => ({ id: r.id, tanggal: r.tanggal, namaTga: r.nama_tga ?? "", activity: r.activity ?? "", requestBy: r.request_by ?? "", source: "excel" }));
+  // Kegiatan yang dicatat teknisi lewat aplikasi /tga (034). Gagal/ belum dipasang → tetap tampilkan data Excel.
+  const app: GaTga[] = await tgaAllActivities().then((rows) => rows.map((a) => ({
+    id: a.id, tanggal: a.tanggal, namaTga: a.nama_tga, activity: a.activity, requestBy: a.request_by, source: "app" as const,
+    refNo: a.ref_no, kategori: a.kategori, lokasi: a.lokasi, departemen: a.departemen, status: a.status, prioritas: a.prioritas, catatan: a.catatan,
+    jam: a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? `–${a.jam_selesai}` : ""}` : "",
+  }))).catch(() => []);
+  return [...app, ...excel].sort((x, y) => (y.tanggal ?? "").localeCompare(x.tanggal ?? ""));
 }
 
 export async function getGaSyncStatus(): Promise<GaSyncStatus> {

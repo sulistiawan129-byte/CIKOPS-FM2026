@@ -31,7 +31,12 @@ export interface GaManpower { id: string; nama: string; tim: string; jabatan: st
 export interface GaEvent { id: number; tanggal: string | null; nama: string; deskripsi: string; waktu: string; support: string; dokumentasi: string }
 export interface GaImprovement { id: number; tanggal: string | null; kategori: string; jenis: string; deskripsi: string; area: string; petugas: string; pengawas: string; dokumentasi: string }
 export interface GaInventory { id: number; kode: string; nama: string; jenis: string; area: string; status: string; foto: string; jumlah: number | null; tglUpdate: string | null }
-export interface GaTga { id: number; tanggal: string | null; namaTga: string; activity: string; requestBy: string }
+export interface GaTga {
+  id: number | string; tanggal: string | null; namaTga: string; activity: string; requestBy: string;
+  /** "excel" = hasil sinkron log Excel, "app" = dicatat teknisi lewat aplikasi /tga */
+  source?: "excel" | "app";
+  refNo?: string; kategori?: string; lokasi?: string; departemen?: string; status?: string; prioritas?: string; jam?: string; catatan?: string;
+}
 export interface GaSyncStatus {
   lastSyncAt: string | null; lastComputer: string | null; lastPlanAt: string | null; lastMasterAt: string | null; lastLogsAt: string | null;
   jobs: number; plan: number; isAdmin: boolean; syncKey: string | null;
