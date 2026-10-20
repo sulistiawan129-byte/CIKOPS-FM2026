@@ -39,8 +39,21 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
   const pxOf = (min: number) => ((min - open) / step) * SLOT_PX;
 
   function newAt(date: string, startMin: number) {
-    const end = Math.min(close, startMin + Math.max(60, step));
+    // 1 jam, tapi dipendekkan bila menabrak booking berikutnya di hari itu
+    const nextStart = rows.filter((b) => b.date === date && toMin(b.start) > startMin).map((b) => toMin(b.start)).sort((a, b) => a - b)[0] ?? close;
+    const end = Math.min(close, nextStart, startMin + Math.max(60, step));
     setDraft({ date, start: fromMin(startMin), end: fromMin(end), title: "", pic: "", department: "", attendees: "", notes: "", repeat: "none", until: addDays(date, 28), count: 0 });
+  }
+  /** "+ Booking": slot kosong pertama minggu ini (hari ini mulai dari jam sekarang). */
+  function quickNew() {
+    const startDay = today < days[0] || today > days[6] ? days[0] : today;
+    for (const d of days.filter((x) => x >= startDay)) {
+      const from = d === today ? Math.ceil(nowMin / step) * step : open;
+      for (let m = Math.max(open, from); m + step <= close; m += step) {
+        if (!rows.some((b) => b.date === d && overlaps(b.start, b.end, fromMin(m), fromMin(m + step)))) { newAt(d, m); return; }
+      }
+    }
+    newAt(startDay, open);
   }
   function edit(b: RoomBooking) {
     setDraft({ id: b.id, seriesId: b.seriesId, date: b.date, start: b.start, end: b.end, title: b.title, pic: b.pic, department: b.department, attendees: b.attendees ? String(b.attendees) : "", notes: b.notes, repeat: "none", until: b.date, count: 0 });
@@ -64,7 +77,7 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
             col<RoomBooking>("jam", "Jam", (b) => `${b.start}–${b.end}`), col<RoomBooking>("judul", "Keperluan", (b) => b.title),
             col<RoomBooking>("pic", "PIC", (b) => b.pic), col<RoomBooking>("dept", "Departemen", (b) => b.department),
             col<RoomBooking>("org", "Peserta", (b) => b.attendees ?? "", "right"), col<RoomBooking>("ket", "Catatan", (b) => b.notes)]} />
-          <button type="button" className={r.btn} onClick={() => newAt(today < days[0] || today > days[6] ? days[0] : today, Math.max(open, Math.min(close - step, Math.ceil(nowMin / step) * step)))}>+ Booking</button>
+          <button type="button" className={`${r.btn} ${r.btnSm}`} onClick={quickNew}>+ Booking</button>
         </span>
       </div>
       <div className={r.legend}>
@@ -167,12 +180,17 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
 
   return (
     <ModalPortal onOverlayClick={() => setDraft(null)} maxWidth={620}>
-      <div className={r.modal}>
-        <h3>{draft.id ? "Ubah booking" : `Booking ${settings.roomName}`}</h3>
+      <div className={r.modal} role="dialog" aria-modal="true" aria-labelledby="rcp-bk-title">
+        <div className={r.modalHead}>
+          <div><h2 id="rcp-bk-title">{draft.id ? "Ubah booking" : `Booking ${settings.roomName}`}</h2><p>Jam operasional {settings.openTime}–{settings.closeTime}</p></div>
+          <button type="button" className={r.iconBtn} onClick={() => setDraft(null)} aria-label="Tutup">✕</button>
+        </div>
         <div className={r.form}>
+          <div className={r.section}>Detail</div>
           <label className={`${r.field} ${r.full}`}><span>Keperluan *</span><input className={r.input} value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="mis. Induction karyawan baru" autoFocus /></label>
           <label className={r.field}><span>PIC</span><NameInput dir={dir} value={draft.pic} onChange={(v) => set("pic", v)} onPick={(p) => p.department && !draft.department && set("department", p.department)} placeholder="Yang meminta" /></label>
           <label className={r.field}><span>Departemen</span><input className={r.input} value={draft.department} onChange={(e) => set("department", e.target.value)} /></label>
+          <div className={r.section}>Waktu</div>
           <label className={r.field}><span>Tanggal</span><input className={r.input} type="date" value={draft.date} min={draft.id ? undefined : todayISO()} onChange={(e) => e.target.value && set("date", e.target.value)} /></label>
           <label className={r.field}><span>Jumlah peserta</span><input className={r.input} type="number" min={0} value={draft.attendees} onChange={(e) => set("attendees", e.target.value)} /></label>
           <label className={r.field}><span>Mulai</span>
@@ -182,16 +200,16 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
             <select className={r.input} value={draft.end} onChange={(e) => set("end", e.target.value)}>{times.filter((t) => toMin(t) > toMin(draft.start)).map((t) => <option key={t}>{t}</option>)}</select>
           </label>
           {!draft.id && (
-            <div className={`${r.field} ${r.full}`}><span>Ulangi</span>
+            <div className={`${r.field} ${r.full}`}><span>Ulangi <em>(booking berulang)</em></span>
               <div className={r.chips}>
                 {([["none", "Tidak"], ["daily", "Setiap hari"], ["weekdays", "Hari kerja (Sen–Jum)"], ["weekly", "Setiap minggu"]] as [RepeatMode, string][]).map(([k, l]) => (
                   <button key={k} type="button" className={r.chip} aria-pressed={draft.repeat === k} onClick={() => set("repeat", k)}>{l}</button>
                 ))}
               </div>
               {draft.repeat !== "none" && (
-                <div className={r.row} style={{ marginTop: 6 }}>
-                  <span className={r.mute}>sampai</span><input className={r.input} style={{ width: 170 }} type="date" value={draft.until} min={draft.date} onChange={(e) => set("until", e.target.value)} />
-                  <span className={r.mute}>→ {dates.length} jadwal{dates.length >= 60 ? " (maks 60)" : ""}</span>
+                <div className={r.row} style={{ marginTop: 8 }}>
+                  <span className={r.mute} style={{ fontSize: 13 }}>Sampai</span><input className={r.input} style={{ width: 180 }} type="date" value={draft.until} min={draft.date} onChange={(e) => set("until", e.target.value)} />
+                  <span className={`${r.pill} ${r.pBlue}`}>{dates.length} jadwal{dates.length >= 60 ? " (maks 60)" : ""}</span>
                 </div>
               )}
             </div>
@@ -202,15 +220,15 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
           <div className={r.warn}>
             Bentrok pada {clashes.length} jadwal: {clashes.slice(0, 4).map((x) => `${fmtDate(x.d, { day: "numeric", month: "short" })} (“${x.b!.title}” ${x.b!.start}–${x.b!.end})`).join(", ")}{clashes.length > 4 ? ", …" : ""}.
             {dates.length > 1 && clashes.length < dates.length && (
-              <label className={r.row} style={{ marginTop: 6, gap: 6 }}><input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} /> Lewati tanggal yang bentrok, booking sisanya ({dates.length - clashes.length})</label>
+              <label className={r.check} style={{ marginTop: 8, display: "flex" }}><input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} /> Lewati tanggal yang bentrok, booking sisanya ({dates.length - clashes.length})</label>
             )}
           </div>
         )}
-        <p className={r.hint}>Booking otomatis muncul di Kalender &amp; Agenda (kategori Pelatihan).</p>
         {err && <div className={r.err}>{err}</div>}
-        <div className={r.modalActions}>
-          {draft.id && <button type="button" className={`${r.ghost} ${r.danger}`} disabled={busy} onClick={() => remove(false)}>Hapus</button>}
-          {draft.id && draft.seriesId && <button type="button" className={`${r.ghost} ${r.danger}`} disabled={busy} onClick={() => remove(true)}>Hapus seri berikutnya</button>}
+        <div className={r.modalFoot}>
+          {draft.id && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(false)}>Hapus</button>}
+          {draft.id && draft.seriesId && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(true)}>Hapus seri berikutnya</button>}
+          {!draft.id && <span className={r.hint}>Otomatis muncul di Kalender &amp; Agenda.</span>}
           <span className={r.grow} />
           <button type="button" className={r.ghost} onClick={() => setDraft(null)}>Batal</button>
           <button type="button" className={r.btn} disabled={!canSave} onClick={save}>{busy ? "Menyimpan…" : draft.id ? "Simpan" : dates.length > 1 ? `Booking ${skip ? dates.length - clashes.length : dates.length} jadwal` : "Booking"}</button>

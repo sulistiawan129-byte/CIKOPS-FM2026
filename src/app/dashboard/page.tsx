@@ -23,6 +23,8 @@ import type { DriverReportSummary } from "@/lib/analytics";
 import {
   getMyProfile,
   canAccessTab,
+  lockedTabOf,
+  roleLabel,
   isPrbOnly,
   getActivityLog,
   type ActivityLogEntry,
@@ -332,6 +334,9 @@ export default function DashboardPage() {
       getMyProfile(user.id).then((p) => {
         setMyProfile(p);
         setProfileChecked(true);
+        // Akun yang dikunci ke satu menu (mis. receptionist): selalu buka menu itu.
+        const locked = lockedTabOf(p);
+        if (locked) { setActiveTab(locked as DashboardTab); return; }
         // Akun dengan menu terbatas: buka menu pertamanya, kecuali URL sudah menunjuk menu yang boleh diakses.
         if (p?.allowedTabs && p.allowedTabs.length > 0 && !p.allowedTabs.includes("overview")) {
           const fromUrl = tabFromPath(typeof window !== "undefined" ? window.location.pathname : "");
@@ -383,9 +388,11 @@ export default function DashboardPage() {
   }, [activeTab]);
 
   // Akun scope PRB hanya boleh Penugasan, Armada, Master Data — kembalikan ke Home bila tab lain terbuka.
+  const lockedTab = lockedTabOf(myProfile) as DashboardTab | null;
   useEffect(() => {
+    if (lockedTab) { if (activeTab !== lockedTab) setActiveTab(lockedTab); return; }
     if (activeTab !== "home" && myProfile && !canAccessTab(myProfile, activeTab)) setActiveTab("home");
-  }, [activeTab, myProfile, setActiveTab]);
+  }, [activeTab, myProfile, setActiveTab, lockedTab]);
   const [globalSearch, setGlobalSearch] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
@@ -690,14 +697,14 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         </div>
 
         <nav style={{ flex: 1, overflowY: "auto", padding: "2px 2px 8px", minHeight: 0 }}>
-          <button
+          {!lockedTab && <button
             className={`navItem ${activeTab === "home" ? "navItemActive" : ""}`}
             onClick={() => { setActiveTab("home"); setActiveHomeGroup(undefined); setSidebarOpen(false); }}
           >
             <span><Icon name="home" /></span>
             Dashboard
-          </button>
-          {!isPrbOnly(myProfile) && <button
+          </button>}
+          {!isPrbOnly(myProfile) && !lockedTab && <button
             className={`navItem ${activeTab === "overview" ? "navItemActive" : ""}`}
             onClick={() => { setActiveTab("overview"); setSidebarOpen(false); }}
           >
@@ -725,7 +732,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           })}
         </nav>
 
-        {!isPrbOnly(myProfile) && <a
+        {!isPrbOnly(myProfile) && !lockedTab && <a
           href="/dashboard-viewonly"
           target="_blank"
           rel="noopener noreferrer"
@@ -748,7 +755,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {myProfile?.fullName || user?.email?.split("@")[0] || "-"}
             </div>
-            <div style={{ fontSize: 11.5, color: "var(--t3)" }}>{myProfile?.role === "admin" ? "Admin" : "GA Manager"}</div>
+            <div style={{ fontSize: 11.5, color: "var(--t3)" }}>{roleLabel(myProfile)}</div>
           </div>
           <button
             onClick={() => signOut()}
@@ -770,7 +777,8 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
               <Icon name="menu" size={22} />
             </button>
           )}
-          {!isMobile && (
+          {lockedTab && <div style={{ flex: 1 }} />}
+          {!isMobile && !lockedTab && (
             <div ref={searchBoxRef} style={{ flex: 1, position: "relative", maxWidth: 400 }}>
               <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", display: "grid", placeItems: "center" }}><Icon name="search" size={16} /></span>
               <input
@@ -849,7 +857,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
               <span className={styles.liveDot} /> Live
             </div>
           )}
-          {!isPrbOnly(myProfile) && <a
+          {!isPrbOnly(myProfile) && !lockedTab && <a
             className={styles.iconBtn}
             href="/dashboard-viewonly"
             target="_blank"
@@ -906,7 +914,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
                   {myProfile?.fullName || user?.email?.split("@")[0] || "-"}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--t3)" }}>
-                  {myProfile?.role === "admin" ? "Admin" : "GA Manager"}
+                  {roleLabel(myProfile)}
                 </div>
               </div>
             )}
@@ -915,7 +923,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 
         {/* Scrollable content area */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-      {activeTab !== "home" && (() => {
+      {activeTab !== "home" && !lockedTab && (() => {
         const labelOf = (id: DashboardTab) => {
           if (id === "home") return lang === "en" ? "Dashboard" : "Dashboard";
           if (id === "overview") return lang === "en" ? "Overview" : "Ringkasan";

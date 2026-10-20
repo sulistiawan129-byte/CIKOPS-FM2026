@@ -18,6 +18,16 @@ Jika fungsi belum di-deploy, transaksi tetap tersimpan — hanya email yang gaga
 Akun dengan `allowed_tabs` terbatas perlu ditambah `receptionist` agar menu muncul.
 Akun dengan `allowed_tabs = null` (akses penuh) langsung melihat menunya.
 
+### Akun khusus resepsionis (role `receptionist`)
+1. Supabase → Authentication → Users → **Add user → Create new user**:
+   email `receptionist@cikops.com`, isi password, centang **Auto Confirm User**.
+2. Jalankan `supabase/032_role_receptionist.sql` di SQL Editor.
+
+Akun ber-role `receptionist` dikunci ke menu Receptionist saja: tanpa Home, Ringkasan,
+Kalender, pencarian, atau menu lain. URL menu lain otomatis diarahkan kembali ke Receptionist.
+Untuk membuat akun resepsionis lain: buat user baru, lalu
+`update profiles set role = 'receptionist', allowed_tabs = array['receptionist'] where id = (select id from auth.users where email = '...');`
+
 ## 4. Pengaturan awal (menu Receptionist → Pengaturan)
 - Jam operasional ruangan (default 06:00–22:00) dan panjang slot grid (15/30/60 menit).
 - Nama wifi (SSID) dan ketentuan — keduanya dicantumkan di email tanda terima.

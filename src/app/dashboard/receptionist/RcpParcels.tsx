@@ -65,7 +65,7 @@ function NewParcel({ dir, reload }: { dir: Directory; reload: () => Promise<void
 
   return (
     <section className={r.card}>
-      <div className={r.cardHead}><h2>Catat barang / surat</h2><small>nomor tanda terima dibuat otomatis</small></div>
+      <div className={r.cardHead}><div><h2>Catat barang / surat</h2><p>Nomor tanda terima dibuat otomatis</p></div></div>
       <div className={r.chips}>
         <button type="button" className={r.chip} aria-pressed={isIn} onClick={() => setDirection("in")}>⬇ Masuk (untuk karyawan)</button>
         <button type="button" className={r.chip} aria-pressed={!isIn} onClick={() => setDirection("out")}>⬆ Keluar (dikirim karyawan)</button>
@@ -90,9 +90,11 @@ function NewParcel({ dir, reload }: { dir: Directory; reload: () => Promise<void
         <label className={r.field}><span>Keterangan <em>(opsional)</em></span><input className={r.input} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="mis. 1 dus, amplop coklat" /></label>
         <label className={r.field}><span>Kurir / ekspedisi <em>(opsional)</em></span><input className={r.input} value={f.courier} onChange={(e) => set("courier", e.target.value)} placeholder="JNE, Gojek, internal…" /></label>
       </div>
-      <p className={r.hint}>Email yang diisi akan diingat untuk nama ini — lain kali cukup ketik namanya.</p>
       {msg && <div className={msg.ok ? r.ok : r.err}>{msg.text}</div>}
-      <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : isIn ? "Simpan barang masuk" : "Simpan barang keluar"}</button>
+      <div className={r.formFoot}>
+        <span className={r.hint}>Email yang diisi diingat untuk nama ini — lain kali cukup ketik namanya.</span>
+        <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : isIn ? "Simpan barang masuk" : "Simpan barang keluar"}</button>
+      </div>
     </section>
   );
 }
@@ -137,7 +139,7 @@ function WaitingList({ list, reload }: { list: Parcel[]; reload: () => Promise<v
               </div>
               <div className={r.itemSide}>
                 <input className={r.input} value={names[p.id] ?? (p.direction === "in" ? p.recipient : p.courier)} onChange={(e) => setNames((x) => ({ ...x, [p.id]: e.target.value }))} placeholder={p.direction === "in" ? "Nama pengambil" : "Nama kurir"} aria-label="Nama pengambil" />
-                <button type="button" className={r.btn} disabled={busy === p.id} onClick={() => hand(p)}>{busy === p.id ? "…" : "Serahkan"}</button>
+                <button type="button" className={`${r.btn} ${r.btnSm}`} disabled={busy === p.id} onClick={() => hand(p)}>{busy === p.id ? "…" : "Serahkan"}</button>
                 <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(p)}>Hapus</button>
               </div>
             </div>
