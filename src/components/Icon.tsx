@@ -53,6 +53,7 @@ const P: Record<string, ReactNode> = {
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></>,
   eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
   gate: <><path d="M3 21V8l9-5 9 5v13" /><path d="M3 12h18M8 21v-9M16 21v-9" /></>,
+  receptionist: <><path d="M3 20h18" /><path d="M5 20v-6h14v6" /><circle cx="12" cy="7" r="3" /><path d="M8.5 14a3.5 3.5 0 0 1 7 0" /></>,
 };
 
 export type IconName = keyof typeof P;

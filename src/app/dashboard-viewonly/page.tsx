@@ -3,7 +3,7 @@
 /**
  * /dashboard-viewonly — FM COMMAND CENTER (tanpa login, hanya lihat).
  * Layar TV kantor: data BERJALAN (hari ini + total bulan berjalan), berganti otomatis.
- *   1 Ringkasan  2 Fleet live (papan driver)  3 Fleet & Gate  4 Kantin  5 ATK  6 Pelanggaran / NC
+ *   1 Ringkasan  2 Fleet live (papan driver)  3 Fleet & Gate  4 Kantin  5 ATK  6 Pelanggaran / NC  7 Receptionist
  * Tanpa data bernominal (Rp) & tanpa nama driver — aman untuk layar publik.
  * Data: RPC get_fm_snapshot (migrasi 028) + /api/gc-nc?board=1, polling 60 dtk.
  * URL: ?tab=nc (mulai di tab tertentu), ?rotate=0 (tanpa rotasi), ?sec=30 (lama rotasi, detik).
@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
-import { getFmSnapshot, getNcBoard } from "@/lib/fm/api";
-import { computeFm, fmtMin, nf, pct, TARGET, type AreaCard, type Bar, type FmSnapshot, type FmView, type NcBoard, type Status } from "@/lib/fm/model";
+import { getFmSnapshot, getNcBoard, getRcpBoard } from "@/lib/fm/api";
+import { computeFm, fmtMin, nf, pct, TARGET, type AreaCard, type Bar, type FmSnapshot, type FmView, type NcBoard, type RcpBoard, type Status } from "@/lib/fm/model";
 import OpsBoard from "./OpsBoard";
 import s from "./fm.module.css";
 
@@ -25,6 +25,7 @@ const TABS = [
   { id: "canteen", label: "Kantin", dot: "#34d399" },
   { id: "atk", label: "ATK", dot: "#fbbf24" },
   { id: "nc", label: "Pelanggaran / NC", dot: "#fb7185" },
+  { id: "rcp", label: "Receptionist", dot: "#a78bfa" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -36,6 +37,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export default function CommandCenterPage() {
   const [snap, setSnap] = useState<FmSnapshot | null>(null);
   const [nc, setNc] = useState<NcBoard | null>(null);
+  const [rcp, setRcp] = useState<RcpBoard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [tab, setTab] = useState<TabId>("rapor");
@@ -58,7 +60,8 @@ export default function CommandCenterPage() {
   }, []);
 
   const load = useCallback(async () => {
-    const [a, b] = await Promise.allSettled([getFmSnapshot(), getNcBoard()]);
+    const [a, b, c] = await Promise.allSettled([getFmSnapshot(), getNcBoard(), getRcpBoard()]);
+    if (c.status === "fulfilled") setRcp(c.value);
     if (a.status === "fulfilled") { setSnap(a.value); setError(null); setLoadedAt(Date.now()); }
     else setError(a.reason instanceof Error ? a.reason.message : "Gagal memuat data");
     if (b.status === "fulfilled") setNc(b.value);
@@ -92,7 +95,7 @@ export default function CommandCenterPage() {
   };
 
   const minute = now ? Math.floor(now.getTime() / 60000) : 0;
-  const v: FmView | null = useMemo(() => (snap ? computeFm(snap, nc, Date.now()) : null), [snap, nc, minute]); // eslint-disable-line react-hooks/exhaustive-deps
+  const v: FmView | null = useMemo(() => (snap ? computeFm(snap, nc, Date.now(), rcp) : null), [snap, nc, rcp, minute]); // eslint-disable-line react-hooks/exhaustive-deps
   const ago = loadedAt && now ? Math.max(0, Math.round((now.getTime() - loadedAt) / 1000)) : null;
 
   return (
@@ -144,6 +147,7 @@ export default function CommandCenterPage() {
               {tab === "canteen" && <Canteen v={v} />}
               {tab === "atk" && <Atk v={v} />}
               {tab === "nc" && <Nc v={v} />}
+              {tab === "rcp" && <Rcp v={v} />}
             </>
           )}
         </main>
@@ -324,7 +328,7 @@ function Rapor({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
           </div>
         </div>
 
-        <div className={s.pulse}>
+        <div className={s.pulse} style={{ gridTemplateColumns: `repeat(${v.pulse.length}, minmax(0, 1fr))` }}>
           {v.pulse.map((p, i) => (
             <button key={p.key} type="button" className={`${s.pulseItem} ${s.rise}`} style={{ animationDelay: `${60 + i * 50}ms`, ["--c" as string]: p.tone ? STATUS_COLOR[p.tone] : "#5b8cff" }} onClick={() => onOpen(p.tab as TabId)}>
               <small>{p.label}</small>
@@ -446,6 +450,52 @@ function Atk({ v }: { v: FmView }) {
         <div className={s.card}>
           <div className={s.cardHead}><span className={s.lbl}>Per departemen · bulan ini</span></div>
           {a.depts.length === 0 ? <div className={s.empty}>Belum ada pemakaian bulan ini.</div> : a.depts.map((d) => <Meter key={d.k} name={d.k} value={`${nf(Number(d.n))} unit`} frac={Number(d.n) / Math.max(1, Number(a.depts[0].n))} />)}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ════════════════ 7 · RECEPTIONIST ════════════════ */
+function Rcp({ v }: { v: FmView }) {
+  const r = v.rcp;
+  if (!r) return <div className={s.empty}>Modul Receptionist belum aktif — jalankan supabase/031_receptionist.sql.</div>;
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const freePct = r.wifi.slots ? (r.free / r.wifi.slots) * 100 : 0;
+  return (
+    <>
+      <div className={s.kpis}>
+        <Kpi label="Slot wifi tamu tersedia" value={`${nf(r.free)} / ${nf(r.wifi.slots)}`} sub={`${nf(r.wifi.accounts)} akun berlaku · ${nf(r.wifi.expiring7)} habis ≤ 7 hari`} c={freePct < 15 ? "#fb7185" : freePct < 35 ? "#fbbf24" : "#34d399"} />
+        <Kpi label="Tamu wifi hari ini" value={nf(r.wifi.guests_today)} sub={`${nf(r.wifi.used)} slot sedang dipakai`} c="#5b8cff" />
+        <Kpi label="Barang menunggu" value={nf(r.parcels.waiting)} sub={`${nf(r.parcels.waiting_in)} masuk · ${nf(r.parcels.waiting_out)} keluar${r.parcels.waiting_old ? ` · ${nf(r.parcels.waiting_old)} > 2 hari` : ""}`} c={r.parcels.waiting_old ? "#fbbf24" : "#a78bfa"} />
+        <Kpi label="Booking Induction Room" value={nf(r.bookings.length)} sub={`hari ini · ${nf(r.bookings_week)} dalam 7 hari`} c="#34d399" />
+      </div>
+      <div className={s.grid2} style={{ alignItems: "start" }}>
+        <div className={s.card}>
+          <div className={s.cardHead}><span className={s.lbl}>Jadwal Induction Room hari ini</span></div>
+          {r.bookings.length === 0 ? <div className={s.empty}>Ruangan kosong hari ini.</div> : (
+            <ul className={s.list}>
+              {r.bookings.map((b, i) => {
+                const live = toMin(b.start) <= nowMin && nowMin < toMin(b.end), past = toMin(b.end) <= nowMin;
+                return (
+                  <li key={i} className={s.li} style={{ opacity: past ? 0.5 : 1, borderColor: live ? "#34d399" : undefined }}>
+                    <span className={s.liTime} style={{ minWidth: "6.6rem" }}>{b.start}–{b.end}</span>
+                    <span style={{ flex: 1 }}>{b.title}{b.attendees ? <span className={s.muted}> · {b.attendees} orang</span> : null}</span>
+                    {live && <Pill st="baik">Berlangsung</Pill>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <div className={s.card}>
+          <div className={s.cardHead}><span className={s.lbl}>Barang &amp; surat hari ini</span></div>
+          <div className={s.kpis} style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <div><div className={s.num} style={{ fontSize: "3rem" }}>{nf(r.parcels.in_today)}</div><div className={s.muted}>dicatat hari ini</div></div>
+            <div><div className={s.num} style={{ fontSize: "3rem" }}>{nf(r.parcels.handed_today)}</div><div className={s.muted}>diserahkan hari ini</div></div>
+          </div>
+          <Meter name="Slot wifi terpakai" value={`${nf(r.wifi.used)} dari ${nf(r.wifi.slots)}`} frac={r.wifi.slots ? r.wifi.used / r.wifi.slots : 0} color={freePct < 15 ? "#fb7185" : "#5b8cff"} />
         </div>
       </div>
     </>
