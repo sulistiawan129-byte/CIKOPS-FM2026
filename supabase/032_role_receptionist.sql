@@ -72,6 +72,9 @@ begin
   raise notice 'Profil receptionist@cikops.com siap: role receptionist, hanya menu Receptionist.';
 end $$;
 
+-- Minta API Supabase (PostgREST) memuat ulang daftar tabel/kolom/fungsi baru.
+notify pgrst, 'reload schema';
+
 -- 4) Cek hasil
 select u.email, p.full_name, p.role, p.allowed_tabs::text as allowed_tabs, p.is_master_admin
   from profiles p join auth.users u on u.id = p.id

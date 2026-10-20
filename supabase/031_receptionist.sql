@@ -458,3 +458,6 @@ begin
     execute format('grant execute on function %s to authenticated', f);
   end loop;
 end $$;
+
+-- Minta API Supabase (PostgREST) memuat ulang daftar tabel/kolom/fungsi baru.
+notify pgrst, 'reload schema';
