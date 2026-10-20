@@ -1,0 +1,6 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.jks
+app/src/main/res/drawable-nodpi/ic_launcher.png

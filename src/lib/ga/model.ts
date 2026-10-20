@@ -35,7 +35,7 @@ export interface GaTga {
   id: number | string; tanggal: string | null; namaTga: string; activity: string; requestBy: string;
   /** "excel" = hasil sinkron log Excel, "app" = dicatat teknisi lewat aplikasi /tga */
   source?: "excel" | "app";
-  refNo?: string; kategori?: string; lokasi?: string; departemen?: string; status?: string; prioritas?: string; jam?: string; catatan?: string;
+  refNo?: string; requestorLinked?: boolean; kategori?: string; lokasi?: string; departemen?: string; status?: string; prioritas?: string; jam?: string; catatan?: string;
 }
 export interface GaSyncStatus {
   lastSyncAt: string | null; lastComputer: string | null; lastPlanAt: string | null; lastMasterAt: string | null; lastLogsAt: string | null;

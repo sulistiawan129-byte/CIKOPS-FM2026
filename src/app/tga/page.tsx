@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./tga.module.css";
 import {
   TGA_CATEGORIES, TGA_STATUS, isSessionError, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
-  tgaRequestors, tgaSave, tgaStatusLabel, tgaStoredSession,
+  tgaCachedRequestors, tgaRequestors, tgaSave, tgaStatusLabel, tgaStoredSession,
   type TgaActivity, type TgaDraft, type TgaMyData, type TgaRequestor, type TgaStatus,
 } from "@/lib/tga/api";
 
@@ -44,11 +44,11 @@ const hueOf = (n: string) => [...n].reduce((h, c) => (h * 31 + c.charCodeAt(0)) 
 const firstName = (n: string) => n.split(/\s+/)[0] ?? n;
 
 function emptyDraft(today: string): TgaDraft {
-  return { tanggal: today, jam_mulai: nowHM(), jam_selesai: "", kategori: "", lokasi: "", activity: "", request_by: "", departemen: "", status: "selesai", prioritas: "normal", catatan: "" };
+  return { tanggal: today, jam_mulai: nowHM(), jam_selesai: "", kategori: "", lokasi: "", activity: "", request_by: "", requestor_id: null, departemen: "", status: "selesai", prioritas: "normal", catatan: "" };
 }
 const draftOf = (a: TgaActivity): TgaDraft => ({
   tanggal: a.tanggal, jam_mulai: a.jam_mulai ?? "", jam_selesai: a.jam_selesai ?? "", kategori: a.kategori, lokasi: a.lokasi, activity: a.activity,
-  request_by: a.request_by, departemen: a.departemen, status: a.status, prioritas: a.prioritas, catatan: a.catatan,
+  request_by: a.request_by, requestor_id: a.requestor_id ?? null, departemen: a.departemen, status: a.status, prioritas: a.prioritas, catatan: a.catatan,
 });
 
 export default function TgaAppPage() {
@@ -56,7 +56,7 @@ export default function TgaAppPage() {
   const [token, setToken] = useState("");
   const [tab, setTab] = useState<Tab>("home");
   const [data, setData] = useState<TgaMyData | null>(null);
-  const [requestors, setRequestors] = useState<TgaRequestor[]>([]);
+  const [requestors, setRequestors] = useState<TgaRequestor[]>(() => (typeof window === "undefined" ? [] : tgaCachedRequestors()));
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [form, setForm] = useState<{ id: string | null; draft: TgaDraft } | null>(null);
@@ -124,7 +124,17 @@ export default function TgaAppPage() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [screen, token, load]);
 
+  const formOpen = form !== null;
+  useEffect(() => {
+    if (formOpen && token) tgaRequestors(token).then(setRequestors).catch(() => {});
+  }, [formOpen, token]);
+
   const acts = useMemo(() => data?.activities ?? [], [data]);
+  const recentReqIds = useMemo(() => {
+    const seen: string[] = [];
+    acts.forEach((a) => { if (a.requestor_id && !seen.includes(a.requestor_id)) seen.push(a.requestor_id); });
+    return seen.slice(0, 6);
+  }, [acts]);
   const recentLokasi = useMemo(() => {
     const m = new Map<string, number>();
     acts.forEach((a) => { if (a.lokasi) m.set(a.lokasi, (m.get(a.lokasi) ?? 0) + 1); });
@@ -219,7 +229,7 @@ export default function TgaAppPage() {
       )}
 
       {form && (
-        <FormSheet key={form.id ?? "new"} id={form.id} initial={form.draft} today={today} recentLokasi={recentLokasi} requestors={requestors}
+        <FormSheet key={form.id ?? "new"} id={form.id} initial={form.draft} today={today} recentLokasi={recentLokasi} requestors={requestors} recentReqIds={recentReqIds}
           onClose={() => setForm(null)}
           onSave={async (draft) => {
             const r = await tgaSave(token, form.id, draft);
@@ -589,7 +599,7 @@ function Detail({ a, today, onClose, onDone, onEdit, onDelete }: {
           <div><dt>Tanggal</dt><dd>{fmtDay(a.tanggal, today)}</dd></div>
           <div><dt>Jam</dt><dd>{a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? ` – ${a.jam_selesai}` : ""}` : "—"}</dd></div>
           <div><dt>Lokasi</dt><dd>{a.lokasi || "—"}</dd></div>
-          <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}</dd></div>
+          <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}{a.request_by && !a.requestor_id ? <small> (di luar data karyawan)</small> : null}</dd></div>
           {a.catatan && <div className={s.dlWide}><dt>Catatan</dt><dd>{a.catatan}</dd></div>}
         </dl>
         <div className={s.sheetActions}>
@@ -605,24 +615,23 @@ function Detail({ a, today, onClose, onDone, onEdit, onDelete }: {
 }
 
 /* ════════════ FORM ════════════ */
-function FormSheet({ id, initial, today, recentLokasi, requestors, onClose, onSave, onSessionLost }: {
-  id: string | null; initial: TgaDraft; today: string; recentLokasi: string[]; requestors: TgaRequestor[];
+function FormSheet({ id, initial, today, recentLokasi, requestors, recentReqIds, onClose, onSave, onSessionLost }: {
+  id: string | null; initial: TgaDraft; today: string; recentLokasi: string[]; requestors: TgaRequestor[]; recentReqIds: string[];
   onClose: () => void; onSave: (d: TgaDraft) => Promise<void>; onSessionLost: () => void;
 }) {
   const [d, setD] = useState<TgaDraft>(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [reqOpen, setReqOpen] = useState(false);
+  const [picker, setPicker] = useState(false);
   const [more, setMore] = useState(Boolean(initial.catatan));
   const actRef = useRef<HTMLTextAreaElement>(null);
   const set = <K extends keyof TgaDraft>(k: K, v: TgaDraft[K]) => setD((x) => ({ ...x, [k]: v }));
   const cat = TGA_CATEGORIES.find((c) => c.id === d.kategori);
 
-  const reqMatches = useMemo(() => {
-    const q = d.request_by.trim().toLowerCase();
-    if (!q) return [];
-    return requestors.filter((r) => r.nama.toLowerCase().includes(q) && r.nama.toLowerCase() !== q).slice(0, 6);
-  }, [d.request_by, requestors]);
+  // Requestor terhubung ke Data Karyawan? (tanpa id = 035 belum dijalankan → cocokkan nama)
+  const emp = d.requestor_id
+    ? requestors.find((r) => r.id === d.requestor_id) ?? { id: d.requestor_id, nama: d.request_by, dept: d.departemen }
+    : requestors.find((r) => !r.id && r.nama === d.request_by);
 
   async function submit() {
     if (!d.activity.trim()) { setErr("Isi dulu kegiatan yang dikerjakan."); actRef.current?.focus(); return; }
@@ -674,24 +683,37 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, onClose, onSa
         </section>
 
         <section className={s.fSec}>
-          <label className={s.fLabel} htmlFor="tga-req"><span className={s.step}>4</span> Requestor</label>
-          <div className={s.twoCol}>
-            <div className={s.acWrap}>
-              <input id="tga-req" className={s.input} placeholder="Nama peminta" autoComplete="off" value={d.request_by}
-                onChange={(e) => { set("request_by", e.target.value); setReqOpen(true); }} onFocus={() => setReqOpen(true)} onBlur={() => setTimeout(() => setReqOpen(false), 150)} />
-              {reqOpen && reqMatches.length > 0 && (
-                <ul className={s.acList}>
-                  {reqMatches.map((r) => (
-                    <li key={r.nama}><button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setD((x) => ({ ...x, request_by: r.nama, departemen: r.dept || x.departemen })); setReqOpen(false); }}>
-                      <span className={s.avatarSm} style={{ ["--h" as string]: hueOf(r.nama) }}>{initials(r.nama)}</span>
-                      <b>{r.nama}</b>{r.dept && <small>{r.dept}</small>}
-                    </button></li>
-                  ))}
-                </ul>
-              )}
+          <label className={s.fLabel}><span className={s.step}>4</span> Requestor <span className={s.opt}>dari Data Karyawan</span></label>
+          {emp ? (
+            <div className={s.reqCard}>
+              <span className={s.avatar} style={{ ["--h" as string]: hueOf(emp.nama) }}>{initials(emp.nama)}</span>
+              <div className={s.reqInfo}>
+                <b>{emp.nama}</b>
+                <small>{[emp.jabatan, emp.dept || d.departemen].filter(Boolean).join(" · ") || "—"}</small>
+                <em className={s.reqLinked}>✓ Data karyawan{emp.nik ? ` · NIK ${emp.nik}` : ""}</em>
+              </div>
+              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>Ganti</button>
             </div>
-            <input className={s.input} placeholder="Departemen" value={d.departemen} onChange={(e) => set("departemen", e.target.value)} />
-          </div>
+          ) : d.request_by ? (
+            <div className={`${s.reqCard} ${s.reqGuest}`}>
+              <span className={s.avatar} style={{ ["--h" as string]: 30 }}>{initials(d.request_by)}</span>
+              <div className={s.reqInfo}>
+                <b>{d.request_by}</b>
+                <input className={s.inputSm} placeholder="Perusahaan / departemen" value={d.departemen} onChange={(e) => set("departemen", e.target.value)} />
+                <em className={s.reqOut}>Di luar data karyawan</em>
+              </div>
+              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>Ganti</button>
+            </div>
+          ) : (
+            <button type="button" className={s.reqPick} onClick={() => setPicker(true)}>
+              <span>👤</span>
+              <span><b>Pilih requestor</b><small>Cari nama, NIK, atau departemen karyawan</small></span>
+              <i>›</i>
+            </button>
+          )}
+          {(emp || d.request_by) && (
+            <button type="button" className={s.addNote} style={{ marginTop: 8 }} onClick={() => setD((x) => ({ ...x, request_by: "", requestor_id: null, departemen: "" }))}>✕ Kosongkan requestor</button>
+          )}
         </section>
 
         <section className={s.fSec}>
@@ -734,12 +756,91 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, onClose, onSa
         </section>
       </div>
 
+      {picker && (
+        <RequestorPicker requestors={requestors} recentIds={recentReqIds} current={d.requestor_id}
+          onClose={() => setPicker(false)}
+          onPick={(r) => { setD((x) => ({ ...x, request_by: r.nama, requestor_id: r.id ?? null, departemen: r.dept || "" })); setPicker(false); }}
+          onGuest={(nama) => { setD((x) => ({ ...x, request_by: nama, requestor_id: null, departemen: x.requestor_id ? "" : x.departemen })); setPicker(false); }} />
+      )}
+
       <footer className={s.formFoot}>
         {err && <div className={s.errBox}>{err}</div>}
         <button type="button" className={s.saveBtn} onClick={submit} disabled={busy}>
           {busy ? "Menyimpan…" : id ? "Simpan perubahan" : "Simpan kegiatan"}
         </button>
       </footer>
+    </div>
+  );
+}
+
+/* ════════════ PILIH REQUESTOR (Data Karyawan) ════════════ */
+function RequestorPicker({ requestors, recentIds, current, onClose, onPick, onGuest }: {
+  requestors: TgaRequestor[]; recentIds: string[]; current: string | null;
+  onClose: () => void; onPick: (r: TgaRequestor) => void; onGuest: (nama: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [dept, setDept] = useState("");
+  const depts = useMemo(() => {
+    const m = new Map<string, number>();
+    requestors.forEach((r) => { if (r.dept) m.set(r.dept, (m.get(r.dept) ?? 0) + 1); });
+    return [...m.entries()].sort((x, y) => y[1] - x[1]).map(([k]) => k);
+  }, [requestors]);
+  const needle = q.trim().toLowerCase();
+  const list = requestors.filter((r) => (!dept || r.dept === dept) &&
+    (!needle || [r.nama, r.nik, r.dept, r.jabatan].join(" ").toLowerCase().includes(needle)));
+  const recent = !needle && !dept ? recentIds.map((id) => requestors.find((r) => r.id === id)).filter((r): r is TgaRequestor => !!r) : [];
+  const exact = requestors.some((r) => r.nama.trim().toLowerCase() === needle);
+  const LIMIT = 120;
+
+  const Row = ({ r }: { r: TgaRequestor }) => (
+    <button type="button" className={`${s.empRow} ${r.id && r.id === current ? s.empOn : ""}`} onClick={() => onPick(r)}>
+      <span className={s.avatar} style={{ ["--h" as string]: hueOf(r.nama) }}>{initials(r.nama)}</span>
+      <span className={s.empInfo}>
+        <b>{r.nama}</b>
+        <small>{[r.jabatan, r.dept, r.nik && `NIK ${r.nik}`].filter(Boolean).join(" · ") || "—"}</small>
+      </span>
+      {r.id && r.id === current && <i className={s.empCheck}>✓</i>}
+    </button>
+  );
+
+  return (
+    <div className={s.pickerWrap}>
+      <header className={s.formHead}>
+        <button type="button" className={s.iconBtnDark} onClick={onClose} aria-label="Tutup">‹</button>
+        <div><b>Pilih requestor</b><small>{requestors.length} karyawan · Data Karyawan</small></div>
+      </header>
+      <div className={s.pickerTop}>
+        <div className={s.searchBox}>
+          <span>⌕</span>
+          <input autoFocus placeholder="Cari nama, NIK, departemen…" value={q} onChange={(e) => setQ(e.target.value)} />
+          {q && <button type="button" onClick={() => setQ("")} aria-label="Hapus pencarian">✕</button>}
+        </div>
+        {depts.length > 1 && (
+          <div className={s.chips}>
+            <button type="button" className={!dept ? s.chipOn : ""} onClick={() => setDept("")}>Semua</button>
+            {depts.map((x) => <button key={x} type="button" className={dept === x ? s.chipOn : ""} onClick={() => setDept(dept === x ? "" : x)}>{x}</button>)}
+          </div>
+        )}
+      </div>
+      <div className={s.pickerList}>
+        {recent.length > 0 && (
+          <>
+            <p className={s.pickerHead}>Sering meminta</p>
+            {recent.map((r) => <Row key={"r" + (r.id ?? r.nama)} r={r} />)}
+            <p className={s.pickerHead}>Semua karyawan</p>
+          </>
+        )}
+        {requestors.length === 0 && <div className={s.emptyBox}><b>Data karyawan belum tersedia</b><small>Minta admin mengisi Data Karyawan (Receptionist → Data Master), atau periksa koneksi.</small></div>}
+        {list.slice(0, LIMIT).map((r) => <Row key={r.id ?? r.nama} r={r} />)}
+        {list.length > LIMIT && <p className={s.count} style={{ textAlign: "center", padding: 10 }}>+{list.length - LIMIT} lainnya — ketik nama untuk mempersempit</p>}
+        {requestors.length > 0 && list.length === 0 && <p className={s.count} style={{ textAlign: "center", padding: 14 }}>Tidak ada karyawan yang cocok.</p>}
+        {needle && !exact && (
+          <button type="button" className={s.guestBtn} onClick={() => onGuest(q.trim())}>
+            <span>＋</span>
+            <span><b>Pakai &ldquo;{q.trim()}&rdquo;</b><small>Tamu / vendor — di luar data karyawan</small></span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

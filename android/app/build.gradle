@@ -1,0 +1,60 @@
+// Aplikasi Android pembungkus (Trusted Web Activity) untuk halaman CIKOPS.
+// Satu proyek untuk semua aplikasi — identitasnya diatur lewat -P saat build
+// (lihat .github/workflows/android-apk.yml):
+//   -PappId=com.cikops.tga -PappName="CIKOPS TGA" -PsiteUrl=https://domain -PstartPath=/tga
+//   -PthemeColor=#0f1b3d -PbgColor=#0f1b3d -PversionCode=12 -PversionName=1.0.12
+plugins { id "com.android.application" }
+
+def prop = { String k, String d -> project.hasProperty(k) ? project.property(k).toString() : d }
+def appId = prop("appId", "com.cikops.tga")
+def siteUrl = prop("siteUrl", "https://cikops-onefm.vercel.app").replaceAll('/+$', '')
+def startPath = prop("startPath", "/tga")
+def host = new URI(siteUrl).host
+
+android {
+    namespace "com.cikops.twa"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId appId
+        minSdk 21
+        targetSdk 34
+        versionCode prop("versionCode", "1").toInteger()
+        versionName prop("versionName", "1.0")
+
+        resValue "string", "app_name", prop("appName", "CIKOPS TGA")
+        resValue "string", "launch_url", siteUrl + startPath
+        manifestPlaceholders = [hostName: host, pathPrefix: startPath]
+        resValue "color", "theme_color", prop("themeColor", "#0f1b3d")
+        resValue "color", "bg_color", prop("bgColor", "#0f1b3d")
+        // Digital Asset Links: situs harus menyatakan aplikasi ini (/.well-known/assetlinks.json)
+        // supaya tampil layar penuh tanpa address bar.
+        resValue "string", "asset_statements",
+            "[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://" + host + "\"}}]"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("KEYSTORE_FILE") ?: "release.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
+            keyAlias System.getenv("KEY_ALIAS") ?: "cikops"
+            keyPassword System.getenv("KEY_PASSWORD") ?: ""
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "com.google.androidbrowserhelper:androidbrowserhelper:2.5.0"
+}

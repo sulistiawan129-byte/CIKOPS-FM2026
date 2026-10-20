@@ -650,7 +650,7 @@ function TgaView({ lang, rows, all, periode, manpower }: { lang: Lang; rows: GaT
                     {(t.kategori || t.lokasi || t.refNo) && <><br /><small className={a.mute}>{[t.kategori, t.lokasi && `📍 ${t.lokasi}`, t.refNo].filter(Boolean).join(" · ")}</small></>}
                     {t.catatan && <><br /><small className={a.mute}>📝 {t.catatan}</small></>}
                   </td>
-                  <td>{t.requestBy || "—"}{t.departemen && <><br /><small className={a.mute}>{t.departemen}</small></>}</td>
+                  <td>{t.requestBy || "—"}{(t.departemen || (t.source === "app" && t.requestBy)) && <><br /><small className={a.mute}>{[t.departemen, t.source === "app" && t.requestBy ? (t.requestorLinked ? L("✓ data karyawan", "✓ employee") : L("di luar data karyawan", "not in employee data")) : ""].filter(Boolean).join(" · ")}</small></>}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     {t.status ? <span className={a[TGA_ST[t.status]?.cls ?? "tagWeb"]}>{tgaSt(t, lang)}</span> : <span className={a.mute}>—</span>}
                     {t.prioritas === "urgent" && <> <span className={a.tagPending}>URGENT</span></>}

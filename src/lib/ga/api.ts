@@ -85,7 +85,7 @@ export async function getGaTga(): Promise<GaTga[]> {
   // Kegiatan yang dicatat teknisi lewat aplikasi /tga (034). Gagal/ belum dipasang → tetap tampilkan data Excel.
   const app: GaTga[] = await tgaAllActivities().then((rows) => rows.map((a) => ({
     id: a.id, tanggal: a.tanggal, namaTga: a.nama_tga, activity: a.activity, requestBy: a.request_by, source: "app" as const,
-    refNo: a.ref_no, kategori: a.kategori, lokasi: a.lokasi, departemen: a.departemen, status: a.status, prioritas: a.prioritas, catatan: a.catatan,
+    refNo: a.ref_no, requestorLinked: Boolean(a.requestor_id), kategori: a.kategori, lokasi: a.lokasi, departemen: a.departemen, status: a.status, prioritas: a.prioritas, catatan: a.catatan,
     jam: a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? `–${a.jam_selesai}` : ""}` : "",
   }))).catch(() => []);
   return [...app, ...excel].sort((x, y) => (y.tanggal ?? "").localeCompare(x.tanggal ?? ""));
