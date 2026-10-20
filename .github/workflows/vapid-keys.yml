@@ -1,0 +1,61 @@
+# Buat kunci VAPID untuk notifikasi push (Driver & TGA) — tanpa perlu install Node.js di komputer.
+# Cara pakai: GitHub → Actions → "Buat kunci notifikasi (VAPID)" → Run workflow.
+# Hasil: artifact "KUNCI-VAPID" (berlaku 1 hari) berisi Public & Private Key untuk Supabase Secrets.
+# Panduan: BACA-DULU-NOTIFIKASI.md
+name: Buat kunci notifikasi (VAPID)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/vapid-keys.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  vapid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Buat pasangan kunci
+        run: |
+          mkdir -p kunci
+          npx --yes web-push@3.6.7 generate-vapid-keys --json > keys.json
+          node -e '
+            const k = require("./keys.json");
+            const fs = require("fs");
+            fs.writeFileSync("kunci/VAPID_PUBLIC_KEY.txt", k.publicKey);
+            fs.writeFileSync("kunci/VAPID_PRIVATE_KEY.txt", k.privateKey);
+            fs.writeFileSync("kunci/CARA-PAKAI.txt", [
+              "Isi di Supabase -> Edge Functions -> Secrets -> Add new secret:",
+              "",
+              "VAPID_PUBLIC_KEY  = " + k.publicKey,
+              "VAPID_PRIVATE_KEY = " + k.privateKey,
+              "VAPID_SUBJECT     = mailto:email-ga-anda@perusahaan.com",
+              "",
+              "Private Key RAHASIA - jangan dibagikan. Setelah disimpan di Supabase, hapus file ini.",
+            ].join("\n"));
+          '
+          rm keys.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KUNCI-VAPID
+          path: kunci/
+          retention-days: 1
+
+      - name: Ringkasan
+        run: |
+          {
+            echo "## 🔑 Kunci notifikasi berhasil dibuat"
+            echo ""
+            echo "1. Unduh **KUNCI-VAPID** di bagian *Artifacts* di bawah (zip), buka file **CARA-PAKAI.txt**."
+            echo "2. Supabase → Edge Functions → **Secrets** → isi \`VAPID_PUBLIC_KEY\`, \`VAPID_PRIVATE_KEY\`, \`VAPID_SUBJECT\`."
+            echo "3. Hapus artifact ini setelah disimpan (artifact juga otomatis terhapus dalam 1 hari)."
+            echo ""
+            echo "> Cukup sekali. Menjalankan ulang akan membuat kunci BARU — jangan ganti kunci yang sudah dipakai."
+          } >> "$GITHUB_STEP_SUMMARY"
