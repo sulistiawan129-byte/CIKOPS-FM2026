@@ -16,12 +16,14 @@ import {
   type GcAgg, type Issue, type MonthTotals, type PelManual, type SecData, type TotalKey, type VehKey,
 } from "@/lib/security/model";
 import {
-  fetchGcCases, getSecurityConfig, getSecurityMonth, getSecurityMonths, pingGc, saveSecurityConfig, saveSecurityMonth, saveSecurityTotals,
-  type GcPing, type GcResult, type SecurityConfig,
+  fetchGcCases, fetchSecDesk, getSecurityConfig, getSecurityMonth, getSecurityMonths, pingGc, saveSecurityConfig, saveSecurityMonth, saveSecurityTotals,
+  type GcPing, type GcResult, type SdResult, type SecurityConfig,
 } from "@/lib/security/api";
+import { SECDESK_URL, type SdReport } from "@/lib/security/secdesk";
+import { GatePanel, PersonelView } from "./SecDeskViews";
 import s from "./security.module.css";
 
-type Tab = "ringkasan" | "kendaraan" | "transporter" | "pelanggaran" | "kejadian" | "visit" | "patroli" | "riwayat" | "pengaturan";
+type Tab = "ringkasan" | "kendaraan" | "transporter" | "pelanggaran" | "kejadian" | "visit" | "patroli" | "personel" | "riwayat" | "pengaturan";
 const TABS: { id: Tab; label: string; check?: boolean }[] = [
   { id: "ringkasan", label: "Ringkasan" },
   { id: "kendaraan", label: "Kendaraan All", check: true },
@@ -30,6 +32,7 @@ const TABS: { id: Tab; label: string; check?: boolean }[] = [
   { id: "kejadian", label: "Kejadian", check: true },
   { id: "visit", label: "Visit", check: true },
   { id: "patroli", label: "Patroli", check: true },
+  { id: "personel", label: "Personel & KPI" },
   { id: "riwayat", label: "Riwayat 12 bulan" },
   { id: "pengaturan", label: "Pengaturan" },
 ];
@@ -79,6 +82,8 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
   const [cfg, setCfg] = useState<SecurityConfig>({ khusus: DEFAULT_KHUSUS, driverNames: {} });
   const [gc, setGc] = useState<GcResult | null>(null);
   const [gcLoading, setGcLoading] = useState(false);
+  const [sd, setSd] = useState<SdResult | null>(null);
+  const [reloadN, setReloadN] = useState(0);
 
   const weeks = useMemo(() => weeksOfMonth(monthKey), [monthKey]);
   const wdDays = weeks.reduce((a, w) => a + w.wdDays, 0), weDays = weeks.reduce((a, w) => a + w.weDays, 0);
@@ -96,8 +101,10 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
     setLoading(true); setMsg(null); setDirty(false);
     (async () => {
       try {
-        const [cur, prev] = await Promise.all([getSecurityMonth(monthKey), getSecurityMonth(addMonthsKey(monthKey, -1))]);
+        if (reloadN) await fetchSecDesk(monthKey, monthKey, true);
+        const [cur, prev, sdRes] = await Promise.all([getSecurityMonth(monthKey), getSecurityMonth(addMonthsKey(monthKey, -1)), fetchSecDesk(monthKey, monthKey)]);
         if (!alive) return;
+        setSd(sdRes);
         setData(cur.data);
         setPrevT(monthTotals(prev.data));
       } catch (e) {
@@ -108,7 +115,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
     })();
     loadGc(monthKey);
     return () => { alive = false; };
-  }, [monthKey, loadGc]);
+  }, [monthKey, loadGc, reloadN]);
 
   useEffect(() => { getSecurityConfig().then(setCfg).catch(() => {}); }, []);
 
@@ -161,6 +168,8 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
   const kejManual = KEJ_CATS.reduce((a, c) => a + num(data.kej?.[c.id]), 0);
   const kejTotal = kejManual + num(data.tr?.sel) + agg.total;
   const pat = data.pat!;
+  const sdOn = !!data.sd;
+  const sdR: SdReport | null = sd && sd.ok ? sd.months[monthKey] ?? null : null;
   const done: Record<string, boolean> = {
     kendaraan: VEH_CATS.every((c) => vehSum(c.k) > 0),
     transporter: timbang > 0 && (bioTot === 0 || bioWeek === bioTot),
@@ -188,7 +197,9 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         <div className={s.headText}>
           <span className={s.kicker}>Security · Plant Cikarang</span>
           <h1>Laporan Security Bulanan</h1>
-          <p>Input rekap dari laporan security setiap tanggal 1. Angka otomatis masuk ke Report → Laporan Manajemen, modul Security. Pelanggaran transporter dibaca langsung dari G-C.</p>
+          <p>{sdOn
+            ? "Semua angka dibaca otomatis dari Security Desk (diisi tim security) dan pelanggaran transporter dari G-C. Tidak perlu input di sini — angka langsung masuk ke Report → Laporan Manajemen."
+            : "Input rekap dari laporan security setiap tanggal 1. Angka otomatis masuk ke Report → Laporan Manajemen, modul Security. Pelanggaran transporter dibaca langsung dari G-C."}</p>
         </div>
         <div className={s.headSide}>
           <div className={s.monthPick}>
@@ -228,6 +239,23 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
 
       {msg && <div className={msg.t === "ok" ? s.msgOk : s.msgErr} role="status">{msg.text}</div>}
 
+      <div className={sdOn ? s.sdOn : s.sdOff}>
+        <span className={s.sdIcon} aria-hidden="true">{sdOn ? "🔗" : "⚠"}</span>
+        <div>
+          <b>{sdOn ? "Tersinkron dengan Security Desk" : sd && !sd.ok ? "Security Desk belum tersambung" : "Security Desk belum ada data bulan ini"}</b>
+          <span>
+            {sdOn
+              ? `Data ${monthLabel(monthKey)} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
+              : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: BACA-DULU-SECURITY-DESK.md.`
+              : "Bulan ini belum diisi di Security Desk, jadi data CIKOPS (input manual) yang dipakai."}
+          </span>
+        </div>
+        <div className={s.sdBtns}>
+          <button type="button" className={s.ghostBtn} onClick={() => setReloadN((n) => n + 1)}>Sinkron ulang</button>
+          <a className={s.ghostBtn} href={SECDESK_URL} target="_blank" rel="noreferrer">Buka Security Desk ↗</a>
+        </div>
+      </div>
+
       {/* ═════ RINGKASAN ═════ */}
       {tab === "ringkasan" && (
         <section className={s.stack}>
@@ -243,13 +271,13 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
               <article key={c.id} className={s.card}>
                 <div className={s.cardHead}>
                   <b>{c.title}</b>
-                  <span className={done[c.id] ? s.badgeOk : s.badgeWarn}>{c.id === "pelanggaran" && gcOk ? "Sinkron G-C" : done[c.id] ? "Lengkap" : "Perlu dilengkapi"}</span>
+                  <span className={done[c.id] ? s.badgeOk : s.badgeWarn}>{c.id === "pelanggaran" && gcOk ? "Sinkron G-C" : sdOn && c.id !== "pelanggaran" ? (done[c.id] ? "Security Desk" : "Belum diisi di Security Desk") : done[c.id] ? "Lengkap" : "Perlu dilengkapi"}</span>
                 </div>
                 <div className={s.cardStats}>
                   {c.stats.map(([l, v]) => <div key={l}><small>{l}</small><strong>{v}</strong></div>)}
                 </div>
                 <span className={s.cardNote}>{c.note}</span>
-                <button type="button" className={s.ghostBtn} onClick={() => setTab(c.id)}>{c.id === "pelanggaran" && gcOk ? "Lihat data" : done[c.id] ? "Lihat / ubah" : "Lengkapi"}</button>
+                <button type="button" className={s.ghostBtn} onClick={() => setTab(c.id)}>{(c.id === "pelanggaran" && gcOk) || (sdOn && c.id !== "pelanggaran") ? "Lihat data" : done[c.id] ? "Lihat / ubah" : "Lengkapi"}</button>
               </article>
             ))}
           </div>
@@ -262,6 +290,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         </section>
       )}
 
+      <fieldset className={s.fs} disabled={sdOn}>
       {/* ═════ KENDARAAN ═════ */}
       {tab === "kendaraan" && (
         <section className={s.stack}>
@@ -354,6 +383,9 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         </section>
       )}
 
+      {tab === "transporter" && sdR && <GatePanel g={sdR.gate} />}
+      </fieldset>
+
       {/* ═════ PELANGGARAN ═════ */}
       {tab === "pelanggaran" && (
         <PelanggaranView
@@ -369,6 +401,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         />
       )}
 
+      <fieldset className={s.fs} disabled={sdOn}>
       {/* ═════ KEJADIAN ═════ */}
       {tab === "kejadian" && (
         <section className={s.stack}>
@@ -457,6 +490,11 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         </section>
       )}
 
+      </fieldset>
+
+      {/* ═════ PERSONEL & KPI (dari Security Desk) ═════ */}
+      {tab === "personel" && <PersonelView r={sdR} monthKey={monthKey} />}
+
       {tab === "riwayat" && <HistoryPanel monthKey={monthKey} onSaved={(text) => setMsg({ t: "ok", text })} onError={(text) => setMsg({ t: "err", text })} />}
 
       {tab === "pengaturan" && (
@@ -474,7 +512,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
       )}
 
       {/* simpan */}
-      {!["ringkasan", "riwayat", "pengaturan"].includes(tab) && !(tab === "pelanggaran" && gcOk) && (
+      {!["ringkasan", "personel", "riwayat", "pengaturan"].includes(tab) && !(tab === "pelanggaran" && gcOk) && !(sdOn && tab !== "pelanggaran") && (
         <div className={`${s.saveBar} ${dirty ? s.saveBarDirty : ""}`}>
           <span>{dirty ? "Ada perubahan yang belum disimpan." : `Data ${monthLabel(monthKey)}`}</span>
           <div className={s.saveBtns}>
