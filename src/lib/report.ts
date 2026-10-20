@@ -25,8 +25,6 @@ function formatDateOnly(isoDate: string): string {
    4. Detail lengkap setiap tugas
 ════════════════════════════════════════════════════════════ */
 
-type RGB = [number, number, number];
-
 /* ════════════════════════════════════════════════════════════
    KARANGAN BUNGA DUKA CITA — laporan khusus, terpisah dari
    laporan klaim reguler karena bukan pengeluaran per-driver.

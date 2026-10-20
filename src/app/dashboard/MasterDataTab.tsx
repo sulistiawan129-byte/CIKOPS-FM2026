@@ -4,15 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import styles from "./dashboard.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
-import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, addEmployee, updateEmployee, deleteEmployee, type EmployeeInput, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
-import type { Claim, Plant, DriverTier } from "@/lib/types";
+import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, addEmployee, updateEmployee, deleteEmployee, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
+import type { Plant, DriverTier } from "@/lib/types";
 import type { DriverType } from "@/lib/types";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf, DRIVER_TYPES, DRIVER_TYPE_LABEL, DRIVER_TYPE_COLOR } from "@/lib/duty";
-import type { Driver, Employee, JobType } from "@/lib/types";
+import type { Driver } from "@/lib/types";
 import { useLang } from "@/lib/providers";
 import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
 import { PLANT_COLOR } from "./dashboardShared";
 import { SkeletonRows } from "./TaskModals";
+import { CrudList, SettingsPage } from "@/components/settings/Settings";
 
 const AVATAR_EMOJIS = ["🧑", "👨", "👩", "🧔", "👨‍🦱", "👩‍🦱", "👨‍🦳", "👩‍🦳", "🧑‍✈️", "🕺"];
 
@@ -55,31 +56,31 @@ export function MasterDataTab({
   );
 }
 
-/* ── Settings sub-panel — currently just the manager notification
-   email used by the Claims email feature, but a natural home for any
-   future app-wide config. ── */
+/* ── Pengaturan aplikasi (model CRUD standar, src/components/settings) ──
+   Disimpan di app_settings. manager_email tetap diisi (dibaca Edge Function
+   email klaim & pengingat dokumen); nama penerima di manager_contacts. */
+interface ManagerContact extends Record<string, unknown> { email: string; nama: string }
+interface DriverUserRow extends Record<string, unknown> { id: string; nama: string; plant: string }
+
 function SettingsPanel({ cardStyle }: { cardStyle: CSSProperties }) {
-  const { lang, t } = useLang();
-  const [managerEmails, setManagerEmails] = useState<string[]>([]);
-  const [newManagerEmail, setNewManagerEmail] = useState("");
+  void cardStyle;
+  const [contacts, setContacts] = useState<ManagerContact[]>([]);
   const [driverUserIds, setDriverUserIds] = useState<string[]>([]);
   const [allDrivers, setAllDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const [me, du, drv] = await Promise.all([
-        getAppSetting("manager_email"),
-        getAppSetting("driver_user_ids"),
-        getAllDriversFull(),
+      const [me, mc, du, drv] = await Promise.all([
+        getAppSetting("manager_email"), getAppSetting("manager_contacts"), getAppSetting("driver_user_ids"), getAllDriversFull(),
       ]);
-      setManagerEmails(me ? me.split(",").map((e) => e.trim()).filter(Boolean) : []);
-      setDriverUserIds(du ? du.split(",").filter(Boolean) : []);
+      const emails = (me ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+      let named: ManagerContact[] = [];
+      try { named = mc ? (JSON.parse(mc) as ManagerContact[]) : []; } catch { named = []; }
+      setContacts(emails.map((email) => ({ email, nama: named.find((n) => n.email.toLowerCase() === email.toLowerCase())?.nama ?? "" })));
+      setDriverUserIds((du ?? "").split(",").filter(Boolean));
       setAllDrivers(drv);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal memuat pengaturan");
@@ -89,142 +90,65 @@ function SettingsPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  function toggleDriverUser(id: string) {
-    setDriverUserIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  async function saveContacts(next: ManagerContact[]) {
+    await Promise.all([
+      setAppSetting("manager_email", next.map((c) => c.email).join(",")),
+      setAppSetting("manager_contacts", JSON.stringify(next)),
+    ]);
+    setContacts(next);
   }
-
-  function addManagerEmail() {
-    const email = newManagerEmail.trim();
-    if (!email) return;
-    if (managerEmails.some((e) => e.toLowerCase() === email.toLowerCase())) {
-      setNewManagerEmail("");
-      return;
-    }
-    setManagerEmails((p) => [...p, email]);
-    setNewManagerEmail("");
+  async function saveDriverUsers(next: string[]) {
+    await setAppSetting("driver_user_ids", next.join(","));
+    setDriverUserIds(next);
   }
-
-  function removeManagerEmail(email: string) {
-    setManagerEmails((p) => p.filter((e) => e !== email));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setSaved(false);
-    try {
-      await Promise.all([
-        setAppSetting("manager_email", managerEmails.join(",")),
-        setAppSetting("driver_user_ids", driverUserIds.join(",")),
-      ]);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan pengaturan");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
+  const dup = (email: string, except?: string) => contacts.some((c) => c.email.toLowerCase() === email.toLowerCase() && c.email !== except);
 
   if (loading) return <SkeletonRows />;
+  const driverRows: DriverUserRow[] = driverUserIds.map((id) => {
+    const d = allDrivers.find((x) => x.id === id);
+    return { id, nama: d ? `${d.avatar_emoji || "🧑"} ${d.nama}` : "(driver sudah dihapus)", plant: d?.plant ?? "-" };
+  });
+  const driverOptions = allDrivers.filter((d) => !driverUserIds.includes(d.id)).map((d) => ({ value: d.id, label: `${d.nama} · ${d.plant}` }));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
-      <div className="statPop" style={{ ...cardStyle, padding: 24 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-          📧 {lang === "en" ? "Claim Email Notifications" : "Notifikasi Email Klaim"}
-        </div>
-        <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 18, lineHeight: 1.5 }}>
-          {lang === "en"
-            ? "Every time a claim is submitted, the driver gets a confirmation email and every manager address below gets a formal copy for record-keeping."
-            : "Setiap kali klaim diajukan, driver dapat email konfirmasi dan setiap alamat manager di bawah ini dapat salinan formal untuk dokumentasi."}
-        </div>
-
-        {error && <div style={{ padding: 10, borderRadius: 8, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 12.5 }}>{error}</div>}
-
-        <label>{lang === "en" ? "MANAGER EMAILS" : "EMAIL MANAGER"}</label>
-
-        {managerEmails.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-            {managerEmails.map((email) => (
-              <span
-                key={email}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px",
-                  borderRadius: "var(--pill)", background: "var(--bg2)", border: "1px solid var(--border2)",
-                  fontSize: 12.5, color: "var(--t1)",
-                }}
-              >
-                {email}
-                <button
-                  onClick={() => removeManagerEmail(email)}
-                  style={{ border: "none", background: "none", color: "var(--red)", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}
-                  title={lang === "en" ? "Remove" : "Hapus"}
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            className={styles.formInput}
-            type="email"
-            value={newManagerEmail}
-            onChange={(e) => setNewManagerEmail(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addManagerEmail(); } }}
-            placeholder="manager@company.com"
-          />
-          <button
-            onClick={addManagerEmail}
-            style={{ padding: "0 16px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
-          >
-            + {lang === "en" ? "Add" : "Tambah"}
-          </button>
-        </div>
-        {managerEmails.length === 0 && (
-          <div style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 6 }}>
-            {lang === "en"
-              ? "No manager email configured yet — claim copies won't be sent until you add at least one."
-              : "Belum ada email manager — salinan klaim tidak akan terkirim sampai kamu tambah minimal satu."}
-          </div>
-        )}
-      </div>
-
-      <div className="statPop" style={{ ...cardStyle, padding: 24 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-          🧾 {lang === "en" ? "Tanda Terima Export — Driver User List" : "Export Tanda Terima — Daftar Driver User"}
-        </div>
-        <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16, lineHeight: 1.5 }}>
-          {lang === "en"
-            ? "Drivers checked here get their own separate Tanda Terima recap file (different budgeting) when exporting per-week. Everyone else goes into the combined file."
-            : "Driver yang dicentang di sini akan mendapat file rekap Tanda Terima terpisah (budgeting beda) saat export per-minggu. Sisanya masuk ke file gabungan."}
-        </div>
-        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--border2)", borderRadius: 10 }}>
-          {allDrivers.length === 0 ? (
-            <div style={{ padding: 16, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>{t.actionNoDataYet}</div>
-          ) : (
-            allDrivers.map((d) => (
-              <label key={d.id} className="rowHover" style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer", fontSize: 13 }}>
-                <input type="checkbox" checked={driverUserIds.includes(d.id)} onChange={() => toggleDriverUser(d.id)} />
-                <span style={{ color: "var(--t1)" }}>{d.avatar_emoji || "🧑"} {d.nama}</span>
-              </label>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button className="pillBtn" onClick={handleSave} disabled={saving}>
-          {saving ? t.actionSaving : t.actionSave}
-        </button>
-        {saved && <span style={{ fontSize: 12.5, color: "var(--green)", fontWeight: 600 }}>✓ {lang === "en" ? "Saved" : "Tersimpan"}</span>}
-      </div>
-    </div>
+    <SettingsPage>
+      {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+      <CrudList<ManagerContact>
+        icon="📧" title="Penerima email manajer" itemName="penerima"
+        desc="Mendapat salinan setiap klaim yang diajukan dan pengingat dokumen kendaraan (KIR, servis, STNK)."
+        empty="Belum ada penerima — salinan klaim & pengingat dokumen tidak terkirim."
+        rows={contacts} rowKey={(r) => r.email}
+        columns={[
+          { label: "Email", render: (r) => <b>{r.email}</b> },
+          { label: "Nama / jabatan", render: (r) => r.nama || <span style={{ color: "var(--t3)" }}>—</span> },
+        ]}
+        fields={[
+          { key: "email", label: "Email", type: "email", required: true, placeholder: "manager@perusahaan.com" },
+          { key: "nama", label: "Nama / jabatan", placeholder: "mis. GA Manager" },
+        ]}
+        onCreate={async (v) => {
+          const email = String(v.email ?? "").trim();
+          if (dup(email)) throw new Error("Email ini sudah ada di daftar.");
+          await saveContacts([...contacts, { email, nama: String(v.nama ?? "").trim() }]);
+        }}
+        onUpdate={async (row, v) => {
+          const email = String(v.email ?? "").trim();
+          if (dup(email, row.email)) throw new Error("Email ini sudah ada di daftar.");
+          await saveContacts(contacts.map((c) => (c.email === row.email ? { email, nama: String(v.nama ?? "").trim() } : c)));
+        }}
+        onDelete={async (row) => { await saveContacts(contacts.filter((c) => c.email !== row.email)); }}
+      />
+      <CrudList<DriverUserRow>
+        icon="🧾" title="Driver user — Tanda Terima terpisah" itemName="driver"
+        desc="Driver di daftar ini mendapat file rekap Tanda Terima sendiri (budget berbeda) saat export per minggu. Driver lain masuk file gabungan."
+        empty="Belum ada driver user — semua driver masuk file gabungan."
+        rows={driverRows} rowKey={(r) => r.id}
+        columns={[{ label: "Driver", render: (r) => <b>{r.nama}</b> }, { label: "Plant", render: (r) => r.plant }]}
+        fields={[{ key: "id", label: "Driver", type: "select", required: true, options: driverOptions }]}
+        onCreate={async (v) => { await saveDriverUsers([...driverUserIds, String(v.id)]); }}
+        onDelete={async (row) => { await saveDriverUsers(driverUserIds.filter((x) => x !== row.id)); }}
+      />
+    </SettingsPage>
   );
 }
 
@@ -636,242 +560,69 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
   );
 }
 
-/* ── Employees sub-panel ── */
+interface EmployeeRow extends Record<string, unknown> { id: string; nama: string; departement: string }
+interface JobTypeRow extends Record<string, unknown> { id: string; label: string }
+
+/* ── Pegawai (dipakai Receptionist, aplikasi TGA & permintaan karyawan) ── */
 function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
-  const { lang, t } = useLang();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  void cardStyle;
+  const [rows, setRows] = useState<EmployeeRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Employee | null>(null);
-  const [formNama, setFormNama] = useState("");
-  const [formDept, setFormDept] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<Employee | null>(null);
-
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setEmployees(await getAllEmployeesFull());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data pegawai");
-    } finally {
-      setLoading(false);
-    }
+    try { setRows((await getAllEmployeesFull()).map((e) => ({ id: e.id, nama: e.nama, departement: e.departement ?? "" }))); setError(null); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); setRows([]); }
   }, []);
   useEffect(() => { load(); }, [load]);
-
-  function openAdd() { setEditing(null); setFormNama(""); setFormDept(""); setShowForm(true); }
-  function openEdit(e: Employee) { setEditing(e); setFormNama(e.nama); setFormDept(e.departement || ""); setShowForm(true); }
-  const canSave = formNama.trim() !== "";
-
-  async function handleSave() {
-    if (!canSave) return;
-    setSaving(true);
-    try {
-      const payload: EmployeeInput = { nama: formNama.trim(), departement: formDept.trim() || null };
-      if (editing) await updateEmployee(editing.id, payload);
-      else await addEmployee(payload);
-      setShowForm(false);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan pegawai");
-    } finally {
-      setSaving(false);
-    }
-  }
-  async function handleDelete() {
-    if (!confirmDelete) return;
-    try {
-      await deleteEmployee(confirmDelete.id);
-      setConfirmDelete(null);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus pegawai");
-    }
-  }
-
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
-
+  if (!rows) return <SkeletonRows />;
+  const depts = [...new Set(rows.map((r) => r.departement).filter(Boolean))].sort();
+  const input = (v: Partial<EmployeeRow>) => ({ nama: String(v.nama ?? "").trim(), departement: String(v.departement ?? "").trim() || null });
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: "var(--t3)" }}>{employees.length} {lang === "en" ? "employees total" : "total pegawai"}</div>
-        <button className="pillBtn" onClick={openAdd}>+ {lang === "en" ? "Add Employee" : "Tambah Pegawai"}</button>
+    <SettingsPage>
+      {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+      <div style={{ gridColumn: "1 / -1" }}>
+        <CrudList<EmployeeRow>
+          icon="👤" title="Pegawai" itemName="pegawai"
+          desc={`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan. ${depts.length} departemen.`}
+          rows={rows} rowKey={(r) => r.id}
+          columns={[{ label: "Nama", render: (r) => <b>{r.nama}</b> }, { label: "Departemen", render: (r) => r.departement || "—" }]}
+          fields={[
+            { key: "nama", label: "Nama", required: true },
+            { key: "departement", label: "Departemen", placeholder: depts.slice(0, 3).join(" / ") || "mis. GA" },
+          ]}
+          onCreate={async (v) => { await addEmployee(input(v)); await load(); }}
+          onUpdate={async (row, v) => { await updateEmployee(row.id, input(v)); await load(); }}
+          onDelete={async (row) => { await deleteEmployee(row.id); await load(); }}
+        />
       </div>
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-      <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-        {loading ? (
-          <SkeletonRows />
-        ) : employees.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
-        ) : (
-          employees.map((emp) => (
-            <div key={emp.id} className="rowHover" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{emp.nama}</div>
-              </div>
-              <div style={{ fontSize: 12, color: "var(--t2)" }}>{emp.departement || "-"}</div>
-              <button onClick={() => openEdit(emp)} style={{ border: "1px solid var(--border2)", background: "var(--surface2)", borderRadius: 8, padding: "6px 9px", cursor: "pointer", fontSize: 12 }}>✏️</button>
-              <button onClick={() => setConfirmDelete(emp)} style={{ border: "1px solid var(--red)", background: "var(--red-soft)", color: "var(--red)", borderRadius: 8, padding: "6px 9px", cursor: "pointer", fontSize: 12 }}>🗑️</button>
-            </div>
-          ))
-        )}
-      </div>
-
-      {showForm && (
-        <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={380}>
-          <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>{editing ? (lang === "en" ? "Edit Employee" : "Edit Pegawai") : (lang === "en" ? "Add Employee" : "Tambah Pegawai")}</div>
-            <div style={{ marginBottom: 12 }}>
-              <label>{lang === "en" ? "NAME" : "NAMA"} *</label>
-              <input className={styles.formInput} value={formNama} onChange={(e) => setFormNama(e.target.value)} />
-            </div>
-            <div style={{ marginBottom: 18 }}>
-              <label>{lang === "en" ? "DEPARTMENT" : "DEPARTEMEN"}</label>
-              <input className={styles.formInput} value={formDept} onChange={(e) => setFormDept(e.target.value)} />
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button className="pillBtn" onClick={handleSave} disabled={!canSave || saving} style={{ flex: 1, justifyContent: "center", opacity: canSave && !saving ? 1 : 0.5 }}>{saving ? t.actionSaving : t.actionSave}</button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-
-      {confirmDelete && (
-        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this employee?" : "Hapus pegawai ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}><strong style={{ color: "var(--t1)" }}>{confirmDelete.nama}</strong> {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.actionYesDelete}</button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-    </div>
+    </SettingsPage>
   );
 }
 
-/* ── Job Types sub-panel ── */
+/* ── Jenis pekerjaan (pilihan saat menugaskan driver) ── */
 function JobTypesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
-  const { lang, t } = useLang();
-  const [jobTypes, setJobTypes] = useState<JobType[]>([]);
-  const [loading, setLoading] = useState(true);
+  void cardStyle;
+  const [rows, setRows] = useState<JobTypeRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<JobType | null>(null);
-  const [formLabel, setFormLabel] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<JobType | null>(null);
-
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setJobTypes(await getAllJobTypesFull());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat jenis pekerjaan");
-    } finally {
-      setLoading(false);
-    }
+    try { setRows((await getAllJobTypesFull()).map((j) => ({ id: j.id, label: j.label }))); setError(null); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); setRows([]); }
   }, []);
   useEffect(() => { load(); }, [load]);
-
-  function openAdd() { setEditing(null); setFormLabel(""); setShowForm(true); }
-  function openEdit(j: JobType) { setEditing(j); setFormLabel(j.label); setShowForm(true); }
-  const canSave = formLabel.trim() !== "";
-
-  async function handleSave() {
-    if (!canSave) return;
-    setSaving(true);
-    try {
-      if (editing) await updateJobType(editing.id, formLabel.trim());
-      else await addJobType(formLabel.trim());
-      setShowForm(false);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan jenis pekerjaan");
-    } finally {
-      setSaving(false);
-    }
-  }
-  async function handleDelete() {
-    if (!confirmDelete) return;
-    try {
-      await deleteJobType(confirmDelete.id);
-      setConfirmDelete(null);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus jenis pekerjaan");
-    }
-  }
-
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
-
+  if (!rows) return <SkeletonRows />;
+  const dup = (label: string, except?: string) => rows.some((r) => r.label.toLowerCase() === label.toLowerCase() && r.id !== except);
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: "var(--t3)" }}>{jobTypes.length} {lang === "en" ? "job types total" : "total jenis pekerjaan"}</div>
-        <button className="pillBtn" onClick={openAdd}>+ {lang === "en" ? "Add Job Type" : "Tambah Jenis"}</button>
-      </div>
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-      <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-        {loading ? (
-          <SkeletonRows />
-        ) : jobTypes.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
-        ) : (
-          jobTypes.map((j) => (
-            <div key={j.id} className="rowHover" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{j.label}</div>
-              <button onClick={() => openEdit(j)} style={{ border: "1px solid var(--border2)", background: "var(--surface2)", borderRadius: 8, padding: "6px 9px", cursor: "pointer", fontSize: 12 }}>✏️</button>
-              <button onClick={() => setConfirmDelete(j)} style={{ border: "1px solid var(--red)", background: "var(--red-soft)", color: "var(--red)", borderRadius: 8, padding: "6px 9px", cursor: "pointer", fontSize: 12 }}>🗑️</button>
-            </div>
-          ))
-        )}
-      </div>
-
-      {showForm && (
-        <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>{editing ? (lang === "en" ? "Edit Job Type" : "Edit Jenis Pekerjaan") : (lang === "en" ? "Add Job Type" : "Tambah Jenis Pekerjaan")}</div>
-            <div style={{ marginBottom: 18 }}>
-              <label>LABEL *</label>
-              <input className={styles.formInput} value={formLabel} onChange={(e) => setFormLabel(e.target.value)} placeholder={lang === "en" ? "e.g. Internal Meeting" : "cth: Meeting Internal"} />
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button className="pillBtn" onClick={handleSave} disabled={!canSave || saving} style={{ flex: 1, justifyContent: "center", opacity: canSave && !saving ? 1 : 0.5 }}>{saving ? t.actionSaving : t.actionSave}</button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-
-      {confirmDelete && (
-        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this job type?" : "Hapus jenis pekerjaan ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}><strong style={{ color: "var(--t1)" }}>{confirmDelete.label}</strong> {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.actionYesDelete}</button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-    </div>
+    <SettingsPage>
+      {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+      <CrudList<JobTypeRow>
+        icon="🧰" title="Jenis pekerjaan" itemName="jenis pekerjaan"
+        desc="Pilihan jenis pekerjaan saat menugaskan driver (mis. Antar tamu, Ambil dokumen)."
+        rows={rows} rowKey={(r) => r.id}
+        columns={[{ label: "Jenis pekerjaan", render: (r) => <b>{r.label}</b> }]}
+        fields={[{ key: "label", label: "Jenis pekerjaan", required: true }]}
+        onCreate={async (v) => { const l = String(v.label).trim(); if (dup(l)) throw new Error("Jenis pekerjaan ini sudah ada."); await addJobType(l); await load(); }}
+        onUpdate={async (row, v) => { const l = String(v.label).trim(); if (dup(l, row.id)) throw new Error("Jenis pekerjaan ini sudah ada."); await updateJobType(row.id, l); await load(); }}
+        onDelete={async (row) => { await deleteJobType(row.id); await load(); }}
+      />
+    </SettingsPage>
   );
 }
-
-/* ════════════════════════════════════════════════════════════
-   CANTEEN — merged from the standalone Canteen Ops (GAS) system.
-   Same flow as the original: a daily entry form (per-shift order +
-   leftover for Snack/Meal), and a dashboard summarizing efficiency,
-   trends, and shift breakdown for the selected month.
-════════════════════════════════════════════════════════════ */

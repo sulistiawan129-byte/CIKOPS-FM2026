@@ -21,6 +21,7 @@ import {
 } from "@/lib/security/api";
 import { SECDESK_URL, type SdReport } from "@/lib/security/secdesk";
 import { GatePanel, PersonelView } from "./SecDeskViews";
+import { CrudList, SettingsPage } from "@/components/settings/Settings";
 import s from "./security.module.css";
 
 type Tab = "ringkasan" | "kendaraan" | "transporter" | "pelanggaran" | "kejadian" | "visit" | "patroli" | "personel" | "riwayat" | "pengaturan";
@@ -505,12 +506,10 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         <SettingsPanel
           cfg={cfg}
           onSaveKhusus={async (list) => {
-            try { await saveSecurityConfig("khusus_companies", list); setCfg({ ...cfg, khusus: list }); setMsg({ t: "ok", text: "Daftar perusahaan khusus tersimpan." }); }
-            catch (e) { setMsg({ t: "err", text: `Gagal menyimpan: ${e instanceof Error ? e.message : String(e)}` }); }
+            await saveSecurityConfig("khusus_companies", list); setCfg({ ...cfg, khusus: list });
           }}
           onSaveNames={async (names) => {
-            try { await saveSecurityConfig("driver_names", names); setCfg({ ...cfg, driverNames: names }); setMsg({ t: "ok", text: "Nama driver tersimpan." }); }
-            catch (e) { setMsg({ t: "err", text: `Gagal menyimpan: ${e instanceof Error ? e.message : String(e)}` }); }
+            await saveSecurityConfig("driver_names", names); setCfg({ ...cfg, driverNames: names });
           }}
         />
       )}
@@ -845,18 +844,20 @@ function HistoryPanel({ monthKey, onSaved, onError }: { monthKey: string; onSave
 }
 
 /* ═════════════ Pengaturan ═════════════ */
-function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig; onSaveKhusus: (l: string[]) => void; onSaveNames: (n: SecurityConfig["driverNames"]) => void }) {
-  const [list, setList] = useState(cfg.khusus);
-  const [add, setAdd] = useState("");
+interface KhususRow extends Record<string, unknown> { name: string }
+interface DriverNameRow extends Record<string, unknown> { hash: string; name: string; co: string }
+
+function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig; onSaveKhusus: (l: string[]) => Promise<void>; onSaveNames: (n: SecurityConfig["driverNames"]) => Promise<void> }) {
   const [ping, setPing] = useState<GcPing | null>(null);
   const [pinging, setPinging] = useState(false);
-  useEffect(() => { setList(cfg.khusus); }, [cfg.khusus]);
-  const names = Object.entries(cfg.driverNames);
+  const khusus: KhususRow[] = cfg.khusus.map((name) => ({ name }));
+  const names: DriverNameRow[] = Object.entries(cfg.driverNames).map(([hash, v]) => ({ hash, name: v.name, co: v.co || "" }));
+  const norm = (v: unknown) => String(v ?? "").trim().toUpperCase();
   return (
-    <section className={s.grid2}>
-      <div className={s.panel}>
-        <div className={s.panelHead}><div><h2>Koneksi G-C</h2><p>Pelanggaran transporter dibaca langsung dari database G-C (Security Desk), hanya membaca.</p></div></div>
-        <button type="button" className={s.primary} disabled={pinging} onClick={async () => { setPinging(true); setPing(await pingGc()); setPinging(false); }}>{pinging ? "Memeriksa…" : "Cek koneksi G-C"}</button>
+    <SettingsPage>
+      <section className={s.panel}>
+        <div className={s.panelHead}><div><h2>Koneksi G-C & Security Desk</h2><p>Data pelanggaran transporter dan laporan security dibaca langsung dari database Security Desk, hanya membaca.</p></div></div>
+        <button type="button" className={s.primary} disabled={pinging} onClick={async () => { setPinging(true); setPing(await pingGc()); setPinging(false); }}>{pinging ? "Memeriksa…" : "Cek koneksi"}</button>
         {ping && (
           <div className={ping.ok ? s.checkOk : s.checkWarn}>
             {ping.ok
@@ -864,32 +865,35 @@ function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig
               : `⚠ ${ping.configured ? "Gagal" : "Belum dikonfigurasi"}: ${ping.error || "-"}`}
           </div>
         )}
-        <p className={s.mute}>Cara menyambungkan: lihat docs/SETUP-OPERASIONAL.md (bab Security) (environment variable GC_* di Vercel).</p>
-      </div>
-      <div className={s.panel}>
-        <div className={s.panelHead}><div><h2>Perusahaan khusus</h2><p>Pelanggarannya dipisah di laporan (Becis & JMM). Tulis nama <b>persis</b> seperti di master supplier G-C.</p></div></div>
-        {list.map((k, i) => (
-          <div key={k} className={s.manualRow}>
-            <span>{k}</span>
-            <button type="button" className={s.iconBtn} aria-label={`Hapus ${k}`} onClick={() => setList(list.filter((_, j) => j !== i))}>✕</button>
-          </div>
-        ))}
-        <div className={s.manualRow}>
-          <input className={s.text} placeholder="PT. NAMA PERUSAHAAN" aria-label="Perusahaan khusus baru" value={add} onChange={(e) => setAdd(e.target.value)} />
-          <button type="button" className={s.smallBtn} onClick={() => { const v = add.trim().toUpperCase(); if (v && !list.includes(v)) setList([...list, v]); setAdd(""); }}>+ Tambah</button>
-        </div>
-        <button type="button" className={s.primary} disabled={JSON.stringify(list) === JSON.stringify(cfg.khusus)} onClick={() => onSaveKhusus(list)}>Simpan daftar</button>
-      </div>
-      <div className={`${s.panel} ${s.spanAll}`}>
-        <div className={s.panelHead}><div><h2>Nama driver (dari nomor SIM)</h2><p>G-C tidak menyimpan nama driver. Nama diberikan dari tab Pelanggaran Transporter; nomor SIM asli tidak disimpan di CIKOPS (hanya kode acak/hash).</p></div></div>
-        {names.length === 0 && <p className={s.empty}>Belum ada nama driver.</p>}
-        {names.map(([hash, v]) => (
-          <div key={hash} className={s.manualRow}>
-            <span><b>{v.name}</b> <small className={s.mute}>{v.co || ""} · kode {hash.slice(0, 6)}</small></span>
-            <button type="button" className={s.iconBtn} aria-label={`Hapus ${v.name}`} onClick={() => { const n = { ...cfg.driverNames }; delete n[hash]; onSaveNames(n); }}>✕</button>
-          </div>
-        ))}
-      </div>
-    </section>
+        <p className={s.mute}>Cara menyambungkan: docs/SETUP-OPERASIONAL.md, bab Security (environment variable GC_* di Vercel).</p>
+      </section>
+      <CrudList<KhususRow>
+        icon="🏢" title="Perusahaan khusus" itemName="perusahaan"
+        desc={<>Pelanggarannya dipisah di laporan (mis. Becis & JMM). Tulis nama <b>persis</b> seperti di master supplier G-C.</>}
+        rows={khusus} rowKey={(r) => r.name}
+        columns={[{ label: "Nama perusahaan", render: (r) => <b>{r.name}</b> }]}
+        fields={[{ key: "name", label: "Nama perusahaan", required: true, placeholder: "PT. NAMA PERUSAHAAN" }]}
+        onCreate={async (v) => { const n = norm(v.name); if (cfg.khusus.includes(n)) throw new Error("Perusahaan ini sudah ada."); await onSaveKhusus([...cfg.khusus, n]); }}
+        onUpdate={async (row, v) => { const n = norm(v.name); if (n !== row.name && cfg.khusus.includes(n)) throw new Error("Perusahaan ini sudah ada."); await onSaveKhusus(cfg.khusus.map((k) => (k === row.name ? n : k))); }}
+        onDelete={async (row) => { await onSaveKhusus(cfg.khusus.filter((k) => k !== row.name)); }}
+      />
+      <CrudList<DriverNameRow>
+        icon="🪪" title="Nama driver transporter" itemName="nama driver"
+        desc="G-C tidak menyimpan nama driver. Nama ditautkan ke kode acak dari nomor SIM (nomor SIM asli tidak disimpan). Nama baru diberikan dari tab Pelanggaran Transporter."
+        empty="Belum ada nama driver."
+        rows={names} rowKey={(r) => r.hash}
+        columns={[
+          { label: "Nama", render: (r) => <b>{r.name}</b> },
+          { label: "Perusahaan", render: (r) => r.co || "—" },
+          { label: "Kode", render: (r) => <code>{r.hash.slice(0, 6)}</code> },
+        ]}
+        fields={[
+          { key: "name", label: "Nama driver", required: true },
+          { key: "co", label: "Perusahaan", type: "select", options: cfg.khusus.map((k) => ({ value: k, label: k })) },
+        ]}
+        onUpdate={async (row, v) => { await onSaveNames({ ...cfg.driverNames, [row.hash]: { name: String(v.name).trim(), co: String(v.co ?? "") || undefined } }); }}
+        onDelete={async (row) => { const n = { ...cfg.driverNames }; delete n[row.hash]; await onSaveNames(n); }}
+      />
+    </SettingsPage>
   );
 }
