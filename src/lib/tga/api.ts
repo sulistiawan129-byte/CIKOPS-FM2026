@@ -16,6 +16,8 @@ export interface TgaActivity {
   lokasi: string;
   activity: string;
   request_by: string;
+  /** Terhubung ke Data Karyawan (employees.id); null = di luar data karyawan */
+  requestor_id?: string | null;
   departemen: string;
   status: TgaStatus;
   prioritas: TgaPriority;
@@ -33,6 +35,7 @@ export interface TgaDraft {
   lokasi: string;
   activity: string;
   request_by: string;
+  requestor_id: string | null;
   departemen: string;
   status: TgaStatus;
   prioritas: TgaPriority;
@@ -40,7 +43,8 @@ export interface TgaDraft {
 }
 
 export interface TgaMyData { nama: string; today: string; activities: TgaActivity[]; month_count: number }
-export interface TgaRequestor { nama: string; dept: string }
+/** Karyawan dari Data Karyawan (employees). id kosong bila 035 belum dijalankan. */
+export interface TgaRequestor { id?: string; nama: string; dept: string; nik?: string; jabatan?: string }
 
 export interface TgaUserRow {
   id: string;
@@ -125,7 +129,16 @@ export async function tgaLogout(token: string) {
 export const tgaMyData = (token: string, days = 60) => rpc<TgaMyData>("tga_my_data", { p_token: token, p_days: days });
 export const tgaSave = (token: string, id: string | null, d: TgaDraft) => rpc<TgaActivity>("tga_save_activity", { p_token: token, p_id: id, p_data: d });
 export const tgaDelete = (token: string, id: string) => rpc<null>("tga_delete_activity", { p_token: token, p_id: id });
-export const tgaRequestors = (token: string) => rpc<TgaRequestor[]>("tga_requestors", { p_token: token }).then((d) => d ?? []);
+const REQ_CACHE = "cikops_tga_requestors";
+/** Cache daftar karyawan di HP supaya pemilih requestor langsung tampil (diperbarui tiap form dibuka). */
+export function tgaCachedRequestors(): TgaRequestor[] {
+  try { return JSON.parse(localStorage.getItem(REQ_CACHE) ?? "[]") as TgaRequestor[]; } catch { return []; }
+}
+export const tgaRequestors = (token: string) => rpc<TgaRequestor[]>("tga_requestors", { p_token: token }).then((d) => {
+  const list = d ?? [];
+  try { localStorage.setItem(REQ_CACHE, JSON.stringify(list)); } catch { /* penuh / privat */ }
+  return list;
+});
 
 // ── Admin (dashboard, login Supabase) ──
 export const tgaAdminUsers = () => rpc<TgaUserRow[]>("tga_admin_users").then((d) => d ?? []);
