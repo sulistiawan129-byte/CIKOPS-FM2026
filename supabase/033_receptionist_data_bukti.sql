@@ -14,6 +14,8 @@
 -- ═══════════════════════════════════════════════════════════════
 
 -- ── 1) Data karyawan ──
+-- (nik ikut ditambahkan: di sebagian database tabel employees dibuat tanpa kolom ini)
+alter table employees add column if not exists nik        text;
 alter table employees add column if not exists email      text;
 alter table employees add column if not exists no_hp      text;
 alter table employees add column if not exists jabatan    text;
