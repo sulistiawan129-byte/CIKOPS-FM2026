@@ -5,25 +5,32 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModalPortal } from "@/components/ModalPortal";
-import { bookRoom, deleteBooking, getBookings, updateBooking } from "@/lib/receptionist/api";
+import { bookRoom, deleteBooking, emailBooking, getBookingSeries, getBookings, updateBooking } from "@/lib/receptionist/api";
 import {
   addDays, fmtDate, fromMin, overlaps, parseISO, repeatDates, toMin, todayISO, weekStart,
-  type RcpSettings, type RepeatMode, type RoomBooking,
+  receiptFromBooking, type RcpSettings, type RepeatMode, type RoomBooking,
 } from "@/lib/receptionist/model";
-import { ExportButtons, NameInput, col, type Directory } from "./shared";
+import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./shared";
+import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
 
 const DOW = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 const SLOT_PX = 26;
 
-interface Draft { id?: string; seriesId?: string | null; date: string; start: string; end: string; title: string; pic: string; department: string; attendees: string; notes: string; repeat: RepeatMode; until: string; count: number }
+interface Draft { id?: string; seriesId?: string | null; date: string; start: string; end: string; title: string; pic: string; email: string; department: string; attendees: string; notes: string; repeat: RepeatMode; until: string; count: number }
 
 export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSettings; dir: Directory; onChanged: () => void }) {
   const [week, setWeek] = useState(weekStart(todayISO()));
   const [rows, setRows] = useState<RoomBooking[]>([]);
   const [err, setErr] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [proof, setProof] = useState<{ b: RoomBooking; series: RoomBooking[]; note?: string } | null>(null);
   const [now, setNow] = useState(new Date());
+  async function openProof(b: RoomBooking, series?: RoomBooking[], note?: string) {
+    let ss = series ?? [];
+    if (!series && b.seriesId) { try { ss = await getBookingSeries(b.seriesId); } catch { ss = []; } }
+    setProof({ b, series: ss, note });
+  }
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(week, i)), [week]);
 
   const load = useCallback(async () => {
@@ -42,7 +49,7 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
     // 1 jam, tapi dipendekkan bila menabrak booking berikutnya di hari itu
     const nextStart = rows.filter((b) => b.date === date && toMin(b.start) > startMin).map((b) => toMin(b.start)).sort((a, b) => a - b)[0] ?? close;
     const end = Math.min(close, nextStart, startMin + Math.max(60, step));
-    setDraft({ date, start: fromMin(startMin), end: fromMin(end), title: "", pic: "", department: "", attendees: "", notes: "", repeat: "none", until: addDays(date, 28), count: 0 });
+    setDraft({ date, start: fromMin(startMin), end: fromMin(end), title: "", pic: "", email: "", department: "", attendees: "", notes: "", repeat: "none", until: addDays(date, 28), count: 0 });
   }
   /** "+ Booking": slot kosong pertama minggu ini (hari ini mulai dari jam sekarang). */
   function quickNew() {
@@ -56,7 +63,7 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
     newAt(startDay, open);
   }
   function edit(b: RoomBooking) {
-    setDraft({ id: b.id, seriesId: b.seriesId, date: b.date, start: b.start, end: b.end, title: b.title, pic: b.pic, department: b.department, attendees: b.attendees ? String(b.attendees) : "", notes: b.notes, repeat: "none", until: b.date, count: 0 });
+    setDraft({ id: b.id, seriesId: b.seriesId, date: b.date, start: b.start, end: b.end, title: b.title, pic: b.pic, email: b.picEmail, department: b.department, attendees: b.attendees ? String(b.attendees) : "", notes: b.notes, repeat: "none", until: b.date, count: 0 });
   }
 
   const weekLabel = `${fmtDate(days[0], { day: "numeric", month: "short" })} – ${fmtDate(days[6], { day: "numeric", month: "short", year: "numeric" })}`;
@@ -124,13 +131,20 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
         })}
       </div>
 
-      {draft && <BookingModal draft={draft} setDraft={setDraft} settings={settings} dir={dir} weekRows={rows} onDone={async () => { setDraft(null); await load(); onChanged(); }} />}
+      {draft && <BookingModal draft={draft} setDraft={setDraft} settings={settings} dir={dir} weekRows={rows}
+        onProof={(b) => { setDraft(null); openProof(b); }}
+        onDone={async (created) => { setDraft(null); await load(); onChanged(); if (created?.first) openProof(created.first, created.series); }} />}
+      {proof && (
+        <ProofModal data={receiptFromBooking(proof.b, proof.series)} token={proof.b.shareToken || undefined} email={proof.b.picEmail} phone={lookupPerson(dir, proof.b.pic)?.phone}
+          onEmail={proof.b.picEmail ? () => emailBooking(proof.b, proof.b.picEmail, proof.series.length || 1) : undefined} onClose={() => setProof(null)} />
+      )}
     </section>
   );
 }
 
-function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
-  draft: Draft; setDraft: (d: Draft | null) => void; settings: RcpSettings; dir: Directory; weekRows: RoomBooking[]; onDone: () => Promise<void>;
+function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone, onProof }: {
+  draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft | null>>; settings: RcpSettings; dir: Directory; weekRows: RoomBooking[];
+  onDone: (created?: { first: RoomBooking | null; series: RoomBooking[] }) => Promise<void>; onProof: (b: RoomBooking) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -163,12 +177,18 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
     try {
       const att = draft.attendees.trim() ? Math.max(0, parseInt(draft.attendees, 10) || 0) : null;
       if (draft.id) {
-        await updateBooking(draft.id, { date: draft.date, start: draft.start, end: draft.end, title: draft.title, pic: draft.pic, department: draft.department, attendees: att, notes: draft.notes });
+        await updateBooking(draft.id, { date: draft.date, start: draft.start, end: draft.end, title: draft.title, pic: draft.pic, email: draft.email, department: draft.department, attendees: att, notes: draft.notes });
+        await onDone();
       } else {
-        const res = await bookRoom({ slots: dates.map((d) => ({ date: d, start: draft.start, end: draft.end })), title: draft.title, pic: draft.pic, department: draft.department, attendees: att, notes: draft.notes, skipConflicts: skip });
-        if (res.skipped.length) alert(`${res.created} booking dibuat. ${res.skipped.length} tanggal dilewati karena bentrok:\n` + res.skipped.map((x) => `• ${fmtDate(x.date)} — ${x.reason}`).join("\n"));
+        const res = await bookRoom({ slots: dates.map((d) => ({ date: d, start: draft.start, end: draft.end })), title: draft.title, pic: draft.pic, email: draft.email, department: draft.department, attendees: att, notes: draft.notes, skipConflicts: skip });
+        const notes: string[] = [];
+        if (res.skipped.length) notes.push(`${res.skipped.length} tanggal dilewati karena bentrok:\n` + res.skipped.map((x) => `• ${fmtDate(x.date)} — ${x.reason}`).join("\n"));
+        if (res.first && draft.email.trim()) {
+          try { await emailBooking(res.first, draft.email.trim(), res.series.length || 1); } catch (e) { notes.push(e instanceof Error ? e.message : String(e)); }
+        }
+        if (notes.length) alert(`${res.created} booking dibuat.\n\n${notes.join("\n\n")}`);
+        await onDone({ first: res.first, series: res.series });
       }
-      await onDone();
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
   async function remove(series: boolean) {
@@ -188,8 +208,9 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
         <div className={r.form}>
           <div className={r.section}>Detail</div>
           <label className={`${r.field} ${r.full}`}><span>Keperluan *</span><input className={r.input} value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="mis. Induction karyawan baru" autoFocus /></label>
-          <label className={r.field}><span>PIC</span><NameInput dir={dir} value={draft.pic} onChange={(v) => set("pic", v)} onPick={(p) => p.department && !draft.department && set("department", p.department)} placeholder="Yang meminta" /></label>
+          <label className={r.field}><span>PIC</span><NameInput dir={dir} value={draft.pic} onChange={(v) => set("pic", v)} onPick={(p) => setDraft((d) => (d ? { ...d, email: p.email || d.email, department: p.department || d.department } : d))} placeholder="Yang meminta" /></label>
           <label className={r.field}><span>Departemen</span><input className={r.input} value={draft.department} onChange={(e) => set("department", e.target.value)} /></label>
+          <label className={`${r.field} ${r.full}`}><span>Email PIC <em>(konfirmasi & bukti booking dikirim ke sini)</em></span><input className={r.input} type="email" value={draft.email} onChange={(e) => set("email", e.target.value)} placeholder="nama@perusahaan.com" /></label>
           <div className={r.section}>Waktu</div>
           <label className={r.field}><span>Tanggal</span><input className={r.input} type="date" value={draft.date} min={draft.id ? undefined : todayISO()} onChange={(e) => e.target.value && set("date", e.target.value)} /></label>
           <label className={r.field}><span>Jumlah peserta</span><input className={r.input} type="number" min={0} value={draft.attendees} onChange={(e) => set("attendees", e.target.value)} /></label>
@@ -228,6 +249,7 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone }: {
         <div className={r.modalFoot}>
           {draft.id && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(false)}>Hapus</button>}
           {draft.id && draft.seriesId && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(true)}>Hapus seri berikutnya</button>}
+          {draft.id && (() => { const b = known.find((x) => x.id === draft.id) ?? weekRows.find((x) => x.id === draft.id); return b ? <button type="button" className={r.proofBtn} style={{ minHeight: 38 }} onClick={() => onProof(b)}>🧾 Bukti</button> : null; })()}
           {!draft.id && <span className={r.hint}>Otomatis muncul di Kalender &amp; Agenda.</span>}
           <span className={r.grow} />
           <button type="button" className={r.ghost} onClick={() => setDraft(null)}>Batal</button>
