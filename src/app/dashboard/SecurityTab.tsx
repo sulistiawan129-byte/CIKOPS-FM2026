@@ -109,7 +109,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
         setData(cur.data);
         setPrevT(monthTotals(prev.data));
       } catch (e) {
-        if (alive) { setData(normalizeData(monthKey, null)); setMsg({ t: "err", text: `Gagal memuat data: ${e instanceof Error ? e.message : String(e)}. Pastikan SQL 021 sudah dijalankan.` }); }
+        if (alive) { setData(normalizeData(monthKey, null)); setMsg({ t: "err", text: `Gagal memuat data: ${e instanceof Error ? e.message : String(e)}. Pastikan SQL 01_dasar bagian 021 sudah dijalankan.` }); }
       } finally {
         if (alive) setLoading(false);
       }
@@ -247,7 +247,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           <span>
             {sdOn
               ? `Data ${monthLabel(monthKey)}${sd && sd.ok && sd.site ? ` · site ${sd.site}` : ""} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
-              : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: docs/SETUP-OPERASIONAL.md (bab Security).`
+              : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: docs/PANDUAN.md (bab Security).`
               : sd && sd.ok && sd.sites && !sd.sites.length
                 ? "Akun pembaca CIKOPS tidak bisa melihat site mana pun di Security Desk. Beri peran Management ke akun GC_READER_EMAIL (menu Pengguna)."
               : sd && sd.ok && sd.sites && !sd.sites.some((x) => x.n > 0)
@@ -556,7 +556,7 @@ function PelanggaranView({ gc, gcLoading, agg, cfg, monthKey, data, onResync, on
         <div className={s.syncWarn}>
           <div>
             <b>{gc && !gc.ok && gc.notConfigured ? "Sinkron G-C belum dikonfigurasi" : "G-C tidak dapat dihubungi"}</b>
-            <span>{gc && !gc.ok ? gc.error : "Memeriksa koneksi…"} — sementara pakai input manual di bawah. Panduan: docs/SETUP-OPERASIONAL.md (bab Security).</span>
+            <span>{gc && !gc.ok ? gc.error : "Memeriksa koneksi…"} — sementara pakai input manual di bawah. Panduan: docs/PANDUAN.md (bab Security).</span>
           </div>
           <button type="button" className={s.ghostBtn} disabled={gcLoading} onClick={onResync}>{gcLoading ? "Mencoba…" : "Coba lagi"}</button>
         </div>
@@ -865,7 +865,7 @@ function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig
               : `⚠ ${ping.configured ? "Gagal" : "Belum dikonfigurasi"}: ${ping.error || "-"}`}
           </div>
         )}
-        <p className={s.mute}>Cara menyambungkan: docs/SETUP-OPERASIONAL.md, bab Security (environment variable GC_* di Vercel).</p>
+        <p className={s.mute}>Cara menyambungkan: docs/PANDUAN.md, bab Security (environment variable GC_* di Vercel).</p>
       </section>
       <CrudList<KhususRow>
         icon="🏢" title="Perusahaan khusus" itemName="perusahaan"

@@ -1,5 +1,5 @@
 // Aplikasi TGA (teknisi GA): login nama + PIN, catat kegiatan harian.
-// Semua lewat RPC SECURITY DEFINER (034_tga_app.sql) — teknisi tidak butuh akun Supabase.
+// Semua lewat RPC SECURITY DEFINER (supabase/01_dasar.sql (bagian 034)) — teknisi tidak butuh akun Supabase.
 import { supabase } from "@/lib/supabaseClient";
 
 export type TgaStatus = "selesai" | "proses" | "pending" | "butuh_part" | "baru" | "batal";
@@ -110,7 +110,7 @@ function storeSession(token: string | null, nama = "") {
 function friendly(e: { message?: string; code?: string } | null): Error {
   const msg = e?.message ?? "Terjadi kesalahan.";
   if (e?.code === "PGRST202" || e?.code === "42883" || /could not find the function/i.test(msg)) {
-    return new Error("Aplikasi TGA belum aktif — admin perlu menjalankan supabase/034_tga_app.sql.");
+    return new Error("Aplikasi TGA belum aktif — admin perlu menjalankan supabase/01_dasar.sql (bagian 034).");
   }
   if (/failed to fetch|network/i.test(msg)) return new Error("Tidak ada koneksi internet. Coba lagi.");
   return new Error(msg);

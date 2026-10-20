@@ -1,7 +1,7 @@
 "use client";
 
 /* Akun aplikasi TGA (/tga): admin GA membuat nama + PIN untuk tiap teknisi.
-   Data lewat RPC tga_admin_* (034_tga_app.sql) — PIN disimpan sebagai hash bcrypt. */
+   Data lewat RPC tga_admin_* (supabase/01_dasar.sql (bagian 034)) — PIN disimpan sebagai hash bcrypt. */
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useState } from "react";

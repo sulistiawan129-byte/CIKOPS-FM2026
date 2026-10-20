@@ -4,7 +4,7 @@
    RECEPTIONIST — pilar Fasilitas.
    Dashboard (wifi, barang menunggu, booking hari ini) · Wifi Guest ·
    Barang & Surat · Induction Room · Pengaturan.
-   Database: supabase/031_receptionist.sql · Email: send-receptionist-email.
+   Database: supabase/01_dasar.sql (bagian 031) · Email: send-receptionist-email.
 ════════════════════════════════════════════════════════════ */
 
 import { SettingsGroup, SettingsPage } from "@/components/settings/Settings";

@@ -160,8 +160,8 @@ serve(async (req) => {
           .eq("threshold", threshold)
           .eq("doc_date", dateVal)
           .maybeSingle();
-        // tabel riwayat wajib ada (SQL 041), kalau tidak email yang sama terkirim setiap hari
-        if (exErr) throw new Error(`vehicle_doc_notifications: ${exErr.message}. Jalankan supabase/041_pengingat_dokumen.sql.`);
+        // tabel riwayat wajib ada (SQL 02_peran_keamanan bagian 041), kalau tidak email yang sama terkirim setiap hari
+        if (exErr) throw new Error(`vehicle_doc_notifications: ${exErr.message}. Jalankan supabase/02_peran_keamanan.sql (bagian 041).`);
 
         if (existing) continue;
 

@@ -189,7 +189,7 @@ export function ProofModal({ data, token, email, phone, onEmail, onClose }: {
           <button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button>
         </div>
         <div style={{ ["--hole" as string]: "var(--surface2)" }}><ProofCard data={data} token={token} innerRef={ref} /></div>
-        {!token && <div className={r.warn}>Tautan publik belum tersedia — jalankan supabase/033_receptionist_data_bukti.sql. Cetak tetap bisa.</div>}
+        {!token && <div className={r.warn}>Tautan publik belum tersedia — jalankan supabase/01_dasar.sql (bagian 033). Cetak tetap bisa.</div>}
         {msg && <div className={msg.ok ? r.ok : r.err}>{msg.text}</div>}
         <div className={r.proofActions}>
           <button type="button" className={r.btn} onClick={() => printTicket(ref.current, data.receipt_no)}>🖨 Cetak</button>

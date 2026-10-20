@@ -836,7 +836,7 @@ export async function updateClaim(id: string, input: AddClaimInput): Promise<voi
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) {
-    throw new Error("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/019_claims_update.sql di Supabase SQL Editor.");
+    throw new Error("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/01_dasar.sql (bagian 019) di Supabase SQL Editor.");
   }
 }
 
@@ -1409,7 +1409,7 @@ export async function deleteEmployeeRequest(id: string): Promise<void> {
 
 /* ════════════════════════════════════════════════════════════
    ATK (ALAT TULIS KANTOR) — sinkron DUA ARAH dengan Excel/VBA
-   (vba/modSyncCikops.bas + supabase/026_atk_dua_arah.sql).
+   (vba/modSyncCikops.bas + supabase/01_dasar.sql (bagian 026)).
    • Excel → CIKOPS: tombol "Sinkron ke CIKOPS" (stok, permintaan, restock).
    • CIKOPS → Excel: input di sini lewat fungsi atk_web_* (stok langsung
      berubah), lalu ditarik Excel lewat "Tarik dari CIKOPS".
@@ -1490,7 +1490,7 @@ export async function getAtkRestocks(params?: { dateFrom?: string; dateTo?: stri
 /** Pesan error RPC yang ramah (termasuk bila migrasi 026 belum dijalankan). */
 function atkRpcError(error: { code?: string; message?: string }): Error {
   if (error.code === "PGRST202" || /Could not find the function/i.test(error.message ?? "")) {
-    return new Error("Fitur input ATK belum aktif — jalankan supabase/026_atk_dua_arah.sql di Supabase.");
+    return new Error("Fitur input ATK belum aktif — jalankan supabase/01_dasar.sql (bagian 026) di Supabase.");
   }
   return new Error(error.message ?? String(error));
 }
@@ -1603,7 +1603,7 @@ export async function updateAgendaEvent(id: string, input: Partial<AgendaEventIn
     ({ data, error } = await supabase.from("agenda_events").update(agendaRow(input, false)).eq("id", id).select("id"));
   }
   if (error) throw error;
-  if (!data || data.length === 0) throw new Error("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/025_kalender_agenda.sql).");
+  if (!data || data.length === 0) throw new Error("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/01_dasar.sql (bagian 025)).");
 }
 export async function deleteAgendaEvent(id: string): Promise<void> {
   const { error } = await supabase.from("agenda_events").delete().eq("id", id);
@@ -2030,7 +2030,7 @@ export async function getMyProfile(userId: string): Promise<MyProfile | null> {
 }
 
 /* ════════════════════════════════════════════════════════════
-   ROLE PER SCOPE (SQL 039) — setiap admin mengelola modulnya sendiri.
+   ROLE PER SCOPE (SQL 02_peran_keamanan bagian 039) — setiap admin mengelola modulnya sendiri.
    Database ikut menjaga hak TULIS per modul; di sini menu & tampilan.
 ════════════════════════════════════════════════════════════ */
 export type StaffRole = "master" | "admin_ga_cik" | "admin_ga_prb" | "admin_iss" | "admin_security" | "receptionist" | "management";
@@ -2156,7 +2156,7 @@ export interface StaffAccount {
 async function staffFn<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("manage-staff-account", { body });
   if (error) throw new Error(/not found|404|Failed to send/i.test(error.message)
-    ? "Edge Function manage-staff-account belum di-deploy (lihat docs/SETUP-OPERASIONAL.md, bab Role)."
+    ? "Edge Function manage-staff-account belum di-deploy (lihat docs/PANDUAN.md, bab Role)."
     : error.message);
   if (!data?.ok) throw new Error(data?.error || "Gagal memproses akun.");
   return data as T;
@@ -2234,8 +2234,8 @@ export interface DriverInput {
   assigned_user_title?: string | null;
 }
 
-const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/014_driver_type.sql di Supabase SQL Editor dulu.";
-const MIGRATION_030_MSG = "Tipe Driver Support belum diizinkan database — jalankan supabase/030_driver_support.sql di Supabase SQL Editor dulu.";
+const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/01_dasar.sql (bagian 014) di Supabase SQL Editor dulu.";
+const MIGRATION_030_MSG = "Tipe Driver Support belum diizinkan database — jalankan supabase/01_dasar.sql (bagian 030) di Supabase SQL Editor dulu.";
 /** Constraint lama (014) menolak 'support'. */
 function isDriverTypeCheckViolation(error: { message?: string; code?: string } | null): boolean {
   return !!error && (error.code === "23514" || /drivers_driver_type_check/i.test(error.message || ""));

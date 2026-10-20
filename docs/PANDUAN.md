@@ -1,19 +1,19 @@
-# CIKOPS — Setup & operasional per modul
+# CIKOPS — Panduan setup, operasional & pindah akun
 
-Satu dokumen untuk semua langkah pasang. Setiap bab berasal dari panduan modul
-yang dulu terpisah. Riwayat perubahan ada di `CHANGELOG.md`, dan langkah pindah
-akun Supabase/Vercel ada di `docs/PINDAH-AKUN.md`.
+Satu dokumen untuk semua langkah pasang, per modul, plus langkah pindah akun
+Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 
-## Urutan SQL (Supabase CIKOPS → SQL Editor)
-| Urutan | File | Isi |
+## File SQL (Supabase CIKOPS → SQL Editor)
+| File | Isi | Kapan dijalankan |
 |---|---|---|
-| 1 | `supabase/schema.sql` | Tabel inti: driver, armada, tugas, pegawai |
-| 2 | `001` … `021` | Klaim, kantong, kantin, gift, gate, security, dll. (lewati yang tidak ada nomornya) |
-| 3 | `025` … `038` | Kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA, notifikasi |
-| 4 | `039_roles.sql` | Role per modul |
-| 5 | `040_keamanan.sql` | Pengetatan keamanan (jalankan `supabase/tools/AUDIT-keamanan.sql` sebelum & sesudah) |
-| 6 | `041_pengingat_dokumen.sql` | Riwayat pengingat KIR/servis/STNK + cara menjadwalkan `vehicle-document-reminder` |
-| – | `supabase/seed/*.sql` | Impor data sekali pakai (riwayat security, klaim Jan–Jun 2026). Tidak perlu untuk project baru tanpa data lama |
+| `supabase/01_dasar.sql` | Semua migrasi lama (skema inti + bagian 001 … 038): driver, armada, tugas, klaim, kantin, gift, gate, security, kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA | **Sudah berjalan di production** — tidak perlu diulang. Cari `## BAGIAN 0xx` untuk melihat migrasi tertentu |
+| `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
+| `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
+| `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
+
+Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
+bagian 039 & 041 tetap tersimpan; kirim hasil bagian 7 dari
+`cek_audit_keamanan.sql`, perbaiki, lalu jalankan ulang file yang sama.
 
 ## Edge Function & secret
 | Function | Secret yang dibutuhkan |
@@ -22,7 +22,7 @@ akun Supabase/Vercel ada di `docs/PINDAH-AKUN.md`.
 | `send-driver-credentials`, `send-claim-email`, `send-task-email`, `send-receptionist-email`, `send-gift-passcode` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
 | `send-locker-email` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOCKER_ADMIN_EMAIL` (opsional) |
 | `send-web-push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
-| `vehicle-document-reminder` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Dijadwalkan harian lewat Supabase Cron dengan header `Authorization: Bearer <service_role>` (lihat `041_pengingat_dokumen.sql`) |
+| `vehicle-document-reminder` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Dijadwalkan harian lewat Supabase Cron dengan header `Authorization: Bearer <service_role>` (lihat bagian 041 di `supabase/02_peran_keamanan.sql`) |
 
 Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase secrets set NAMA=nilai`.
 
@@ -50,7 +50,7 @@ Tetap **tanpa login**: `/canteen` (staf kantin input), `/gate` (pos security),
 `/request`, `/bukti`, `/locker`, `/gift`, dan Command Center `/dashboard-viewonly`.
 Driver & TGA tetap memakai aplikasinya sendiri (`/driver`, `/tga`, APK).
 
-### Yang dijaga database (SQL 039)
+### Yang dijaga database (bagian 039 di `02_peran_keamanan.sql`)
 - **Management** tidak bisa menambah, mengubah, atau menghapus data apa pun.
 - Setiap role hanya bisa **menulis** ke tabel modulnya. Contohnya, Admin ISS tidak bisa
   mengubah klaim dan Admin Security tidak bisa mengubah armada.
@@ -62,8 +62,8 @@ Driver & TGA tetap memakai aplikasinya sendiri (`/driver`, `/tga`, APK).
   tabel itu, pembatasannya hanya di aplikasi.
 
 ### Langkah pasang (sekali saja)
-1. **Supabase CIKOPS → SQL Editor:** jalankan `supabase/039_roles.sql`. Di bagian
-   bawah hasilnya ada daftar akun dan role-nya.
+1. **Supabase CIKOPS → SQL Editor:** jalankan `supabase/02_peran_keamanan.sql` utuh
+   (sekaligus memasang bab Keamanan di bawah). Cek role tiap akun di menu **Akun & Role**.
    - Akun master admin lama otomatis menjadi **Master Admin**.
    - Akun lama dengan plant PRB otomatis menjadi **Admin GA PRB**.
    - Akun lain tetap memakai role lama (`admin`/`ga`) dan tetap bisa masuk seperti
@@ -107,7 +107,7 @@ login (termasuk Command Center), dan kunci rahasia.
 - **Modul baru** (Security, Kalender, Cleaning & Gardening, Receptionist, TGA, notifikasi)
   sudah memakai RLS untuk akun login, atau tabelnya hanya bisa diakses lewat fungsi.
 
-### Temuan & perbaikan (`supabase/040_keamanan.sql`)
+### Temuan & perbaikan (bagian 040 di `supabase/02_peran_keamanan.sql`)
 | Temuan | Risiko | Perbaikan |
 |---|---|---|
 | Setiap akun baru, **termasuk driver**, otomatis diberi role staf `ga` oleh trigger lama | Kritis | Trigger tidak lagi membuat profil staf; profil `ga` milik akun driver dihapus |
@@ -133,11 +133,11 @@ login (termasuk Command Center), dan kunci rahasia.
 - Command Center versi ringkas
 
 ### Langkah pasang
-1. **Cek dulu:** Supabase CIKOPS → SQL Editor → jalankan `supabase/AUDIT-keamanan.sql`.
+1. **Cek dulu:** Supabase CIKOPS → SQL Editor → jalankan `supabase/cek_audit_keamanan.sql`.
    Simpan hasilnya untuk perbandingan.
-2. **Jalankan `supabase/040_keamanan.sql`** (sesudah 039).
+2. **Jalankan `supabase/02_peran_keamanan.sql` utuh** (berisi 039, 041, lalu 040).
    - Di awal, file ini memeriksa bahwa fungsi gate/locker/gift/login driver yang tidak
-     ada di repo berstatus *security definer*. Kalau ada yang bukan, migrasi **dibatalkan
+     ada di repo berstatus *security definer*. Kalau ada yang bukan, bagian 040 **dibatalkan
      tanpa mengubah apa pun**. Kirim hasil bagian 7 audit ke developer.
    - Di akhir ada daftar tabel yang masih bisa dibaca tanpa login. Seharusnya hanya
      `canteen_reports` (hari ini) dan `gift_events` (event buka).
@@ -149,7 +149,7 @@ login (termasuk Command Center), dan kunci rahasia.
    data barang dari Excel akan ditolak.
 5. **Deploy website** (merge ke `main`) supaya source map mati, passcode gift 8 digit,
    dan pesan error yang aman ikut aktif.
-6. Jalankan lagi `AUDIT-keamanan.sql`. Bagian 2 (policy tanpa login) dan bagian 8 (driver
+6. Jalankan lagi `cek_audit_keamanan.sql`. Bagian 2 (policy tanpa login) dan bagian 8 (driver
    dengan akses staf) seharusnya kosong.
 
 ### Masih perlu ditinjau (fungsi tidak ada di repo)
@@ -157,7 +157,7 @@ Fungsi gate (`open/close_gate_checkpoint`, `get_gate_logs_public`), locker
 (`register_locker`, `verify_locker_release`, …), pencarian gift (`find_gift_*`,
 `claim_gift_registration`), dan login driver (`get_driver_by_email`) dibuat langsung di
 Supabase, bukan dari repo. Isinya belum bisa diaudit. Bagian 7 dari
-`AUDIT-keamanan.sql` menampilkan isinya; kirim hasilnya untuk ditinjau. Yang perlu
+`cek_audit_keamanan.sql` menampilkan isinya; kirim hasilnya untuk ditinjau. Yang perlu
 dicek: batas tanggal, batas percobaan PIN locker, dan data pribadi yang dikembalikan.
 
 ### Catatan lain
@@ -285,8 +285,8 @@ Browser CIKOPS ──(login CIKOPS)──► /api/gc-nc (server CIKOPS di Vercel
 
 Buka **Supabase project CIKOPS → SQL Editor**, lalu jalankan berurutan:
 
-1. **`supabase/021_security.sql`** membuat tabel modul Security (`security_monthly`, `security_config`) beserta aturan aksesnya.
-2. **`supabase/022_security_seed_2025_2026.sql`** mengisi riwayat 12 bulan (Sep 2025 – Agu 2026) dan data lengkap September 2026 dari laporan G4S, supaya grafik tren 13 bulan langsung terisi.
+1. **bagian 021 di `supabase/01_dasar.sql`** membuat tabel modul Security (`security_monthly`, `security_config`) beserta aturan aksesnya.
+2. **bagian 022 di `supabase/03_data_impor.sql`** mengisi riwayat 12 bulan (Sep 2025 – Agu 2026) dan data lengkap September 2026 dari laporan G4S, supaya grafik tren 13 bulan langsung terisi.
 
 Keduanya aman dijalankan ulang. File 022 tidak menimpa data September 2026 yang sudah diinput di aplikasi.
 
@@ -377,7 +377,7 @@ Kolom lain (catatan, nama petugas, dll.) tidak dibaca.
 | Tersambung tetapi 0 kasus | `GC_PLANT` tidak sama dengan isi kolom plant | Samakan dengan nilai di G-C (mis. `Cikarang`) |
 | Becis/JMM tidak terpisah | Nama perusahaan khusus tidak persis sama | Perbaiki di tab Pengaturan |
 | Angka beda sedikit dengan laporan G4S | Ada input susulan di G-C setelah laporan G4S dibuat | Normal. CIKOPS selalu memakai data G-C terbaru |
-| Bulan Mei–Juni 2026 | G-C belum lengkap (Juni hanya 12 laporan) | Sudah diisi dari laporan G4S lewat SQL 022 (kolom "Pelanggaran" di tab Riwayat). Angka riwayat menggantikan data G-C untuk bulan tsb |
+| Bulan Mei–Juni 2026 | G-C belum lengkap (Juni hanya 12 laporan) | Sudah diisi dari laporan G4S lewat bagian 022 di `03_data_impor.sql` (kolom "Pelanggaran" di tab Riwayat). Angka riwayat menggantikan data G-C untuk bulan tsb |
 
 Selama G-C tidak tersambung, laporan tetap bisa dibuat: tab Pelanggaran Transporter menyediakan **input manual (cadangan)**, dan report otomatis memakai angka itu.
 
@@ -403,7 +403,7 @@ Dashboard di Excel tetap dibuat oleh `modGA` seperti biasa.
 
 ### Langkah pemasangan (sekali saja)
 
-1. **Supabase → SQL Editor**: jalankan `supabase/038_ga_cikops_master.sql`.
+1. **Supabase → SQL Editor**: jalankan bagian 038 di `supabase/01_dasar.sql`.
 2. **CIKOPS → Fasilitas → Cleaning & Gardening → tab "Excel"**: pastikan data
    Excel terakhir sudah masuk (Sinkron dari Excel versi 1), lalu klik
    **"Jadikan CIKOPS sumber utama"** (khusus admin).
@@ -447,10 +447,10 @@ lalu pasang lagi `modSyncGA.bas` versi 1 di Excel.
 An app for TGA technicians to log their work from a phone: what was done, who requested it, the location, the status (Selesai / Proses / Pending / Butuh part), whether it is urgent, and the time. It can be installed on the home screen like the driver app.
 
 ### 1. Activate it (once)
-1. Supabase → **SQL Editor** → **New query** → paste the **entire** contents of `supabase/034_tga_app.sql` (do not select only part of it) → **Run**.
+1. Supabase → **SQL Editor** → **New query** → paste the **entire** contents of bagian 034 di `supabase/01_dasar.sql` (do not select only part of it) → **Run**.
 2. Open **Dashboard → Cleaning, Gardening & TGA → TGA tab** and scroll down to **Akun aplikasi TGA**.
 3. Click **＋ Akun baru** (or a name chip from the TGA manpower list) → enter the name, phone number and a **PIN of 4–6 digits** → Simpan.
-4. Also run `supabase/035_tga_requestor_karyawan.sql` and `supabase/037_tga_requestors_fix.sql` (after 034), so the requestor is linked to **Data Karyawan**.
+4. Also run bagian 035 di `supabase/01_dasar.sql` and bagian 037 di `supabase/01_dasar.sql` (after 034), so the requestor is linked to **Data Karyawan**.
 5. Tell each technician their PIN, then send the link (the **Bagikan ke WhatsApp** button).
 
 ### 2. Install on a phone
@@ -492,11 +492,11 @@ Menu baru: **Dashboard → Fasilitas → Receptionist** (Dashboard, Wifi Guest, 
 Ringkasannya juga tampil di **FM Command Center** (tab *Receptionist*, angka di *Ringkasan hari ini*, dan butir *Perlu tindakan*).
 
 ### 1. Jalankan SQL (sekali)
-Supabase → SQL Editor → jalankan `supabase/031_receptionist.sql`.
-Aman dijalankan ulang. Wajib **sesudah** `025_kalender_agenda.sql` (booking ruangan disinkron ke Kalender & Agenda).
+Supabase → SQL Editor → jalankan bagian 031 di `supabase/01_dasar.sql`.
+Aman dijalankan ulang. Wajib **sesudah** bagian 025 di `supabase/01_dasar.sql` (booking ruangan disinkron ke Kalender & Agenda).
 
 ### 1b. Data Master & Bukti Permintaan (SQL tambahan)
-Jalankan juga `supabase/033_receptionist_data_bukti.sql` (sesudah 031 & 032):
+Jalankan juga bagian 033 di `supabase/01_dasar.sql` (sesudah 031 & 032):
 - kolom **email, no HP, jabatan, aktif** di master karyawan (`employees`) untuk menu Data Master → Data Karyawan;
 - **nomor booking** `BK-YYMM-###`, email PIC booking, dan **token tautan bukti** untuk wifi / barang / booking;
 - fungsi `rcp_receipt` untuk halaman publik **/bukti?t=…** (bisa dibuka requestor tanpa login).
@@ -518,7 +518,7 @@ Akun dengan `allowed_tabs = null` (akses penuh) langsung melihat menunya.
 #### Akun khusus resepsionis (role `receptionist`)
 1. Supabase → Authentication → Users → **Add user → Create new user**:
    email `receptionist@cikops.com`, isi password, centang **Auto Confirm User**.
-2. Jalankan `supabase/032_role_receptionist.sql` di SQL Editor.
+2. Jalankan bagian 032 di `supabase/01_dasar.sql` di SQL Editor.
 
 Akun ber-role `receptionist` dikunci ke menu Receptionist saja: tanpa Home, Ringkasan,
 Kalender, pencarian, atau menu lain. URL menu lain otomatis diarahkan kembali ke Receptionist.
@@ -565,7 +565,7 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
 ## ATK (Excel ↔ CIKOPS)
 
 ### Wajib, urut
-1. **Supabase → SQL Editor** → jalankan `supabase/026_atk_dua_arah.sql`.
+1. **Supabase → SQL Editor** → jalankan bagian 026 di `supabase/01_dasar.sql`.
    - Aman dijalankan ulang, dan data lama tidak berubah.
    - Baris paling bawah hasilnya menampilkan **KUNCI SINKRON**. Kunci ini juga bisa dilihat admin di CIKOPS → ATK → tab *Sinkron Excel*.
 2. **Excel ATK**:
@@ -590,7 +590,7 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
   - Baris yang sudah ada dilewati, jadi aman kalau tombol ditekan berkali-kali.
 - **Stok tidak saling menimpa**:
   - Stok yang dikirim Excel otomatis dikoreksi dengan transaksi CIKOPS yang belum ditarik.
-  - Ini sudah berlaku begitu SQL 026 dijalankan, walaupun VBA belum diganti. Hanya saja, sebelum VBA diganti, Excel tidak akan tahu transaksi dari CIKOPS.
+  - Ini sudah berlaku begitu bagian 026 (`01_dasar.sql`) berjalan, walaupun VBA belum diganti. Hanya saja, sebelum VBA diganti, Excel tidak akan tahu transaksi dari CIKOPS.
 - **Koreksi**:
   - Transaksi CIKOPS bisa **dibatalkan** dari tab Riwayat selama belum ditarik Excel.
   - Setelah ditarik, koreksinya dilakukan di Excel.
@@ -619,7 +619,7 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
 - Baru:
   - `src/app/dashboard/AtkTab.tsx`
   - `src/app/dashboard/atk.module.css`
-  - `supabase/026_atk_dua_arah.sql`
+  - bagian 026 di `supabase/01_dasar.sql`
   - `vba/modSyncCikops.bas`
   - `public/downloads/modSyncCikops.bas`
 - Berubah:
@@ -633,7 +633,7 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
 ## Kalender & agenda
 
 ### Wajib (sekali saja)
-Supabase CIKOPS → SQL Editor → jalankan `supabase/025_kalender_agenda.sql`.
+Supabase CIKOPS → SQL Editor → jalankan bagian 025 di `supabase/01_dasar.sql`.
 Skrip ini menambah kolom jenis agenda, jam selesai, PIC, catatan, dan tautan penugasan, serta izin UBAH.
 Aman dijalankan ulang, dan agenda lama tetap ada (jenisnya menjadi "Event").
 Sebelum skrip dijalankan, kalender tetap bisa dipakai, tetapi jenis/catatan/PIC tidak tersimpan.
@@ -658,7 +658,7 @@ Sebelum skrip dijalankan, kalender tetap bisa dipakai, tetapi jenis/catatan/PIC 
 - Baru:
   - `src/app/dashboard/CalendarAgenda.tsx`
   - `src/app/dashboard/calendar.module.css`
-  - `supabase/025_kalender_agenda.sql`
+  - bagian 025 di `supabase/01_dasar.sql`
 - Berubah:
   - `src/app/dashboard/page.tsx`
   - `src/lib/api.ts`
@@ -671,7 +671,7 @@ Sebelum skrip dijalankan, kalender tetap bisa dipakai, tetapi jenis/catatan/PIC 
 ## Notifikasi (Web Push)
 
 ### 1. Activate it (once)
-1. **SQL:** Supabase → SQL Editor → paste the **entire** `supabase/036_push_tga_tugas.sql` → Run (after 034 & 035).
+1. **SQL:** Supabase → SQL Editor → paste the **entire** bagian 036 di `supabase/01_dasar.sql` → Run (after 034 & 035).
 2. **Notification keys (VAPID)** — on a computer with Node.js:
    ```
    npx web-push generate-vapid-keys
@@ -763,3 +763,59 @@ Before this is set, the app still works but shows a thin address bar at the top.
 OneSignal / APK Median sudah tidak dipakai. Driver yang masih memakai APK Median harus pindah ke APK
 **CIKOPS Driver** (GitHub Actions di atas), lalu Profil → Notifikasi → **Aktifkan** supaya tetap
 mendapat notifikasi tugas.
+
+## Pindah akun Supabase & Vercel tanpa mengganggu operasional
+
+Prinsipnya: **domain tetap sama, database disalin utuh (termasuk akun login), dan
+kunci rahasia disalin persis**. Dengan begitu APK, QR yang sudah dicetak, layar TV,
+notifikasi, dan file Excel tetap jalan.
+
+### Yang terikat ke akun lama
+| Hal | Di mana sekarang | Saat pindah | Kalau lupa |
+|---|---|---|---|
+| Domain `cikops-onefm.vercel.app`, `cik-g4s.vercel.app` | Project Vercel | **Transfer Project** ke akun Vercel baru (domain ikut) | APK, QR, TV, link email rusak |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel env | Isi nilai project baru, lalu redeploy | Aplikasi tidak bisa login |
+| `GC_*`, `SECDESK_SITE` | Vercel env CIKOPS | Arahkan ke project G-C/Security Desk (baru bila ikut pindah). **`GC_HASH_SALT` tetap sama** | Data NC & Security Desk hilang dari CIKOPS |
+| `TWA_SHA256`, `TWA_PACKAGES` | Vercel env | Salin sama | APK tampil dengan address bar |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Supabase Edge secrets | **Salin persis sama**. Jangan jalankan `vapid-keys.yml` lagi | Semua notifikasi driver/TGA mati |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOCKER_ADMIN_EMAIL` | Supabase Edge secrets | Salin sama | Semua email berhenti |
+| Keystore APK (`ANDROID_KEYSTORE_*`) & variabel `SITE_URL` | GitHub Actions | Tetap (atau salin bila repo pindah) | APK tidak bisa update, harus instal ulang |
+| Kunci sinkron Excel (`ga_sync_config`, `atk_sync_config`) | Database | Ikut otomatis bila database disalin (jangan dibuat ulang lewat SQL) | Excel "kunci salah" |
+| URL & anon key di file Excel GA & ATK | Konstanta VBA di setiap PC | Ganti ke nilai project baru | Sinkron Excel gagal |
+| pg_cron `auto-complete-tasks-1700` | Database | Ikut database; **matikan di project lama** | Tugas ditutup dua kali |
+| Realtime publication, schema `security` di Exposed schemas (G-C) | Pengaturan Supabase | Cek & samakan | Layar tidak update otomatis |
+
+### Langkah
+1. **Siapkan akun baru.** Buat project Supabase baru (CIKOPS, dan G-C/Security Desk
+   bila ikut pindah) di region yang sama (Singapore). Aktifkan extension `pgcrypto` dan
+   `pg_cron`. Untuk project G-C, tambahkan `security` ke Exposed schemas.
+2. **Latihan salin database** (belum pindah):
+   ```bash
+   supabase db dump --db-url "$LAMA" --role-only > roles.sql
+   supabase db dump --db-url "$LAMA" > skema.sql
+   supabase db dump --db-url "$LAMA" --data-only --use-copy -s public,security,auth > data.sql
+   psql "$BARU" -f roles.sql -f skema.sql -c 'SET session_replication_role = replica' -f data.sql
+   ```
+   Skema `auth` ikut disalin, jadi semua akun (staf, driver, TGA, receptionist) tetap
+   bisa login dengan password lama. Cek jumlah baris per tabel, `cron.job`, daftar
+   realtime, dan jalankan `supabase/cek_audit_keamanan.sql`.
+3. **Edge Function & secret.** Deploy semua function di `supabase/functions/` ke project
+   baru, lalu set secret dengan nilai **yang sama** (tabel di atas).
+4. **Uji paralel.** Di akun Vercel baru, buat deploy uji yang memakai Supabase baru,
+   lalu cek:
+   - login tiap role
+   - aplikasi driver & TGA
+   - email
+   - Command Center
+   - `/api/gc-nc`
+   - satu salinan file Excel
+5. **Hari-H** (malam, ±30 menit):
+   - umumkan jeda input
+   - ulangi salin data (`data.sql`)
+   - **Transfer Project** Vercel ke akun baru
+   - ganti env Supabase, lalu redeploy
+   - matikan pg_cron di project lama
+6. **Sesudahnya.** Ganti URL & anon key di semua file Excel GA dan ATK. APK tidak perlu
+   dibuat ulang selama domain dan keystore sama. Setiap pengguna cukup login ulang satu
+   kali.
+7. **Simpan cadangan.** Jeda (pause) project lama selama ±2 minggu sebelum dihapus.

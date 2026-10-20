@@ -25,7 +25,7 @@ Option Explicit
 '      - SUPABASE_URL dan SUPABASE_ANON_KEY (sama seperti dulu)
 '      - CIKOPS_SYNC_KEY: salin dari CIKOPS -> menu ATK -> tab
 '        "Sinkron Excel" (hanya admin yang bisa melihat), atau dari
-'        hasil SQL 026_atk_dua_arah.sql.
+'        hasil SQL 01_dasar.sql (bagian 026).
 '   3. Buat tombol "Tarik dari CIKOPS" (opsional) - SyncToCikops sudah
 '      otomatis menarik dulu sebelum mengirim.
 '

@@ -2,7 +2,7 @@
 
 /* ════════════════════════════════════════════════════════════
    ATK / Office Supplies — dashboard, input, stok, riwayat, sinkron Excel.
-   Sinkron DUA ARAH dengan Excel/VBA (lihat supabase/026_atk_dua_arah.sql
+   Sinkron DUA ARAH dengan Excel/VBA (lihat supabase/01_dasar.sql (bagian 026)
    dan vba/modSyncCikops.bas):
    • Excel → CIKOPS : tombol "Sinkron ke CIKOPS" di Excel.
    • CIKOPS → Excel : input di sini langsung mengubah stok; Excel menarik
@@ -1178,7 +1178,7 @@ function SyncView({ lang, sync, err, onRotated, onError }: { lang: Lang; sync: A
                 <button type="button" className={`${s.ghostBtn} ${s.dangerText}`} onClick={rotate}>{L("Ganti kunci", "Rotate key")}</button>
               </div>
             </>
-          ) : <span className={s.hint}>{err ? L("Jalankan supabase/026_atk_dua_arah.sql dulu.", "Run supabase/026_atk_dua_arah.sql first.") : L("Hanya admin yang bisa melihat kunci sinkron.", "Only admins can view the sync key.")}</span>}
+          ) : <span className={s.hint}>{err ? L("Jalankan supabase/01_dasar.sql (bagian 026) dulu.", "Run supabase/01_dasar.sql (bagian 026) first.") : L("Hanya admin yang bisa melihat kunci sinkron.", "Only admins can view the sync key.")}</span>}
         </div>
       </section>
     </div>

@@ -6,7 +6,7 @@ import { tgaAllActivities } from "../tga/api";
 
 function notReady(error: { code?: string; message?: string }): Error {
   if (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST202" || /does not exist|Could not find/i.test(error.message ?? "")) {
-    return new Error("Modul GA belum aktif — jalankan supabase/027_ga_facility.sql di Supabase.");
+    return new Error("Modul GA belum aktif — jalankan supabase/01_dasar.sql (bagian 027) di Supabase.");
   }
   return new Error(error.message ?? String(error));
 }
@@ -113,7 +113,7 @@ export async function rotateGaSyncKey(): Promise<string> {
 /* ── Input dari CIKOPS (038: CIKOPS sumber utama, Excel mengikuti) ── */
 function need038(error: { code?: string; message?: string }): Error {
   if (error.code === "PGRST202" || /could not find the function/i.test(error.message ?? "")) {
-    return new Error("Fitur input CIKOPS belum aktif — jalankan supabase/038_ga_cikops_master.sql di Supabase.");
+    return new Error("Fitur input CIKOPS belum aktif — jalankan supabase/01_dasar.sql (bagian 038) di Supabase.");
   }
   return new Error(error.message ?? String(error));
 }

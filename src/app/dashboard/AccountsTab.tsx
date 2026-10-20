@@ -2,7 +2,7 @@
 
 /* ════════════════════════════════════════════════════════════
    Akun & Role — setiap admin mengelola akun timnya sendiri
-   (Edge Function manage-staff-account + SQL 039).
+   (Edge Function manage-staff-account + SQL 02_peran_keamanan bagian 039).
    ExecutiveView — tampilan Management: FM Command Center + tarik laporan.
 ════════════════════════════════════════════════════════════ */
 

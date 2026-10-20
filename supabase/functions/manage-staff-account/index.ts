@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // ═══════════════════════════════════════════════════════════════
 //  manage-staff-account — menu Akun & Role di dashboard CIKOPS
 //
-//  Setiap admin mengelola akun TIMNYA sendiri (lihat SQL 039,
+//  Setiap admin mengelola akun TIMNYA sendiri (lihat SQL 02_peran_keamanan bagian 039,
 //  fungsi staff_manageable_roles):
 //    master        → semua role
 //    admin_ga_cik  → admin_ga_cik, receptionist
@@ -61,7 +61,7 @@ serve(async (req) => {
     const { data: me } = await admin.from("profiles").select("id, role").eq("id", caller.user.id).maybeSingle();
     if (!me) return json({ ok: false, error: "Akun ini bukan staf CIKOPS." });
     const { data: mr, error: mrErr } = await admin.rpc("staff_manageable_roles", { p_role: me.role });
-    if (mrErr) return json({ ok: false, error: `SQL 039_roles.sql belum dijalankan (${mrErr.message}).` });
+    if (mrErr) return json({ ok: false, error: `SQL 02_peran_keamanan.sql (bagian 039) belum dijalankan (${mrErr.message}).` });
     const manageable = new Set<string>((mr as string[] | null) ?? []);
     if (manageable.size === 0) return json({ ok: false, error: "Role ini tidak bisa mengelola akun." });
     const isMaster = manageable.has("master");

@@ -1,7 +1,7 @@
 # Buat kunci VAPID untuk notifikasi push (Driver & TGA) — tanpa perlu install Node.js di komputer.
 # Cara pakai: GitHub → Actions → "Buat kunci notifikasi (VAPID)" → Run workflow.
 # Hasil: artifact "KUNCI-VAPID" (berlaku 1 hari) berisi Public & Private Key untuk Supabase Secrets.
-# Panduan: docs/SETUP-OPERASIONAL.md (bab Notifikasi)
+# Panduan: docs/PANDUAN.md (bab Notifikasi)
 name: Buat kunci notifikasi (VAPID)
 
 on:

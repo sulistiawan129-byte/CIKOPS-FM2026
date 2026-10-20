@@ -14,16 +14,16 @@ Security (tersinkron dengan Security Desk G4S), report manajemen, dan Command Ce
 | `src/app/dashboard/` | Dashboard staf, satu file per modul (`*Tab.tsx`) |
 | `src/app/<halaman>/` | Halaman publik & aplikasi driver/TGA |
 | `src/lib/` | Akses data per modul (`api.ts`, `ga/`, `security/`, `receptionist/`, `tga/`, `mgmtReport/` …) |
-| `supabase/*.sql` | Migrasi database berurutan (`schema.sql`, lalu `001` … `040`) |
-| `supabase/seed/` | Impor data sekali pakai |
-| `supabase/tools/` | SQL pemeriksaan (audit keamanan) |
+| `supabase/01_dasar.sql` | Semua migrasi lama (sudah berjalan di production) |
+| `supabase/02_peran_keamanan.sql` | Role per modul + pengetatan keamanan (**jalankan sekarang**) |
+| `supabase/03_data_impor.sql` | Impor data lama sekali pakai |
+| `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan (hanya membaca) |
 | `supabase/functions/` | Edge Function (email, notifikasi, akun staf) |
 | `vba/` | Modul Excel (GA, ATK). Salinan unduhan ada di `public/downloads/` |
 
 ## Dokumentasi
-- **`docs/SETUP-OPERASIONAL.md`**: urutan SQL, Edge Function & secret, env Vercel, dan langkah per modul
-- **`docs/PINDAH-AKUN.md`**: pindah akun Supabase/Vercel tanpa mengganggu operasional
-- **`CHANGELOG.md`**: catatan rilis lama
+- **`docs/PANDUAN.md`**: file SQL, Edge Function & secret, env Vercel, langkah per modul, dan pindah akun Supabase/Vercel
+- Riwayat perubahan: `git log`
 
 ## Menjalankan lokal
 ```bash
