@@ -1,9 +1,9 @@
 // CIKOPS Fleet — Service Worker
 // Versi: diperbarui tiap deploy supaya cache ter-refresh
-const CACHE_NAME = "cikops-fleet-v1";
+const CACHE_NAME = "cikops-fleet-v2";
 
 // File statis yang di-cache supaya app bisa loading cepat
-const PRECACHE = ["/driver", "/favicon.png", "/logo.png", "/icon-192.png", "/icon-512.png", "/manifest.json"];
+const PRECACHE = ["/driver", "/tga", "/manifest-tga.json", "/icon-tga-192.png", "/favicon.png", "/logo.png", "/icon-192.png", "/icon-512.png", "/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
