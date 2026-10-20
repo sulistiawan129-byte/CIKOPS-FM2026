@@ -23,6 +23,7 @@ import type { DriverReportSummary } from "@/lib/analytics";
 import {
   getMyProfile,
   canAccessTab,
+  hasTabPermission,
   lockedTabOf,
   roleLabel,
   isPrbOnly,
@@ -236,8 +237,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelEn: "Finance",
     tabs: [
       { id: "claims", icon: "🧾", labelId: "Klaim", labelEn: "Claims", descId: "Pengajuan & monitoring klaim", descEn: "Claim submission & monitoring" },
-      { id: "driverbudget", icon: "💳", labelId: "Budget Driver", labelEn: "Driver Budget", descId: "Budget rutin & penggunaan", descEn: "Routine budget & usage" },
-      { id: "opfund", icon: "💰", labelId: "Dana Operasional", labelEn: "Operational Fund", descId: "Pengajuan dana operasional", descEn: "Operational fund requests" },
+      { id: "opfund", icon: "💰", labelId: "Dana Operasional", labelEn: "Operational Fund", descId: "Kas operasional & budget driver per tier", descEn: "Operational cash & driver budget tiers" },
     ],
   },
   {
@@ -284,7 +284,8 @@ const NAV_SHORT_ID: Record<string, string> = { fleet: "Fleet", finance: "Finance
 const NAV_SHORT_EN: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Facility", security: "Security", system: "System" };
 
 /** Menu yang punya alamat sendiri: /dashboard/<id>. */
-const URL_TABS = new Set<DashboardTab>(["home", "overview", "tasks", ...NAV_GROUPS.flatMap((g) => g.tabs.map((t) => t.id))]);
+// "driverbudget" tetap punya alamat lama → dibuka sebagai tab Budget Driver di Dana Operasional
+const URL_TABS = new Set<DashboardTab>(["home", "overview", "tasks", "driverbudget", ...NAV_GROUPS.flatMap((g) => g.tabs.map((t) => t.id))]);
 function tabFromPath(pathname: string): DashboardTab | null {
   const m = pathname.match(/^\/dashboard\/([a-z]+)\/?$/);
   const id = m?.[1] as DashboardTab | undefined;
@@ -688,7 +689,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       {/* ── Sidebar: rail grup + panel menu ── */}
       <SideNav
         groups={sideGroups}
-        activeTab={activeTab}
+        activeTab={activeTab === "driverbudget" ? "opfund" : activeTab}
         onSelect={(id) => { setActiveTab(id as DashboardTab); if (id === "home") setActiveHomeGroup(undefined); }}
         lang={lang === "en" ? "en" : "id"}
         appName={t.appName}
@@ -861,6 +862,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         const labelOf = (id: DashboardTab) => {
           if (id === "home") return lang === "en" ? "Dashboard" : "Dashboard";
           if (id === "overview") return lang === "en" ? "Overview" : "Ringkasan";
+          if (id === "driverbudget") return lang === "en" ? "Operational Fund" : "Dana Operasional";
           for (const g of NAV_GROUPS) {
             const f = g.tabs.find((x) => x.id === id);
             if (f) return lang === "en" ? f.labelEn : f.labelId;
@@ -937,8 +939,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "vehicles" && <VehiclesTab myProfile={myProfile} />}
           {activeTab === "gate" && <GateTab myProfile={myProfile} />}
           {activeTab === "claims" && <ClaimsTab myProfile={myProfile} />}
-          {activeTab === "driverbudget" && <DriverBudgetTab myProfile={myProfile} />}
-          {activeTab === "opfund" && <OpFundTab myProfile={myProfile} />}
+          {(activeTab === "opfund" || activeTab === "driverbudget") && <OpFundPage myProfile={myProfile} initial={activeTab === "driverbudget" ? "budget" : "fund"} />}
           {activeTab === "gasstations" && <GasStationsTab />}
           {activeTab === "reports" && <MgmtReportTab myProfile={myProfile} />}
         {activeTab === "masterdata" && (
@@ -3665,6 +3666,8 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
   const [formAmount, setFormAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<DriverTier | null>(null);
+  const [tierFilter, setTierFilter] = useState("");
+  const [driverQ, setDriverQ] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3774,92 +3777,83 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
   const inputStyle: CSSProperties = {};
   const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
 
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const noTier = drivers.filter((d) => !d.tier_id).length;
+  const budgetTotal = tiers.reduce((x, tr) => x + tr.amountPerMonth * tr.activeDriverCount, 0) || 1;
+  const visibleDrivers = drivers.filter((d) => (!tierFilter || (tierFilter === "none" ? !d.tier_id : d.tier_id === tierFilter)) &&
+    (!driverQ || d.nama.toLowerCase().includes(driverQ.toLowerCase())));
+
   return (
-    <div style={{ padding: 20 }}>
-      <div className="neonCard" style={{ padding: 0, overflow: "hidden", marginBottom: 18 }}>
-        <div style={{ display: "flex", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge blue small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="4" /><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>{animatedTotalDrivers}</div><div className="statLabel">{lang === "en" ? "Total Drivers" : "Total Driver"}</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge teal small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>Rp {fmtRp(animatedTotalBudget)}</div><div className="statLabel">{lang === "en" ? "Budget/Month" : "Budget/Bulan"}</div></div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", borderLeft: "1px solid var(--border2)", position: "relative", zIndex: 1 }}>
-            <div className="hexBadge purple small">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" />
-              </svg>
-            </div>
-            <div><div className="statValue" style={{ fontSize: 20 }}>Rp {fmtRp(animatedYearlyBudget)}</div><div className="statLabel">{lang === "en" ? "Per Year" : "Per Tahun"}</div></div>
-          </div>
-        </div>
+    <div className={of.wrap}>
+      <div className={of.tiles4}>
+        <div className={of.tile} style={{ ["--c" as string]: "var(--brand)" }}><span className={of.tileLabel}><i />{L("Total driver", "Total drivers")}</span><b>{animatedTotalDrivers}</b><small>{L("aktif di plant ini", "active in this plant")}</small></div>
+        <div className={of.tile} style={{ ["--c" as string]: "var(--green)" }}><span className={of.tileLabel}><i />{L("Budget / bulan", "Budget / month")}</span><b>Rp {fmtRp(animatedTotalBudget)}</b><small>{L("jumlah semua tier", "sum of all tiers")}</small></div>
+        <div className={of.tile} style={{ ["--c" as string]: "var(--purple)" }}><span className={of.tileLabel}><i />{L("Per tahun", "Per year")}</span><b>Rp {fmtRp(animatedYearlyBudget)}</b><small>{L("proyeksi 12 bulan", "12-month projection")}</small></div>
+        <div className={of.tile} style={{ ["--c" as string]: noTier ? "var(--orange)" : "var(--green)" }}><span className={of.tileLabel}><i />{L("Belum punya tier", "Without a tier")}</span><b>{noTier}</b><small>{noTier ? L("atur di daftar driver →", "assign in the driver list →") : L("semua driver sudah diatur 👍", "all drivers assigned 👍")}</small></div>
       </div>
 
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <ReportExportButtons onExport={tierExportPicker.requestExport} disabled={tiers.length === 0} />
-      </div>
+      {error && <div className={of.errBox}>{error}</div>}
       {tierExportPicker.pending && <LanguagePickerModal format={tierExportPicker.pending} onConfirm={tierExportPicker.confirm} onClose={tierExportPicker.cancel} />}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16 }}>
-        <div style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{lang === "en" ? "Operational Allowance Tiers" : "Tier Uang Operasional"}</div>
-            <button className="pillBtn" onClick={openAdd} style={{ padding: "6px 14px", fontSize: 12 }}>+ Tambah</button>
-          </div>
-          {loading ? (
-            <div style={{ textAlign: "center", padding: 30, color: "var(--t3)" }}>Memuat...</div>
-          ) : tiers.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 30, color: "var(--t3)" }}>{t.actionNoDataYet}</div>
-          ) : (
-            tiers.map((t) => (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: "var(--bg2)", marginBottom: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)" }}>{t.name}</div>
-                  <div style={{ fontSize: 12.5, color: "var(--t3)" }}>{t.activeDriverCount} driver · Rp {fmtRp(t.amountPerMonth)}/orang</div>
-                </div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: t.color }}>Rp {fmtRp(t.amountPerMonth * t.activeDriverCount)}</div>
-                <button onClick={() => openEdit(t)} style={{ border: "none", background: "none", cursor: "pointer" }}>✏️</button>
-                <button onClick={() => setConfirmDelete(t)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--red)" }}>🗑️</button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-            {lang === "en" ? "Assign Tier per Driver" : "Assign Tier per Driver"}
-          </div>
-          <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 14 }}>
-            {lang === "en" ? "New — links each driver to their allowance tier." : "Baru — hubungkan tiap driver ke tier uang operasionalnya."}
-          </div>
-          {drivers.map((d) => (
-            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ flex: 1, fontSize: 12.5, color: "var(--t1)" }}>{d.nama}</div>
-              <select
-                className={styles.formSelect}
-                style={{ width: "auto", fontSize: 13, padding: "6px 10px" }}
-                value={d.tier_id || ""}
-                onChange={(e) => handleAssignTier(d.id, e.target.value)}
-              >
-                <option value="">-</option>
-                {tiers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+      <div className={of.grid2}>
+        <section className={of.card}>
+          <div className={of.cardHead}>
+            <h3>{L("Tier uang operasional", "Allowance tiers")}</h3>
+            <div className={of.headBtns}>
+              <ReportExportButtons onExport={tierExportPicker.requestExport} disabled={tiers.length === 0} />
+              <button type="button" className={of.btnPrimary} onClick={openAdd}>+ {L("Tier", "Tier")}</button>
             </div>
-          ))}
-        </div>
+          </div>
+          {tiers.length > 0 && (
+            <div className={of.stackLight}>
+              {tiers.map((tr) => tr.amountPerMonth * tr.activeDriverCount > 0 && (
+                <span key={tr.id} style={{ width: `${((tr.amountPerMonth * tr.activeDriverCount) / budgetTotal) * 100}%`, background: tr.color }} title={`${tr.name}: Rp ${fmtRp(tr.amountPerMonth * tr.activeDriverCount)}`} />
+              ))}
+            </div>
+          )}
+          {loading ? <div className={of.empty}>{L("Memuat…", "Loading…")}</div> : tiers.length === 0 ? (
+            <div className={of.empty}>{L("Belum ada tier. Buat tier pertama, mis. \"Driver Senior — Rp 2.000.000/bulan\".", "No tiers yet.")}</div>
+          ) : (
+            <ul className={of.tierList}>
+              {tiers.map((tr) => (
+                <li key={tr.id} style={{ ["--c" as string]: tr.color }}>
+                  <button type="button" className={`${of.tierMain} ${tierFilter === tr.id ? of.tierOn : ""}`} onClick={() => setTierFilter(tierFilter === tr.id ? "" : tr.id)} title={L("Tampilkan driver di tier ini", "Show drivers in this tier")}>
+                    <i />
+                    <span><b>{tr.name}</b><small>{tr.activeDriverCount} driver · Rp {fmtRp(tr.amountPerMonth)}/{L("orang", "person")}</small></span>
+                    <strong>Rp {fmtRp(tr.amountPerMonth * tr.activeDriverCount)}</strong>
+                  </button>
+                  <button type="button" className={of.iconBtn} onClick={() => openEdit(tr)} aria-label={L("Ubah", "Edit")}>✏️</button>
+                  <button type="button" className={of.iconBtn} onClick={() => setConfirmDelete(tr)} aria-label={L("Hapus", "Delete")}>🗑️</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={of.card}>
+          <div className={of.cardHead}><h3>{L("Tier per driver", "Tier per driver")}</h3><span>{visibleDrivers.length}</span></div>
+          <div className={of.filterRow}>
+            <input className={of.searchInput} value={driverQ} onChange={(e) => setDriverQ(e.target.value)} placeholder={L("Cari driver…", "Search driver…")} />
+            <button type="button" className={`${of.chip} ${!tierFilter ? of.chipOn : ""}`} onClick={() => setTierFilter("")}>{L("Semua", "All")}</button>
+            <button type="button" className={`${of.chip} ${tierFilter === "none" ? of.chipOn : ""}`} onClick={() => setTierFilter(tierFilter === "none" ? "" : "none")}>{L("Tanpa tier", "No tier")} {noTier ? `(${noTier})` : ""}</button>
+          </div>
+          <ul className={of.driverList}>
+            {visibleDrivers.map((d) => {
+              const tr = tiers.find((x) => x.id === d.tier_id);
+              return (
+                <li key={d.id} style={{ ["--c" as string]: tr?.color ?? "var(--border2)" }}>
+                  <span className={of.drvAv}>{d.avatar_emoji || "🧑‍✈️"}</span>
+                  <span className={of.drvName}><b>{d.nama}</b><small>{tr ? `Rp ${fmtRp(tr.amountPerMonth)}/${L("bulan", "month")}` : L("belum diatur", "not assigned")}</small></span>
+                  <select className={of.select} value={d.tier_id || ""} onChange={(e) => handleAssignTier(d.id, e.target.value)}>
+                    <option value="">— {L("pilih tier", "choose tier")} —</option>
+                    {tiers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </li>
+              );
+            })}
+            {visibleDrivers.length === 0 && <li className={of.empty}>{L("Tidak ada driver.", "No drivers.")}</li>}
+          </ul>
+        </section>
       </div>
 
       {showForm && (
@@ -4019,6 +4013,32 @@ function ForecastCard({ plant }: { plant: Plant }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Dana Operasional + Budget Driver (digabung) — tab mengikuti izin masing-masing. */
+function OpFundPage({ myProfile, initial }: { myProfile: MyProfile | null; initial: "fund" | "budget" }) {
+  const { lang } = useLang();
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const canFund = hasTabPermission(myProfile, "opfund");
+  const canBudget = hasTabPermission(myProfile, "driverbudget");
+  const [view, setView] = useState<"fund" | "budget">(initial === "budget" && canBudget ? "budget" : canFund ? "fund" : "budget");
+  useEffect(() => { if (initial === "budget" && canBudget) setView("budget"); }, [initial, canBudget]);
+  const tabs = [
+    ...(canFund ? [{ id: "fund" as const, label: L("Dana Operasional", "Operational Fund"), icon: "💰" }] : []),
+    ...(canBudget ? [{ id: "budget" as const, label: L("Budget Driver", "Driver Budget"), icon: "💳" }] : []),
+  ];
+  return (
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Finance · Dana Operasional", "Finance · Operational Fund")}
+        title={L("Dana Operasional", "Operational Fund")}
+        desc={L("Kas operasional plant, outstanding klaim, dan budget bulanan driver per tier — dalam satu halaman.",
+          "Plant operating cash, outstanding claims, and monthly driver budgets per tier — in one place.")}
+      />
+      {tabs.length > 1 && <ModuleTabs tabs={tabs} value={view} onChange={setView} label={L("Bagian Dana Operasional", "Operational Fund sections")} />}
+      {view === "fund" ? <OpFundTab myProfile={myProfile} /> : <DriverBudgetTab myProfile={myProfile} />}
+    </ModulePage>
   );
 }
 
@@ -4332,10 +4352,10 @@ gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h
     <div className={of.wrap}>
       <div className={of.topBar}>
         <div className={of.titleBlock}>
-          <span className={of.titleIcon}>💰</span>
+          <span className={of.titleIcon}>📅</span>
           <div>
-            <h2>{L("Dana Operasional", "Operational Fund")}</h2>
-            <p>{L("Periode", "Period")} <b>{kantong.period}</b> · {L("reset terakhir", "last reset")} {kantong.lastReset}</p>
+            <p>{L("Periode", "Period")} <b>{kantong.period}</b></p>
+            <p>{L("reset terakhir", "last reset")} {kantong.lastReset}</p>
           </div>
         </div>
         <div className={of.topActions}>
