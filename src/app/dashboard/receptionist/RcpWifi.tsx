@@ -5,40 +5,47 @@
 import { useEffect, useMemo, useState } from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import {
-  deleteWifiAccount, emailWifiReceipt, grantWifi, importWifiAccounts, returnWifi, setWifiAccountActive, suggestWifi,
+  deleteWifiAccount, emailWifiReceipt, grantWifi, importWifiAccounts, returnWifi, saveWifiAccount, setWifiAccountActive, suggestWifi,
 } from "@/lib/receptionist/api";
 import {
   WIFI_DURATIONS, WIFI_STATUS_LABEL, daysBetween, monthOf, durationEnd, fmtDate, fmtDateTime, grantActive, parseAccountsText, todayISO,
-  type ImportRow, type RcpSettings, type WifiAccount, type WifiDuration, type WifiGrant, type WifiGrantResult, type WifiStatus, type WifiSuggestion,
+  addDays, receiptFromGrant, type ImportRow, type RcpSettings, type WifiAccount, type WifiDuration, type WifiGrant, type WifiGrantResult, type WifiStatus, type WifiSuggestion,
 } from "@/lib/receptionist/model";
-import { ExportButtons, NameInput, col, type Directory } from "./shared";
+import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./shared";
+import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
 
-type Sub = "grant" | "active" | "accounts" | "history";
+type Sub = "grant" | "active" | "history";
 const STATUS_PILL: Record<WifiStatus, string> = { available: r.pGreen, partial: r.pBlue, full: r.pOrange, expired: r.pRed, inactive: r.pGray };
 
 export default function RcpWifi({ settings, accounts, grants, dir, reload }: {
   settings: RcpSettings; accounts: WifiAccount[]; grants: WifiGrant[]; dir: Directory; reload: () => Promise<void>;
 }) {
   const [sub, setSub] = useState<Sub>("grant");
+  const [proof, setProof] = useState<WifiGrant | null>(null);
   const active = useMemo(() => grants.filter((g) => grantActive(g)), [grants]);
+  const person = proof ? lookupPerson(dir, proof.requestorName) : null;
   return (
     <div className={r.wrap} style={{ padding: 0 }}>
       <div className={r.seg} role="group" aria-label="Wifi">
-        {([["grant", "Beri akses"], ["active", `Tamu aktif (${active.length})`], ["accounts", `Akun dari IT (${accounts.length})`], ["history", "Riwayat"]] as [Sub, string][]).map(([k, l]) => (
+        {([["grant", "Beri akses"], ["active", `Tamu aktif (${active.length})`], ["history", "Riwayat"]] as [Sub, string][]).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={sub === k} onClick={() => setSub(k)}>{l}</button>
         ))}
       </div>
-      {sub === "grant" && <GrantForm settings={settings} accounts={accounts} dir={dir} reload={reload} />}
-      {sub === "active" && <ActiveList grants={active} reload={reload} />}
-      {sub === "accounts" && <Accounts accounts={accounts} reload={reload} />}
-      {sub === "history" && <History grants={grants} />}
+      {sub === "grant" && <GrantForm settings={settings} accounts={accounts} dir={dir} reload={reload} onProof={setProof} />}
+      {sub === "active" && <ActiveList grants={active} reload={reload} onProof={setProof} />}
+      {sub === "history" && <History grants={grants} onProof={setProof} />}
+      {proof && (
+        <ProofModal data={receiptFromGrant(proof, settings)} token={proof.shareToken || undefined} email={proof.requestorEmail} phone={person?.phone}
+          onEmail={proof.requestorEmail ? () => emailWifiReceipt({ id: proof.id, receiptNo: proof.receiptNo, shareToken: proof.shareToken, toEmail: proof.requestorEmail, requestorName: proof.requestorName, guestName: proof.guestName, guestCompany: proof.guestCompany, username: proof.username, password: proof.password, slots: proof.slots, startDate: proof.startDate, endDate: proof.endDate }, settings) : undefined}
+          onClose={() => setProof(null)} />
+      )}
     </div>
   );
 }
 
 /* ── Beri akses ── */
-function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings; accounts: WifiAccount[]; dir: Directory; reload: () => Promise<void> }) {
+function GrantForm({ settings, accounts, dir, reload, onProof }: { settings: RcpSettings; accounts: WifiAccount[]; dir: Directory; reload: () => Promise<void>; onProof: (g: WifiGrant) => void }) {
   const today = todayISO();
   const blank = { requestorName: "", requestorEmail: "", department: "", lineManager: "", guestName: "", guestCompany: "", purpose: "" };
   const [f, setF] = useState(blank);
@@ -51,7 +58,7 @@ function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings;
   const [pick, setPick] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<{ res: WifiGrantResult; email: string; emailErr: string; guest: string; slots: number } | null>(null);
+  const [done, setDone] = useState<{ res: WifiGrantResult; email: string; emailErr: string; guest: string; slots: number; grant: WifiGrant } | null>(null);
   const set = (k: keyof typeof blank, v: string) => setF((x) => ({ ...x, [k]: v }));
 
   useEffect(() => {
@@ -72,10 +79,15 @@ function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings;
       const res = await grantWifi({ accountId: pick, slots, guestName: f.guestName, guestCompany: f.guestCompany, requestorName: f.requestorName, requestorEmail: f.requestorEmail, department: f.department, lineManager: f.lineManager, purpose: f.purpose, startDate: start, endDate: end });
       let emailErr = "";
       if (f.requestorEmail.trim()) {
-        try { await emailWifiReceipt({ id: res.id, receiptNo: res.receiptNo, toEmail: f.requestorEmail.trim(), requestorName: f.requestorName, guestName: f.guestName, guestCompany: f.guestCompany, username: res.username, password: res.password, slots, startDate: res.startDate, endDate: res.endDate }, settings); }
+        try { await emailWifiReceipt({ id: res.id, receiptNo: res.receiptNo, shareToken: res.shareToken, toEmail: f.requestorEmail.trim(), requestorName: f.requestorName, guestName: f.guestName, guestCompany: f.guestCompany, username: res.username, password: res.password, slots, startDate: res.startDate, endDate: res.endDate }, settings); }
         catch (e) { emailErr = e instanceof Error ? e.message : String(e); }
       }
-      setDone({ res, email: f.requestorEmail.trim(), emailErr, guest: f.guestName, slots });
+      const grant: WifiGrant = { id: res.id, receiptNo: res.receiptNo, accountId: pick, username: res.username, password: res.password, slots, guestName: f.guestName.trim(),
+        guestCompany: f.guestCompany.trim(), requestorName: f.requestorName.trim(), requestorEmail: f.requestorEmail.trim().toLowerCase(), department: f.department.trim(),
+        lineManager: f.lineManager.trim(), purpose: f.purpose.trim(), startDate: res.startDate, endDate: res.endDate, returnedAt: null, returnNote: "",
+        emailSentAt: f.requestorEmail.trim() && !emailErr ? new Date().toISOString() : null, createdBy: "", createdAt: res.createdAt, shareToken: res.shareToken };
+      setDone({ res, email: f.requestorEmail.trim(), emailErr, guest: f.guestName, slots, grant });
+      onProof(grant);
       setF(blank); setSlots(1); setDur("today"); setStart(today);
       await reload();
     } catch (e) {
@@ -125,7 +137,7 @@ function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings;
         <div className={r.cardHead}><div><h2>Akun yang disarankan</h2><p>Berlaku sampai ≥ {fmtDate(end)} · butuh {slots} slot</p></div></div>
         <p className={r.hint}>Hanya akun yang masa berlakunya cukup. Teratas = paling pas (paling cepat habis), jadi tamu harian memakai akun 30 hari dan pemakaian panjang otomatis ke akun berdurasi panjang.</p>
         {sugs === null ? <p className={r.empty}>Mencari akun…</p> : sugs.length === 0 ? (
-          <div className={r.warn}>Tidak ada akun yang cukup sampai {fmtDate(end)} dengan {slots} slot kosong. Impor akun baru dari IT (tab “Akun dari IT”) atau kurangi durasi.</div>
+          <div className={r.warn}>Tidak ada akun yang cukup sampai {fmtDate(end)} dengan {slots} slot kosong. Tambah atau impor akun baru di Data Master → Data Akun Wifi, atau kurangi durasi.</div>
         ) : (
           <div className={r.sugs}>
             {sugs.map((s, i) => (
@@ -142,13 +154,13 @@ function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings;
           <span className={r.hint}>{f.requestorEmail.trim() ? `Tanda terima dikirim ke ${f.requestorEmail.trim()}` : "Isi email requestor agar tanda terima terkirim."}</span>
           <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : "Beri akses"}</button>
         </div>
-        {done && <Receipt done={done} onClose={() => setDone(null)} />}
+        {done && <Receipt done={done} onProof={() => onProof(done.grant)} onClose={() => setDone(null)} />}
       </section>
     </div>
   );
 }
 
-function Receipt({ done, onClose }: { done: { res: WifiGrantResult; email: string; emailErr: string; guest: string; slots: number }; onClose: () => void }) {
+function Receipt({ done, onClose, onProof }: { done: { res: WifiGrantResult; email: string; emailErr: string; guest: string; slots: number }; onClose: () => void; onProof: () => void }) {
   const t = `No. ${done.res.receiptNo}\nUser: ${done.res.username}\nPassword: ${done.res.password}\nBerlaku sampai: ${fmtDate(done.res.endDate)}`;
   return (
     <div className={r.receipt} role="status">
@@ -156,13 +168,13 @@ function Receipt({ done, onClose }: { done: { res: WifiGrantResult; email: strin
       <div className={r.cred}><div><small>User</small><b>{done.res.username}</b></div><div><small>Password</small><b>{done.res.password}</b></div></div>
       <div>{done.guest} · {done.slots} slot · berlaku sampai <b>{fmtDate(done.res.endDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b></div>
       <div className={r.hint}>{done.email ? (done.emailErr ? `⚠ ${done.emailErr}` : `✓ Tanda terima dikirim ke ${done.email}`) : "Email requestor kosong — tanda terima tidak dikirim."}</div>
-      <div className={r.row}><button type="button" className={r.ghost} onClick={() => navigator.clipboard?.writeText(t)}>Salin</button></div>
+      <div className={r.row}><button type="button" className={`${r.btn} ${r.btnSm}`} onClick={onProof}>🧾 Bukti permintaan</button><button type="button" className={r.ghost} onClick={() => navigator.clipboard?.writeText(t)}>Salin teks</button></div>
     </div>
   );
 }
 
 /* ── Tamu aktif ── */
-function ActiveList({ grants, reload }: { grants: WifiGrant[]; reload: () => Promise<void> }) {
+function ActiveList({ grants, reload, onProof }: { grants: WifiGrant[]; reload: () => Promise<void>; onProof: (g: WifiGrant) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const today = todayISO();
@@ -188,7 +200,10 @@ function ActiveList({ grants, reload }: { grants: WifiGrant[]; reload: () => Pro
                   <span>{g.requestorName}{g.department ? ` · ${g.department}` : ""}</span><span className={r.mute}>{g.receiptNo}</span>
                 </div>
               </div>
-              <div className={r.itemSide}><button type="button" className={r.ghost} disabled={busy === g.id} onClick={() => back(g)}>{busy === g.id ? "…" : "Kembalikan"}</button></div>
+              <div className={r.itemSide}>
+                <button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 Bukti</button>
+                <button type="button" className={r.ghost} disabled={busy === g.id} onClick={() => back(g)}>{busy === g.id ? "…" : "Kembalikan"}</button>
+              </div>
             </div>
           ))}
         </div>
@@ -197,17 +212,20 @@ function ActiveList({ grants, reload }: { grants: WifiGrant[]; reload: () => Pro
   );
 }
 
-/* ── Akun dari IT ── */
-function Accounts({ accounts, reload }: { accounts: WifiAccount[]; reload: () => Promise<void> }) {
+/* ── Data Akun Wifi (CRUD — tampil di Data Master) ── */
+export function Accounts({ accounts, reload }: { accounts: WifiAccount[]; reload: () => Promise<void> }) {
   const [filter, setFilter] = useState<"all" | WifiStatus>("all");
   const [show, setShow] = useState(false);
   const [imp, setImp] = useState(false);
+  const [edit, setEdit] = useState<{ a: WifiAccount | null } | null>(null);
+  const [q, setQ] = useState("");
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     accounts.forEach((a) => { c[a.status] = (c[a.status] ?? 0) + 1; });
     return c;
   }, [accounts]);
-  const list = accounts.filter((a) => filter === "all" || a.status === filter);
+  const list = accounts.filter((a) => (filter === "all" || a.status === filter) && (!q || [a.username, a.batch, a.notes].join(" ").toLowerCase().includes(q.toLowerCase())));
+  const free = accounts.filter((a) => a.status === "available" || a.status === "partial").reduce((s, a) => s + a.free, 0);
   async function toggle(a: WifiAccount) { try { await setWifiAccountActive(a.id, !a.active); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); } }
   async function del(a: WifiAccount) {
     if (!confirm(`Hapus akun ${a.username}?`)) return;
@@ -216,30 +234,32 @@ function Accounts({ accounts, reload }: { accounts: WifiAccount[]; reload: () =>
   return (
     <section className={r.card}>
       <div className={r.cardHead}>
-        <h2>Akun wifi dari IT</h2>
+        <div><h2>Data Akun Wifi</h2><p>Akun tamu dari IT · {free} slot tersedia · 1 akun = 2 slot (bisa diubah per akun)</p></div>
         <span className={r.row}>
-          <button type="button" className={r.ghost} onClick={() => setShow((x) => !x)}>{show ? "Sembunyikan password" : "Tampilkan password"}</button>
+          <button type="button" className={r.ghost} onClick={() => setShow((x) => !x)}>{show ? "🙈 Sembunyikan" : "👁 Password"}</button>
           <ExportButtons rows={list} title="Akun Wifi Tamu" filename="Akun_Wifi" columns={[
             col<WifiAccount>("u", "Username", (a) => a.username), col<WifiAccount>("from", "Berlaku mulai", (a) => fmtDate(a.validFrom)),
             col<WifiAccount>("until", "Berlaku sampai", (a) => fmtDate(a.validUntil)), col<WifiAccount>("slot", "Slot terpakai", (a) => `${a.used}/${a.slots}`),
             col<WifiAccount>("st", "Status", (a) => WIFI_STATUS_LABEL[a.status]), col<WifiAccount>("b", "Batch", (a) => a.batch)]} />
-          <button type="button" className={r.btn} onClick={() => setImp(true)}>Impor akun</button>
+          <button type="button" className={r.ghost} onClick={() => setImp(true)}>Impor</button>
+          <button type="button" className={`${r.btn} ${r.btnSm}`} onClick={() => setEdit({ a: null })}>+ Akun</button>
         </span>
       </div>
-      <div className={r.chips}>
+      <div className={r.stats}>
         {(["all", "available", "partial", "full", "expired", "inactive"] as const).map((k) => (
-          <button key={k} type="button" className={r.chip} aria-pressed={filter === k} onClick={() => setFilter(k)}>
-            {k === "all" ? "Semua" : WIFI_STATUS_LABEL[k]} {k === "all" ? accounts.length : counts[k] ?? 0}
+          <button key={k} type="button" className={r.stat} style={{ ["--c" as string]: STATUS_COLOR[k] }} aria-pressed={filter === k} onClick={() => setFilter(filter === k ? "all" : k)}>
+            <i /><b>{k === "all" ? accounts.length : counts[k] ?? 0}</b>{k === "all" ? "semua" : WIFI_STATUS_LABEL[k].toLowerCase()}
           </button>
         ))}
       </div>
+      <div className={r.toolbar}><label className={r.search}><span>⌕</span><input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari username, batch, catatan…" /></label></div>
       {list.length === 0 ? <p className={r.empty}>{accounts.length ? "Tidak ada akun dengan status ini." : "Belum ada akun. Klik “Impor akun” untuk menempel daftar akun dari IT."}</p> : (
         <div className={r.tableBox}>
           <table className={r.table}>
             <thead><tr><th>Username</th><th>Password</th><th>Masa berlaku</th><th>Sisa</th><th>Slot</th><th>Status</th><th>Batch</th><th /></tr></thead>
             <tbody>
               {list.map((a) => (
-                <tr key={a.id}>
+                <tr key={a.id} className={`${r.clickRow} ${a.active ? "" : r.rowOff}`} onClick={() => setEdit({ a })}>
                   <td className={r.mono}><b>{a.username}</b></td>
                   <td className={r.mono}>{show ? a.password : "••••••"}</td>
                   <td className={r.nowrap}>{fmtDate(a.validFrom)} – {fmtDate(a.validUntil)} <span className={r.mute}>({a.durationDays + 1} hr)</span></td>
@@ -247,8 +267,9 @@ function Accounts({ accounts, reload }: { accounts: WifiAccount[]; reload: () =>
                   <td><span className={r.slotDots}>{Array.from({ length: a.slots }, (_, i) => <i key={i} className={i < a.used ? r.used : ""} />)}</span> <span className={r.mute}>{a.used}/{a.slots}</span></td>
                   <td><span className={`${r.pill} ${STATUS_PILL[a.status]}`}>{WIFI_STATUS_LABEL[a.status]}</span></td>
                   <td>{a.batch || "–"}</td>
-                  <td className={r.num}><span className={r.row} style={{ justifyContent: "flex-end", gap: 6 }}>
-                    <button type="button" className={r.link} onClick={() => toggle(a)}>{a.active ? "Nonaktifkan" : "Aktifkan"}</button>
+                  <td className={r.num} onClick={(e) => e.stopPropagation()}><span className={r.rowActs} style={{ alignItems: "center", gap: 10 }}>
+                    <button type="button" role="switch" aria-checked={a.active} aria-label={`Aktif ${a.username}`} className={r.switch} onClick={() => toggle(a)} />
+                    <button type="button" className={r.link} onClick={() => setEdit({ a })}>Ubah</button>
                     <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(a)}>Hapus</button>
                   </span></td>
                 </tr>
@@ -258,7 +279,64 @@ function Accounts({ accounts, reload }: { accounts: WifiAccount[]; reload: () =>
         </div>
       )}
       {imp && <ImportModal onClose={() => setImp(false)} reload={reload} />}
+      {edit && <AccountModal a={edit.a} onClose={() => setEdit(null)} onSaved={async () => { setEdit(null); await reload(); }} />}
     </section>
+  );
+}
+
+const STATUS_COLOR: Record<"all" | WifiStatus, string> = { all: "var(--brand)", available: "var(--green)", partial: "var(--brand)", full: "var(--orange)", expired: "var(--red)", inactive: "var(--t3)" };
+
+function AccountModal({ a, onClose, onSaved }: { a: WifiAccount | null; onClose: () => void; onSaved: () => Promise<void> }) {
+  const today = todayISO();
+  const [v, setV] = useState({ username: a?.username ?? "", password: a?.password ?? "", validFrom: a?.validFrom ?? today, validUntil: a?.validUntil ?? addDays(today, 29), slots: a?.slots ?? 2, batch: a?.batch ?? "", notes: a?.notes ?? "", active: a?.active ?? true });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [showPw, setShowPw] = useState(!a);
+  const set = <K extends keyof typeof v>(k: K, x: (typeof v)[K]) => setV((o) => ({ ...o, [k]: x }));
+  const days = daysBetween(v.validFrom, v.validUntil) + 1;
+  const ok = v.username.trim() && v.validUntil >= v.validFrom && v.slots >= 1 && v.slots <= 10 && !busy;
+  async function save() {
+    if (!ok) return;
+    if (a && a.used > v.slots && !confirm(`Akun ini sedang dipakai ${a.used} slot. Tetap ubah slot menjadi ${v.slots}?`)) return;
+    setBusy(true); setErr("");
+    try { await saveWifiAccount(a?.id ?? null, v); await onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); }
+  }
+  return (
+    <ModalPortal onOverlayClick={onClose} maxWidth={560}>
+      <form className={r.modal} onSubmit={(e) => { e.preventDefault(); save(); }} role="dialog" aria-modal="true" aria-labelledby="rcp-acc-title">
+        <div className={r.modalHead}>
+          <div><h2 id="rcp-acc-title">{a ? `Ubah akun ${a.username}` : "Akun wifi baru"}</h2><p>{a ? `${WIFI_STATUS_LABEL[a.status]} · ${a.used}/${a.slots} slot terpakai` : "Tambah satu akun dari IT"}</p></div>
+          <button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button>
+        </div>
+        <div className={r.form}>
+          <div className={r.section}>Kredensial</div>
+          <label className={r.field}><span>Username *</span><input className={`${r.input} ${r.mono}`} value={v.username} onChange={(e) => set("username", e.target.value)} autoFocus={!a} required /></label>
+          <label className={r.field}><span>Password</span>
+            <span className={r.row} style={{ gap: 6, flexWrap: "nowrap" }}><input className={`${r.input} ${r.mono}`} type={showPw ? "text" : "password"} value={v.password} onChange={(e) => set("password", e.target.value)} />
+              <button type="button" className={r.iconBtn} style={{ width: 40, height: 40 }} onClick={() => setShowPw((x) => !x)} aria-label="Tampilkan password">{showPw ? "🙈" : "👁"}</button></span>
+          </label>
+          <div className={r.section}>Masa berlaku</div>
+          <div className={`${r.field} ${r.full}`}><span>Durasi cepat</span>
+            <div className={r.chips}>{[30, 60, 90].map((d) => <button key={d} type="button" className={r.chip} aria-pressed={days === d} onClick={() => set("validUntil", addDays(v.validFrom, d - 1))}>{d} hari</button>)}</div>
+          </div>
+          <label className={r.field}><span>Berlaku mulai</span><input className={r.input} type="date" value={v.validFrom} onChange={(e) => e.target.value && set("validFrom", e.target.value)} /></label>
+          <label className={r.field}><span>Berlaku sampai <em>({days > 0 ? `${days} hari` : "tidak valid"})</em></span><input className={r.input} type="date" value={v.validUntil} min={v.validFrom} onChange={(e) => e.target.value && set("validUntil", e.target.value)} /></label>
+          <div className={r.section}>Lainnya</div>
+          <div className={r.field}><span>Slot (perangkat)</span>
+            <div className={r.chips}>{[1, 2, 3, 4].map((n) => <button key={n} type="button" className={r.chip} aria-pressed={v.slots === n} onClick={() => set("slots", n)}>{n}</button>)}</div>
+          </div>
+          <div className={r.field}><span>Status</span><label className={r.check} style={{ height: 40 }}><button type="button" role="switch" aria-checked={v.active} className={r.switch} onClick={() => set("active", !v.active)} /> {v.active ? "Aktif — bisa disarankan" : "Nonaktif"}</label></div>
+          <label className={r.field}><span>Batch</span><input className={r.input} value={v.batch} onChange={(e) => set("batch", e.target.value)} placeholder="mis. Okt 2026 · 30 hari" /></label>
+          <label className={r.field}><span>Catatan</span><input className={r.input} value={v.notes} onChange={(e) => set("notes", e.target.value)} /></label>
+        </div>
+        {err && <div className={r.err}>{err}</div>}
+        <div className={r.modalFoot}>
+          <span className={r.grow} />
+          <button type="button" className={r.ghost} onClick={onClose}>Batal</button>
+          <button type="submit" className={r.btn} disabled={!ok}>{busy ? "Menyimpan…" : "Simpan"}</button>
+        </div>
+      </form>
+    </ModalPortal>
   );
 }
 
@@ -340,7 +418,7 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
 }
 
 /* ── Riwayat ── */
-function History({ grants }: { grants: WifiGrant[] }) {
+function History({ grants, onProof }: { grants: WifiGrant[]; onProof: (g: WifiGrant) => void }) {
   const [q, setQ] = useState("");
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const list = grants.filter((g) => (!month || monthOf(g.createdAt) === month) && (!q || [g.guestName, g.guestCompany, g.requestorName, g.username, g.receiptNo, g.department, g.lineManager].join(" ").toLowerCase().includes(q.toLowerCase())));
@@ -364,7 +442,7 @@ function History({ grants }: { grants: WifiGrant[] }) {
       {list.length === 0 ? <p className={r.empty}>Tidak ada data.</p> : (
         <div className={r.tableBox}>
           <table className={r.table}>
-            <thead><tr><th>No.</th><th>Tamu</th><th>Requestor</th><th>Akun</th><th>Periode</th><th>Status</th><th>Email</th></tr></thead>
+            <thead><tr><th>No.</th><th>Tamu</th><th>Requestor</th><th>Akun</th><th>Periode</th><th>Status</th><th>Email</th><th /></tr></thead>
             <tbody>{list.map((g) => (
               <tr key={g.id}>
                 <td className={`${r.mono} ${r.nowrap}`}>{g.receiptNo}</td>
@@ -374,6 +452,7 @@ function History({ grants }: { grants: WifiGrant[] }) {
                 <td className={r.nowrap}>{fmtDate(g.startDate)} – {fmtDate(g.endDate)}</td>
                 <td><span className={`${r.pill} ${g.returnedAt ? r.pGray : g.endDate < today ? r.pGray : r.pGreen}`}>{status(g)}</span></td>
                 <td>{g.emailSentAt ? <span className={`${r.pill} ${r.pBlue}`}>Terkirim</span> : <span className={r.mute}>–</span>}</td>
+                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 Bukti</button></td>
               </tr>
             ))}</tbody>
           </table>

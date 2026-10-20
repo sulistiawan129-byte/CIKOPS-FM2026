@@ -8,20 +8,20 @@
 ════════════════════════════════════════════════════════════ */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getEmployees, type MyProfile } from "@/lib/api";
-import type { Employee } from "@/lib/types";
-import { getBookings, getContacts, getParcels, getRcpSettings, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
+import type { MyProfile } from "@/lib/api";
+import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
 import {
   DEFAULT_SETTINGS, addDays, addMonths, fmtDate, fmtDateTime, grantActive, monthLabel, toMin, todayISO, usageByDeptMonth,
-  type Contact, type Parcel, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant,
+  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant,
 } from "@/lib/receptionist/model";
 import RcpWifi from "./RcpWifi";
 import RcpParcels from "./RcpParcels";
 import RcpRoom from "./RcpRoom";
+import RcpData from "./RcpData";
 import { ExportButtons, col, type Directory } from "./shared";
 import r from "./receptionist.module.css";
 
-type View = "dashboard" | "wifi" | "parcels" | "room" | "settings";
+type View = "dashboard" | "wifi" | "parcels" | "room" | "data" | "settings";
 
 export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | null }) {
   void myProfile;
@@ -32,7 +32,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [today, setToday] = useState<RoomBooking[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<RcpEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -53,7 +53,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
       const [s] = await Promise.all([getRcpSettings(), loadWifi(), loadParcels(), loadToday(), loadContacts()]);
       setSettings(s);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); }
-    getEmployees().then(setEmployees).catch(() => {});
+    getRcpEmployees().then(setEmployees).catch(() => {});
   }, [loadWifi, loadParcels, loadToday, loadContacts]);
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -62,7 +62,8 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
   const reloadParcels = useCallback(async () => { await Promise.all([loadParcels(), loadContacts()]); }, [loadParcels, loadContacts]);
 
   const waiting = parcels.filter((p) => p.status === "waiting").length;
-  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", "Barang & Surat", waiting], ["room", settings.roomName], ["settings", "Pengaturan"]];
+  const reloadEmployees = useCallback(async () => { setEmployees(await getRcpEmployees()); }, []);
+  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", "Barang & Surat", waiting], ["room", settings.roomName], ["data", "Data Master"], ["settings", "Pengaturan"]];
 
   return (
     <div className={r.wrap}>
@@ -87,6 +88,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
       {view === "wifi" && <RcpWifi settings={settings} accounts={accounts} grants={grants} dir={dir} reload={reloadWifi} />}
       {view === "parcels" && <RcpParcels parcels={parcels} dir={dir} reload={reloadParcels} />}
       {view === "room" && <RcpRoom settings={settings} dir={dir} onChanged={() => loadToday().catch(() => {})} />}
+      {view === "data" && <RcpData employees={employees} accounts={accounts} reloadEmployees={reloadEmployees} reloadWifi={reloadWifi} />}
       {view === "settings" && <Settings settings={settings} onSaved={(s) => setSettings(s)} />}
     </div>
   );

@@ -5,20 +5,23 @@
 
 import { useMemo, useState } from "react";
 import { createParcel, deleteParcel, emailParcel, handoverParcel } from "@/lib/receptionist/api";
-import { ITEM_TYPES, fmtDate, fmtDateTime, fmtTime, todayISO, dayOf, monthOf, type Parcel, type ParcelDirection } from "@/lib/receptionist/model";
-import { ExportButtons, NameInput, col, type Directory } from "./shared";
+import { ITEM_TYPES, fmtDate, fmtDateTime, fmtTime, todayISO, dayOf, monthOf, receiptFromParcel, type Parcel, type ParcelDirection } from "@/lib/receptionist/model";
+import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./shared";
+import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
 
 type Sub = "waiting" | "today" | "history";
 
 export default function RcpParcels({ parcels, dir, reload }: { parcels: Parcel[]; dir: Directory; reload: () => Promise<void> }) {
   const [sub, setSub] = useState<Sub>("waiting");
+  const [proof, setProof] = useState<Parcel | null>(null);
+  const who = proof ? (proof.direction === "in" ? proof.recipient : proof.sender) : "";
   const waiting = parcels.filter((p) => p.status === "waiting");
   const today = todayISO();
   const todayList = parcels.filter((p) => dayOf(p.createdAt) === today || dayOf(p.handedAt) === today);
   return (
     <div className={r.split}>
-      <NewParcel dir={dir} reload={reload} />
+      <NewParcel dir={dir} reload={reload} onProof={setProof} />
       <section className={r.card}>
         <div className={r.cardHead}>
           <div className={r.seg} role="group" aria-label="Daftar">
@@ -28,15 +31,19 @@ export default function RcpParcels({ parcels, dir, reload }: { parcels: Parcel[]
           </div>
           <CourierSheet parcels={parcels} />
         </div>
-        {sub === "waiting" && <WaitingList list={waiting} reload={reload} />}
-        {sub === "today" && <SimpleList list={todayList} />}
-        {sub === "history" && <HistoryList parcels={parcels} />}
+        {sub === "waiting" && <WaitingList list={waiting} reload={reload} onProof={setProof} />}
+        {sub === "today" && <SimpleList list={todayList} onProof={setProof} />}
+        {sub === "history" && <HistoryList parcels={parcels} onProof={setProof} />}
       </section>
+      {proof && (
+        <ProofModal data={receiptFromParcel(proof)} token={proof.shareToken || undefined} email={proof.email} phone={lookupPerson(dir, who)?.phone}
+          onEmail={proof.email ? () => emailParcel(proof.status === "handed" ? "parcel-handed" : "parcel-arrived", proof) : undefined} onClose={() => setProof(null)} />
+      )}
     </div>
   );
 }
 
-function NewParcel({ dir, reload }: { dir: Directory; reload: () => Promise<void> }) {
+function NewParcel({ dir, reload, onProof }: { dir: Directory; reload: () => Promise<void>; onProof: (p: Parcel) => void }) {
   const blank = { itemType: ITEM_TYPES[0] as string, description: "", sender: "", recipient: "", department: "", email: "", courier: "" };
   const [direction, setDirection] = useState<ParcelDirection>("in");
   const [f, setF] = useState(blank);
@@ -60,6 +67,7 @@ function NewParcel({ dir, reload }: { dir: Directory; reload: () => Promise<void
       setMsg({ ok: true, text: `✓ Tercatat ${p.receiptNo}${note}` });
       setF(blank);
       await reload();
+      onProof(p);
     } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); }
   }
 
@@ -99,7 +107,7 @@ function NewParcel({ dir, reload }: { dir: Directory; reload: () => Promise<void
   );
 }
 
-function WaitingList({ list, reload }: { list: Parcel[]; reload: () => Promise<void> }) {
+function WaitingList({ list, reload, onProof }: { list: Parcel[]; reload: () => Promise<void>; onProof: (p: Parcel) => void }) {
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -113,6 +121,7 @@ function WaitingList({ list, reload }: { list: Parcel[]; reload: () => Promise<v
       const done = await handoverParcel(p.id, who);
       if (done.email) { try { await emailParcel("parcel-handed", done); } catch (e) { alert(e instanceof Error ? e.message : String(e)); } }
       await reload();
+      onProof(done);
     } catch (e) { alert(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
   }
   async function del(p: Parcel) {
@@ -140,6 +149,7 @@ function WaitingList({ list, reload }: { list: Parcel[]; reload: () => Promise<v
               <div className={r.itemSide}>
                 <input className={r.input} value={names[p.id] ?? (p.direction === "in" ? p.recipient : p.courier)} onChange={(e) => setNames((x) => ({ ...x, [p.id]: e.target.value }))} placeholder={p.direction === "in" ? "Nama pengambil" : "Nama kurir"} aria-label="Nama pengambil" />
                 <button type="button" className={`${r.btn} ${r.btnSm}`} disabled={busy === p.id} onClick={() => hand(p)}>{busy === p.id ? "…" : "Serahkan"}</button>
+                <button type="button" className={r.proofBtn} onClick={() => onProof(p)} title="Bukti permintaan">🧾</button>
                 <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(p)}>Hapus</button>
               </div>
             </div>
@@ -150,7 +160,7 @@ function WaitingList({ list, reload }: { list: Parcel[]; reload: () => Promise<v
   );
 }
 
-function SimpleList({ list }: { list: Parcel[] }) {
+function SimpleList({ list, onProof }: { list: Parcel[]; onProof: (p: Parcel) => void }) {
   if (!list.length) return <p className={r.empty}>Belum ada aktivitas hari ini.</p>;
   return (
     <div className={r.list}>
@@ -160,7 +170,8 @@ function SimpleList({ list }: { list: Parcel[] }) {
             <b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
             <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{p.itemType}</span><span>masuk {fmtTime(p.createdAt)}</span></div>
           </div>
-          <div className={r.itemSide}>{p.status === "handed" ? <span className={`${r.pill} ${r.pGreen}`}>{p.handedTo} · {fmtTime(p.handedAt)}</span> : <span className={`${r.pill} ${r.pOrange}`}>Menunggu</span>}</div>
+          <div className={r.itemSide}>{p.status === "handed" ? <span className={`${r.pill} ${r.pGreen}`}>{p.handedTo} · {fmtTime(p.handedAt)}</span> : <span className={`${r.pill} ${r.pOrange}`}>Menunggu</span>}
+            <button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 Bukti</button></div>
         </div>
       ))}
     </div>
@@ -174,7 +185,7 @@ const COLS = [
   col<Parcel>("ambil", "Diambil oleh", (p) => p.handedTo || "-"), col<Parcel>("jam", "Waktu serah", (p) => (p.handedAt ? fmtDateTime(p.handedAt) : "-")),
 ];
 
-function HistoryList({ parcels }: { parcels: Parcel[] }) {
+function HistoryList({ parcels, onProof }: { parcels: Parcel[]; onProof: (p: Parcel) => void }) {
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const [dirF, setDirF] = useState<"all" | ParcelDirection>("all");
   const [q, setQ] = useState("");
@@ -191,7 +202,7 @@ function HistoryList({ parcels }: { parcels: Parcel[] }) {
       {list.length === 0 ? <p className={r.empty}>Tidak ada data.</p> : (
         <div className={r.tableBox}>
           <table className={r.table}>
-            <thead><tr><th>No.</th><th>Jenis</th><th>Dari → Untuk</th><th>Dicatat</th><th>Serah terima</th></tr></thead>
+            <thead><tr><th>No.</th><th>Jenis</th><th>Dari → Untuk</th><th>Dicatat</th><th>Serah terima</th><th /></tr></thead>
             <tbody>{list.map((p) => (
               <tr key={p.id}>
                 <td className={`${r.mono} ${r.nowrap}`}>{p.receiptNo}</td>
@@ -199,6 +210,7 @@ function HistoryList({ parcels }: { parcels: Parcel[] }) {
                 <td>{p.sender || "–"} → <b>{p.recipient || "–"}</b>{p.department && <div className={r.mute}>{p.department}</div>}</td>
                 <td className={r.nowrap}>{fmtDateTime(p.createdAt)}</td>
                 <td>{p.status === "handed" ? <>{p.handedTo}<div className={r.mute}>{fmtDateTime(p.handedAt)}</div></> : <span className={`${r.pill} ${r.pOrange}`}>Menunggu</span>}</td>
+                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 Bukti</button></td>
               </tr>
             ))}</tbody>
           </table>

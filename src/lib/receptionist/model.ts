@@ -26,22 +26,64 @@ export interface WifiGrant {
   id: string; receiptNo: string; accountId: string; username: string; password: string; slots: number;
   guestName: string; guestCompany: string; requestorName: string; requestorEmail: string; department: string;
   lineManager: string; purpose: string; startDate: string; endDate: string; returnedAt: string | null; returnNote: string;
-  emailSentAt: string | null; createdBy: string; createdAt: string;
+  emailSentAt: string | null; createdBy: string; createdAt: string; shareToken: string;
 }
 
-export interface WifiGrantResult { id: string; receiptNo: string; username: string; password: string; startDate: string; endDate: string; accountValidUntil: string }
+export interface WifiGrantResult { id: string; receiptNo: string; username: string; password: string; startDate: string; endDate: string; accountValidUntil: string; shareToken: string; createdAt: string }
 
 export type ParcelDirection = "in" | "out";
 export interface Parcel {
   id: string; receiptNo: string; direction: ParcelDirection; itemType: string; description: string;
   sender: string; recipient: string; department: string; email: string; courier: string;
   status: "waiting" | "handed"; handedTo: string; handedAt: string | null; handedBy: string;
-  notifiedAt: string | null; createdBy: string; createdAt: string;
+  notifiedAt: string | null; createdBy: string; createdAt: string; shareToken: string;
 }
 
 export interface RoomBooking {
   id: string; room: string; date: string; start: string; end: string; title: string; pic: string;
   department: string; attendees: number | null; notes: string; seriesId: string | null; createdBy: string; createdAt: string;
+  receiptNo: string; shareToken: string; picEmail: string;
+}
+
+/** Karyawan (tabel employees CIKOPS + kolom migrasi 033). */
+export interface RcpEmployee { id: string; nama: string; nik: string; departement: string; email: string; noHp: string; jabatan: string; aktif: boolean; createdAt: string }
+
+/* ── Bukti Permintaan (halaman /bukti & tombol cetak) ── */
+export type ReceiptKind = "wifi" | "parcel" | "booking";
+export interface ReceiptData {
+  kind: ReceiptKind; receipt_no: string; created_at: string; created_by: string; status: string;
+  // wifi
+  guest_name?: string; guest_company?: string; requestor_name?: string; department?: string; purpose?: string; slots?: number;
+  start_date?: string; end_date?: string; returned_at?: string | null; username?: string; password?: string | null; ssid?: string; terms?: string;
+  // barang
+  direction?: "in" | "out"; item_type?: string; description?: string; sender?: string; recipient?: string; courier?: string; handed_to?: string; handed_at?: string | null;
+  // booking
+  room?: string; date?: string; start?: string; end?: string; title?: string; pic?: string; attendees?: number | null; notes?: string;
+  series?: { count: number; first: string; last: string } | null;
+}
+
+/** Tautan publik bukti. */
+export const receiptUrl = (token: string, origin = typeof window !== "undefined" ? window.location.origin : "") => `${origin}/bukti?t=${encodeURIComponent(token)}`;
+/** Kode verifikasi pendek dari token (ditampilkan di bukti). */
+export const verifyCode = (token: string) => token.slice(0, 8).toUpperCase().replace(/(.{4})(.{4})/, "$1-$2");
+
+/** Bukti dari data yang sudah ada di layar (tanpa memanggil server). */
+export function receiptFromGrant(g: WifiGrant, s: RcpSettings): ReceiptData {
+  const today = todayISO();
+  const active = !g.returnedAt && g.endDate >= today;
+  return { kind: "wifi", receipt_no: g.receiptNo, created_at: g.createdAt, created_by: g.createdBy, status: g.returnedAt ? "returned" : g.endDate < today ? "ended" : "active",
+    guest_name: g.guestName, guest_company: g.guestCompany, requestor_name: g.requestorName, department: g.department, purpose: g.purpose, slots: g.slots,
+    start_date: g.startDate, end_date: g.endDate, returned_at: g.returnedAt, username: g.username, password: active ? g.password : null, ssid: s.wifiSsid, terms: s.wifiTerms };
+}
+export function receiptFromParcel(p: Parcel): ReceiptData {
+  return { kind: "parcel", receipt_no: p.receiptNo, created_at: p.createdAt, created_by: p.createdBy, status: p.status, direction: p.direction, item_type: p.itemType,
+    description: p.description, sender: p.sender, recipient: p.recipient, department: p.department, courier: p.courier, handed_to: p.handedTo, handed_at: p.handedAt };
+}
+export function receiptFromBooking(b: RoomBooking, series?: RoomBooking[]): ReceiptData {
+  const ss = series && series.length > 1 ? [...series].sort((x, y) => x.date.localeCompare(y.date)) : null;
+  return { kind: "booking", receipt_no: b.receiptNo, created_at: b.createdAt, created_by: b.createdBy, status: b.date < todayISO() ? "done" : "confirmed",
+    room: b.room, date: b.date, start: b.start, end: b.end, title: b.title, pic: b.pic, department: b.department, attendees: b.attendees, notes: b.notes,
+    series: ss ? { count: ss.length, first: ss[0].date, last: ss[ss.length - 1].date } : null };
 }
 
 export interface Contact { name: string; email: string; department: string; useCount: number }

@@ -1,34 +1,37 @@
 "use client";
 
 import { useId, useMemo } from "react";
-import type { Employee } from "@/lib/types";
-import type { Contact } from "@/lib/receptionist/model";
+import type { Contact, RcpEmployee } from "@/lib/receptionist/model";
 import { exportGenericExcel, exportGenericPdf, type ReportColumn } from "@/lib/reportEngine";
 import r from "./receptionist.module.css";
 
-/** Direktori nama: buku alamat (punya email) + master karyawan (punya departemen). */
-export interface Directory { contacts: Contact[]; employees: Employee[] }
+/** Direktori nama: Data Karyawan (utama) + buku alamat yang terbentuk sendiri. */
+export interface Directory { contacts: Contact[]; employees: RcpEmployee[] }
 
-export function lookupPerson(dir: Directory, name: string): { email: string; department: string } | null {
+export function lookupPerson(dir: Directory, name: string): { email: string; department: string; phone: string } | null {
   const k = name.trim().toLowerCase();
   if (!k) return null;
   const c = dir.contacts.find((x) => x.name.trim().toLowerCase() === k);
   const e = dir.employees.find((x) => x.nama.trim().toLowerCase() === k);
   if (!c && !e) return null;
-  return { email: c?.email ?? "", department: c?.department || e?.departement || "" };
+  return { email: e?.email || c?.email || "", department: e?.departement || c?.department || "", phone: e?.noHp ?? "" };
 }
+
+/** Warna avatar yang stabil per nama. */
+export const hueOf = (name: string) => [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
+export const initialsOf = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
 
 /** Input nama dengan saran dari buku alamat & master karyawan. Saat nama cocok,
  *  `onPick` dipanggil dengan email/departemen yang diingat sistem. */
 export function NameInput({ dir, value, onChange, onPick, placeholder, required }: {
-  dir: Directory; value: string; onChange: (v: string) => void; onPick?: (p: { email: string; department: string }) => void; placeholder?: string; required?: boolean;
+  dir: Directory; value: string; onChange: (v: string) => void; onPick?: (p: { email: string; department: string; phone: string }) => void; placeholder?: string; required?: boolean;
 }) {
   const id = useId();
   const names = useMemo(() => {
     const seen = new Set<string>();
     const out: { name: string; hint: string }[] = [];
+    for (const e of dir.employees) { if (!e.aktif) continue; const k = e.nama.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ name: e.nama, hint: [e.departement, e.email].filter(Boolean).join(" · ") }); } }
     for (const c of dir.contacts) { const k = c.name.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ name: c.name, hint: c.email }); } }
-    for (const e of dir.employees) { const k = e.nama.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ name: e.nama, hint: e.departement ?? "" }); } }
     return out;
   }, [dir]);
   return (
