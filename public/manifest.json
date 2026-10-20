@@ -1,8 +1,10 @@
 {
-  "name": "CIKOPS Fleet Ops",
-  "short_name": "CIKOPS",
+  "id": "/driver",
+  "name": "CIKOPS Driver",
+  "short_name": "Driver",
   "description": "Driver Task Management & Fleet Operations System",
   "start_url": "/driver",
+  "scope": "/driver",
   "display": "standalone",
   "background_color": "#f6f8fc",
   "theme_color": "#2f5fe0",

@@ -1,0 +1,183 @@
+# Build APK Android untuk aplikasi CIKOPS (TGA & Driver) — Trusted Web Activity.
+# APK membuka halaman web CIKOPS dalam mode layar penuh, jadi isi aplikasi selalu
+# ikut versi web terbaru tanpa perlu build ulang. Build ulang hanya perlu bila
+# nama, ikon, warna, atau alamat situs berubah.
+#
+# Cara pakai: GitHub → Actions → "APK Android (TGA & Driver)" → Run workflow.
+# Hasil: tab "Artifacts" di halaman run → unduh, kirim ke HP, lalu install.
+# Panduan lengkap: BACA-DULU-APK.md
+name: APK Android (TGA & Driver)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Aplikasi yang di-build"
+        type: choice
+        options: [semua, tga, driver]
+        default: semua
+      site_url:
+        description: "Alamat situs CIKOPS (kosong = variabel SITE_URL / default)"
+        required: false
+        default: ""
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  apps:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - id: pick
+        run: |
+          case "${{ github.event.inputs.app || 'semua' }}" in
+            tga)    echo 'matrix=["tga"]' >> "$GITHUB_OUTPUT" ;;
+            driver) echo 'matrix=["driver"]' >> "$GITHUB_OUTPUT" ;;
+            *)      echo 'matrix=["tga","driver"]' >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # Belum ada kunci di Secrets → buat SATU kunci baru untuk semua aplikasi di run ini.
+      - name: Buat kunci APK baru
+        if: env.HAS_KEY != 'true'
+        run: |
+          mkdir -p kunci
+          PASS="$(openssl rand -hex 16)"
+          keytool -genkeypair -keystore kunci/release.jks -alias cikops -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$PASS" -keypass "$PASS" -dname "CN=CIKOPS, O=CIKOPS, C=ID"
+          base64 -w0 kunci/release.jks > kunci/ANDROID_KEYSTORE_BASE64.txt
+          printf '%s' "$PASS"  > kunci/ANDROID_KEYSTORE_PASSWORD.txt
+          printf '%s' cikops   > kunci/ANDROID_KEY_ALIAS.txt
+          rm kunci/release.jks
+
+      - name: Simpan kunci baru
+        if: env.HAS_KEY != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KUNCI-APK-simpan-ke-secrets-lalu-hapus
+          path: kunci/
+          retention-days: 3
+
+  build:
+    needs: apps
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.apps.outputs.matrix) }}
+    env:
+      SITE_URL: ${{ github.event.inputs.site_url || vars.SITE_URL || 'https://cikops-onefm.vercel.app' }}
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Identitas aplikasi
+        id: cfg
+        run: |
+          if [ "${{ matrix.app }}" = "tga" ]; then
+            echo "id=com.cikops.tga"        >> "$GITHUB_OUTPUT"
+            echo "name=CIKOPS TGA"          >> "$GITHUB_OUTPUT"
+            echo "path=/tga"                >> "$GITHUB_OUTPUT"
+            echo "theme=#0f1b3d"            >> "$GITHUB_OUTPUT"
+            echo "bg=#0f1b3d"               >> "$GITHUB_OUTPUT"
+            echo "icon=public/icon-tga-512.png" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=com.cikops.driver"     >> "$GITHUB_OUTPUT"
+            echo "name=CIKOPS Driver"       >> "$GITHUB_OUTPUT"
+            echo "path=/driver"             >> "$GITHUB_OUTPUT"
+            echo "theme=#2f5fe0"            >> "$GITHUB_OUTPUT"
+            echo "bg=#f6f8fc"               >> "$GITHUB_OUTPUT"
+            echo "icon=public/icon-512.png" >> "$GITHUB_OUTPUT"
+          fi
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          cp "$(grep '^icon=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)" android/app/src/main/res/drawable-nodpi/ic_launcher.png
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Ambil kunci baru dari job sebelumnya
+        if: env.HAS_KEY != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: KUNCI-APK-simpan-ke-secrets-lalu-hapus
+          path: ${{ runner.temp }}/kunci
+
+      - name: Kunci tanda tangan APK
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          KS="$RUNNER_TEMP/release.jks"
+          if [ "$HAS_KEY" = "true" ]; then
+            printf '%s' "$KS_B64" | base64 -d > "$KS"
+            PASS="$KS_PASS"; ALIAS="${KS_ALIAS:-cikops}"
+          else
+            base64 -d "$RUNNER_TEMP/kunci/ANDROID_KEYSTORE_BASE64.txt" > "$KS"
+            PASS="$(cat "$RUNNER_TEMP/kunci/ANDROID_KEYSTORE_PASSWORD.txt")"; ALIAS="$(cat "$RUNNER_TEMP/kunci/ANDROID_KEY_ALIAS.txt")"
+          fi
+          echo "::add-mask::$PASS"
+          {
+            echo "KEYSTORE_FILE=$KS"
+            echo "KEYSTORE_PASSWORD=$PASS"
+            echo "KEY_PASSWORD=$PASS"
+            echo "KEY_ALIAS=$ALIAS"
+          } >> "$GITHUB_ENV"
+          SHA=$(keytool -list -v -keystore "$KS" -alias "$ALIAS" -storepass "$PASS" | grep -m1 'SHA256:' | sed 's/.*SHA256: *//')
+          echo "CERT_SHA256=$SHA" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: |
+          gradle -p android assembleRelease --no-daemon \
+            -PappId="${{ steps.cfg.outputs.id }}" \
+            -PappName="${{ steps.cfg.outputs.name }}" \
+            -PsiteUrl="$SITE_URL" \
+            -PstartPath="${{ steps.cfg.outputs.path }}" \
+            -PthemeColor="${{ steps.cfg.outputs.theme }}" \
+            -PbgColor="${{ steps.cfg.outputs.bg }}" \
+            -PversionCode="${{ github.run_number }}" \
+            -PversionName="1.0.${{ github.run_number }}"
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/CIKOPS-${{ matrix.app }}-v1.0.${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: APK-${{ matrix.app }}
+          path: out/*.apk
+          retention-days: 30
+
+      - name: Ringkasan
+        run: |
+          {
+            echo "## ✅ ${{ steps.cfg.outputs.name }} — v1.0.${{ github.run_number }}"
+            echo ""
+            echo "- Situs: \`$SITE_URL${{ steps.cfg.outputs.path }}\`"
+            echo "- Package: \`${{ steps.cfg.outputs.id }}\`"
+            echo "- Unduh APK di bagian **Artifacts** di bawah (APK-${{ matrix.app }})."
+            echo ""
+            echo "### Sidik jari sertifikat (untuk layar penuh tanpa address bar)"
+            echo "Isi Vercel → Settings → Environment Variables → \`TWA_SHA256\` dengan:"
+            echo '```'
+            echo "$CERT_SHA256"
+            echo '```'
+            if [ "$HAS_KEY" != "true" ]; then
+              echo ""
+              echo "> ⚠️ **Kunci APK belum tersimpan.** Build ini memakai kunci baru (APK-nya tetap bisa dipakai)."
+              echo "> Unduh artifact **KUNCI-APK-simpan-ke-secrets-lalu-hapus**, simpan 3 isinya ke"
+              echo "> Settings → Secrets and variables → Actions, lalu hapus artifact tersebut."
+              echo "> Tanpa ini, build berikutnya memakai kunci lain dan APK tidak bisa di-update (harus uninstall dulu)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
