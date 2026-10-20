@@ -6,7 +6,7 @@ An app for TGA technicians to log their work from a phone: what was done, who re
 1. Supabase → **SQL Editor** → **New query** → paste the **entire** contents of `supabase/034_tga_app.sql` (do not select only part of it) → **Run**.
 2. Open **Dashboard → Cleaning, Gardening & TGA → TGA tab** and scroll down to **Akun aplikasi TGA**.
 3. Click **＋ Akun baru** (or a name chip from the TGA manpower list) → enter the name, phone number and a **PIN of 4–6 digits** → Simpan.
-4. Run `supabase/035_tga_requestor_karyawan.sql` as well (after 034), so the requestor is linked to **Data Karyawan**.
+4. Also run `supabase/035_tga_requestor_karyawan.sql` and `supabase/037_tga_requestors_fix.sql` (after 034), so the requestor is linked to **Data Karyawan**.
 5. Tell each technician their PIN, then send the link (the **Bagikan ke WhatsApp** button).
 
 ## 2. Install on a phone
@@ -23,7 +23,7 @@ The app is called **CIKOPS TGA** (orange wrench icon) and is separate from the d
 - **Riwayat:** 90 days, with search and filters by status/type. Tap an item to edit or delete it.
 
 ## 4. Requestor = Data Karyawan (035)
-- Requestors are picked from **Data Karyawan** (Receptionist → Data Master → Karyawan; inactive employees are hidden). Search by name / NIK / department, filter by department, and the "Sering meminta" list appears at the top.
+- Requestors are picked from **Data Karyawan** — the same `employees` table used by the main dashboard (Master Data), drivers, and the receptionist; nothing needs to be entered again. Inactive employees are hidden. Search by name / NIK / department, filter by department, and the "Sering meminta" list appears at the top.
 - The name and department are taken from the employee data and stored as an employee link (`requestor_id`).
 - If the employee data changes (name typo / moved department) → TGA activities linked to that employee update automatically.
 - Guests / vendors are still allowed through "Pakai “nama”" and are marked **Di luar data karyawan**.
