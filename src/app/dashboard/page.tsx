@@ -951,7 +951,16 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 )}
           {activeTab === "canteen" && <CanteenTab />}
           {activeTab === "locker" && <LockerTab />}
-          {activeTab === "gift" && <GiftMasterPanel cardStyle={{ background: "linear-gradient(180deg, var(--surface2), var(--surface))", border: "1px solid var(--border2)", borderRadius: "var(--r2)", boxShadow: "var(--shadow-md)" }} />}
+          {activeTab === "gift" && (
+            <ModulePage>
+              <ModuleHeader
+                kicker={lang === "en" ? "Facility · Distribution" : "Fasilitas · Pembagian"}
+                title={lang === "en" ? "Gift & Uniform Distribution" : "Pembagian Gift / Seragam"}
+                desc={lang === "en" ? "Run distribution programs (gifts, uniforms, merchandise): registration links, officer verification, stock per size, and participant tracking." : "Kelola program pembagian (gift, seragam, merchandise): link pendaftaran, verifikasi petugas, stok per ukuran, dan pantau peserta."}
+              />
+              <GiftMasterPanel cardStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 18, boxShadow: "var(--shadow-sm)" }} />
+            </ModulePage>
+          )}
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}
@@ -2668,13 +2677,14 @@ function ActivityLogTab() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div className="sectionHeading">{lang === "en" ? "Activity Log" : "Log Aktivitas"}</div>
-      <div style={{ fontSize: 12.5, color: "var(--t3)", marginBottom: 18 }}>
-        {lang === "en"
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "System · Audit" : "Sistem · Audit"}
+        title={lang === "en" ? "Activity Log" : "Log Aktivitas"}
+        desc={lang === "en"
           ? "Complete audit trail of who changed what, across Claims, Operational Fund, and Master Data. Visible only to master admin."
           : "Jejak audit lengkap siapa mengubah apa, mencakup Claims, Dana Operasional, dan Master Data. Cuma bisa dilihat oleh master admin."}
-      </div>
+      />
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
         <select
@@ -2775,7 +2785,7 @@ function ActivityLogTab() {
           })
         )}
       </div>
-    </div>
+    </ModulePage>
   );
 }
 
@@ -3181,6 +3191,11 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
 
   return (
     <div className={cs.root}>
+      <ModuleHeader
+        kicker={en ? "Finance · Claims" : "Finance · Klaim"}
+        title={en ? "Driver Claims" : "Klaim Driver"}
+        desc={en ? "Driver expense claims (fuel, tolls, parking, service, and more), weekly recaps, and condolence wreaths." : "Pengajuan klaim pengeluaran driver (bensin, tol, parkir, servis, dan lainnya), rekap mingguan, serta karangan bunga duka cita."}
+      />
       {notice && (
         <div className={cs.notice} role="status">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m8 12.5 2.8 2.8L16 9.5" /></svg>
@@ -5055,14 +5070,12 @@ function GasStationsTab() {
   const maxGrowth = Math.max(...growthByMonth.map((g) => g.cumulative), 1);
 
 return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--t1)" }}>{lang === "en" ? "Gas Stations" : "Pom Bensin"}</div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>
-            {new Date().toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </div>
-        </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "Fleet · Fuel" : "Fleet · Bahan Bakar"}
+        title={lang === "en" ? "Gas Stations" : "Pom Bensin"}
+        desc={lang === "en" ? "Map of gas stations drivers use, the fuel types each one sells, and data completeness." : "Peta SPBU yang dipakai driver, jenis BBM yang tersedia di tiap titik, dan kelengkapan datanya."}
+        actions={
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ fontSize: 13.5, color: "var(--t3)", marginRight: 4 }}>{totalStations} {lang === "en" ? "stations saved" : "SPBU tersimpan"}</span>
           <button
@@ -5082,7 +5095,8 @@ return (
             + {lang === "en" ? "Manual Input" : "Input Manual"}
           </button>
         </div>
-      </div>
+        }
+      />
 
       {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
 
@@ -5280,7 +5294,7 @@ return (
           </div>
         </ModalPortal>
       )}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -6119,23 +6133,15 @@ function PrinterTab() {
     }
   }
 
+  const Lp = (id: string, en: string) => (lang === "en" ? en : id);
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setViewMode("list")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "list" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "list" ? "#fff" : "var(--t2)" }}
-          >
-            🖨️ {lang === "en" ? "Printer List" : "Daftar Printer"}
-          </button>
-          <button
-            onClick={() => setViewMode("requests")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "requests" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "requests" ? "#fff" : "var(--t2)" }}
-          >
-            📋 {lang === "en" ? "Employee Requests" : "Permintaan Karyawan"}
-          </button>
-        </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={Lp("Fasilitas · Printer", "Facility · Printers")}
+        title="Printer"
+        desc={Lp("Daftar printer kantor beserta link Control Panel, dan catatan permintaan karyawan: reset kuota, tambah kuota, dan pengambilan toner.",
+          "Office printers with their Control Panel links, plus employee requests: quota reset, extra quota and toner pickup.")}
+        actions={<div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {viewMode === "list" ? (
           <button className="pillBtn" onClick={openAddPrinter}>+ {lang === "en" ? "Add Printer" : "Tambah Printer"}</button>
         ) : (
@@ -6159,7 +6165,13 @@ function PrinterTab() {
             )}
           </>
         )}
-      </div>
+        </div>}
+      />
+      <ModuleTabs
+        tabs={[{ id: "list", label: Lp("Daftar Printer", "Printer List"), icon: "🖨️" }, { id: "requests", label: Lp("Permintaan Karyawan", "Employee Requests"), icon: "📋", badge: requests.length || undefined }]}
+        value={viewMode}
+        onChange={setViewMode}
+      />
 
       {viewMode === "list" && (
         <>
@@ -6451,7 +6463,7 @@ function PrinterTab() {
           </div>
         </ModalPortal>
       )}
-    </div>
+    </ModulePage>
   );
 }
 /* ════════════════════════════════════════════════════════════
@@ -6629,15 +6641,13 @@ function EmployeeRequestsTab() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)" }}>
-          📨 {lang === "en" ? "Employee Requests" : "Permintaan Karyawan"}
-        </div>
-        <div style={{ fontSize: 12, color: "var(--t3)" }}>
-          {lang === "en" ? "Public link:" : "Link publik:"} <code style={{ background: "var(--bg2)", padding: "2px 8px", borderRadius: 6, fontFamily: "var(--mono)" }}>/request</code>
-        </div>
-      </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "Facility · Employee Requests" : "Fasilitas · Permintaan Karyawan"}
+        title={lang === "en" ? "Employee Requests" : "Permintaan Karyawan"}
+        desc={lang === "en" ? "Requests employees submit via the public form: driver / vehicle, printer quota, GA technician, and others." : "Permintaan yang dikirim karyawan lewat form publik: driver / kendaraan, kuota printer, teknisi GA, dan lainnya."}
+        actions={<a href="/request" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 40, padding: "0 14px", borderRadius: 11, border: "1px solid var(--border2)", background: "var(--surface)", color: "var(--t1)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>📝 {lang === "en" ? "Open public form ↗" : "Buka form publik ↗"}</a>}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 20 }}>
         <div className="statPop" style={{ ...cardStyle, padding: 18, background: pendingCount > 0 ? "linear-gradient(135deg, var(--orange), #d9730d)" : undefined, border: pendingCount === 0 ? "1px solid var(--border2)" : undefined }}>
@@ -6831,7 +6841,7 @@ function EmployeeRequestsTab() {
           </div>
         </ModalPortal>
       )}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -6859,38 +6869,26 @@ function MasterDataTab({
 
   const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
 
+  const subTabs = ([
+    { id: "drivers", label: lang === "en" ? "Drivers" : "Driver", icon: "🧑‍✈️" },
+    { id: "employees", label: lang === "en" ? "Employees" : "Pegawai", icon: "👤" },
+    { id: "jobtypes", label: lang === "en" ? "Job Types" : "Jenis Pekerjaan", icon: "🧰" },
+    { id: "settings", label: lang === "en" ? "Settings" : "Pengaturan", icon: "⚙️" },
+  ] as const).filter((s) => !restrictedToDriversOnly || s.id === "drivers" || s.id === "employees");
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
-        {([
-     { id: "drivers", label: lang === "en" ? "Drivers" : "Driver", icon: "🧑‍✈️" },
-     { id: "employees", label: lang === "en" ? "Employees" : "Pegawai", icon: "👤" },
-     { id: "jobtypes", label: lang === "en" ? "Job Types" : "Jenis Pekerjaan", icon: "🧰" },
-     { id: "settings", label: lang === "en" ? "Settings" : "Pengaturan", icon: "⚙️" },
-   ] as const)
-     .filter((s) => !restrictedToDriversOnly || s.id === "drivers" || s.id === "employees")
-     .map((s) => (
-          <button
-            key={s.id}
-            className="tabPill"
-            onClick={() => setSub(s.id)}
-            style={{
-              padding: "9px 18px", borderRadius: "var(--pill)", border: "none", cursor: "pointer",
-              fontSize: 13, fontWeight: 700,
-              background: sub === s.id ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "var(--surface2)",
-              color: sub === s.id ? "#fff" : "var(--t2)",
-            }}
-          >
-            {s.icon} {s.label}
-          </button>
-        ))}
-      </div>
+    <ModulePage>
+      <ModuleHeader
+        kicker={lang === "en" ? "System · Master Data" : "Sistem · Master Data"}
+        title="Master Data"
+        desc={lang === "en" ? "Shared reference data for all modules: drivers, employees (also used by Receptionist & the TGA app), job types, and app settings." : "Data acuan bersama untuk semua modul: driver, pegawai (dipakai juga oleh Receptionist & aplikasi TGA), jenis pekerjaan, dan pengaturan aplikasi."}
+      />
+      <ModuleTabs tabs={subTabs.map((x) => ({ ...x }))} value={sub} onChange={(v) => setSub(v)} />
 
       {sub === "drivers" && <DriversMasterPanel cardStyle={cardStyle} myProfile={myProfile} />}
       {sub === "employees" && <EmployeesMasterPanel cardStyle={cardStyle} />}
       {sub === "jobtypes" && <JobTypesMasterPanel cardStyle={cardStyle} />}
       {sub === "settings" && <SettingsPanel cardStyle={cardStyle} />}
-    </div>
+    </ModulePage>
   );
 }
 
@@ -9342,8 +9340,8 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     <div style={{ ...cardStyle, padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>🎁 Pembagian Gift / Seragam</div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>Kelola program pembagian dan pantau peserta</div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: "var(--t1)" }}>{lang === "en" ? "Distribution events" : "Event pembagian"}</div>
+          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>{lang === "en" ? "Links to share and the list of programs" : "Link untuk dibagikan dan daftar program"}</div>
         </div>
         <button onClick={openCreate} style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           + Event Baru
