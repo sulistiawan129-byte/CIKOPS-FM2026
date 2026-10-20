@@ -29,6 +29,15 @@ export interface NcBoard {
   items: { d: string; jam: string | null; transporter: string; jenis: string[] }[];
 }
 
+/** Ringkasan Receptionist dari rcp_board() (migrasi 031). */
+export interface RcpBoard {
+  today: string;
+  wifi: { accounts: number; slots: number; used: number; expiring7: number; guests_today: number };
+  parcels: { waiting: number; waiting_in: number; waiting_out: number; waiting_old: number; in_today: number; handed_today: number };
+  bookings: { start: string; end: string; title: string; attendees: number | null }[];
+  bookings_week: number;
+}
+
 export type Status = "baik" | "perhatian" | "kritis" | "na";
 export interface AreaFact { label: string; value: string; tone?: Status }
 export interface AreaCard {
@@ -72,7 +81,7 @@ export const TARGET = {
 };
 
 /* ════════════════════════════════════════════════════════════ */
-export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now()) {
+export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(), rcp: RcpBoard | null = null) {
   const today = s.today;
   const t = parse(today);
   const monthLabel = `${MONF[t.getMonth()]} ${t.getFullYear()}`;
@@ -281,6 +290,16 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
     ...(!cToday && nowMs && new Date(nowMs).getHours() >= 16 ? ["Laporan kantin hari ini belum diinput"] : []),
   ], (x) => x, (n) => `${n} catatan kantin`);
   grp("info", "Fleet", "fleet", docsWarn.map((d) => `${d.doc} ${d.nopol} — ${d.days} hari lagi`), (x) => `Jatuh tempo: ${x}`, (n) => `${n} dokumen kendaraan jatuh tempo ≤ ${TARGET.docWarnDays} hari`);
+  /* Receptionist (bila migrasi 031 sudah jalan) */
+  const rcpFree = rcp ? Math.max(0, rcp.wifi.slots - rcp.wifi.used) : 0;
+  if (rcp && rcp.wifi.slots > 0 && rcpFree / rcp.wifi.slots < 0.15) {
+    grp(rcpFree === 0 ? "kritis" : "perhatian", "Resepsionis", "rcp", [`${nf(rcpFree)} dari ${nf(rcp.wifi.slots)} slot`], () => (rcpFree === 0 ? "Slot wifi tamu habis — minta akun baru ke IT" : `Slot wifi tamu tinggal ${nf(rcpFree)} dari ${nf(rcp.wifi.slots)}`), () => "");
+  }
+  if (rcp && rcp.parcels.waiting_old > 0) grp("perhatian", "Resepsionis", "rcp", [`${nf(rcp.parcels.waiting_old)} barang`], () => `${nf(rcp.parcels.waiting_old)} barang menunggu diambil lebih dari 2 hari`, () => "");
+  if (rcp && rcp.wifi.expiring7 > 0) grp("info", "Resepsionis", "rcp", [`${nf(rcp.wifi.expiring7)} akun`], () => `${nf(rcp.wifi.expiring7)} akun wifi tamu habis ≤ 7 hari`, () => "");
+  if (rcp && rcp.wifi.slots > 0 && rcpFree / rcp.wifi.slots < 0.15) attention.push({ level: rcpFree === 0 ? "kritis" : "perhatian", area: "Resepsionis", text: "Slot wifi tamu menipis" });
+  if (rcp && rcp.parcels.waiting_old > 0) attention.push({ level: "perhatian", area: "Resepsionis", text: "Barang menunggu > 2 hari" });
+  if (rcp && rcp.wifi.expiring7 > 0) attention.push({ level: "info", area: "Resepsionis", text: "Akun wifi akan habis" });
   const counts = { kritis: attention.filter((x) => x.level === "kritis").length, perhatian: attention.filter((x) => x.level === "perhatian").length, info: attention.filter((x) => x.level === "info").length };
 
   /* ── INDEKS: rata-rata status area (Baik 100 · Perhatian 70 · Kritis 40) ── */
@@ -305,11 +324,13 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
     { key: "canteen", label: "Kantin snack · makan", value: cToday ? `${nf(cSnack.orderToday)} · ${nf(cMeal.orderToday)}` : "–", unit: cToday ? "porsi dipesan" : "belum diinput", tab: "canteen" },
     { key: "atk", label: "ATK keluar", value: nf(atkToday), unit: "unit", tab: "atk" },
     { key: "nc", label: "Pelanggaran", value: nc ? nf(ncToday.length) : "–", unit: nc ? "NC hari ini" : "belum tersambung", tab: "nc", tone: ncToday.length ? ncStatus : undefined },
+    ...(rcp ? [{ key: "rcp", label: "Resepsionis", value: nf(rcp.parcels.waiting), unit: `barang menunggu · ${nf(rcp.bookings.length)} booking`, tab: "rcp", tone: rcp.parcels.waiting_old ? ("perhatian" as Status) : undefined }] : []),
   ];
 
   return {
     today, todayLabel, monthLabel, generatedAt: s.generated_at,
     health, healthStatus, summary, summary2, areas, attention, groups, counts, headline, headlineSub, pulse,
+    rcp: rcp ? { ...rcp, free: rcpFree } : null,
     fleet: {
       today: tasksToday, doneToday, month: tasksMonth, sameDayPct, util: util.slice(0, 8), utilAvg, docs: docs.slice(0, 8),
       daily: dailyBars((d) => td.find((r) => r.d === d)?.n ?? 0, (n) => nf(n)),
