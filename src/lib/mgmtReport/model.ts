@@ -41,9 +41,6 @@ const META_EN: Record<ModuleKey, { title: string; short: string; accent: string;
 };
 /** Metadata modul dalam bahasa yang diminta (default: bahasa aktif). */
 export function metaOf(key: ModuleKey, lang: ReportLang = LANG) { return (lang === "en" ? META_EN : META_ID)[key]; }
-/** Kompatibilitas: metadata bahasa Indonesia. */
-export const MODULE_META = META_ID;
-
 export interface Kpi {
   label: string;
   value: string;
@@ -317,10 +314,6 @@ export function buckets(from: string, to: string): Bucket[] {
   }
   return out;
 }
-export function bucketIndex(bs: Bucket[], day: string): number {
-  return bs.findIndex((b) => day >= b.from && day <= b.to);
-}
-
 export const PALETTE = {
   navy: "#0B1633",
   brand: "#2D5BFF",

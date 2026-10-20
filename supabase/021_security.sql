@@ -11,7 +11,7 @@
 -- • Akses: hanya pengguna dashboard (punya baris di tabel profiles).
 --
 -- Pelanggaran transporter TIDAK disimpan di sini: dibaca langsung dari G-C
--- lewat /api/gc-nc (lihat PANDUAN-SINKRON-GC.md).
+-- lewat /api/gc-nc (lihat docs/SETUP-OPERASIONAL.md).
 -- Idempotent. Aman dijalankan ulang.
 -- ═══════════════════════════════════════════════════════════════
 

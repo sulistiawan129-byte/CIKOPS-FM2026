@@ -2,7 +2,7 @@
 -- 040 — PENGETATAN KEAMANAN (hasil audit RLS, fungsi & endpoint publik)
 --
 -- Jalankan SESUDAH 039_roles.sql. Idempotent — aman diulang.
--- Sebelum & sesudah menjalankan, cek dengan supabase/AUDIT-keamanan.sql.
+-- Sebelum & sesudah menjalankan, cek dengan supabase/tools/AUDIT-keamanan.sql.
 --
 -- Yang diperbaiki:
 --  1. Akun baru TIDAK lagi otomatis jadi staf (trigger lama memberi role 'ga'

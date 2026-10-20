@@ -22,7 +22,7 @@
 
    Security Desk (?sd=1&from=YYYY-MM&to=YYYY-MM): G-C & Security Desk satu project
    Supabase, jadi kredensial di atas dipakai juga. Akun GC_READER_EMAIL perlu
-   peran Management di Security Desk (lihat BACA-DULU-SECURITY-DESK.md).
+   peran Management di Security Desk (lihat docs/SETUP-OPERASIONAL.md, bab Security).
 ════════════════════════════════════════════════════════════ */
 
 import { createHash } from "crypto";

@@ -246,7 +246,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           <span>
             {sdOn
               ? `Data ${monthLabel(monthKey)}${sd && sd.ok && sd.site ? ` · site ${sd.site}` : ""} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
-              : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: BACA-DULU-SECURITY-DESK.md.`
+              : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: docs/SETUP-OPERASIONAL.md (bab Security).`
               : sd && sd.ok && sd.sites && !sd.sites.length
                 ? "Akun pembaca CIKOPS tidak bisa melihat site mana pun di Security Desk. Beri peran Management ke akun GC_READER_EMAIL (menu Pengguna)."
               : sd && sd.ok && sd.sites && !sd.sites.some((x) => x.n > 0)
@@ -557,7 +557,7 @@ function PelanggaranView({ gc, gcLoading, agg, cfg, monthKey, data, onResync, on
         <div className={s.syncWarn}>
           <div>
             <b>{gc && !gc.ok && gc.notConfigured ? "Sinkron G-C belum dikonfigurasi" : "G-C tidak dapat dihubungi"}</b>
-            <span>{gc && !gc.ok ? gc.error : "Memeriksa koneksi…"} — sementara pakai input manual di bawah. Panduan: PANDUAN-SINKRON-GC.md.</span>
+            <span>{gc && !gc.ok ? gc.error : "Memeriksa koneksi…"} — sementara pakai input manual di bawah. Panduan: docs/SETUP-OPERASIONAL.md (bab Security).</span>
           </div>
           <button type="button" className={s.ghostBtn} disabled={gcLoading} onClick={onResync}>{gcLoading ? "Mencoba…" : "Coba lagi"}</button>
         </div>
@@ -864,7 +864,7 @@ function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig
               : `⚠ ${ping.configured ? "Gagal" : "Belum dikonfigurasi"}: ${ping.error || "-"}`}
           </div>
         )}
-        <p className={s.mute}>Cara menyambungkan: lihat PANDUAN-SINKRON-GC.md (environment variable GC_* di Vercel).</p>
+        <p className={s.mute}>Cara menyambungkan: lihat docs/SETUP-OPERASIONAL.md (bab Security) (environment variable GC_* di Vercel).</p>
       </div>
       <div className={s.panel}>
         <div className={s.panelHead}><div><h2>Perusahaan khusus</h2><p>Pelanggarannya dipisah di laporan (Becis & JMM). Tulis nama <b>persis</b> seperti di master supplier G-C.</p></div></div>

@@ -1,8 +1,230 @@
-# V2.23 — Report: versi bahasa Inggris + periode fleksibel
+# CHANGELOG
+
+Catatan rilis lama (sebelum memakai git penuh). Riwayat sesudahnya ada di `git log`.
+
+
+---
+
+## V2.29 — FM Command Center (/dashboard-viewonly)
+
+Zip ini berisi **seluruh kode** CIKOPS. Timpa isi repo, lalu commit dan push.
+Ada **1 SQL baru**. Tidak ada library baru.
+
+### Langkah pasang
+1. Supabase → SQL Editor → jalankan **`supabase/028_fm_command_center.sql`** (aman dijalankan ulang).
+2. Push kode ke GitHub. Vercel akan deploy otomatis.
+3. Buka `https://cikops-onefm.vercel.app/dashboard-viewonly` di TV. Halaman ini tidak perlu login.
+
+Jika SQL belum dijalankan, layar menampilkan pesan "FM Command Center belum aktif".
+
+### Isi layar
+Hanya data yang sedang berjalan: **hari ini + total bulan berjalan**. Tidak ada tren tahunan.
+
+| Tab | Isi |
+|---|---|
+| Ringkasan hari ini | Indeks FM, kalimat ringkasan, 4 kartu area (angka hari ini + total bulan ini), daftar "Perlu perhatian", slot Tamu (menunggu modul Receptionist) |
+| Fleet live | Papan driver live, sama dengan sebelumnya |
+| Fleet & Gate | Tugas driver hari ini/bulan ini, selesai di hari yang sama, gate per jam, kendaraan di luar > 8 jam, utilisasi, dokumen kendaraan jatuh tempo |
+| Kantin | Efisiensi hari ini/bulan ini, porsi dan sisa, per shift, efisiensi per hari |
+| ATK | Keluar hari ini/bulan ini, stok kritis/habis, item keluar hari ini, per departemen |
+| Pelanggaran / NC | NC hari ini/bulan ini dari G-C: jenis temuan, transporter, 5 laporan terbaru |
+
+- Tab berganti otomatis tiap 25 detik. Tab juga bisa diklik, dan kartu di Ringkasan bisa diklik untuk membuka detailnya.
+- Data diperbarui tiap 60 detik.
+- URL opsional: `?tab=nc` (mulai di tab tertentu), `?rotate=0` (tanpa rotasi), `?sec=40` (lama rotasi dalam detik).
+
+### Privasi (layar publik)
+- **Tidak ada data bernominal**: klaim, kantong, lembur, dan dana operasional tidak ditampilkan.
+- Pelanggaran/NC hanya menampilkan jumlah, jenis temuan, dan nama transporter. Nopol, nama driver, dan nomor SIM tidak dikirim.
+- Ringkasan NC memakai `/api/gc-nc?board=1` dengan env GC_* yang sudah ada. Hasilnya di-cache 60 detik supaya G-C tidak terbebani.
+
+### Catatan
+- Laporan bulanan Security (kendaraan, visitor, kejadian) tetap ada di menu Security & Laporan Manajemen. Laporan itu tidak ditampilkan di TV.
+- Kebersihan & Taman tidak dimasukkan ke Command Center, sesuai permintaan.
+- Data tamu akan masuk otomatis setelah modul Receptionist dibuat.
+
+
+---
+
+## V2.28 — Halaman Gate (/gate) baru
+
+Zip ini berisi **seluruh kode** CIKOPS. Timpa isi repo, lalu commit dan push.
+Tidak ada SQL baru, tidak ada library baru, dan data/RPC tetap sama.
+
+### Tampilan baru /gate (Pos Security)
+- Header dengan jam besar live (WIB), tanggal, nama petugas, serta mode terang/gelap.
+- **KPI yang bisa diklik**: CIK di luar, PRB di dalam, Selesai, Total tercatat, Rata-rata durasi. Klik untuk memfilter daftar.
+- **Form cepat dalam 4 langkah**:
+  1. Kendaraan: pilih dari grid ketuk atau ketik plat (Enter memilih kendaraan teratas). Kendaraan yang sedang trip otomatis dikunci.
+  2. Driver: terisi otomatis dari driver terakhir kendaraan tersebut. Bisa juga ketik manual.
+  3. Tujuan: ada chip tujuan yang sering dipakai.
+  4. Catatan.
+
+  Arah tercatat otomatis: kendaraan CIK = **KELUAR PLANT**, kendaraan PRB = **MASUK CIK**.
+- **Grafik pergerakan per jam** (keluar vs masuk), dengan jam berjalan disorot.
+- **Kartu kendaraan aktif** dengan timer durasi live. Warnanya berubah kuning setelah 4 jam dan merah setelah 8 jam.
+- **Tombol aksi dengan konfirmasi dua kali ketuk** (Catat Kembali / Catat Keluar CIK) supaya tidak salah tekan.
+- Tab Selesai menampilkan alur jam pertama → jam kedua beserta durasinya.
+- Notifikasi berhasil, dan kartu baru berkedip hijau.
+- Responsif untuk PC, tablet, dan HP.
+
+### Perbaikan
+- Label untuk kendaraan CIK sebelumnya terbalik: kolom "Check-In" berisi jam keluar, dan tombolnya selalu "Check-Out". Sekarang sudah sesuai: **Keluar → Kembali** (CIK) dan **Masuk CIK → Keluar CIK** (PRB).
+- Tombol "✓ Check-In" yang hanya hiasan sudah dihapus.
+- Tanggal default salah antara pukul 00.00–07.00 WIB karena dihitung dengan UTC. Sekarang memakai waktu lokal.
+- Link "Kelola Driver", yang sebenarnya hanya ganti ke input manual, sekarang berlabel "Ketik manual".
+
+
+---
+
+## V2.27 — Kelola & Koreksi Data di Excel GA (modGA v1.8)
+
+Zip ini berisi **seluruh kode** CIKOPS. Timpa isi repo, lalu commit dan push.
+Tidak ada SQL baru dan tidak ada library baru.
+
+### Yang berubah
+- `vba/ga/modGA.bas` naik ke **v1.8**. Versi ini juga ada di menu Cleaning & Gardening → Sinkron Excel.
+- **Perbaikan penting:** di v1.7, actual yang dikosongkan di Excel tetap tersimpan di CIKOPS dengan nilai lamanya. Di v1.8 waktu koreksinya ikut dicatat, jadi CIKOPS ikut mengosongkan.
+
+### Pasang di Excel ISS GA System
+1. Tekan Alt+F11, hapus modul `modGA`, lalu import `modGA.bas` v1.8. `modSyncGA` tidak perlu diganti.
+2. Jalankan **Setup_Tombol** sekali. Ini memasang tombol baru di MENU dan tombol "Hapus baris terpilih" di sheet log.
+
+### Menu Kelola & Koreksi Data
+Buka lewat tombol **KELOLA & KOREKSI DATA** di panel kanan MENU, atau link "Kelola & koreksi data" di bawah dashboard.
+
+| No | Pilihan | Kapan dipakai |
+|---|---|---|
+| 1 | Koreksi actual satu minggu | Salah isi 1/0. Membuka Input Actual di minggu itu; ubah angkanya lalu Simpan. |
+| 2 | Kosongkan actual (rentang tanggal) | Satu minggu salah input semua. Bisa dipilih per tim. Setelah itu input ulang. |
+| 3 | Perbarui plan periode ini | DB_PEKERJAAN berubah (hari, petugas, pekerjaan baru/nonaktif). Jadwal yang belum ada actual-nya mulai tanggal tertentu dibuat ulang. **Actual aman.** |
+| 4 | Hapus semua plan periode lalu generate ulang | Plan salah total. Actual di periode itu ikut terhapus. |
+| 5 | Hapus baris terpilih | Salah catat di Event / Improvement / Inventory / TGA. Blok barisnya, lalu klik tombol di sheet tersebut. |
+| 6 | **Batalkan perubahan terakhir** | Kembali ke kondisi sebelum Simpan Actual / Kosongkan / Perbarui / Hapus plan terakhir. Jalankan lagi untuk mengulangi. |
+
+- Backup dibuat otomatis sebelum setiap Simpan Actual, Kosongkan, Perbarui Plan dan Hapus Plan. Backup disimpan di sheet tersembunyi `GA_BACKUP`.
+- Hapus baris log (pilihan 5) tidak masuk backup. Untuk membatalkannya, tutup file tanpa menyimpan.
+- Semua koreksi otomatis terkirim ke CIKOPS. Kalau sedang offline, koreksi masuk antrean.
+
+
+---
+
+## V2.26 — Kode lengkap CIKOPS (timpa seluruh isi repo)
+
+Zip ini berisi **seluruh kode** CIKOPS. Extract, salin ke folder repo (timpa semua), lalu commit dan push.
+Tidak ada library baru, jadi `npm install` tidak perlu.
+
+### Isi baru: menu **Cleaning & Gardening** (Fasilitas)
+Modul laporan ISS General Affairs: Cleaning Service, Gardener dan TGA (Teknisi GA).
+Data diinput SPV di Excel **ISS GA System**, lalu disinkron **satu arah** ke CIKOPS. CIKOPS hanya menampilkan laporan.
+
+- **Dashboard**:
+  - KPI: Achievement (target 100%), Plan, Dikerjakan, Tidak dikerjakan, Belum diinput, dan Kepatuhan input SPV.
+  - Achievement per minggu, per tim, tren 6 bulan, per lokasi dan per tipe (terendah dulu).
+  - Daftar pekerjaan yang tidak dikerjakan, rekap kegiatan, dan input actual per SPV.
+- **Plan vs Actual**: matriks mingguan pekerjaan × hari (✓ / ✕ / belum diinput / terjadwal). Bisa difilter dan diekspor Excel/PDF/CSV.
+- **TGA**: aktivitas per teknisi dan pemohon terbanyak, dengan tabel dan export.
+- **Event, Improvement, Inventory**: tabel dengan pencarian dan export. Foto tetap di folder Dokumentasi PC SPV; CIKOPS hanya menampilkan nama filenya.
+- **Sinkron Excel**: status sinkron terakhir, unduhan modul VBA, dan kunci sinkron (khusus admin, bisa diganti).
+- **Laporan Manajemen** punya modul baru **Cleaning, Gardening & TGA**: KPI, tren achievement 13 bulan, per lokasi/tim, TGA per teknisi, temuan dan tindakan. Modul ini ikut di Excel/PDF/PowerPoint.
+
+Rumus achievement = dikerjakan ÷ jadwal yang sudah jatuh tempo. Untuk bulan yang sudah lewat, hasilnya sama persis dengan Laporan Bulanan Excel. Untuk bulan berjalan, angkanya tidak turun hanya karena masih ada jadwal yang belum tiba.
+
+### Langkah pasang (sekali saja)
+1. **Supabase** → SQL Editor → jalankan `supabase/027_ga_facility.sql` (aman diulang). Baris paling bawah hasilnya menampilkan **KUNCI SINKRON GA**; salin kunci itu.
+2. **Excel ISS GA System** (minimal di PC SPV):
+   1. Tekan Alt+F11, lalu **hapus modul `modGA` lama**.
+   2. Import `vba/ga/modGA.bas` (v1.7) dan `vba/ga/modSyncGA.bas`. Keduanya juga bisa diunduh dari menu Cleaning & Gardening → Sinkron Excel.
+   3. Di `modSyncGA`, isi `SUPABASE_URL`, `SUPABASE_ANON_KEY` (sama dengan yang dipakai modul ATK), dan `GA_SYNC_KEY` (kunci dari langkah 1).
+   4. Jalankan macro **`Setup_Tombol`** sekali. Macro ini membuat sheet **TGA** (Tanggal, Nama TGA, Activity, Request By), tombol **SINKRON CIKOPS**, dan tombol TGA di MENU.
+   5. Di **DB_MANPOWER**, isi nama teknisi dengan Tim = `TGA` supaya muncul di dropdown Nama TGA.
+   6. Klik **SINKRON CIKOPS** → **No** (kirim semua periode) untuk sinkron pertama.
+
+### Cara kerja sinkron
+- **Otomatis**: setiap Simpan Actual, Generate Plan, atau Hapus Plan langsung mengirim data ke CIKOPS.
+- **Offline**: data masuk antrean di sheet tersembunyi `GA_SYNC`, lalu dicoba ulang tiap 10 menit selama file terbuka dan saat file dibuka lagi. Label status sinkron tampil di MENU.
+- **Manual**: tombol **SINKRON CIKOPS**. Yes = bulan ini dan bulan lalu; No = semua periode. Master dan log (Event, Improvement, Inventory, TGA) selalu ikut.
+- **Beberapa PC**: actual dari salinan file yang lebih lama tidak menimpa actual yang lebih baru, karena yang menang adalah waktu input terbaru. Untuk membatasi PC yang boleh sinkron, isi nama komputer di `GA_SYNC!B7` (pisahkan dengan koma).
+- No HP manpower **tidak** dikirim ke CIKOPS.
+
+
+---
+
+## V2.25 — Kode lengkap CIKOPS (timpa seluruh isi repo)
+
+Zip ini berisi **seluruh kode** CIKOPS. Extract, salin ke folder repo (timpa semua), lalu commit dan push.
+
+Folder `node_modules` dan `.next` sengaja tidak ikut. `npm install` tidak perlu, karena tidak ada library baru.
+
+### SQL yang perlu dijalankan di Supabase (kalau belum)
+Jalankan berurutan, cukup sekali. Semuanya aman diulang.
+1. `supabase/021_security.sql`, `022_…`, `023_…` — modul Security (kalau belum dari V2.24)
+2. `supabase/024_claims_impor_jan_jun_2026.sql` — impor klaim Jan–Jun 2026 (kalau belum)
+3. `supabase/025_kalender_agenda.sql` — Kalender & Agenda
+4. `supabase/026_atk_dua_arah.sql` — ATK dua arah. Hasil paling bawahnya menampilkan **kunci sinkron** untuk VBA.
+
+### Isi sejak V2.24
+- **URL per menu**: `/dashboard/claims`, `/dashboard/security`, dst. Tombol Back/Forward browser ikut berfungsi.
+- **PowerPoint laporan manajemen** memakai gaya dashboard, dengan warna kontras tinggi.
+- **Kalender & Agenda** (`/dashboard/calendar` dan widget Home):
+  - Agenda bisa ditambah, diubah, dan dihapus. Jenisnya: kunjungan, event, meeting, pelatihan, libur, lainnya.
+  - Penugasan driver muncul otomatis di kalender, dan agenda bisa ditautkan ke penugasan. Detail: `BACA-DULU-KALENDER.md`.
+- **ATK & Supplies baru**: dashboard interaktif, form permintaan, restock, dan barang baru, stok, riwayat, serta sinkron **dua arah** dengan Excel/VBA. Detail: `BACA-DULU-ATK.md`.
+  - Perbarui modul VBA di Excel dengan `vba/modSyncCikops.bas`, lalu isi `CIKOPS_SYNC_KEY`.
+
+
+---
+
+## V2.24 — Modul Security + tren 13 bulan di semua report
+
+Paket ini berisi **kode lengkap** CIKOPS (bukan hanya file yang berubah). Salin semuanya ke repo, lalu commit dan push seperti biasa.
+
+### Wajib dilakukan
+1. **Supabase CIKOPS → SQL Editor**, jalankan berurutan:
+   - `supabase/021_security.sql` — tabel modul Security
+   - `supabase/022_security_seed_2025_2026.sql` — riwayat Sep 2025–Agu 2026 + data September 2026 dari laporan G4S
+2. **Sinkron G-C** (pelanggaran transporter otomatis): ikuti **PANDUAN-SINKRON-GC.md**.
+   - Buat akun baca-saja di Security Desk.
+   - Isi environment variable `GC_*` di Vercel (contoh di `.env.example`).
+   - Redeploy.
+   - Selama belum disambungkan, aplikasi tetap jalan dan memakai input manual.
+3. `npm install` tidak perlu, karena tidak ada library baru (kecuali Anda belum pernah memasang V2.22).
+
+### Yang baru
+- **Menu Security → Laporan Security** (input tiap tanggal 1 untuk bulan sebelumnya):
+  - Kendaraan All (Mobil Karyawan, Mobil Tamu, Mobil Kontraktor, Motor) per minggu, hari kerja/libur
+  - Transporter (timbang, non-timbang, selisih timbang ≥ 40 kg) dan Biomas PT Becis
+  - Pelanggaran Transporter: otomatis dari G-C (cadangan: input manual); Becis & JMM dipisah, driver berulang dikenali dari SIM
+  - Kejadian (12 jenis + 2 otomatis) dan daftar Issue area (Open/Close)
+  - Visit (visitor + kunjungan team support) dan Patroli (target/aktual)
+  - Riwayat 12 bulan (isi total bulan lama untuk grafik tren) dan Pengaturan (perusahaan khusus, cek koneksi G-C, nama driver)
+- **Report → Laporan Manajemen**:
+  - Modul baru **Security**: 1 kartu ringkasan + 9 halaman rincian (per kategori kendaraan, visitor, transporter, pelanggaran, Becis/JMM, kejadian & patroli)
+  - **Tren 13 bulan** untuk semua modul (Fleet, Klaim, Kantin, ATK, Security), dengan ▲▼ perubahan dari bulan sebelumnya di bawah tiap bulan, plus kalimat tren di temuan utama
+  - Excel, PowerPoint, dan PDF menyesuaikan (5 modul di ringkasan eksekutif, kolom "Perubahan vs bulan sebelumnya" di data grafik Excel)
+- Pengambilan data tugas & ATK kini berpaginasi (lebih dari 1.000 baris tidak terpotong).
+
+### File baru / berubah
+- Baru:
+  - `src/app/api/gc-nc/route.ts`
+  - `src/app/dashboard/SecurityTab.tsx`, `security.module.css`
+  - `src/lib/security/model.ts`, `api.ts`
+  - `src/lib/mgmtReport/security.ts`, `trend.ts`
+  - `supabase/021_security.sql`, `022_security_seed_2025_2026.sql`
+  - `PANDUAN-SINKRON-GC.md`, `.env.example`
+- Berubah:
+  - `src/app/dashboard/page.tsx`, `MgmtReportTab.tsx`, `mgmt.module.css`
+  - `src/components/Icon.tsx`, `src/lib/api.ts`
+  - `src/lib/mgmtReport/model.ts`, `build.ts`, `chartImage.ts`, `exportPdf.ts`, `exportPptx.ts`, `exportXlsx.ts`
+
+
+---
+
+## V2.23 — Report: versi bahasa Inggris + periode fleksibel
 
 Tidak ada SQL baru dan tidak ada library baru. Cukup ganti file lalu deploy (kalau dari V2.21 atau lebih lama, tetap jalankan `npm install` untuk pptxgenjs dari V2.22).
 
-## Yang baru di menu Report
+### Yang baru di menu Report
 - **Langkah 2 — Periode**
   - **Mingguan**: Senin–Minggu, dengan judul "Minggu ke-41 (5–11 Okt 2026)".
   - **Bulanan**: pilih bulan dan tahun.
@@ -18,7 +240,7 @@ Tidak ada SQL baru dan tidak ada library baru. Cukup ganti file lalu deploy (kal
   - **Bahasa laporan: Indonesia / English.** Default-nya mengikuti bahasa aplikasi.
   - **Grafik tren: Otomatis / Per hari / Per minggu / Per bulan.** Otomatis berarti per hari untuk periode ≤ 14 hari, per minggu untuk ≤ 92 hari, dan per bulan untuk periode lebih panjang. Per hari dinonaktifkan untuk periode > 92 hari.
 
-## Versi bahasa Inggris
+### Versi bahasa Inggris
 Berlaku untuk seluruh isi laporan di pratinjau, Excel, PowerPoint, dan PDF:
 - KPI, temuan, rekomendasi, dan butir "Management attention required";
 - judul dan legenda grafik, kategori klaim (Fuel/Toll/Parking/…), nama bulan dan hari;
@@ -28,24 +250,24 @@ Format angka mengikuti gaya internasional, misalnya IDR 3.1M, IDR 313K, 96.3%, 1
 
 Nama driver, kendaraan, item, dan departemen tetap sesuai data aslinya.
 
-## File yang berubah
+### File yang berubah
 - src/lib/mgmtReport/model.ts, compute.ts, build.ts, chartImage.ts
 - src/lib/mgmtReport/exportXlsx.ts, exportPptx.ts, exportPdf.ts
 - src/app/dashboard/MgmtReportTab.tsx, mgmt.module.css
 
 ---
 
-# V2.22 — Report: Laporan Manajemen (Fleet, Klaim, Kantin, ATK)
+## V2.22 — Report: Laporan Manajemen (Fleet, Klaim, Kantin, ATK)
 
 Tidak ada SQL baru. **Wajib `npm install`** setelah mengganti file (library baru: pptxgenjs untuk PowerPoint), lalu deploy.
 
-## Cara pakai (menu Report)
+### Cara pakai (menu Report)
 1. Pilih modul: Fleet Management, Klaim Driver, Kantin, ATK (bisa sebagian).
 2. Pilih periode: Bulan ini / Bulan lalu / Kuartal ini / Tahun ini / Kustom. Otomatis dibandingkan dengan periode sebelumnya yang sama panjang.
 3. Tekan "Susun laporan" → pratinjau tampil di layar.
 4. Unduh: Excel, PowerPoint, atau PDF.
 
-## Isi laporan
+### Isi laporan
 - Ringkasan eksekutif: 1 kalimat utama + 3 angka kunci per modul, dan daftar "Perlu perhatian manajemen".
 - Per modul: 4–5 KPI dengan pembanding periode lalu, 2 grafik utama, temuan utama, dan rekomendasi.
   - Fleet: total penugasan, tingkat penyelesaian, utilisasi armada, rata-rata durasi, dokumen KIR/STNK/Service jatuh tempo; tren per minggu/bulan, jenis pekerjaan, status (termasuk tutup otomatis 17.00), kendaraan tersibuk.
@@ -57,14 +279,14 @@ Tidak ada SQL baru. **Wajib `npm install`** setelah mengganti file (library baru
 - Excel: sheet Ringkasan + 1 sheet per modul (KPI, temuan, rekomendasi, tabel, gambar grafik, dan data di balik setiap grafik). Siap cetak landscape.
 - Akun ber-scope plant otomatis hanya melihat data plant-nya (Fleet & Klaim).
 
-## File
+### File
 - Baru: src/lib/mgmtReport/ (model, compute, chartImage, build, exportPdf, exportPptx, exportXlsx), src/app/dashboard/MgmtReportTab.tsx, mgmt.module.css.
 - Berubah: package.json, package-lock.json (pptxgenjs), src/app/dashboard/page.tsx (menu Report memakai laporan baru).
 
 ---
-# V2.21 — Penugasan: jam tugas maksimal 17.00, auto-selesai
+## V2.21 — Penugasan: jam tugas maksimal 17.00, auto-selesai
 
-## LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
+### LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
 `supabase/020_task_auto_complete.sql` (sesudah 019). Isinya:
 - kolom `tasks.auto_completed` (penanda tugas yang ditutup sistem),
 - fungsi `auto_complete_tasks()`: semua tugas berstatus Ditugaskan atau Berjalan yang sudah lewat pukul 17.00 WIB pada tanggal tugasnya diubah jadi Selesai, jam selesai = 17.00 WIB. Tugas yang dibatalkan/sudah selesai tidak disentuh,
@@ -72,7 +294,7 @@ Tidak ada SQL baru. **Wajib `npm install`** setelah mengganti file (library baru
   Bila muncul pesan "pg_cron belum bisa diaktifkan", aktifkan dulu di Supabase Dashboard -> Database -> Extensions -> pg_cron, lalu jalankan ulang file ini.
 - Di akhir file, fungsi langsung dijalankan sekali: tugas hari-hari sebelumnya yang masih menggantung ikut ditutup.
 
-## Baru di V2.21
+### Baru di V2.21
 - Cadangan di aplikasi: dashboard dan aplikasi driver memanggil fungsi yang sama saat memuat tugas, jadi tugas lewat jam tetap tertutup walau jadwal pg_cron belum aktif.
 - Kartu tugas: tugas yang masih terbuka menampilkan "batas 17.00"; tugas yang ditutup sistem menampilkan "Selesai otomatis 17:00" + label "Auto 17.00".
 - Form penugasan: catatan "Jam tugas maksimal pukul 17.00 ...".
@@ -81,23 +303,23 @@ Tidak ada SQL baru. **Wajib `npm install`** setelah mengganti file (library baru
 - Baru: supabase/020_task_auto_complete.sql. Berubah: src/lib/api.ts, src/lib/types.ts, src/lib/taskSlip.ts, src/app/dashboard/TasksUI.tsx, tasks.module.css, src/app/driver/page.tsx, driver.module.css.
 
 ---
-# V2.20 — Klaim: driver dropdown + EDIT klaim
+## V2.20 — Klaim: driver dropdown + EDIT klaim
 
-## LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
+### LANGKAH PERTAMA: jalankan 1 SQL di Supabase -> SQL Editor
 `supabase/019_claims_update.sql` — mengaktifkan izin EDIT klaim (sebelumnya tabel claims hanya boleh dibaca, ditambah, dan dihapus). Tanpa SQL ini, tombol "Simpan perubahan" akan menampilkan pesan untuk menjalankan SQL 019.
 
-## Baru di V2.20
+### Baru di V2.20
 - Form klaim: pilihan driver jadi dropdown.
 - Edit klaim: ikon pensil di setiap kartu klaim (di samping hapus) dan tombol "Edit klaim" di rincian yang dibuka. Form terbuka dengan data lama (driver, tanggal periode & pengajuan, rincian, catatan); tombol berubah jadi "Simpan perubahan". Notifikasi: "Klaim diperbarui untuk ...".
 - Edit TIDAK mengirim ulang email/push ke driver (hanya klaim baru yang mengirim notifikasi).
 - Berubah: src/lib/api.ts (updateClaim), src/app/dashboard/ClaimsUI.tsx, claims.module.css, dashboard/page.tsx. Baru: supabase/019_claims_update.sql.
 
 ---
-# Redesign V2.19 — Tema EXECUTIVE untuk semua modul
+## Redesign V2.19 — Tema EXECUTIVE untuk semua modul
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy.
 
-## Yang berubah
+### Yang berubah
 - Seluruh dashboard (sidebar, topbar, dan SEMUA modul: Ringkasan, Penugasan, Armada/Gate Log, Pom Bensin, Klaim, Budget Driver, Dana Operasional, Kantin, Locker, Pembagian, Printer, Permintaan Karyawan, ATK, Report, Master Data, Log Aktivitas) kini memakai tema yang sama dengan Dashboard-ViewOnly:
   - latar navy #050b1c dengan grid halus + cahaya biru/cyan,
   - panel kaca gelap, garis biru tipis,
@@ -109,11 +331,11 @@ Tidak ada SQL baru. Ganti 3 file, lalu deploy.
 - Berubah: src/app/globals.css, src/app/layout.tsx, src/app/dashboard/home.module.css.
 
 ---
-# Redesign V2.18 — Beranda bertema "executive" (seperti Dashboard-ViewOnly)
+## Redesign V2.18 — Beranda bertema "executive" (seperti Dashboard-ViewOnly)
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy.
 
-## Baru di V2.18
+### Baru di V2.18
 - Seluruh Beranda kini satu kanvas gelap seperti Dashboard-ViewOnly: latar navy #050b1c dengan grid halus dan cahaya biru/cyan, panel kaca gelap.
 - Font sama dengan ViewOnly: Chakra Petch untuk judul, angka, jam, dan nama driver; Inter untuk teks. Judul panel huruf kapital berjarak lebar.
 - Header: jam besar bercahaya, sapaan, tombol Tugaskan driver (biru menyala), ViewOnly, Salin link, dan 3 angka utama berwarna.
@@ -124,11 +346,11 @@ Tidak ada SQL baru. Ganti 3 file, lalu deploy.
 - Berubah: src/app/layout.tsx (tambah font Chakra Petch & Inter), src/app/dashboard/page.tsx, src/app/dashboard/home.module.css.
 
 ---
-# Redesign V2.17 — Dashboard utama: tata letak baru
+## Redesign V2.17 — Dashboard utama: tata letak baru
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy.
 
-## Perubahan dari V2.16
+### Perubahan dari V2.16
 - Grafik "Tugas per hari" diganti papan **Tugas hari ini**: daftar tugas (driver, rute dari -> tujuan, plat, jam, status) dengan filter Semua / Berjalan / Menunggu / Selesai. Klik baris membuka Penugasan.
 - "Akses cepat modul" dan widget "Aksi Cepat" di kolom kanan dihapus.
 - Beban per plant digabung ke kartu Armada (kotak Cikarang & Pasar Rebo).
@@ -137,11 +359,11 @@ Tidak ada SQL baru. Ganti 3 file, lalu deploy.
 - Berubah: src/app/dashboard/page.tsx, src/app/dashboard/home.module.css, src/app/dashboard/dashboard.module.css.
 
 ---
-# Redesign V2.16 — Dashboard utama (Beranda)
+## Redesign V2.16 — Dashboard utama (Beranda)
 
 Tidak ada SQL baru. Ganti 2 file, lalu deploy.
 
-## Baru di V2.16
+### Baru di V2.16
 - Hero "command center": panel navy dengan jam besar (WIB), sapaan, ringkasan tugas, tombol Tugaskan driver / ViewOnly / Salin link, dan 3 angka utama (tugas hari ini, sedang jalan, kendaraan keluar) yang bisa diklik.
 - Peringatan otomatis bila ada tugas berjalan > 2 jam.
 - Pita KPI satu baris (5 kolom sejajar, 2 untuk akun PRB): tugas, kendaraan & driver aktif, klaim minggu ini, kantin hari ini, dana tersedia — masing-masing membuka modulnya.
@@ -152,11 +374,11 @@ Tidak ada SQL baru. Ganti 2 file, lalu deploy.
 - Berubah: src/app/dashboard/page.tsx, baru: src/app/dashboard/home.module.css.
 
 ---
-# Redesign V2.15 — dashboard Kantin
+## Redesign V2.15 — dashboard Kantin
 
 Tidak ada SQL baru. Ganti 2 file, lalu deploy. Form input harian di /canteen tidak berubah.
 
-## Baru di V2.15 (menu Kantin)
+### Baru di V2.15 (menu Kantin)
 - Header dengan ekspor CSV & PDF; periode Harian / Mingguan / Bulanan / Kustom dengan tombol mundur-maju.
 - Ring efisiensi keseluruhan + status (Sangat baik / Baik / Cukup / Perlu perhatian), dan kartu Snack & Makan (persen terpakai, order, terpakai, sisa). Klik kartu untuk mengganti grafik.
 - Catatan otomatis: hari dengan sisa terbanyak (snack & makan) dan shift yang paling banyak menyisakan.
@@ -166,22 +388,22 @@ Tidak ada SQL baru. Ganti 2 file, lalu deploy. Form input harian di /canteen tid
 - Berubah: src/app/dashboard/CanteenTab.tsx, baru: src/app/dashboard/canteen.module.css.
 
 ---
-# Redesign V2.14 — modul Overtime dihapus
+## Redesign V2.14 — modul Overtime dihapus
 
 Tidak ada SQL baru. Ganti 3 file, lalu deploy. Data overtime di database TIDAK dihapus (tabel tetap ada, hanya tidak ditampilkan).
 
-## Yang berubah
+### Yang berubah
 - Menu Finance: "Overtime" dihilangkan (sidebar, Beranda, pencarian menu). Halaman Overtime dihapus dari aplikasi.
 - Ringkasan: KPI dan grafik overtime dihapus; kartu "Overtime" diganti kartu "Budget driver" (total per bulan, per tier, dan klaim periode ini); tabel bawah jadi "Klaim terbaru".
 - Report: tidak lagi memuat overtime. Kartu "Overtime — CIK vs PRB" dihapus; di PDF/CSV bagian overtime (kartu jam/nominal OT, perbandingan CIK vs PRB, halaman detail, insight OT) hanya muncul bila ada data overtime, jadi sekarang otomatis tidak tampil.
 - Berubah: src/app/dashboard/page.tsx, src/app/dashboard/OverviewUI.tsx, src/lib/fleetReport.ts.
 
 ---
-# Redesign V2.13 — modul Ringkasan
+## Redesign V2.13 — modul Ringkasan
 
 Tidak ada SQL baru. Ganti file, lalu deploy.
 
-## Baru di V2.13 (menu Ringkasan)
+### Baru di V2.13 (menu Ringkasan)
 - Header dengan filter plant (Semua/CIK/PRB; terkunci untuk akun ber-scope plant) dan periode (Hari ini / Minggu ini / Bulan ini). Semua angka, grafik, dan daftar ikut berubah.
 - "Perlu tindakan": dokumen kendaraan lewat/jatuh tempo <= 7 hari, tugas berjalan > 2 jam, dana operasional plant < 20%. Klik untuk membuka modulnya. Bila aman, tampil satu baris "Tidak ada yang perlu ditindak".
 - Indikator utama (bisa diklik): tugas, kendaraan aktif, driver tersedia (aktif dikurangi yang sedang bertugas), klaim (dengan tren vs periode sebelumnya), overtime.
@@ -192,11 +414,11 @@ Tidak ada SQL baru. Ganti file, lalu deploy.
 - File baru: src/app/dashboard/OverviewUI.tsx, overview.module.css. Berubah: dashboard/page.tsx.
 
 ---
-# Redesign V2.12 — Scope plant Pasar Rebo (PRB)
+## Redesign V2.12 — Scope plant Pasar Rebo (PRB)
 
 Tidak ada SQL baru. Ganti 2 file, lalu deploy. Berlaku otomatis untuk SEMUA akun yang scope plant-nya PRB (kolom profiles.plant_scope = 'PRB'); akun CIK dan akun tanpa scope tidak berubah.
 
-## Yang tampil untuk akun PRB
+### Yang tampil untuk akun PRB
 - Menu: Dashboard, Penugasan, Armada, Master Data. Menu lain (Ringkasan, Klaim, Overtime, Budget, Dana Operasional, Kantin, Locker, Pembagian, Printer, Permintaan, ATK, Report, Pom Bensin, Log Aktivitas) disembunyikan, termasuk dari pencarian menu dan dari tautan Dashboard-ViewOnly.
 - Dashboard (Beranda): hanya data penugasan driver Pasar Rebo: tugas hari ini, sedang jalan, kendaraan keluar, grafik tugas per hari (PRB), status armada PRB, dan "perlu perhatian". Kalender, agenda, pengumuman, aktivitas gate, klaim, kantin, budget tidak ditampilkan.
 - Penugasan: seperti biasa, plant terkunci PRB. Tombol Laporan & Analytics disembunyikan.
@@ -204,16 +426,16 @@ Tidak ada SQL baru. Ganti 2 file, lalu deploy. Berlaku otomatis untuk SEMUA akun
 - Master Data: sama seperti biasa (Driver, Pegawai, Jenis Pekerjaan, Pengaturan). Satu-satunya beda: daftar Driver hanya driver PRB (termasuk akun login/kirim kredensial dan Driver User), dan driver baru otomatis PRB. Pegawai tetap semua plant.
 - Akun PRB yang membuka tab lain (mis. lewat riwayat) dikembalikan ke Dashboard.
 
-## Catatan
+### Catatan
 - Pembatasan ini di sisi aplikasi (sama seperti scope plant yang sudah ada). Pembatasan di database (RLS) tidak diubah.
 - Berubah: src/app/dashboard/page.tsx, src/lib/api.ts (canAccessTab, isPrbOnly, filter plant untuk daftar kendaraan dan driver).
 
 ---
-# Redesign V2.11 — Penugasan: layar penuh, kartu seragam
+## Redesign V2.11 — Penugasan: layar penuh, kartu seragam
 
 Tidak ada SQL baru. Ganti file, lalu deploy.
 
-## Baru di V2.11
+### Baru di V2.11
 - Halaman Penugasan kini memakai lebar penuh sampai batas side panel (seperti Gate Log), sehingga muat 3 kartu per baris di layar lebar.
 - Semua kartu sama ukuran: nama, rute, tag, catatan, dan baris jam punya tinggi tetap; teks panjang dipotong rapi (tooltip menampilkan teks lengkap). Tombol aksi selalu di dasar kartu dan satu baris.
 - Tipografi dirapikan: skala huruf konsisten, label DARI/TUJUAN kapital kecil, angka jam rata, tanpa font mono acak. Nama driver, tujuan, dan jenis kendaraan yang seluruhnya KAPITAL otomatis jadi Title Case (singkatan 3 huruf tetap).
@@ -221,20 +443,20 @@ Tidak ada SQL baru. Ganti file, lalu deploy.
 - Berubah: TasksUI.tsx, tasks.module.css, dashboard/page.tsx.
 
 ---
-# Redesign V2.10 — Gate Log di dashboard
+## Redesign V2.10 — Gate Log di dashboard
 
 Tidak ada SQL baru (SQL 018 dari V2.9 tetap perlu dijalankan agar keterangan tampil). Ganti file, lalu deploy.
 
-## Baru di V2.10 (Armada -> Gate Log)
+### Baru di V2.10 (Armada -> Gate Log)
 - Ringkasan di atas: total catatan, sedang aktif, selesai, rata-rata durasi.
 - Filter: rentang cepat (Hari ini / 7 hari / 30 hari) plus tanggal manual, plant (Semua/CIK/PRB), status (Semua/Aktif/Selesai), dan kolom cari (plat, driver, tujuan, keterangan). Ekspor CSV tetap ada.
 - Daftar dikelompokkan per hari. Tiap catatan: plat + plant, driver, tujuan, keterangan (kotak tersendiri), jam keluar -> kembali (atau masuk CIK -> keluar CIK) dengan durasi, status berwarna, tombol Tutup (koreksi) dan Hapus.
 - File baru: src/app/dashboard/GateUI.tsx, gate.module.css. Berubah: dashboard/page.tsx.
 
 ---
-# Redesign V2.9 — penyempurnaan Penugasan & Gate
+## Redesign V2.9 — penyempurnaan Penugasan & Gate
 
-## LANGKAH PERTAMA (V2.9): jalankan 1 SQL di Supabase -> SQL Editor
+### LANGKAH PERTAMA (V2.9): jalankan 1 SQL di Supabase -> SQL Editor
 `supabase/018_gate_keterangan.sql` (sesudah 014, 015, 016, 017). Isinya:
 - kolom baru `vehicle_gate_logs.keterangan` (isi kolom "Keperluan / Catatan" di form /gate),
 - fungsi kecil untuk menyimpan dan membaca keterangan; fungsi gate yang lama TIDAK diubah,
@@ -242,7 +464,7 @@ Tidak ada SQL baru (SQL 018 dari V2.9 tetap perlu dijalankan agar keterangan tam
 Aman dijalankan ulang. Tanpa SQL ini aplikasi tetap jalan, tetapi keterangan belum tersimpan.
 (Kalau 017 belum dijalankan, jalankan 017 dulu — lihat catatan V2.8 di bawah.)
 
-## Baru di V2.9
+### Baru di V2.9
 - Penugasan: timeline/stepper di kartu dihapus, diganti satu baris jam biasa (Ditugaskan, Berjalan, Selesai).
 - Form penugasan: driver dan kendaraan kini dropdown (Driver User tetap tampil tapi tidak bisa dipilih). Plant tetap menyaring isi dropdown.
 - Bukti cetak: tanpa logo, hanya nama perusahaan + judul "BUKTI PERMINTAAN DAN PENUGASAN DRIVER". Kolom tanda tangan dihapus. Kolom jam gate dan KM untuk diisi tangan tetap ada.
@@ -250,7 +472,7 @@ Aman dijalankan ulang. Tanpa SQL ini aplikasi tetap jalan, tetapi keterangan bel
 - File baru: supabase/018_gate_keterangan.sql. File berubah: TasksUI.tsx, tasks.module.css, taskSlip.ts, gate/page.tsx, dashboard/page.tsx, dashboard-viewonly/page.tsx, lib/api.ts, lib/types.ts.
 
 ---
-## Catatan V2.8 (SQL 017): jalankan 1 SQL di Supabase → SQL Editor
+### Catatan V2.8 (SQL 017): jalankan 1 SQL di Supabase → SQL Editor
 `supabase/017_task_origin.sql` (sesudah 014, 015, 016). Isinya:
 - kolom baru `tasks.lokasi_asal` (Dari mana),
 - data lama otomatis diisi sesuai plant: CIK → "Plant Cikarang", PRB → "Plant Pasar Rebo",
@@ -260,7 +482,7 @@ Aman dijalankan ulang. Tanpa SQL ini aplikasi tetap jalan: "Dari" memakai lokasi
 
 Opsional: deploy ulang edge function `send-task-email` supaya email konfirmasi memuat baris "Lokasi Keberangkatan".
 
-## Baru di V2.8
+### Baru di V2.8
 - Form penugasan: rute "Dari mana → kemana" (tombol Tukar untuk perjalanan pulang, saran lokasi), pilih driver/kendaraan/jenis pekerjaan lewat chip, tiket pratinjau di kanan, daftar kelengkapan.
 - Papan penugasan: navigator tanggal, bar status yang bisa diklik sebagai filter, kartu tugas dengan rute Dari → Tujuan (teks tidak dipotong) dan progres Ditugaskan → Berjalan → Selesai.
 - Cetak bukti penugasan: tombol "Cetak bukti" di tiap tugas dan "Cetak semua" untuk tugas yang tampil. A4, dua bukti per lembar, kolom tanda tangan, kolom jam gate dan KM untuk diisi tangan.
@@ -269,11 +491,11 @@ Opsional: deploy ulang edge function `send-task-email` supaya email konfirmasi m
 - File baru: src/app/dashboard/TasksUI.tsx, tasks.module.css, src/lib/taskSlip.ts, supabase/017_task_origin.sql.
 
 ---
-# Redesign V2.7 — modul Klaim
+## Redesign V2.7 — modul Klaim
 
 Tidak ada SQL baru. Cukup ganti file, lalu deploy.
 
-## Baru di V2.7
+### Baru di V2.7
 - Form klaim: pilih driver lewat chip (ada kolom cari), kategori berikon, nominal dengan hasil hitung langsung, tombol +10rb/+20rb/+50rb/+100rb, Enter menambah baris, dan struk pratinjau di kanan yang terisi saat mengetik.
 - Daftar klaim: ringkasan total dengan bar komposisi kategori (klik untuk memfilter), dikelompokkan per minggu kerja, kartu bisa dibuka untuk melihat rincian.
 - Rekap mingguan: ditambah kolom komposisi. Karangan bunga: kartu dengan saklar status.
@@ -281,25 +503,25 @@ Tidak ada SQL baru. Cukup ganti file, lalu deploy.
 - File baru: src/app/dashboard/ClaimsUI.tsx dan claims.module.css; diubah: src/app/dashboard/page.tsx (hanya ClaimsTab).
 
 ---
-# Redesign V2.6 — cara pasang
+## Redesign V2.6 — cara pasang
 
-## ⚠ LANGKAH PERTAMA (V2.6): jalankan 1 SQL lagi di Supabase → SQL Editor
+### ⚠ LANGKAH PERTAMA (V2.6): jalankan 1 SQL lagi di Supabase → SQL Editor
 `supabase/016_viewonly_gate.sql` (sesudah 014 & 015) — menambahkan data GATE ke fungsi `get_viewonly_snapshot`.
 
-## Baru di V2.6 — Gate dari Security Gate, bukan dari tugas
+### Baru di V2.6 — Gate dari Security Gate, bukan dari tugas
 - Panel "Gate Security", ticker GATE, dan KPI "Di luar gate" kini membaca log petugas security (`vehicle_gate_logs`, Armada → Gate / halaman /gate).
 - Driver PRB di Cikarang = log PRB belum selesai; Driver CIK di luar plant = log CIK belum selesai. Tugas ON GOING tidak lagi mengubah gate.
 - Angka dari status tugas diganti nama: "Sedang bertugas", "Standby", chip "Bertugas" (bukan posisi fisik).
 - Tanpa 016, panel gate memakai log publik hari ini bila tersedia; jika tidak, tampil "belum tersedia".
 
 ---
-# (V2.5) cara pasang
+## (V2.5) cara pasang
 
-## ⚠ LANGKAH PERTAMA (V2.5): jalankan 2 SQL di Supabase → SQL Editor
+### ⚠ LANGKAH PERTAMA (V2.5): jalankan 2 SQL di Supabase → SQL Editor
 1. `supabase/014_driver_type.sql` (kalau belum — tipe Driver Operational/User)
 2. `supabase/015_viewonly_public.sql` — **wajib agar Dashboard-ViewOnly terlihat tanpa login**
 
-## Baru di V2.5 — Dashboard-ViewOnly (tanpa login)
+### Baru di V2.5 — Dashboard-ViewOnly (tanpa login)
 - Alamat baru: **/dashboard-viewonly** (mis. https://cikops-fleet-ivory.vercel.app/dashboard-viewonly). Alamat lama /tv-display otomatis dialihkan ke sini.
 - Bisa dibuka dari perangkat mana pun tanpa login — untuk SPV/manajer. Sebelumnya kosong karena tabel tasks/drivers/vehicles tidak bisa dibaca tanpa login (RLS). Sekarang data diambil lewat fungsi database `get_viewonly_snapshot` (SECURITY DEFINER) yang hanya mengembalikan data ringkas: penugasan hari ini, nama driver + plant + tipe, nopol/jenis kendaraan. TIDAK ikut: no. HP, email, PIN/password, alasan pembatalan, klaim/overtime/dana. Tabel tetap terkunci seperti semula.
 - Nama menu/link di sistem diganti jadi **Dashboard-ViewOnly** (sidebar, ikon mata di topbar, tombol di hero Home) + tombol **Salin link** untuk dibagikan.
@@ -307,21 +529,21 @@ Tidak ada SQL baru. Cukup ganti file, lalu deploy.
 - Catatan keamanan: siapa pun yang memegang link bisa melihat halaman ini. Kalau nanti ingin dibatasi (mis. kunci rahasia di link), bilang saja.
 - File baru/berubah: `supabase/015_viewonly_public.sql` (baru), `src/app/dashboard-viewonly/{page,layout}.tsx` (baru; pindahan dari tv-display), `src/app/tv-display/page.tsx` (kini hanya redirect), `src/lib/api.ts`, `src/app/dashboard/page.tsx`, `src/app/dashboard/dashboard.module.css`, `src/components/{Icon,GlobalBack}.tsx`.
 
-# (sebelumnya) V2.4
+## (sebelumnya) V2.4
 
-## ⚠ LANGKAH PERTAMA (V2.4): jalankan SQL dulu
+### ⚠ LANGKAH PERTAMA (V2.4): jalankan SQL dulu
 Buka Supabase → SQL Editor → tempel isi `supabase/014_driver_type.sql` → Run. (Aman diulang.)
 Isinya: kolom `drivers.driver_type` (operational | user), `assigned_user`, `assigned_user_title`; fungsi `get_driver_duty_info`; dan trigger yang memblokir penugasan baru ke Driver User.
 Kode sudah dibuat tahan banting: kalau SQL belum dijalankan, aplikasi tetap jalan (semua driver dianggap operational) dan tombol Simpan driver akan memberi pesan agar menjalankan migrasi.
 
-## Baru di V2.4 — Driver Operational vs Driver User
+### Baru di V2.4 — Driver Operational vs Driver User
 - Master Data → Driver: pilih **Tipe Driver** (Operational / Driver User). Driver User wajib isi **Nama User** (+ jabatan opsional).
 - Driver User otomatis **ON DUTY setiap hari 08.00–16.30 WIB** (di luar jam itu OFF DUTY, otomatis juga). Status terkunci, tidak bisa diubah, dan tidak bisa dipilih di form penugasan (tampil abu-abu dengan keterangan).
 - Aplikasi driver: Driver User melihat banner status (ON DUTY/OFF DUTY, jam, **nama user-nya**) dan di tab Profil; status di strip atas berubah jadi 🔒.
 - TV: Driver User tampil sebagai baris "On Duty 🔒 — Driver User · mengantar <nama user>" (urutan paling akhir), dan tidak dihitung sebagai "Di plant"/"Di luar". KPI Driver aktif memuat rincian operasional · user.
 - File baru/berubah: `supabase/014_driver_type.sql` (baru), `src/lib/duty.ts` (baru), `src/lib/types.ts`, `src/lib/api.ts`, `src/app/dashboard/page.tsx`, `src/app/driver/page.tsx`, `src/app/driver/driver.module.css`, `src/app/tv-display/page.tsx`.
 
-# (sebelumnya) V2.3
+## (sebelumnya) V2.3
 
 V2.3 = V2.2 + tujuan, keperluan, dan semua detail tugas di TV tampil PENUH (tanpa dipotong "…"; teks panjang dibungkus ke baris baru). Jumlah baris per halaman kini menyesuaikan panjang teks dan tinggi layar, halaman berganti otomatis. Hanya `src/app/tv-display/page.tsx` yang berubah dari V2.2.
 
@@ -331,7 +553,7 @@ V2.2 = V2.1 + TV display bergaya "Driver Operations" (mengikuti referensi): tema
 
 V2.1 = V2 + TV display baru, link TV di sistem, dan tombol kembali di semua modul/halaman. Paket ini lengkap (menggantikan REDESIGN-V2.zip).
 
-## Baru di V2.1
+### Baru di V2.1
 - `src/app/tv-display/page.tsx` — tampilan TV ditulis ulang: data diformat (nama Title Case, plat "B 1234 XYZ", durasi "2j 50m"), banner plant + progres, kartu 2×2 yang ganti halaman otomatis tiap 10 detik, panel Gate (CIK) / Driver Standby (PRB), ticker, tema terang/gelap, tombol layar penuh dan **tombol Dashboard**. Ukuran font mengikuti layar (rem).
 - Link TV: sidebar ("Tampilan TV"), ikon TV di topbar, dan tombol di hero Home. Semuanya membuka /tv-display di tab baru.
 - Tombol kembali: bar **Kembali ke Home** + **kembali ke menu sebelumnya** + breadcrumb di semua modul dashboard; bar Kembali/Home di halaman gate, request, canteen, locker, gift (`src/components/GlobalBack.tsx`, dipasang di layout.tsx).
@@ -340,7 +562,7 @@ V2.1 = V2 + TV display baru, link TV di sistem, dan tombol kembali di semua modu
 
 Semua file di folder ini menimpa/menambah file di repo dengan path yang sama.
 
-## File
+### File
 - `package.json` + `package-lock.json` — Next 16.3, React 19.3, react-leaflet 5, supabase-js terbaru, TypeScript 5.9, @types/react 19.
   Script `lint` dihapus karena `next lint` tidak ada lagi di Next 16 (project memang belum punya konfigurasi ESLint).
 - `tsconfig.json` — diubah otomatis oleh Next 16 (`jsx: react-jsx`, tambahan `include`). Pakai versi ini.
@@ -353,14 +575,14 @@ Semua file di folder ini menimpa/menambah file di repo dengan path yang sama.
 - `src/app/tv-display/page.tsx` — **file baru**, layar TV tanpa login (V2.1).
 - `src/app/{gate,request,canteen,locker}/page.tsx`, `src/lib/dictionary.ts` — penyesuaian warna dan teks login.
 
-## Langkah
+### Langkah
 1. Timpa/tambah file di atas ke repo.
 2. `npm install` (atau `npm ci` agar sesuai lock file).
 3. `npm run build` lokal bila ingin cek dulu, lalu push. Vercel akan memakai Node >= 20.9 (wajib untuk Next 16).
 
-## Sudah diuji
+### Sudah diuji
 `tsc` bersih, `next build` (Next 16.3.8) sukses untuk semua rute, dan dashboard, modul Penugasan/Armada, login, gate dicek lewat screenshot (light/dark, desktop/HP) dengan data tiruan.
 Catatan: sandbox tidak bisa mengunduh Google Fonts, jadi build uji memakai font cadangan. Di Vercel font Plus Jakarta Sans akan termuat normal.
 
-## Catatan
+### Catatan
 - `npm audit` masih menyisakan temuan di dependensi turunan `jspdf`/`dompurify` dan `exceljs`/`uuid`. Itu bukan akibat upgrade ini; perbaikannya butuh `npm audit fix --force` (versi mayor), jadi saya biarkan.

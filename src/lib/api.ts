@@ -317,7 +317,6 @@ export async function ensureTaskAutoComplete(): Promise<void> {
   }
 }
 
-
 export async function getDriverTasksToday(
   driverId: string
 ): Promise<TaskDetail[]> {
@@ -567,8 +566,7 @@ export async function sendTaskBatchEmail(input: {
   }
 }
 
-/** Kirim push notification OneSignal ke satu atau lebih driver.
- *  driverIds = array UUID dari tabel drivers (External User ID di OneSignal).
+/** Kirim notifikasi Web Push (send-web-push, migrasi 036) ke satu atau lebih driver.
  *  Fire-and-forget — error diabaikan supaya tidak ganggu alur utama. */
 export async function sendPushToDriver(
   driverIds: string[],
@@ -577,11 +575,9 @@ export async function sendPushToDriver(
   data?: Record<string, string>
 ): Promise<void> {
   try {
-    // OneSignal (APK Median) + Web Push (PWA / APK GitHub, migrasi 036) — keduanya non-kritis
-    await Promise.allSettled([
-      supabase.functions.invoke("send-push-notification", { body: { driverIds, title, body, data: data ?? {} } }),
-      supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body } }),
-    ]);
+    void data;
+    const { error } = await supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body } });
+    if (error) console.warn("Push notification failed (non-critical):", error.message);
   } catch (e) {
     console.warn("Push notification failed (non-critical):", e);
   }
@@ -602,7 +598,6 @@ export async function updateTaskStatus(
   });
   if (error) throw error;
 }
-
 
 export async function cancelTaskByAdmin(
   taskId: string,
@@ -1619,15 +1614,6 @@ export async function addAnnouncement(input: { title: string; body: string; crea
   const { error } = await supabase.from("announcements").insert({ title: input.title, body: input.body, created_by: input.createdBy || "" });
   if (error) throw error;
 }
-export async function setAnnouncementActive(id: string, isActive: boolean): Promise<void> {
-  const { error } = await supabase.from("announcements").update({ is_active: isActive }).eq("id", id);
-  if (error) throw error;
-}
-export async function deleteAnnouncement(id: string): Promise<void> {
-  const { error } = await supabase.from("announcements").delete().eq("id", id);
-  if (error) throw error;
-}
-
 /* ════════════════════════════════════════════════════════════
    FLEETOS — OVERTIME (Lembur, CIK vs PRB)
 ════════════════════════════════════════════════════════════ */
@@ -1680,31 +1666,6 @@ export interface AddOvertimeInput {
   hours: number;
   amount: number;
   reason?: string;
-}
-
-export async function addOvertime(input: AddOvertimeInput): Promise<void> {
-  const { error } = await supabase.from("overtime").insert({
-    driver_id: input.driver_id,
-    period: input.period,
-    plant: input.plant,
-    hours: input.hours,
-    amount: input.amount,
-    reason: input.reason || "",
-  });
-  if (error) throw error;
-}
-
-export async function updateOvertime(
-  id: string,
-  input: Partial<AddOvertimeInput>
-): Promise<void> {
-  const { error } = await supabase.from("overtime").update(input).eq("id", id);
-  if (error) throw error;
-}
-
-export async function deleteOvertime(id: string): Promise<void> {
-  const { error } = await supabase.from("overtime").delete().eq("id", id);
-  if (error) throw error;
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -2105,7 +2066,6 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
     tabs: ["executive", "reports"], home: false, plant: null, reports: ALL_REPORTS, calendarTasks: false,
   },
 };
-export const STAFF_ROLES = Object.keys(ROLE_INFO) as StaffRole[];
 export const roleInfoOf = (profile: MyProfile | null): RoleInfo | null => (profile ? ROLE_INFO[profile.role as StaffRole] ?? null : null);
 
 /** Helper — dipakai di sidebar & tempat lain buat cek apakah profil ini
@@ -2124,9 +2084,6 @@ export function lockedTabOf(profile: MyProfile | null): string | null {
   if (info) return info.home ? null : info.tabs?.[0] ?? null;
   return profile?.role === "receptionist" ? "receptionist" : null;
 }
-
-/** Management: hanya melihat (database juga menolak perubahan). */
-export const isReadOnly = (profile: MyProfile | null) => profile?.role === "management";
 
 /** Modul yang boleh ditarik di Report. */
 export function reportModulesOf(profile: MyProfile | null): ReportModule[] {
@@ -2184,7 +2141,7 @@ export interface StaffAccount {
 async function staffFn<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("manage-staff-account", { body });
   if (error) throw new Error(/not found|404|Failed to send/i.test(error.message)
-    ? "Edge Function manage-staff-account belum di-deploy (lihat BACA-DULU-ROLE.md)."
+    ? "Edge Function manage-staff-account belum di-deploy (lihat docs/SETUP-OPERASIONAL.md, bab Role)."
     : error.message);
   if (!data?.ok) throw new Error(data?.error || "Gagal memproses akun.");
   return data as T;

@@ -179,14 +179,6 @@ export async function getLockerReport(): Promise<LockerRow[]> {
   return ((data as LockerDbRow[]) ?? []).map(mapLockerRow);
 }
 
-/* ── Employee NIK lookup (public registration flow) ── */
-export async function getEmployeeByNik(nik: string): Promise<{ nama: string; dept: string } | null> {
-  const { data, error } = await supabase.rpc("get_employee_by_nik", { p_nik: nik });
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) return null;
-  return { nama: data[0].nama, dept: data[0].dept };
-}
-
 /* ── Register (public flow) ── */
 export interface RegisterLockerResult {
   lockerNumber: string;

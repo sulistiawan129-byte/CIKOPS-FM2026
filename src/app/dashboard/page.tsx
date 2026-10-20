@@ -15,9 +15,9 @@ import { ClaimsHero, ClaimCard, WeekHeader, ViewSwitch, PeriodSwitch, RecapBar, 
 import { ModalPortal } from "@/components/ModalPortal";
 import { TabErrorBoundary } from "@/components/TabErrorBoundary";
 import { ReportExportButtons, LanguagePickerModal, useExportLanguagePicker, ReportRangePicker, defaultReportRange } from "@/components/ReportControls";
-import type { ExportFormat } from "@/components/ReportControls";
+
 import { exportGenericCsv, exportGenericExcel, exportGenericPdf, exportSummaryCsv, exportSummaryExcel, exportSummaryPdf } from "@/lib/reportEngine";
-import type { ReportColumn, ReportRangeState, ReportLang, SummaryKpi, SummaryBreakdown } from "@/lib/reportEngine";
+import type { ReportColumn, ReportRangeState } from "@/lib/reportEngine";
 import { reportRangeToDates, reportRangeLabel } from "@/lib/reportEngine";
 import type { DriverReportSummary } from "@/lib/analytics";
 import {
@@ -34,7 +34,7 @@ import {
   createTaskBatch,
   sendTaskBatchEmail,
   sendPushToDriver,
- deleteTask,
+  deleteTask,
   deleteTaskBatch,
   getDrivers,
   type MyProfile,
@@ -56,9 +56,6 @@ import {
   getEmployees,
   getJobTypes,
   getCanteenReportsForMonth,
-  getAllCanteenReports,
-  saveCanteenReport,
-  deleteCanteenReport,
   getGiftEvents,
   createGiftEvent,
   updateGiftEvent,
@@ -107,8 +104,6 @@ import {
   getAppSetting,
   setAppSetting,
   getOvertimes,
-  addOvertime,
-  deleteOvertime,
   getCurrentKantong,
   getKantongHistory,
   updateKantongBudget,
@@ -125,24 +120,12 @@ import {
   deleteGasStation,
 } from "@/lib/api";
 import type { Claim, ClaimItem, Overtime, Plant, Kantong, DriverTier, GasStation, FuelEntry, CanteenReport, GiftEvent, GiftItemDef, GiftRegistration, GiftSelection, Wreath, VehicleGateLog, Printer, PrinterRequest, PrinterRequestType, EmployeeRequest, EmployeeRequestType, EmployeeRequestStatus, Announcement } from "@/lib/types";
-import { computeCanteenKPI } from "@/lib/types";
+
 import type { DriverType } from "@/lib/types";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf, DRIVER_TYPES, DRIVER_TYPE_LABEL, DRIVER_TYPE_COLOR } from "@/lib/duty";
 import { exportTandaTerima } from "@/lib/tandaTerima";
 import { buildRincianRows } from "@/lib/claimRecap";
 import { exportWeeklyRecapToExcel, exportWeeklyRecapToPdf } from "@/lib/weeklyRecapExport";
-import {
-  buildFleetReportData,
-  buildInsights,
-  exportFleetReportToCsv,
-  exportFleetReportToPdf,
-  periodLabel,
-  getPeriodDateRange,
-  getPreviousPeriod,
-  type ReportPeriod,
-  type FleetReportData,
-} from "@/lib/fleetReport";
-
 
 // Leaflet touches `window` directly, so it must never be server-rendered.
 const GasStationMap = dynamic(() => import("./GasStationMap"), {
@@ -153,7 +136,7 @@ const GasStationMap = dynamic(() => import("./GasStationMap"), {
     </div>
   ),
 });
-import { exportTasksToCsv, exportTasksToPdf, exportWreathsToCsv, exportGateLogsToCsv, exportPrinterRequestsToCsv, statusLabelId, formatDateTime } from "@/lib/report";
+import { exportWreathsToCsv, exportGateLogsToCsv, exportPrinterRequestsToCsv } from "@/lib/report";
 import { computeReportAnalytics, formatMinutes } from "@/lib/analytics";
 import type {
   Driver,
@@ -176,7 +159,7 @@ import AtkTab from "./AtkTab";
 import GaTab from "./GaTab";
 import ReceptionistTab from "./receptionist/ReceptionistTab";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabaseClient";
+
 import { toLocalISODate } from "@/lib/dateUtils";
 import Icon from "@/components/Icon";
 import SideNav, { type SideNavGroup } from "./SideNav";
@@ -1088,28 +1071,6 @@ function SkeletonRows({ rows = 4 }: { rows?: number }) {
    REPORT MODAL — pilih rentang tanggal, unduh CSV/PDF
 ════════════════════════════════════════════════ */
 
-type QuickRange = "today" | "7d" | "14d" | "30d" | "3m" | "thisMonth";
-
-function quickRangeToDates(range: QuickRange): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date();
-  if (range === "today") {
-    // from = to
-  } else if (range === "7d") {
-    from.setDate(from.getDate() - 6);
-  } else if (range === "14d") {
-    from.setDate(from.getDate() - 13);
-  } else if (range === "30d") {
-    from.setDate(from.getDate() - 29);
-  } else if (range === "3m") {
-    from.setMonth(from.getMonth() - 3);
-  } else if (range === "thisMonth") {
-    from.setDate(1);
-  }
-  const fmt = (d: Date) => toLocalISODate(d);
-  return { from: fmt(from), to: fmt(to) };
-}
-
 function ReportModal({
   drivers,
   myProfile,
@@ -1651,12 +1612,6 @@ function nextDocDate(type: "KIR" | "STNK" | "Service", lastDate: string | null |
   };
 }
 
-function urgencyColor(days: number): string {
-  if (days <= 7) return "var(--red)";
-  if (days <= 30) return "var(--orange)";
-  return "var(--green)";
-}
-
 function fmtRp(n: number): string {
   return new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
 }
@@ -1806,48 +1761,6 @@ function weightedWeeklyAverage(buckets: WeekBucket[], totalsByKey: Record<string
   return weightTotal > 0 ? weightedSum / weightTotal : 0;
 }
 
-/** Shared placeholder for tabs not yet ported in this pass. */
-function ComingSoonTab({ title }: { title: string }) {
-  return (
-    <div
-      style={{
-        padding: 60,
-        textAlign: "center",
-        color: "var(--t3)",
-      }}
-    >
-      <div style={{ fontSize: 40, marginBottom: 12 }}>🚧</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--t1)" }}>
-        {title}
-      </div>
-      <div style={{ fontSize: 13, marginTop: 6 }}>
-        Segera hadir di tahap berikutnya — belum diporting dari FleetOS.
-      </div>
-    </div>
-  );
-}
-async function getOverviewKantong(profile: MyProfile | null): Promise<Kantong | null> {
-  if (profile?.plantScope) {
-    return getCurrentKantong(profile.plantScope);
-  }
-  // Admin global — gabungkan CIK + PRB jadi satu angka ringkasan.
-  const [cik, prb] = await Promise.all([getCurrentKantong("CIK"), getCurrentKantong("PRB")]);
-  if (!cik && !prb) return null;
-  return {
-    id: "combined",
-    period: cik?.period ?? prb?.period ?? "",
-    plant: "CIK",
-    totalBudget: (cik?.totalBudget ?? 0) + (prb?.totalBudget ?? 0),
-    allocOpDriver: (cik?.allocOpDriver ?? 0) + (prb?.allocOpDriver ?? 0),
-    allocEmergency: (cik?.allocEmergency ?? 0) + (prb?.allocEmergency ?? 0),
-    cashAvailable: (cik?.cashAvailable ?? 0) + (prb?.cashAvailable ?? 0),
-    claimSubmitted: (cik?.claimSubmitted ?? 0) + (prb?.claimSubmitted ?? 0),
-    claimPaid: (cik?.claimPaid ?? 0) + (prb?.claimPaid ?? 0),
-    unsubmittedClaim: (cik?.unsubmittedClaim ?? 0) + (prb?.unsubmittedClaim ?? 0),
-    lastReset: cik?.lastReset ?? prb?.lastReset ?? "",
-  };
-}
-
 /* ════════════════════════════════════════════════════════════
    HOME TAB — halaman utama baru: kartu ikon per modul, dikelompokkan
    per kategori (tab horizontal), supaya sidebar bisa dibikin ramping
@@ -1857,36 +1770,6 @@ async function getOverviewKantong(profile: MyProfile | null): Promise<Kantong | 
 /* ════════════════════════════════════════════════════════════
    WIDGET — Aksi Cepat
 ════════════════════════════════════════════════════════════ */
-function QuickActionsWidget({ setActiveTab }: { setActiveTab: (t: DashboardTab) => void }) {
-  const { lang } = useLang();
-  const actions: { icon: string; labelId: string; labelEn: string; tab: DashboardTab; tone: string }[] = [
-    { icon: "employeerequests", labelId: "Permintaan Baru", labelEn: "New Request", tab: "employeerequests", tone: "facility" },
-    { icon: "reports", labelId: "Laporan Cepat", labelEn: "Quick Report", tab: "reports", tone: "fleet" },
-    { icon: "vehicles", labelId: "Tambah Armada", labelEn: "Add Vehicle", tab: "vehicles", tone: "fleet" },
-    { icon: "claims", labelId: "Pengajuan Klaim", labelEn: "Submit Claim", tab: "claims", tone: "finance" },
-  ];
-  return (
-    <div className="neonCard" style={{ padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", marginBottom: 14 }}>{lang === "en" ? "Quick Actions" : "Aksi Cepat"}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {actions.map((a) => {
-          const tn = GROUP_TONE[a.tone] ?? GROUP_TONE.system;
-          return (
-            <button
-              key={a.tab}
-              onClick={() => setActiveTab(a.tab)}
-              className={styles.quickAction}
-            >
-              <span className={styles.quickActionIcon} style={{ background: tn.bg, color: tn.fg }}><Icon name={a.icon} size={17} /></span>
-              <span className={styles.quickActionLabel}>{lang === "id" ? a.labelId : a.labelEn}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /* ════════════════════════════════════════════════════════════
    WIDGET — Pengumuman
 ════════════════════════════════════════════════════════════ */
@@ -2429,32 +2312,6 @@ function HomeTab({
   );
 }
 
-function HomeKpiCard({
-  icon, tone, labelId, labelEn, value, isCurrency, subValue, subLabelId, subLabelEn,
-}: {
-  icon: string; tone: string; labelId: string; labelEn: string; value: number;
-  isCurrency?: boolean; subValue?: number; subLabelId?: string; subLabelEn?: string;
-}) {
-  const { lang } = useLang();
-  const animated = useCountUp(value);
-  const animatedSub = useCountUp(subValue ?? 0);
-  const tn = GROUP_TONE[tone] ?? GROUP_TONE.fleet;
-  const displayValue = isCurrency ? `Rp ${animated.toLocaleString("id-ID")}` : animated.toLocaleString("id-ID");
-  return (
-    <div className={styles.homeKpi}>
-      <span className={styles.homeKpiIcon} style={{ background: tn.bg, color: tn.fg }}><Icon name={icon} size={20} /></span>
-      <div className={styles.homeKpiValue} style={{ fontSize: isCurrency ? 22 : 30 }}>
-        {displayValue}
-        {subValue !== undefined && (
-          <small> / {animatedSub} {lang === "id" ? subLabelId : subLabelEn}</small>
-        )}
-      </div>
-      <div className={styles.homeKpiLabel}>{lang === "id" ? labelId : labelEn}</div>
-    </div>
-  );
-}
-
-
 function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: DashboardTab) => void; myProfile: MyProfile | null }) {
   const { lang } = useLang();
   const [loading, setLoading] = useState(true);
@@ -2599,16 +2456,6 @@ function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: DashboardT
     </div>
   );
 }
-const CLAIM_TYPES = ["Gasoline", "Toll", "Parking", "Service", "Maintenance", "Other"];
-const CLAIM_TYPE_COLOR: Record<string, string> = {
-  Gasoline: "var(--green)",
-  Toll: "var(--brand)",
-  Parking: "var(--orange)",
-  Service: "var(--red)",
-  Maintenance: "var(--red)",
-  Other: "var(--t3)",
-};
-
 type ClaimLineDraft = { id: number; type: string; expr: string };
 
 /** The month-anchored work-week (Mon–Fri, Week 1–4) containing the given
@@ -3507,9 +3354,6 @@ function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }) {
 }
 const OT_PLANTS: Plant[] = ["CIK", "PRB"];
 const PLANT_COLOR: Record<Plant, string> = { CIK: "var(--brand)", PRB: "var(--green)" };
-const MONTHS_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-const MONTHS_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
 const TIER_PALETTE = ["var(--brand)", "var(--green)", "var(--orange)", "var(--red)", "var(--purple)"];
 
 /* ════════════════════════════════════════════════════════════
@@ -4523,413 +4367,6 @@ const FUEL_TYPES_LIST = ["Pertalite", "Pertamax", "Pertamax Turbo", "Pertamax Gr
    Claims, Overtime, Vehicles, Dana Operasional, and Driver Budget.
    Filterable by month / date range / year. Nothing is computed until the
    user explicitly clicks "Generate Laporan". ── */
-function ReportsTab({ myProfile }: { myProfile: MyProfile | null }) {
-  const { lang } = useLang();
-  const months = lang === "en" ? MONTHS_EN : MONTHS_ID;
-  const now = new Date();
-
-  const [loadingMaster, setLoadingMaster] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [allClaims, setAllClaims] = useState<Claim[]>([]);
-  const [allOvertimes, setAllOvertimes] = useState<Overtime[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [kantongCik, setKantongCik] = useState<Kantong | null>(null);
-  const [kantongPrb, setKantongPrb] = useState<Kantong | null>(null);
-  const [tiers, setTiers] = useState<DriverTier[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-
-  const [mode, setMode] = useState<"month" | "range" | "year">("month");
-  const [month, setMonth] = useState(now.getMonth());
-  const [year, setYear] = useState(now.getFullYear());
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(now.getFullYear(), now.getMonth(), 1);
-    return toLocalISODate(d);
-  });
-  const [dateTo, setDateTo] = useState(toLocalISODate(now));
-
-  const [generated, setGenerated] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [reportData, setReportData] = useState<FleetReportData | null>(null);
-  const [insights, setInsights] = useState<string[]>([]);
-  const [reportLabel, setReportLabel] = useState("");
-
-  const [exportingCsv, setExportingCsv] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
-
-  // Master data (claims/overtime/vehicles/kantong/tiers/drivers) loads once
-  // up front — it's cheap and shared across every period the user might
-  // pick. Tasks are fetched per-period on demand (see handleGenerate),
-  // since they're queried by date range server-side.
-  const loadMaster = useCallback(async () => {
-    setError(null);
-    try {
-      const [c, ot, v, kCik, kPrb, t, d] = await Promise.all([
-        getClaims(myProfile?.plantScope ?? null),
-        Promise.resolve([] as Overtime[]), // modul Overtime dinonaktifkan
-        getAllVehiclesFull(),
-        getCurrentKantong("CIK"),
-        getCurrentKantong("PRB"),
-        getDriverTiers(),
-        getDrivers(myProfile?.plantScope ?? null),
-      ]);
-      setAllClaims(c);
-      setAllOvertimes(ot);
-      setVehicles(v);
-      setKantongCik(kCik);
-      setKantongPrb(kPrb);
-      setTiers(t);
-      setDrivers(d);
-      return { c, ot, v, kCik, kPrb, t };
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data master laporan");
-      return null;
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      setLoadingMaster(true);
-      await loadMaster();
-      setLoadingMaster(false);
-    })();
-  }, [loadMaster]);
-
-  async function handleGenerate() {
-    setGenerating(true);
-    setError(null);
-    try {
-      // Refresh dulu semua data master supaya laporan tidak pakai data basi.
-      const fresh = await loadMaster();
-      if (!fresh) { setGenerating(false); return; }
-      const { c: freshClaims, ot: freshOt, v: freshVehicles, kCik: freshKCik, kPrb: freshKPrb, t: freshTiers } = fresh;
-      const myKantongForReport = myProfile?.plantScope === "PRB" ? freshKPrb : freshKCik;
-
-      const period: ReportPeriod = { mode, month, year, dateFrom, dateTo };
-      const { from, to } = getPeriodDateRange(period);
-      const tasks = await getTasksByRange(from, to, myProfile?.plantScope ?? null);
-
-      const data = buildFleetReportData(period, freshClaims, freshOt, freshVehicles, myKantongForReport, freshTiers, tasks);
-      // Previous-period data, for trend insights — silently skipped if it
-      // fails (trend is a nice-to-have, not worth blocking the report).
-      let prevData: FleetReportData | null = null;
-      try {
-        const prevPeriod = getPreviousPeriod(period);
-        const prevRange = getPeriodDateRange(prevPeriod);
-        const prevTasks = await getTasksByRange(prevRange.from, prevRange.to, myProfile?.plantScope ?? null);
-        prevData = buildFleetReportData(prevPeriod, freshClaims, freshOt, freshVehicles, myKantongForReport, freshTiers, prevTasks);
-      } catch {
-        prevData = null;
-      }
-
-      setReportData(data);
-      setInsights(buildInsights(data, prevData, drivers, lang));
-      setReportLabel(periodLabel(period, months));
-      setGenerated(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal membuat laporan");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  async function handleExportCsv() {
-    if (!reportData) return;
-    setExportingCsv(true);
-    try {
-      exportFleetReportToCsv(reportData, months, insights);
-    } finally {
-      setExportingCsv(false);
-    }
-  }
-  async function handleExportPdf() {
-    if (!reportData) return;
-    setExportingPdf(true);
-    try {
-      await exportFleetReportToPdf(reportData, months, insights);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal membuat PDF");
-    } finally {
-      setExportingPdf(false);
-    }
-  }
-
-  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
-  const inputStyle: CSSProperties = {};
-
-  // ── Derived views of reportData (only meaningful once generated) ──
-  const totalClaims = reportData?.claims.reduce((s, c) => s + c.total, 0) ?? 0;
-  const totalOtHours = reportData?.overtimes.reduce((s, o) => s + o.hours, 0) ?? 0;
-  const totalOtAmount = reportData?.overtimes.reduce((s, o) => s + o.amount, 0) ?? 0;
-  const activeVehicles = vehicles.filter((v) => v.aktif).length;
-
-  const taskStats = useMemo(() => {
-    if (!reportData) return null;
-    return computeStats(reportData.tasks);
-  }, [reportData]);
-  const taskCompletionRate = useMemo(() => {
-    if (!reportData || reportData.tasks.length === 0) return 0;
-    const nonCancelled = reportData.tasks.length - (taskStats?.cancelled ?? 0);
-    return nonCancelled > 0 ? ((taskStats?.done ?? 0) / nonCancelled) * 100 : 0;
-  }, [reportData, taskStats]);
-
-  const byType = useMemo(() => {
-    if (!reportData) return [];
-    const map = new Map<string, number>();
-    reportData.claims.forEach((c) => c.items.forEach((i) => map.set(i.type, (map.get(i.type) || 0) + i.total)));
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [reportData]);
-
-  const byDriverClaim = useMemo(() => {
-    if (!reportData) return [];
-    const map = new Map<string, number>();
-    reportData.claims.forEach((c) => map.set(c.driverName, (map.get(c.driverName) || 0) + c.total));
-    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-  }, [reportData]);
-
-  const otByPlant = useMemo(() => {
-    if (!reportData) return [];
-    return OT_PLANTS.map((p) => ({
-      plant: p,
-      hours: reportData.overtimes.filter((o) => o.plant === p).reduce((s, o) => s + o.hours, 0),
-      amount: reportData.overtimes.filter((o) => o.plant === p).reduce((s, o) => s + o.amount, 0),
-    }));
-  }, [reportData]);
-
-  const byDriverTask = useMemo(() => {
-    if (!reportData) return [];
-    const map = new Map<string, { total: number; done: number }>();
-    reportData.tasks.forEach((t) => {
-      const name = t.driver_nama || "-";
-      const cur = map.get(name) || { total: 0, done: 0 };
-      cur.total += 1;
-      if (t.status === "DONE") cur.done += 1;
-      map.set(name, cur);
-    });
-    return [...map.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 8);
-  }, [reportData]);
-
-  if (loadingMaster) return <div style={{ padding: 60, textAlign: "center", color: "var(--t3)" }}>Memuat...</div>;
-
-  return (
-    <div style={{ padding: 20 }}>
-      {/* ── Filter bar ── */}
-      <div className="statPop" style={{ ...cardStyle, padding: 16, marginBottom: 18 }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {(["month", "range", "year"] as const).map((m) => (
-            <button
-              key={m}
-              className="tabPill"
-              onClick={() => { setMode(m); setGenerated(false); }}
-              style={{
-                padding: "7px 16px",
-                borderRadius: "var(--pill)",
-                border: mode === m ? "none" : "1px solid var(--border2)",
-                background: mode === m ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent",
-                color: mode === m ? "#fff" : "var(--t2)",
-                fontWeight: 700,
-                fontSize: 12.5,
-                cursor: "pointer",
-              }}
-            >
-              {m === "month" ? (lang === "en" ? "Monthly" : "Per Bulan") : m === "range" ? (lang === "en" ? "Date Range" : "Per Tanggal") : (lang === "en" ? "Yearly" : "Per Tahun")}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {mode === "month" && (
-            <>
-              <select className={styles.formSelect} style={{ ...inputStyle, width: "auto" }} value={month} onChange={(e) => { setMonth(Number(e.target.value)); setGenerated(false); }}>
-                {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
-              </select>
-              <select className={styles.formSelect} style={{ ...inputStyle, width: "auto" }} value={year} onChange={(e) => { setYear(Number(e.target.value)); setGenerated(false); }}>
-                {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </>
-          )}
-          {mode === "range" && (
-            <>
-              <input className={styles.formInput} style={{ ...inputStyle, width: "auto" }} type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setGenerated(false); }} />
-              <span style={{ color: "var(--t3)" }}>s/d</span>
-              <input className={styles.formInput} style={{ ...inputStyle, width: "auto" }} type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setGenerated(false); }} />
-            </>
-          )}
-          {mode === "year" && (
-            <select className={styles.formSelect} style={{ ...inputStyle, width: "auto" }} value={year} onChange={(e) => { setYear(Number(e.target.value)); setGenerated(false); }}>
-              {[now.getFullYear() - 2, now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          <button className="pillBtn" onClick={handleGenerate} disabled={generating}>
-            📊 {generating ? (lang === "en" ? "Generating..." : "Membuat...") : (lang === "en" ? "Generate Report" : "Generate Laporan")}
-          </button>
-
-          {generated && (
-            <>
-              <button
-                onClick={handleExportCsv}
-                disabled={exportingCsv}
-                style={{ padding: "9px 16px", borderRadius: "var(--pill)", border: "1px solid var(--green)", background: "var(--green-soft)", color: "var(--green)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              >
-                ⬇ {exportingCsv ? "..." : "CSV"}
-              </button>
-              <button
-                onClick={handleExportPdf}
-                disabled={exportingPdf}
-                style={{ padding: "9px 16px", borderRadius: "var(--pill)", border: "1px solid var(--brand)", background: "rgba(0,174,239,0.1)", color: "var(--brand)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-              >
-                ⬇ {exportingPdf ? "..." : "PDF"}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-
-      {!generated ? (
-        <div className="heroGlow" style={{ borderRadius: "var(--r2)", padding: 50, textAlign: "center" }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>📈</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--t1)", marginBottom: 4 }}>
-            {lang === "en" ? "Pick a period, then click Generate Report" : "Pilih periode lalu klik Generate Laporan"}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--t3)" }}>
-            {lang === "en"
-              ? "Combines Task Assignment, Claims, Vehicles, and Operational Fund into one report."
-              : "Menggabungkan Penugasan Driver, Klaim, Armada, dan Dana Operasional jadi satu laporan."}
-          </div>
-        </div>
-      ) : (
-        <div className="tabContent">
-          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16 }}>
-            {lang === "en" ? "Showing report for" : "Menampilkan laporan untuk"}: <strong style={{ color: "var(--t1)" }}>{reportLabel}</strong>
-          </div>
-
-          {/* ── Summary stat cards (now includes Tasks) ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 12, marginBottom: 18 }}>
-            {[
-              { label: lang === "en" ? "Tasks Completed" : "Tugas Selesai", value: `${taskCompletionRate.toFixed(0)}%`, color: "var(--green)" },
-              { label: lang === "en" ? "Total Claims" : "Total Klaim", value: `Rp ${fmtRp(totalClaims)}`, color: "var(--brand)" },
-              { label: lang === "en" ? "OT Hours" : "Jam OT", value: `${fmtRp(totalOtHours)} jam`, color: "var(--gold2)" },
-              { label: lang === "en" ? "OT Amount" : "Nominal OT", value: `Rp ${fmtRp(totalOtAmount)}`, color: "var(--gold2)" },
-              { label: lang === "en" ? "Active Vehicles" : "Kendaraan Aktif", value: `${activeVehicles}/${vehicles.length}`, color: "var(--green)" },
-              { label: lang === "en" ? "Total Entries" : "Total Entri", value: String((reportData?.claims.length ?? 0) + (reportData?.overtimes.length ?? 0) + (reportData?.tasks.length ?? 0)), color: "var(--t1)" },
-            ].map((s, i) => (
-              <div key={i} className="statPop" style={{ ...cardStyle, padding: 14, textAlign: "center", animationDelay: `${i * 0.05}s` }}>
-                <div className="numGrad" style={{ fontSize: 16, fontWeight: 800, fontFamily: "var(--mono)" }}>{s.value}</div>
-                <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Insights — the whole point of the request: valuable, textual
-              analysis for management, not just raw numbers. ── */}
-          <div className="statPop" style={{ ...cardStyle, borderLeft: "3px solid var(--gold)", padding: "16px 20px", marginBottom: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 12 }}>
-              💡 {lang === "en" ? "Insights & Analysis for Management" : "Insight & Analisa untuk Manajemen"}
-            </div>
-            {insights.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--t3)" }}>
-                {lang === "en" ? "Not enough data in this period to generate insights." : "Data pada periode ini belum cukup untuk membuat insight."}
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {insights.map((ins, i) => (
-                  <div key={i} className="staggerItem" style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 12.5, color: "var(--t2)", lineHeight: 1.5, animationDelay: `${i * 0.06}s` }}>
-                    <span style={{ flexShrink: 0, marginTop: 6, width: 5, height: 5, borderRadius: "50%", background: "var(--gold)" }} />
-                    <span>{ins}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Task Assignment summary (merged) ── */}
-          {reportData && reportData.tasks.length > 0 && (
-            <div className="statPop" style={{ ...cardStyle, overflow: "hidden", marginBottom: 18 }}>
-              <div style={{ padding: "13px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-                🗂️ {lang === "en" ? "Task Assignment Summary" : "Ringkasan Penugasan Driver"}
-              </div>
-              <div style={{ padding: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 12, borderBottom: "1px solid var(--border)" }}>
-                {[
-                  { label: lang === "en" ? "New" : "Baru", value: taskStats?.assigned ?? 0, color: "var(--orange)" },
-                  { label: lang === "en" ? "Ongoing" : "Berlangsung", value: taskStats?.ongoing ?? 0, color: "var(--brand)" },
-                  { label: lang === "en" ? "Done" : "Selesai", value: taskStats?.done ?? 0, color: "var(--green)" },
-                  { label: lang === "en" ? "Cancelled" : "Dibatalkan", value: taskStats?.cancelled ?? 0, color: "var(--red)" },
-                ].map((s, i) => (
-                  <div key={i} style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize: 12, color: "var(--t3)" }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: 8 }}>
-                {byDriverTask.map(([name, v], i) => (
-                  <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px" }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--navy)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
-                    <div style={{ flex: 1, fontSize: 12.5, color: "var(--t1)" }}>{name}</div>
-                    <div style={{ fontSize: 13.5, color: "var(--t3)" }}>{v.done}/{v.total} {lang === "en" ? "done" : "selesai"}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
-            <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-              <div style={{ padding: "13px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-                🧾 {lang === "en" ? "Claims by Type" : "Klaim per Jenis"}
-              </div>
-              {byType.length === 0 ? (
-                <div style={{ padding: 24, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>-</div>
-              ) : (
-                <div style={{ padding: 16 }}>
-                  {byType.map(([type, total]) => {
-                    const max = byType[0][1] || 1;
-                    return (
-                      <div key={type} style={{ marginBottom: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                          <span style={{ color: "var(--t2)" }}>{type}</span>
-                          <span style={{ fontWeight: 700, color: "var(--t1)" }}>Rp {fmtRp(total)}</span>
-                        </div>
-                        <div style={{ height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${(total / max) * 100}%`, background: CLAIM_TYPE_COLOR[type] || "var(--brand)" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-            <div style={{ padding: "13px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>
-              🏆 {lang === "en" ? "Top Drivers by Claim Amount" : "Driver Terbanyak Klaim"}
-            </div>
-            {byDriverClaim.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
-                {lang === "en" ? "No claim data for this period." : "Tidak ada data klaim pada periode ini."}
-              </div>
-            ) : (
-              byDriverClaim.map(([name, total], i) => (
-                <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 6, background: "var(--brand)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{i + 1}</div>
-                  <div style={{ flex: 1, fontSize: 12.5, color: "var(--t1)" }}>{name}</div>
-                  <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--t1)" }}>Rp {fmtRp(total)}</div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function GasStationsTab() {
   const { lang, t } = useLang();
   const [stations, setStations] = useState<GasStation[]>([]);
@@ -5966,7 +5403,6 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
           </div>
         </ModalPortal>
       )}
-
 
       </div>
     </ModulePage>
@@ -7725,312 +7161,6 @@ function JobTypesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
    trends, and shift breakdown for the selected month.
 ════════════════════════════════════════════════════════════ */
 
-const SHIFT_LABELS = ["Shift 1", "Shift 2", "Shift 3"];
-
-function fmtCanteenDate(d: string, lang: string): string {
-  try {
-    return new Date(d + "T00:00:00").toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return d;
-  }
-}
-
-/* ── Daily Entry sub-panel ── */
-function CanteenEntryPanel({ cardStyle, onSaved }: { cardStyle: CSSProperties; onSaved: () => void }) {
-  const { lang, t } = useLang();
-  const [reportDate, setReportDate] = useState(todayStr());
-  const [snackOrder, setSnackOrder] = useState<[string, string, string]>(["", "", ""]);
-  const [snackLeftover, setSnackLeftover] = useState<[string, string, string]>(["", "", ""]);
-  const [mealOrder, setMealOrder] = useState<[string, string, string]>(["", "", ""]);
-  const [mealLeftover, setMealLeftover] = useState<[string, string, string]>(["", "", ""]);
-  const [submittedBy, setSubmittedBy] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const num = (arr: [string, string, string]) => arr.map((v) => Number(v) || 0) as [number, number, number];
-  const sum = (arr: [number, number, number]) => arr[0] + arr[1] + arr[2];
-
-  const sOrd = sum(num(snackOrder)), sLft = sum(num(snackLeftover)), sCon = Math.max(0, sOrd - sLft);
-  const mOrd = sum(num(mealOrder)), mLft = sum(num(mealLeftover)), mCon = Math.max(0, mOrd - mLft);
-  const sEff = sOrd > 0 ? (sCon / sOrd) * 100 : 0;
-  const mEff = mOrd > 0 ? (mCon / mOrd) * 100 : 0;
-
-  const hasOverflow =
-    snackOrder.some((v, i) => Number(snackLeftover[i]) > Number(v) && Number(v) > 0) ||
-    mealOrder.some((v, i) => Number(mealLeftover[i]) > Number(v) && Number(v) > 0);
-  const allZero = [...snackOrder, ...mealOrder].every((v) => !Number(v));
-  const canSave = reportDate && !allZero && !hasOverflow;
-
-  async function handleSubmit() {
-    if (!canSave) return;
-    setSaving(true);
-    try {
-      await saveCanteenReport({
-        reportDate,
-        snackOrder: num(snackOrder),
-        snackLeftover: num(snackLeftover),
-        mealOrder: num(mealOrder),
-        mealLeftover: num(mealLeftover),
-        submittedBy: submittedBy.trim() || (lang === "en" ? "Canteen Operator" : "Operator Kantin"),
-      });
-      setSnackOrder(["", "", ""]); setSnackLeftover(["", "", ""]);
-      setMealOrder(["", "", ""]); setMealLeftover(["", "", ""]);
-      onSaved();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan laporan");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inputStyle: CSSProperties = { textAlign: "center" };
-  const labelStyle: CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--t2)", marginBottom: 5, display: "block" };
-
-  function ShiftGrid({ category, order, leftover, setOrder, setLeftover, color }: {
-    category: string; order: [string, string, string]; leftover: [string, string, string];
-    setOrder: (v: [string, string, string]) => void; setLeftover: (v: [string, string, string]) => void; color: string;
-  }) {
-    return (
-      <div className="statPop" style={{ ...cardStyle, padding: 18, borderTop: `3px solid ${color}` }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", marginBottom: 14 }}>{category}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: 8, marginBottom: 8 }}>
-          <div />
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textAlign: "center", textTransform: "uppercase" }}>{lang === "en" ? "Order" : "Order"}</div>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--t3)", textAlign: "center", textTransform: "uppercase" }}>{lang === "en" ? "Leftover" : "Sisa"}</div>
-        </div>
-        {SHIFT_LABELS.map((sh, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: 8, marginBottom: 8, alignItems: "center" }}>
-            <div style={{ fontSize: 12, color: "var(--t2)", fontWeight: 600 }}>{sh}</div>
-            <input className={styles.formInput} type="number" min="0" placeholder="0" value={order[i]} onChange={(e) => { const v = [...order] as [string, string, string]; v[i] = e.target.value; setOrder(v); }} />
-            <input className={styles.formInput} style={{ ...inputStyle, borderColor: Number(leftover[i]) > Number(order[i]) && Number(order[i]) > 0 ? "var(--red)" : undefined }} type="number" min="0" placeholder="0" value={leftover[i]} onChange={(e) => { const v = [...leftover] as [string, string, string]; v[i] = e.target.value; setLeftover(v); }} />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="statPop" style={{ ...cardStyle, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div>
-            <label>{lang === "en" ? "REPORT DATE" : "TANGGAL LAPORAN"} *</label>
-            <input className={styles.formInput} style={{ ...inputStyle, textAlign: "left" }} type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
-          </div>
-          <div>
-            <label>{lang === "en" ? "SUBMITTED BY" : "DIINPUT OLEH"}</label>
-            <input className={styles.formInput} style={{ ...inputStyle, textAlign: "left" }} value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)} placeholder={lang === "en" ? "Canteen Operator" : "Operator Kantin"} />
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-        <ShiftGrid category={`🥐 ${lang === "en" ? "Snack" : "Snack"}`} order={snackOrder} leftover={snackLeftover} setOrder={setSnackOrder} setLeftover={setSnackLeftover} color="var(--green)" />
-        <ShiftGrid category={`🍱 ${lang === "en" ? "Meal" : "Meal"}`} order={mealOrder} leftover={mealLeftover} setOrder={setMealOrder} setLeftover={setMealLeftover} color="var(--brand)" />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-        <div className="statPop" style={{ ...cardStyle, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}><span style={{ color: "var(--t3)" }}>{lang === "en" ? "Total Ordered" : "Total Order"}</span><span style={{ fontWeight: 700, color: "var(--t1)" }}>{fmtRp(sOrd)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}><span style={{ color: "var(--t3)" }}>{lang === "en" ? "Consumed" : "Terpakai"}</span><span style={{ fontWeight: 700, color: "var(--green)" }}>{fmtRp(sCon)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "var(--t3)" }}>{lang === "en" ? "Leftover" : "Sisa"}</span><span style={{ fontWeight: 700, color: "var(--red)" }}>{fmtRp(sLft)}</span></div>
-          <div style={{ marginTop: 10, height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}><div style={{ height: "100%", width: `${sEff}%`, background: "var(--green)" }} /></div>
-          <div style={{ textAlign: "right", fontSize: 11, fontWeight: 700, color: "var(--green)", marginTop: 4 }}>{sEff.toFixed(1)}% eff</div>
-        </div>
-        <div className="statPop" style={{ ...cardStyle, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}><span style={{ color: "var(--t3)" }}>{lang === "en" ? "Total Ordered" : "Total Order"}</span><span style={{ fontWeight: 700, color: "var(--t1)" }}>{fmtRp(mOrd)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}><span style={{ color: "var(--t3)" }}>{lang === "en" ? "Consumed" : "Terpakai"}</span><span style={{ fontWeight: 700, color: "var(--brand)" }}>{fmtRp(mCon)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><span style={{ color: "var(--t3)" }}>{lang === "en" ? "Leftover" : "Sisa"}</span><span style={{ fontWeight: 700, color: "var(--red)" }}>{fmtRp(mLft)}</span></div>
-          <div style={{ marginTop: 10, height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}><div style={{ height: "100%", width: `${mEff}%`, background: "var(--brand)" }} /></div>
-          <div style={{ textAlign: "right", fontSize: 11, fontWeight: 700, color: "var(--brand)", marginTop: 4 }}>{mEff.toFixed(1)}% eff</div>
-        </div>
-      </div>
-
-      {hasOverflow && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 12.5 }}>{lang === "en" ? "Leftover can't be greater than order — check the highlighted fields." : "Sisa tidak boleh lebih besar dari order — cek field yang ditandai merah."}</div>}
-
-      <button className="pillBtn" onClick={handleSubmit} disabled={!canSave || saving} style={{ width: "100%", justifyContent: "center", padding: 14, opacity: canSave && !saving ? 1 : 0.5 }}>
-        {saving ? t.actionSaving : (lang === "en" ? "Save Report" : "Simpan Laporan")}
-      </button>
-    </div>
-  );
-}
-
-/* ── Dashboard sub-panel ── */
-function CanteenDashboardPanel({ cardStyle }: { cardStyle: CSSProperties }) {
-  const { lang, t } = useLang();
-  const now = new Date();
-  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
-  const [rows, setRows] = useState<CanteenReport[]>([]);
-  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<CanteenReport | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [monthRows, allRows] = await Promise.all([getCanteenReportsForMonth(month), getAllCanteenReports()]);
-      setRows(monthRows);
-      const months = [...new Set(allRows.map((r) => r.reportDate.slice(0, 7)))].sort().reverse();
-      setAvailableMonths(months.length > 0 ? months : [month]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data kantin");
-    } finally {
-      setLoading(false);
-    }
-  }, [month]);
-  useEffect(() => { load(); }, [load]);
-
-  async function handleDelete() {
-    if (!confirmDelete) return;
-    try {
-      await deleteCanteenReport(confirmDelete.id);
-      setConfirmDelete(null);
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus laporan");
-    }
-  }
-
-  const kpi = useMemo(() => computeCanteenKPI(rows), [rows]);
-  const overallEff = Math.round(((kpi.snackEff + kpi.mealEff) / 2) * 10) / 10;
-
-  const shiftTotals = useMemo(() => {
-    const s: [number, number, number] = [0, 0, 0];
-    const m: [number, number, number] = [0, 0, 0];
-    rows.forEach((r) => { for (let i = 0; i < 3; i++) { s[i] += r.snackOrder[i]; m[i] += r.mealOrder[i]; } });
-    return { snack: s, meal: m };
-  }, [rows]);
-
-  const chartW = 640, chartH = 160, pad = 30;
-  const maxOrd = Math.max(...rows.map((r) => r.snackOrder[0] + r.snackOrder[1] + r.snackOrder[2] + r.mealOrder[0] + r.mealOrder[1] + r.mealOrder[2]), 1);
-  const snackPts = rows.map((r, i) => {
-    const x = pad + (rows.length > 1 ? (i / (rows.length - 1)) * (chartW - pad * 2) : 0);
-    const total = r.snackOrder[0] + r.snackOrder[1] + r.snackOrder[2];
-    const y = chartH - pad - (total / maxOrd) * (chartH - pad * 2 - 10);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  const mealPts = rows.map((r, i) => {
-    const x = pad + (rows.length > 1 ? (i / (rows.length - 1)) * (chartW - pad * 2) : 0);
-    const total = r.mealOrder[0] + r.mealOrder[1] + r.mealOrder[2];
-    const y = chartH - pad - (total / maxOrd) * (chartH - pad * 2 - 10);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <select className={styles.formSelect} value={month} onChange={(e) => setMonth(e.target.value)} style={{ borderRadius: "var(--pill)" }}>
-          {availableMonths.map((m) => (
-            <option key={m} value={m}>{new Date(m + "-01").toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { month: "long", year: "numeric" })}</option>
-          ))}
-        </select>
-      </div>
-
-      {error && <div style={{ padding: 12, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", marginBottom: 14, fontSize: 13 }}>{error}</div>}
-
-      {loading ? (
-        <SkeletonRows />
-      ) : (
-        <>
-          {/* KPI cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 18 }}>
-            {[
-              { label: lang === "en" ? "Snack Ordered" : "Snack Order", value: fmtRp(kpi.totalSnackOrder), color: "var(--green)" },
-              { label: lang === "en" ? "Snack Efficiency" : "Efisiensi Snack", value: `${kpi.snackEff}%`, color: "var(--green)" },
-              { label: lang === "en" ? "Meal Ordered" : "Meal Order", value: fmtRp(kpi.totalMealOrder), color: "var(--brand)" },
-              { label: lang === "en" ? "Meal Efficiency" : "Efisiensi Meal", value: `${kpi.mealEff}%`, color: "var(--brand)" },
-              { label: lang === "en" ? "Overall Efficiency" : "Efisiensi Keseluruhan", value: `${overallEff}%`, color: overallEff >= 95 ? "var(--green)" : overallEff >= 90 ? "var(--orange)" : "var(--red)" },
-            ].map((s, i) => (
-              <div key={i} className="statPop" style={{ ...cardStyle, padding: 14, textAlign: "center", animationDelay: `${i * 0.05}s` }}>
-                <div className="numGrad" style={{ fontSize: 18, fontWeight: 800, fontFamily: "var(--mono)" }}>{s.value}</div>
-                <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Trend chart + Shift breakdown */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, marginBottom: 18 }}>
-            <div className="statPop" style={{ ...cardStyle, padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>{lang === "en" ? "Daily Order Trend" : "Tren Order Harian"}</div>
-              <div style={{ display: "flex", gap: 14, fontSize: 11, marginBottom: 12 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--green)" }} />Snack</span>
-                <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--brand)" }} />Meal</span>
-              </div>
-              {rows.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 30, color: "var(--t3)", fontSize: 12 }}>{t.actionNoDataYet}</div>
-              ) : (
-                <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" height={chartH}>
-                  {[0.25, 0.5, 0.75].map((f) => (<line key={f} x1={pad} x2={chartW - pad} y1={pad + f * (chartH - pad * 2 - 10)} y2={pad + f * (chartH - pad * 2 - 10)} stroke="var(--border)" strokeWidth={1} />))}
-                  <polyline points={snackPts} fill="none" stroke="var(--green)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-                  <polyline points={mealPts} fill="none" stroke="var(--brand)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-                </svg>
-              )}
-            </div>
-            <div className="statPop" style={{ ...cardStyle, padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 14 }}>{lang === "en" ? "Shift Breakdown" : "Breakdown Shift"}</div>
-              {SHIFT_LABELS.map((sh, i) => {
-                const sTot = shiftTotals.snack[0] + shiftTotals.snack[1] + shiftTotals.snack[2] || 1;
-                const mTot = shiftTotals.meal[0] + shiftTotals.meal[1] + shiftTotals.meal[2] || 1;
-                return (
-                  <div key={i} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--t2)", marginBottom: 4 }}>{sh}</div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 3 }}>
-                      <div style={{ flex: 1, height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}><div style={{ height: "100%", width: `${(shiftTotals.snack[i] / sTot) * 100}%`, background: "var(--green)" }} /></div>
-                      <span style={{ fontSize: 10.5, color: "var(--t3)", minWidth: 40, textAlign: "right" }}>{fmtRp(shiftTotals.snack[i])}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <div style={{ flex: 1, height: 6, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}><div style={{ height: "100%", width: `${(shiftTotals.meal[i] / mTot) * 100}%`, background: "var(--brand)" }} /></div>
-                      <span style={{ fontSize: 10.5, color: "var(--t3)", minWidth: 40, textAlign: "right" }}>{fmtRp(shiftTotals.meal[i])}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Detail table */}
-          <div className="statPop" style={{ ...cardStyle, overflow: "hidden" }}>
-            <div style={{ padding: "13px 18px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: 13, color: "var(--t1)" }}>{lang === "en" ? "Daily Detail" : "Detail Harian"}</div>
-            {rows.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 30, color: "var(--t3)", fontSize: 12 }}>{t.actionNoDataYet}</div>
-            ) : (
-              rows.slice().reverse().map((r) => {
-                const sOrd = r.snackOrder[0] + r.snackOrder[1] + r.snackOrder[2];
-                const sLft = r.snackLeftover[0] + r.snackLeftover[1] + r.snackLeftover[2];
-                const mOrd = r.mealOrder[0] + r.mealOrder[1] + r.mealOrder[2];
-                const mLft = r.mealLeftover[0] + r.mealLeftover[1] + r.mealLeftover[2];
-                return (
-                  <div key={r.id} className="rowHover" style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 18px", borderBottom: "1px solid var(--border)" }}>
-                    <div style={{ minWidth: 100, fontSize: 12.5, fontWeight: 700, color: "var(--t1)" }}>{fmtCanteenDate(r.reportDate, lang)}</div>
-                    <div style={{ flex: 1, fontSize: 11.5, color: "var(--t3)" }}>🥐 {fmtRp(sOrd)} order · sisa {fmtRp(sLft)}</div>
-                    <div style={{ flex: 1, fontSize: 11.5, color: "var(--t3)" }}>🍱 {fmtRp(mOrd)} order · sisa {fmtRp(mLft)}</div>
-                    <button onClick={() => setConfirmDelete(r)} style={{ border: "none", background: "none", color: "var(--red)", cursor: "pointer", fontSize: 13 }}>🗑️</button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </>
-      )}
-
-      {confirmDelete && (
-        <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this report?" : "Hapus laporan ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}><strong style={{ color: "var(--t1)" }}>{fmtCanteenDate(confirmDelete.reportDate, lang)}</strong> {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.actionYesDelete}</button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-    </div>
-  );
-}
-
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
 // ════════════════════════════════════════════════════════════════
@@ -8553,8 +7683,6 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
   setTimeout(() => w.print(), 400);
 }
 
-
-
 function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const { lang, t } = useLang();
   const [events, setEvents] = useState<GiftEvent[]>([]);
@@ -8941,7 +8069,6 @@ function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     try { await updateGiftEvent(ev.id, { status: ev.status === "open" ? "closed" : "open" }); await load(); }
     catch { /**/ }
   }
-
 
   // ── REGISTRATIONS VIEW ──
   if (view === "registrations" && regEvent) return (
