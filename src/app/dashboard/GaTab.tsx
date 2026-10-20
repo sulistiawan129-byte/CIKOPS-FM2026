@@ -23,9 +23,11 @@ import a from "./atk.module.css";
 import g from "./ga.module.css";
 import TgaAccounts from "./TgaAccounts";
 import TgaTasks from "./TgaTasks";
+import { GaChecklist, GaExcelModeNote, GaLogModal, GaMaster, GaModeCard, type LogField } from "./GaManage";
+import { deleteGaLog, saveGaLog, type GaLogTable } from "@/lib/ga/api";
 
 type Lang = "id" | "en";
-type View = "dashboard" | "matrix" | "tga" | "event" | "improvement" | "inventory" | "sync";
+type View = "dashboard" | "checklist" | "matrix" | "master" | "tga" | "event" | "improvement" | "inventory" | "sync";
 type Team = "Semua" | "Cleaning Service" | "Gardener";
 
 const BLN_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
@@ -104,14 +106,45 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
   const evMonth = useMemo(() => events.filter((t) => inMonth(t.tanggal, periode)), [events, periode]);
   const impMonth = useMemo(() => imps.filter((t) => inMonth(t.tanggal, periode)), [imps, periode]);
 
+  const editable = sync?.master === "cikops";
+  const [logEdit, setLogEdit] = useState<{ table: GaLogTable; id: number | null; values: Record<string, string> } | null>(null);
+  const reloadAll = () => { loadPlan(); loadOther(); };
+  async function removeLog(table: GaLogTable, id: number, label: string) {
+    if (!window.confirm(L(`Hapus "${label}"?`, `Delete "${label}"?`))) return;
+    try { await deleteGaLog(table, id); loadOther(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+  }
+  const LOG_FIELDS: Record<GaLogTable, LogField[]> = {
+    events: [
+      { key: "tanggal", label: L("Tanggal", "Date"), type: "date", required: true }, { key: "waktu", label: L("Waktu", "Time"), options: ["Pagi", "Siang", "Sore", "Malam", "Full day"] },
+      { key: "nama", label: L("Nama event", "Event name"), required: true, wide: true }, { key: "deskripsi", label: L("Deskripsi", "Description"), type: "textarea" },
+      { key: "support", label: L("Support GA", "GA support"), wide: true }, { key: "dokumentasi", label: L("Dokumentasi (link / nama file)", "Documentation (link / file)"), wide: true },
+    ],
+    improvements: [
+      { key: "tanggal", label: L("Tanggal", "Date"), type: "date", required: true }, { key: "kategori", label: L("Kategori", "Category"), options: Array.from(new Set(imps.map((x) => x.kategori).filter(Boolean))) },
+      { key: "jenis", label: L("Jenis pekerjaan", "Work type"), options: Array.from(new Set(imps.map((x) => x.jenis).filter(Boolean))) }, { key: "area", label: "Area" },
+      { key: "deskripsi", label: L("Deskripsi", "Description"), type: "textarea", required: true },
+      { key: "petugas", label: L("Petugas", "Staff"), options: manpower.map((x) => x.nama) }, { key: "pengawas", label: L("Pengawas", "Supervisor") },
+      { key: "dokumentasi", label: L("Dokumentasi (link / nama file)", "Documentation (link / file)"), wide: true },
+    ],
+    inventory: [
+      { key: "kode", label: L("Kode", "Code") }, { key: "nama", label: L("Nama alat", "Tool name"), required: true },
+      { key: "jenis", label: L("Jenis", "Type"), options: Array.from(new Set(inv.map((x) => x.jenis).filter(Boolean))) }, { key: "area", label: "Area" },
+      { key: "status", label: "Status", options: ["Baik", "Perlu servis", "Rusak", "Hilang"] }, { key: "jumlah", label: L("Jumlah", "Qty"), type: "number" },
+      { key: "tgl_update", label: L("Tgl update", "Updated"), type: "date" }, { key: "foto", label: L("Foto (link / nama file)", "Photo (link / file)") },
+    ],
+  };
+  const LOG_TITLE: Record<GaLogTable, string> = { events: "Event", improvements: "Improvement", inventory: "Inventory" };
+
   const TABS: { id: View; label: string; badge?: number }[] = [
     { id: "dashboard", label: "Dashboard" },
+    { id: "checklist", label: L("Checklist harian", "Daily checklist") },
     { id: "matrix", label: L("Plan vs Actual", "Plan vs Actual") },
+    { id: "master", label: L("Master & jadwal", "Master & schedule") },
     { id: "tga", label: "TGA", badge: tgaMonth.length || undefined },
     { id: "event", label: "Event", badge: evMonth.length || undefined },
     { id: "improvement", label: "Improvement", badge: impMonth.length || undefined },
     { id: "inventory", label: "Inventory" },
-    { id: "sync", label: L("Sinkron Excel", "Excel Sync") },
+    { id: "sync", label: editable ? L("Excel (tarik data)", "Excel (pull)") : L("Sinkron Excel", "Excel Sync") },
   ];
   const noData = !loading && plan.length === 0 && jobs.length === 0;
 
@@ -121,13 +154,22 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
         <div className={a.headText}>
           <span className={a.kicker}>{L("Fasilitas · ISS General Affairs", "Facility · ISS General Affairs")}</span>
           <h1>{L("Cleaning, Gardening & TGA", "Cleaning, Gardening & TGA")}</h1>
-          <p>{L("Laporan plan vs actual pekerjaan rutin, aktivitas teknisi GA, event, improvement dan inventory alat — tersinkron dari Excel SPV.", "Routine plan vs actual, GA technician activities, events, improvements and tool inventory — synced from the supervisor's Excel.")}</p>
+          <p>{editable
+            ? L("Master pekerjaan, jadwal, checklist harian, event, improvement dan inventory dikelola langsung di CIKOPS — Excel SPV menarik dan mengikuti.", "Job master, schedule, daily checklist, events, improvements and inventory are managed in CIKOPS — the SPV Excel pulls and follows.")
+            : L("Laporan plan vs actual pekerjaan rutin, aktivitas teknisi GA, event, improvement dan inventory alat — tersinkron dari Excel SPV.", "Routine plan vs actual, GA technician activities, events, improvements and tool inventory — synced from the supervisor's Excel.")}</p>
         </div>
         <div className={a.headSide}>
-          <button type="button" className={`${a.syncPill} ${sync?.lastSyncAt ? a.pillOk : a.pillWarn}`} onClick={() => setView("sync")}>
-            <i />
-            <span><b>{sync?.lastSyncAt ? L("Excel tersinkron", "Excel synced") : L("Belum ada sinkron", "Not synced yet")}</b><small>{sync?.lastSyncAt ? `${ago(sync.lastSyncAt, lang)} · ${sync.lastComputer || "-"}` : L("Pasang modSyncGA di Excel", "Install modSyncGA in Excel")}</small></span>
-          </button>
+          {editable ? (
+            <button type="button" className={`${a.syncPill} ${a.pillOk}`} onClick={() => setView("sync")}>
+              <i />
+              <span><b>{L("CIKOPS sumber utama", "CIKOPS is master")}</b><small>{sync?.lastPullAt ? `${L("Excel menarik", "Excel pulled")} ${ago(sync.lastPullAt, lang)}` : L("Excel belum menarik data", "Excel hasn't pulled yet")}</small></span>
+            </button>
+          ) : (
+            <button type="button" className={`${a.syncPill} ${sync?.lastSyncAt ? a.pillOk : a.pillWarn}`} onClick={() => setView("sync")}>
+              <i />
+              <span><b>{sync?.lastSyncAt ? L("Excel tersinkron", "Excel synced") : L("Belum ada sinkron", "Not synced yet")}</b><small>{sync?.lastSyncAt ? `${ago(sync.lastSyncAt, lang)} · ${sync.lastComputer || "-"}` : L("Pasang modSyncGA di Excel", "Install modSyncGA in Excel")}</small></span>
+            </button>
+          )}
           <button type="button" className={a.ghostBtn} onClick={() => { loadPlan(); loadOther(); }} disabled={loading}>{loading ? "…" : "↻"} {L("Muat ulang", "Refresh")}</button>
         </div>
       </header>
@@ -142,7 +184,9 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
 
       {err && <div className={a.msgErr}>⚠ {err}</div>}
 
-      {view !== "sync" && view !== "inventory" && (
+      {(view === "checklist" || view === "master") && <GaExcelModeNote lang={lang} sync={sync} onGoSync={() => setView("sync")} />}
+
+      {view !== "sync" && view !== "inventory" && view !== "checklist" && (
         <div className={a.period}>
           <div className={g.monthNav}>
             <button type="button" className={g.navBtn} onClick={() => setPeriode((p) => shiftPeriode(p, -1))} aria-label={L("Bulan sebelumnya", "Previous month")}>‹</button>
@@ -160,9 +204,12 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
         </div>
       )}
 
-      {noData && view !== "sync" && view !== "tga" ? (
+      {noData && !["sync", "tga", "master", "checklist", "event", "improvement", "inventory"].includes(view) ? (
         <section className={a.card}>
-          <p className={a.empty}>{L("Belum ada data dari Excel. Pasang modSyncGA di file ISS GA System lalu klik Sinkron CIKOPS (lihat tab Sinkron Excel).", "No data from Excel yet. Install modSyncGA in the ISS GA System file and click Sync (see the Excel Sync tab).")}</p>
+          <p className={a.empty}>{editable
+            ? L("Belum ada jadwal. Buka tab Master & jadwal → tambah pekerjaan → Generate jadwal.", "No schedule yet. Open Master & schedule → add jobs → Generate.")
+            : L("Belum ada data dari Excel. Pasang modSyncGA di file ISS GA System lalu klik Sinkron CIKOPS (lihat tab Sinkron Excel).", "No data from Excel yet. Install modSyncGA in the ISS GA System file and click Sync (see the Excel Sync tab).")}</p>
+          {editable && <button type="button" className={a.primary} onClick={() => setView("master")}>{L("Buka Master & jadwal", "Open Master & schedule")}</button>}
         </section>
       ) : (
         <>
@@ -170,9 +217,14 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
             <Dashboard lang={lang} loading={loading} periode={periode} cur={cur} prev={prev} curRows={curRows} teamRows={teamRows} asOf={asOf}
               tga={tgaMonth} events={evMonth} imps={impMonth} inv={inv} onGo={setView} />
           )}
+          {view === "checklist" && <GaChecklist lang={lang} editable={editable} onChanged={loadPlan} />}
           {view === "matrix" && <Matrix lang={lang} rows={curRows} periode={periode} today={today} />}
+          {view === "master" && <GaMaster lang={lang} jobs={jobs} manpower={manpower} periode={periode} editable={editable} onChanged={reloadAll} />}
           {view === "tga" && <TgaView lang={lang} rows={tgaMonth} all={tga} periode={periode} manpower={manpower} />}
           {view === "event" && <SimpleTable lang={lang} title="Event" rows={evMonth} periode={periode}
+            onAdd={editable ? () => setLogEdit({ table: "events", id: null, values: { tanggal: today } }) : undefined}
+            onEdit={editable ? (r: GaEvent) => setLogEdit({ table: "events", id: r.id, values: { tanggal: r.tanggal ?? "", nama: r.nama, deskripsi: r.deskripsi, waktu: r.waktu, support: r.support, dokumentasi: r.dokumentasi } }) : undefined}
+            onDelete={editable ? (r: GaEvent) => removeLog("events", r.id, r.nama) : undefined}
             cols={[
               { key: "tanggal", labelId: "Tanggal", labelEn: "Date", get: (r: GaEvent) => r.tanggal ?? "" },
               { key: "nama", labelId: "Nama Event", labelEn: "Event", get: (r: GaEvent) => r.nama },
@@ -182,6 +234,9 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
               { key: "dok", labelId: "Dokumentasi", labelEn: "Documentation", get: (r: GaEvent) => r.dokumentasi },
             ]} empty={L("Tidak ada event di bulan ini.", "No events this month.")} filename="Event_GA" />}
           {view === "improvement" && <SimpleTable lang={lang} title="Improvement / Inovasi" rows={impMonth} periode={periode}
+            onAdd={editable ? () => setLogEdit({ table: "improvements", id: null, values: { tanggal: today } }) : undefined}
+            onEdit={editable ? (r: GaImprovement) => setLogEdit({ table: "improvements", id: r.id, values: { tanggal: r.tanggal ?? "", kategori: r.kategori, jenis: r.jenis, deskripsi: r.deskripsi, area: r.area, petugas: r.petugas, pengawas: r.pengawas, dokumentasi: r.dokumentasi } }) : undefined}
+            onDelete={editable ? (r: GaImprovement) => removeLog("improvements", r.id, r.deskripsi.slice(0, 40)) : undefined}
             cols={[
               { key: "tanggal", labelId: "Tanggal", labelEn: "Date", get: (r: GaImprovement) => r.tanggal ?? "" },
               { key: "kategori", labelId: "Kategori", labelEn: "Category", get: (r: GaImprovement) => r.kategori },
@@ -192,8 +247,17 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
               { key: "pengawas", labelId: "Pengawas", labelEn: "Supervisor", get: (r: GaImprovement) => r.pengawas },
               { key: "dok", labelId: "Dokumentasi", labelEn: "Documentation", get: (r: GaImprovement) => r.dokumentasi },
             ]} empty={L("Tidak ada improvement / inovasi di bulan ini.", "No improvements this month.")} filename="Improvement_GA" />}
-          {view === "inventory" && <InventoryView lang={lang} rows={inv} />}
+          {view === "inventory" && <InventoryView lang={lang} rows={inv}
+            onAdd={editable ? () => setLogEdit({ table: "inventory", id: null, values: { status: "Baik", tgl_update: today } }) : undefined}
+            onEdit={editable ? (r) => setLogEdit({ table: "inventory", id: r.id, values: { kode: r.kode, nama: r.nama, jenis: r.jenis, area: r.area, status: r.status, foto: r.foto, jumlah: r.jumlah === null ? "" : String(r.jumlah), tgl_update: r.tglUpdate ?? "" } }) : undefined}
+            onDelete={editable ? (r) => removeLog("inventory", r.id, r.nama) : undefined} />}
+          {view === "sync" && <GaModeCard lang={lang} sync={sync} onChanged={loadOther} />}
           {view === "sync" && <SyncView lang={lang} sync={sync} jobs={jobs.length} manpower={manpower.length} onRotated={(k) => setSync((s) => (s ? { ...s, syncKey: k } : s))} onError={(m) => setErr(m)} />}
+        {logEdit && (
+            <GaLogModal lang={lang} title={`${logEdit.id ? L("Ubah", "Edit") : L("Tambah", "Add")} ${LOG_TITLE[logEdit.table]}`} fields={LOG_FIELDS[logEdit.table]} initial={logEdit.values}
+              onClose={() => setLogEdit(null)}
+              onSubmit={async (v) => { await saveGaLog(logEdit.table, logEdit.id, v); setLogEdit(null); loadOther(); }} />
+          )}
         </>
       )}
     </div>
@@ -674,8 +738,9 @@ function TgaView({ lang, rows, all, periode, manpower }: { lang: Lang; rows: GaT
 /* ════════════════════════════════════════════════════════════
    EVENT / IMPROVEMENT (tabel sederhana)
 ════════════════════════════════════════════════════════════ */
-function SimpleTable<T extends { id: number }>({ lang, title, rows, periode, cols, empty, filename }: {
+function SimpleTable<T extends { id: number }>({ lang, title, rows, periode, cols, empty, filename, onAdd, onEdit, onDelete }: {
   lang: Lang; title: string; rows: T[]; periode: number; cols: ReportColumn<T>[]; empty: string; filename: string;
+  onAdd?: () => void; onEdit?: (r: T) => void; onDelete?: (r: T) => void;
 }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [q, setQ] = useState("");
@@ -691,26 +756,33 @@ function SimpleTable<T extends { id: number }>({ lang, title, rows, periode, col
         <span className={a.histSummary}>{list.length} {L("baris", "rows")}</span>
         <span className={a.grow} />
         <div className={a.exportGroup}>{(["excel", "pdf", "csv"] as const).map((f) => <button key={f} type="button" className={a.ghostBtn} onClick={() => exportRows(f)} disabled={!list.length}>{f.toUpperCase()}</button>)}</div>
+        {onAdd && <button type="button" className={a.primary} onClick={onAdd}>+ {L("Tambah", "Add")}</button>}
       </div>
       {list.length === 0 ? <p className={a.empty}>{empty}</p> : (
         <div className={a.tableWrap}>
           <table className={a.table}>
-            <thead><tr>{cols.map((c) => <th key={c.key}>{lang === "en" ? c.labelEn : c.labelId}</th>)}</tr></thead>
+            <thead><tr>{cols.map((c) => <th key={c.key}>{lang === "en" ? c.labelEn : c.labelId}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
             <tbody>{list.map((r) => <tr key={r.id}>{cols.map((c) => {
               const v = c.get(r);
               const isDate = c.key === "tanggal" && typeof v === "string" && /^\d{4}-/.test(v);
               const isDoc = c.key === "dok" && v;
-              return <td key={c.key} style={isDate ? { whiteSpace: "nowrap" } : undefined}>{isDate ? fmtD(String(v), lang) : isDoc ? <span className={g.docChip} title={L("Foto tersimpan di folder Dokumentasi Excel", "Photo stored in the Excel Documentation folder")}>📎 {String(v)}</span> : String(v || "—")}</td>;
-            })}</tr>)}</tbody>
+              const isUrl = isDoc && /^https?:\/\//i.test(String(v));
+              return <td key={c.key} style={isDate ? { whiteSpace: "nowrap" } : undefined}>{isDate ? fmtD(String(v), lang) : isUrl ? <a className={g.docChip} href={String(v)} target="_blank" rel="noopener noreferrer">📎 {L("Buka", "Open")}</a> : isDoc ? <span className={g.docChip} title={L("Foto tersimpan di folder Dokumentasi Excel", "Photo stored in the Excel Documentation folder")}>📎 {String(v)}</span> : String(v || "—")}</td>;
+            })}{(onEdit || onDelete) && <td className={a.rowAct}>
+              {onEdit && <button type="button" className={a.smallBtn} onClick={() => onEdit(r)}>{L("Ubah", "Edit")}</button>}{" "}
+              {onDelete && <button type="button" className={a.iconBtn} onClick={() => onDelete(r)} aria-label={L("Hapus", "Delete")}>✕</button>}
+            </td>}</tr>)}</tbody>
           </table>
         </div>
       )}
-      <p className={a.hint}>{L("Foto / dokumen tersimpan di folder Dokumentasi pada PC SPV — CIKOPS hanya menampilkan nama filenya.", "Photos / documents stay in the Documentation folder on the SPV PC — CIKOPS only shows the file name.")}</p>
+      <p className={a.hint}>{onAdd
+        ? L("Dokumentasi: tempel link foto (Google Drive / SharePoint) supaya bisa dibuka dari CIKOPS dan Excel.", "Documentation: paste a photo link (Google Drive / SharePoint) so it opens from CIKOPS and Excel.")
+        : L("Foto / dokumen tersimpan di folder Dokumentasi pada PC SPV — CIKOPS hanya menampilkan nama filenya.", "Photos / documents stay in the Documentation folder on the SPV PC — CIKOPS only shows the file name.")}</p>
     </section>
   );
 }
 
-function InventoryView({ lang, rows }: { lang: Lang; rows: GaInventory[] }) {
+function InventoryView({ lang, rows, onAdd, onEdit, onDelete }: { lang: Lang; rows: GaInventory[]; onAdd?: () => void; onEdit?: (r: GaInventory) => void; onDelete?: (r: GaInventory) => void }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [st, setSt] = useState("");
   const counts = useMemo(() => {
@@ -734,16 +806,22 @@ function InventoryView({ lang, rows }: { lang: Lang; rows: GaInventory[] }) {
             <button type="button" aria-pressed={!st} className={!st ? a.segOn : ""} onClick={() => setSt("")}>{L("Semua", "All")} <small>{total}</small></button>
             {counts.map(([k, v]) => <button key={k} type="button" aria-pressed={st === k} className={st === k ? a.segOn : ""} onClick={() => setSt(k)}>{k} <small>{v.jenis}</small></button>)}
           </div>
+          <span className={a.grow} />
+          {onAdd && <button type="button" className={a.primary} onClick={onAdd}>+ {L("Tambah alat", "Add tool")}</button>}
         </div>
-        {list.length === 0 ? <p className={a.empty}>{L("Data inventory belum diisi di Excel.", "Inventory not filled in Excel yet.")}</p> : (
+        {list.length === 0 ? <p className={a.empty}>{onAdd ? L("Belum ada alat. Klik + Tambah alat.", "No tools yet.") : L("Data inventory belum diisi di Excel.", "Inventory not filled in Excel yet.")}</p> : (
           <div className={a.tableWrap}>
             <table className={a.table}>
-              <thead><tr><th>{L("Kode", "Code")}</th><th>{L("Nama alat", "Tool")}</th><th>{L("Jenis", "Type")}</th><th>Area</th><th>Status</th><th className={a.num}>{L("Jumlah", "Qty")}</th><th>{L("Tgl update", "Updated")}</th></tr></thead>
+              <thead><tr><th>{L("Kode", "Code")}</th><th>{L("Nama alat", "Tool")}</th><th>{L("Jenis", "Type")}</th><th>Area</th><th>Status</th><th className={a.num}>{L("Jumlah", "Qty")}</th><th>{L("Tgl update", "Updated")}</th>{(onEdit || onDelete) && <th />}</tr></thead>
               <tbody>{list.map((r) => (
                 <tr key={r.id}>
                   <td className={a.itemCode}>{r.kode}</td><td><b>{r.nama}</b></td><td>{r.jenis}</td><td>{r.area}</td>
                   <td><span className={r.status.toLowerCase() === "baik" ? a.tagExcel : r.status ? a.tagPending : a.tagWeb}>{r.status || "—"}</span></td>
                   <td className={a.num}>{r.jumlah ?? "—"}</td><td style={{ whiteSpace: "nowrap" }}>{fmtD(r.tglUpdate, lang)}</td>
+                  {(onEdit || onDelete) && <td className={a.rowAct}>
+                    {onEdit && <button type="button" className={a.smallBtn} onClick={() => onEdit(r)}>{L("Ubah", "Edit")}</button>}{" "}
+                    {onDelete && <button type="button" className={a.iconBtn} onClick={() => onDelete(r)} aria-label={L("Hapus", "Delete")}>✕</button>}
+                  </td>}
                 </tr>
               ))}</tbody>
             </table>
@@ -759,12 +837,39 @@ function InventoryView({ lang, rows }: { lang: Lang; rows: GaInventory[] }) {
 ════════════════════════════════════════════════════════════ */
 function SyncView({ lang, sync, jobs, manpower, onRotated, onError }: { lang: Lang; sync: GaSyncStatus | null; jobs: number; manpower: number; onRotated: (k: string) => void; onError: (m: string) => void }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
-  const [show, setShow] = useState(false);
-  const [copied, setCopied] = useState(false);
-  async function rotate() {
-    if (!window.confirm(L("Buat kunci sinkron GA baru? Kunci lama langsung tidak berlaku — isi GA_SYNC_KEY baru di modSyncGA.", "Create a new GA sync key? The old key stops working — update GA_SYNC_KEY in modSyncGA."))) return;
-    try { onRotated(await rotateGaSyncKey()); setShow(true); } catch (e) { onError(e instanceof Error ? e.message : String(e)); }
-  }
+  if (sync?.master === "cikops") return (
+    <div className={a.syncGrid}>
+      <section className={`${a.card} ${a.flowCard}`}>
+        <div className={a.cardHead}><div><h2>{L("Cara kerja", "How it works")}</h2><p>{L("CIKOPS → Excel. Excel menyalin data dari CIKOPS dan mengikuti template-nya.", "CIKOPS → Excel. Excel copies the data and follows the CIKOPS template.")}</p></div></div>
+        <ol className={a.steps}>
+          <li><b>{L("Semua input di CIKOPS", "All input in CIKOPS")}</b> — {L("master pekerjaan & manpower, generate jadwal, checklist harian, Event, Improvement, Inventory; TGA lewat aplikasi TGA.", "job master & manpower, schedule, daily checklist, events, improvements, inventory; TGA via the TGA app.")}</li>
+          <li><b>{L("Excel menarik data", "Excel pulls data")}</b> — {L("tombol \"Tarik dari CIKOPS\" di MENU (modSyncGA v2) menulis ulang sheet DB_PEKERJAAN, DB_MANPOWER, DATA_PLAN_ACTUAL, EVENT, IMPROVEMENT, INVENTORY dan TGA dengan kolom yang sama seperti template.", "the MENU button \"Tarik dari CIKOPS\" rewrites the data sheets with the same columns as the template.")}</li>
+          <li><b>{L("Otomatis", "Automatic")}</b> — {L("Excel menarik saat file dibuka dan tiap 10 menit selama terbuka. Laporan bulanan & matrix di Excel tetap bisa dibuat dari data yang ditarik.", "Excel pulls on open and every 10 minutes. Excel's monthly report & matrix still work from the pulled data.")}</li>
+          <li><b>{L("Excel tidak menimpa CIKOPS", "Excel never overwrites CIKOPS")}</b> — {L("kiriman dari modSyncGA lama ditolak. Perubahan yang dibuat di Excel hilang saat tarik berikutnya — ubah datanya di CIKOPS.", "uploads from the old modSyncGA are rejected. Changes made in Excel are replaced on the next pull — edit in CIKOPS.")}</li>
+        </ol>
+      </section>
+      <section className={a.card}>
+        <div className={a.cardHead}><div><h2>Status</h2></div></div>
+        {!sync ? <div className={a.skeleton} style={{ height: 140 }} /> : (
+          <div className={a.statGrid}>
+            <div className={`${a.stat} ${sync.lastPullAt ? a.statOk : ""}`}><small>{L("Excel terakhir menarik", "Excel last pulled")}</small><b>{ago(sync.lastPullAt, lang)}</b><span>{fmtDT(sync.lastPullAt, lang)}{sync.lastPullComputer ? ` · ${sync.lastPullComputer}` : ""}</span></div>
+            <div className={a.stat}><small>{L("Data di CIKOPS", "Data in CIKOPS")}</small><b>{nf(sync.plan)} {L("jadwal", "entries")}</b><span>{jobs} {L("master pekerjaan", "jobs")} · {manpower} manpower</span></div>
+          </div>
+        )}
+      </section>
+      <section className={a.card}>
+        <div className={a.cardHead}><div><h2>{L("Pasang di Excel (sekali)", "Install in Excel (once)")}</h2><p>ISS GA System</p></div></div>
+        <ol className={a.steps}>
+          <li>{L("Unduh:", "Download:")} <a className={a.primarySm} href="/downloads/modSyncGA_v2.bas" download>⬇ modSyncGA_v2.bas</a></li>
+          <li>{L("Alt+F11 → hapus modul modSyncGA lama → File → Import → modSyncGA_v2.bas (modGA tidak perlu diganti).", "Alt+F11 → remove the old modSyncGA → import modSyncGA_v2.bas (keep modGA).")}</li>
+          <li>{L("Isi SUPABASE_URL, SUPABASE_ANON_KEY dan GA_SYNC_KEY (di bawah) — sama dengan versi lama.", "Fill SUPABASE_URL, SUPABASE_ANON_KEY and GA_SYNC_KEY (below) — same as before.")}</li>
+          <li>{L("Klik tombol Sinkron CIKOPS di MENU → data ditarik. Selesai.", "Click the Sinkron CIKOPS button on MENU → data is pulled. Done.")}</li>
+        </ol>
+        <KeyBox lang={lang} sync={sync} onRotated={onRotated} onError={onError} />
+      </section>
+    </div>
+  );
+
   return (
     <div className={a.syncGrid}>
       <section className={`${a.card} ${a.flowCard}`}>
@@ -795,7 +900,22 @@ function SyncView({ lang, sync, jobs, manpower, onRotated, onError }: { lang: La
           <li>{L("Isi SUPABASE_URL, SUPABASE_ANON_KEY dan GA_SYNC_KEY (di bawah) di modSyncGA.", "Fill SUPABASE_URL, SUPABASE_ANON_KEY and GA_SYNC_KEY (below) in modSyncGA.")}</li>
           <li>{L("Jalankan Setup_Tombol sekali (membuat sheet TGA & tombol baru), lalu klik Sinkron CIKOPS → NO (semua periode).", "Run Setup_Tombol once (creates the TGA sheet & new buttons), then click Sinkron CIKOPS → NO (all periods).")}</li>
         </ol>
-        <div className={a.keyBox}>
+        <KeyBox lang={lang} sync={sync} onRotated={onRotated} onError={onError} />
+      </section>
+    </div>
+  );
+}
+
+function KeyBox({ lang, sync, onRotated, onError }: { lang: Lang; sync: GaSyncStatus | null; onRotated: (k: string) => void; onError: (m: string) => void }) {
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const [show, setShow] = useState(false);
+  const [copied, setCopied] = useState(false);
+  async function rotate() {
+    if (!window.confirm(L("Buat kunci sinkron GA baru? Kunci lama langsung tidak berlaku — isi GA_SYNC_KEY baru di modSyncGA.", "Create a new GA sync key? The old key stops working — update GA_SYNC_KEY in modSyncGA."))) return;
+    try { onRotated(await rotateGaSyncKey()); setShow(true); } catch (e) { onError(e instanceof Error ? e.message : String(e)); }
+  }
+  return (
+    <div className={a.keyBox}>
           <small>GA_SYNC_KEY</small>
           {sync?.isAdmin && sync.syncKey ? (
             <>
@@ -808,7 +928,5 @@ function SyncView({ lang, sync, jobs, manpower, onRotated, onError }: { lang: La
             </>
           ) : <span className={a.hint}>{L("Hanya admin yang bisa melihat kunci. Pastikan SQL 027_ga_facility.sql sudah dijalankan.", "Only admins can view the key. Make sure SQL 027_ga_facility.sql has been run.")}</span>}
         </div>
-      </section>
-    </div>
   );
 }
