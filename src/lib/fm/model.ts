@@ -30,11 +30,22 @@ export interface NcBoard {
 }
 
 export type Status = "baik" | "perhatian" | "kritis" | "na";
+export interface AreaFact { label: string; value: string; tone?: Status }
 export interface AreaCard {
   key: string; name: string; today: string; todayUnit: string; month: string; monthUnit: string;
   status: Status; story: string; spark: number[];
+  /** Satu kalimat pendek: inti cerita area ini hari ini. */
+  hook: string;
+  /** 2–3 fakta pendukung (chip). */
+  facts: AreaFact[];
+  /** Grafik 14 hari terakhir (interaktif: label & nilai untuk tooltip). */
+  trend: Bar[]; trendLabel: string;
 }
 export interface Attention { level: "kritis" | "perhatian" | "info"; text: string; area: string }
+/** Butir perhatian yang dikelompokkan: satu judul + rincian (bisa dibuka). */
+export interface AttentionGroup { level: Attention["level"]; area: string; tab: string; title: string; items: string[] }
+/** Angka "denyut" hari ini di ringkasan. */
+export interface Pulse { key: string; label: string; value: string; unit: string; tab: string; tone?: Status }
 export interface Bar { label: string; value: number; display: string; highlight?: boolean; tone?: Status }
 
 /* ── util ── */
@@ -156,27 +167,79 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
   const ncRepeat = ncTrans.filter((x) => x.n >= 3);
   const ncStatus: Status = !nc ? "na" : ncToday.length >= TARGET.ncTodayCrit ? "kritis" : ncToday.length >= TARGET.ncTodayWarn ? "perhatian" : "baik";
 
-  /* ── KARTU AREA (hari ini + bulan berjalan) ── */
+  /* ── KARTU AREA (hari ini + bulan berjalan) ──
+     Tiap kartu: hook (1 kalimat inti) + 2–3 fakta + tren 14 hari interaktif. */
+  const last14 = monthDays.slice(-14);
+  const trendOf = (val: (d: string) => number | null, fmt: (n: number) => string, tone?: (v: number | null) => Status): Bar[] =>
+    last14.map((d) => { const v = val(d); const dt = parse(d); return { label: `${DOW[dt.getDay()]} ${dt.getDate()}`, value: v ?? 0, display: v === null ? "–" : fmt(v), highlight: d === today, tone: tone ? tone(v) : undefined }; });
+  const fleetHook = docsCrit.length ? `${docsCrit.length} dokumen kendaraan jatuh tempo ≤ ${TARGET.docCritDays} hari`
+    : longOpen.length ? `${longOpen.length} kendaraan di luar lebih dari ${TARGET.gateLongHours} jam`
+    : sameDayPct !== null && sameDayPct < TARGET.sameDayOk ? `Penyelesaian di hari yang sama ${pct(sameDayPct, 0)} — di bawah target`
+    : docsWarn.length ? `${docsWarn.length} dokumen kendaraan jatuh tempo bulan ini`
+    : tasksToday ? `${nf(doneToday)} dari ${nf(tasksToday)} tugas hari ini selesai` : "Belum ada tugas driver hari ini";
+  const canteenHook = !cd.length ? "Belum ada laporan kantin bulan ini"
+    : !canteenSplit ? "Jalankan migrasi 029 untuk snack & makan terpisah"
+    : canteenStatus === "baik" ? `Sisa terkendali — snack ${pct(cSnack.effMonth, 0)}, makan ${pct(cMeal.effMonth, 0)} terpakai`
+    : `Sisa ${(cSnack.effMonth ?? 100) <= (cMeal.effMonth ?? 100) ? "snack" : "makan"} paling tinggi bulan ini`;
+  const atkHook = s.atk_critical === null ? "Data stok ATK belum tersedia"
+    : atkOut.length ? `${atkOut.length} item stok habis — perlu pengadaan`
+    : atkCrit.length ? `${atkCrit.length} item stok cukup < ${TARGET.atkCoverDays} hari`
+    : "Semua stok ATK aman";
+  const ncHook = !nc ? "Data pelanggaran G-C belum tersambung"
+    : ncToday.length ? `${nf(ncToday.length)} pelanggaran tercatat hari ini`
+    : ni.length ? "Nihil pelanggaran hari ini" : "Nihil pelanggaran bulan ini";
   const areas: AreaCard[] = [
     {
       key: "fleet", name: "Fleet Management", today: nf(tasksToday), todayUnit: `tugas hari ini · ${nf(doneToday)} selesai`, month: nf(tasksMonth), monthUnit: "tugas bulan ini", status: fleetStatus,
       story: [`${nf(gateToday)} pergerakan gate hari ini`, open.length ? `${open.length} kendaraan sedang di luar` : "", longOpen.length ? `${longOpen.length} lebih dari ${TARGET.gateLongHours} jam` : "", docsCrit.length ? `${docsCrit.length} dokumen kendaraan jatuh tempo ≤ ${TARGET.docCritDays} hari` : ""].filter(Boolean).join("; ") + ".",
-      spark: monthDays.slice(-14).map((d) => td.find((r) => r.d === d)?.n ?? 0),
+      spark: last14.map((d) => td.find((r) => r.d === d)?.n ?? 0),
+      hook: fleetHook,
+      facts: [
+        { label: "Gate hari ini", value: nf(gateToday) },
+        { label: "Sedang di luar", value: nf(open.length), tone: longOpen.length ? "perhatian" : undefined },
+        { label: "Selesai hari sama", value: pct(sameDayPct, 0), tone: sameDayPct === null ? undefined : sameDayPct < TARGET.sameDayWarn ? "kritis" : sameDayPct < TARGET.sameDayOk ? "perhatian" : "baik" },
+      ],
+      trend: trendOf((d) => td.find((r) => r.d === d)?.n ?? 0, (n) => `${nf(n)} tugas`), trendLabel: "Tugas per hari · 14 hari",
     },
     {
-      key: "canteen", name: "Kantin", today: pair(cSnack.effToday, cMeal.effToday), todayUnit: cToday ? "efisiensi snack / makan hari ini" : "laporan hari ini belum diinput", month: pair(cSnack.effMonth, cMeal.effMonth), monthUnit: "snack / makan bulan ini", status: canteenStatus,
+      key: "canteen", name: "Kantin",
+      today: cToday ? pair(cSnack.effToday, cMeal.effToday) : pair(cSnack.effMonth, cMeal.effMonth),
+      todayUnit: cToday ? "snack / makan terpakai hari ini" : "snack / makan terpakai bulan ini",
+      month: cToday ? pair(cSnack.effMonth, cMeal.effMonth) : "Belum", monthUnit: cToday ? "bulan ini" : "laporan hari ini", status: canteenStatus,
       story: !cd.length ? "Belum ada laporan kantin bulan ini." : !canteenSplit ? "Jalankan migrasi supabase/029 agar snack & makan tampil terpisah." : `${catStory("Snack", cSnack)}; ${catStory("Makan", cMeal)}.`,
-      spark: monthDays.slice(-14).map((d) => { const rs = cd.filter((r) => r.d === d); return minEff(effOf(rs, "snack"), effOf(rs, "meal")) ?? 0; }),
+      spark: last14.map((d) => { const rs = cd.filter((r) => r.d === d); return minEff(effOf(rs, "snack"), effOf(rs, "meal")) ?? 0; }),
+      hook: canteenHook,
+      facts: [
+        { label: "Sisa snack", value: `${nf(cSnack.leftMonth)} porsi`, tone: effTone(cSnack.effMonth) },
+        { label: "Sisa makan", value: `${nf(cMeal.leftMonth)} porsi`, tone: effTone(cMeal.effMonth) },
+        { label: "Laporan hari ini", value: cToday ? "Masuk" : "Belum", tone: cToday ? "baik" : "perhatian" },
+      ],
+      trend: trendOf((d) => { const rs = cd.filter((r) => r.d === d); return minEff(effOf(rs, "snack"), effOf(rs, "meal")); }, (n) => `${pct(n, 0)} (terendah snack/makan)`, effTone),
+      trendLabel: "Efisiensi terendah snack/makan · 14 hari",
     },
     {
       key: "atk", name: "ATK & Supplies", today: nf(atkToday), todayUnit: "unit keluar hari ini", month: nf(atkMonth), monthUnit: "unit keluar bulan ini", status: atkStatus,
       story: atkCrit.length ? `${atkCrit.length} item stok kritis: ${atkCrit.slice(0, 3).map((c) => c.nama).join(", ")}${atkCrit.length > 3 ? " dll" : ""}${atkOut.length ? " — ada yang habis" : ""}.` : "Semua stok ATK aman.",
-      spark: monthDays.slice(-14).map((d) => Number(ad.find((r) => r.d === d)?.n ?? 0)),
+      spark: last14.map((d) => Number(ad.find((r) => r.d === d)?.n ?? 0)),
+      hook: atkHook,
+      facts: [
+        { label: "Stok habis", value: nf(atkOut.length), tone: atkOut.length ? "kritis" : "baik" },
+        { label: "Menipis", value: nf(atkCrit.length - atkOut.length), tone: atkCrit.length - atkOut.length ? "perhatian" : undefined },
+        ...((s.atk_depts ?? [])[0] ? [{ label: "Pemakai terbesar", value: (s.atk_depts ?? [])[0].k }] : []),
+      ],
+      trend: trendOf((d) => Number(ad.find((r) => r.d === d)?.n ?? 0), (n) => `${nf(n)} unit`), trendLabel: "Unit keluar per hari · 14 hari",
     },
     {
       key: "nc", name: "Pelanggaran / NC", today: nc ? nf(ncToday.length) : "–", todayUnit: "NC hari ini", month: nc ? nf(ni.length) : "–", monthUnit: "NC bulan ini", status: ncStatus,
       story: !nc ? "Data pelanggaran G-C belum tersambung." : ni.length ? `${ncJenis[0] ? `Terbanyak: ${ncJenis[0].k} (${ncJenis[0].n})` : ""}${ncTrans[0] ? `; transporter terbanyak ${ncTrans[0].k} (${ncTrans[0].n})` : ""}.` : "Tidak ada pelanggaran bulan ini.",
-      spark: monthDays.slice(-14).map((d) => ni.filter((x) => x.d === d).length),
+      spark: last14.map((d) => ni.filter((x) => x.d === d).length),
+      hook: ncHook,
+      facts: nc ? [
+        ...(ncJenis[0] ? [{ label: "Jenis terbanyak", value: `${ncJenis[0].k} · ${ncJenis[0].n}` }] : []),
+        ...(ncTrans[0] ? [{ label: "Transporter", value: `${ncTrans[0].k} · ${ncTrans[0].n}` }] : []),
+        { label: "Berulang ≥ 3×", value: nf(ncRepeat.length), tone: ncRepeat.length ? "perhatian" : undefined },
+      ] : [],
+      trend: trendOf((d) => (nc ? ni.filter((x) => x.d === d).length : null), (n) => `${nf(n)} NC`), trendLabel: "NC per hari · 14 hari",
     },
   ];
 
@@ -197,6 +260,29 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
   const lvlRank = { kritis: 0, perhatian: 1, info: 2 };
   attention.sort((a, b) => lvlRank[a.level] - lvlRank[b.level]);
 
+  /* Dikelompokkan supaya layar tidak penuh teks: satu baris per masalah, rincian bisa dibuka. */
+  const groups: AttentionGroup[] = [];
+  const grp = (level: Attention["level"], area: string, tab: string, items: string[], one: (x: string) => string, many: (n: number) => string) => {
+    if (items.length) groups.push({ level, area, tab, title: items.length === 1 ? one(items[0]) : many(items.length), items: items.length === 1 ? [] : items });
+  };
+  grp("kritis", "Fleet", "fleet", docsCrit.map((d) => `${d.doc} ${d.nopol} — ${d.days < 0 ? `lewat ${-d.days} hari` : d.days === 0 ? "hari ini" : `${d.days} hari lagi`}`), (x) => x, (n) => `${n} dokumen kendaraan jatuh tempo ≤ ${TARGET.docCritDays} hari`);
+  grp("kritis", "ATK", "atk", atkOut.map((a) => a.nama), (x) => `Stok ${x} habis`, (n) => `${n} item ATK habis`);
+  if (ncToday.length >= TARGET.ncTodayCrit) grp("kritis", "NC", "nc", ncToday.map((x) => `${x.jam ?? ""} ${x.transporter}`.trim()), () => `${ncToday.length} pelanggaran hari ini`, (n) => `${n} pelanggaran tercatat hari ini`);
+  grp("perhatian", "Gate", "fleet", longOpen.map((g) => `${g.nopol ?? "Kendaraan"} ${g.plant === "CIK" ? "di luar" : "di dalam CIK"} ${fmtMin(g.mins)}`), (x) => x, (n) => `${n} kendaraan lebih dari ${TARGET.gateLongHours} jam di luar`);
+  if (ncToday.length && ncToday.length < TARGET.ncTodayCrit) grp("perhatian", "NC", "nc", ncToday.map((x) => `${x.jam ?? ""} ${x.transporter}`.trim()), (x) => `1 pelanggaran hari ini — ${x}`, (n) => `${n} pelanggaran hari ini`);
+  grp("perhatian", "NC", "nc", ncRepeat.map((r) => `${r.k}: ${r.n}×`), (x) => `Transporter berulang — ${x}`, (n) => `${n} transporter melanggar ≥ 3× bulan ini`);
+  grp("perhatian", "ATK", "atk", atkCrit.filter((c) => Number(c.stok) > 0).map((c) => `${c.nama} — cukup ${c.cover ?? "?"} hari`), (x) => `Stok menipis: ${x}`, (n) => `${n} item ATK cukup < ${TARGET.atkCoverDays} hari`);
+  grp("perhatian", "Kantin", "canteen", [
+    ...(cSnack.effToday !== null && cSnack.effToday < TARGET.canteenWarn ? [`Snack ${pct(cSnack.effToday, 0)} — sisa ${nf(cSnack.leftToday)} porsi`] : []),
+    ...(cMeal.effToday !== null && cMeal.effToday < TARGET.canteenWarn ? [`Makan ${pct(cMeal.effToday, 0)} — sisa ${nf(cMeal.leftToday)} porsi`] : []),
+  ], (x) => `Kantin hari ini: ${x}`, () => "Sisa snack & makan hari ini tinggi");
+  grp("info", "Kantin", "canteen", [
+    ...(cd.length && !canteenSplit ? ["Jalankan migrasi supabase/029 agar snack & makan tampil terpisah"] : []),
+    ...(!cToday && nowMs && new Date(nowMs).getHours() >= 16 ? ["Laporan kantin hari ini belum diinput"] : []),
+  ], (x) => x, (n) => `${n} catatan kantin`);
+  grp("info", "Fleet", "fleet", docsWarn.map((d) => `${d.doc} ${d.nopol} — ${d.days} hari lagi`), (x) => `Jatuh tempo: ${x}`, (n) => `${n} dokumen kendaraan jatuh tempo ≤ ${TARGET.docWarnDays} hari`);
+  const counts = { kritis: attention.filter((x) => x.level === "kritis").length, perhatian: attention.filter((x) => x.level === "perhatian").length, info: attention.filter((x) => x.level === "info").length };
+
   /* ── INDEKS: rata-rata status area (Baik 100 · Perhatian 70 · Kritis 40) ── */
   const scores = areas.map((a) => statusScore[a.status]).filter((x): x is number => x !== null);
   const health = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
@@ -205,9 +291,25 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now())
   const summary = `Hari ini: ${nf(tasksToday)} tugas driver, ${nf(gateToday)} pergerakan gate, ${nf(atkToday)} unit ATK keluar${nc ? `, ${nf(ncToday.length)} pelanggaran` : ""}${cToday ? `, kantin snack ${pct(cSnack.effToday, 0)} · makan ${pct(cMeal.effToday, 0)}` : ""}.`;
   const summary2 = weakest.length ? `Perlu perhatian: ${weakest.join(", ")}.` : "Semua area dalam kondisi baik.";
 
+  /* Headline: satu kalimat yang langsung menjawab "bagaimana FM hari ini?" */
+  const crit = areas.filter((a) => a.status === "kritis"), warn = areas.filter((a) => a.status === "perhatian");
+  const short: Record<string, string> = { fleet: "Fleet", canteen: "Kantin", atk: "ATK", nc: "NC" };
+  const joinNames = (xs: AreaCard[]) => xs.map((a) => short[a.key] ?? a.name).join(" & ");
+  const headline = crit.length ? `${crit.length} area butuh tindakan: ${joinNames(crit)}`
+    : warn.length ? `Operasional terkendali — pantau ${joinNames(warn)}`
+    : health === null ? "Menunggu data hari ini" : "Semua area berjalan baik";
+  const headlineSub = crit.length ? crit.map((a) => a.hook).join(" · ") : warn.length ? warn.map((a) => a.hook).join(" · ") : "Tidak ada yang perlu ditindaklanjuti saat ini.";
+  const pulse: Pulse[] = [
+    { key: "tasks", label: "Tugas driver", value: nf(tasksToday), unit: `${nf(doneToday)} selesai`, tab: "ops" },
+    { key: "gate", label: "Gerak gate", value: nf(gateToday), unit: `${nf(open.length)} di luar`, tab: "fleet", tone: longOpen.length ? "perhatian" : undefined },
+    { key: "canteen", label: "Kantin snack · makan", value: cToday ? `${nf(cSnack.orderToday)} · ${nf(cMeal.orderToday)}` : "–", unit: cToday ? "porsi dipesan" : "belum diinput", tab: "canteen" },
+    { key: "atk", label: "ATK keluar", value: nf(atkToday), unit: "unit", tab: "atk" },
+    { key: "nc", label: "Pelanggaran", value: nc ? nf(ncToday.length) : "–", unit: nc ? "NC hari ini" : "belum tersambung", tab: "nc", tone: ncToday.length ? ncStatus : undefined },
+  ];
+
   return {
     today, todayLabel, monthLabel, generatedAt: s.generated_at,
-    health, healthStatus, summary, summary2, areas, attention,
+    health, healthStatus, summary, summary2, areas, attention, groups, counts, headline, headlineSub, pulse,
     fleet: {
       today: tasksToday, doneToday, month: tasksMonth, sameDayPct, util: util.slice(0, 8), utilAvg, docs: docs.slice(0, 8),
       daily: dailyBars((d) => td.find((r) => r.d === d)?.n ?? 0, (n) => nf(n)),
