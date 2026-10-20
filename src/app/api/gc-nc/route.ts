@@ -18,6 +18,11 @@
      (alternatif) GC_SUPABASE_SERVICE_ROLE_KEY — dipakai bila diisi, menggantikan login akun
      GC_PLANT                   nilai kolom plant di nc_reports (default "Cikarang")
      GC_HASH_SALT               teks acak untuk hash nomor SIM (disarankan diisi)
+     SECDESK_SITE               kode site Security Desk (default "CIK")
+
+   Security Desk (?sd=1&from=YYYY-MM&to=YYYY-MM): G-C & Security Desk satu project
+   Supabase, jadi kredensial di atas dipakai juga. Akun GC_READER_EMAIL perlu
+   peran Management di Security Desk (lihat BACA-DULU-SECURITY-DESK.md).
 ════════════════════════════════════════════════════════════ */
 
 import { createHash } from "crypto";
@@ -138,6 +143,36 @@ export async function GET(req: Request) {
         .eq("status", "Accept").eq("plant", plant).order("tanggal", { ascending: false }).limit(1);
       if (error) throw new HttpErr(502, `G-C menolak query: ${error.message}`);
       return json({ ok: true, mode: gcMode(), plant, latest: data?.[0]?.tanggal ?? null, total: count ?? null });
+    }
+
+    // Security Desk (schema security, project yang sama): laporan per bulan via security.cikops_report
+    if (u.searchParams.get("sd")) {
+      const fk = u.searchParams.get("from") || "", tk = u.searchParams.get("to") || fk;
+      if (!/^\d{4}-\d{2}$/.test(fk) || !/^\d{4}-\d{2}$/.test(tk) || fk > tk) throw new HttpErr(400, "Parameter from/to tidak valid (YYYY-MM).");
+      const keys: string[] = [];
+      for (let [y, m] = fk.split("-").map(Number); keys.length < 27; m++) {
+        if (m > 12) { m = 1; y++; }
+        const k = `${y}-${String(m).padStart(2, "0")}`;
+        if (k > tk) break;
+        keys.push(k);
+      }
+      if (keys.length > 26) throw new HttpErr(400, "Rentang maksimal 26 bulan.");
+      const site = env("SECDESK_SITE") || "CIK";
+      const months: Record<string, unknown> = {};
+      for (let i = 0; i < keys.length; i += 6) {
+        const part = await Promise.all(keys.slice(i, i + 6).map((k) => db.schema("security").rpc("cikops_report", { p_month: `${k}-01`, p_site: site })));
+        for (let j = 0; j < part.length; j++) {
+          const { data, error } = part[j];
+          if (error) {
+            const missing = /cikops_report|schema must be one of|Could not find the function/i.test(error.message);
+            throw new HttpErr(missing ? 503 : 502, missing
+              ? "Security Desk belum siap: jalankan supabase/laporan_cikops.sql di Security Desk dan pastikan schema security ada di Exposed schemas."
+              : `Security Desk menolak query: ${error.message}`);
+          }
+          months[keys[i + j]] = data;
+        }
+      }
+      return json({ ok: true, site, fetchedAt: new Date().toISOString(), months });
     }
 
     const from = u.searchParams.get("from"), to = u.searchParams.get("to");

@@ -1,4 +1,22 @@
 /* Security — input laporan bulanan (tema executive: token dari globals.css) */
+
+/* Sinkron Security Desk */
+.fs { border: 0; padding: 0; margin: 0; min-width: 0; }
+.sdOn, .sdOff { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid; }
+.sdOn { background: color-mix(in srgb, var(--green) 8%, var(--surface)); border-color: color-mix(in srgb, var(--green) 35%, var(--border)); }
+.sdOff { background: color-mix(in srgb, var(--orange) 8%, var(--surface)); border-color: color-mix(in srgb, var(--orange) 35%, var(--border)); }
+.sdOn > div:nth-child(2), .sdOff > div:nth-child(2) { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 2px; }
+.sdOn b, .sdOff b { font-size: 14px; }
+.sdOn span, .sdOff span { font-size: 12.5px; color: var(--t2); }
+.sdIcon { font-size: 20px; }
+.sdBtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.sdBtns a { display: inline-flex; align-items: center; text-decoration: none; }
+.sdGate { margin-top: 14px; }
+.sdBars { display: flex; flex-direction: column; gap: 6px; }
+.sdBar { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 48px; align-items: center; gap: 10px; font-size: 13px; }
+.sdBar i { height: 8px; border-radius: 99px; background: var(--surface2); overflow: hidden; }
+.sdBar em { display: block; height: 100%; border-radius: 99px; background: var(--brand); }
+.sdBar b { text-align: right; font-family: var(--mono); }
 .wrap { display: flex; flex-direction: column; gap: 16px; padding: 20px 20px 96px; font-variant-numeric: tabular-nums; color: var(--t1); }
 .loading { padding: 48px; text-align: center; color: var(--t3); }
 .kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--t3); }

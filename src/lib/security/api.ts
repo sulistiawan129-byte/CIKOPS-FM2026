@@ -1,13 +1,20 @@
 /* SECURITY — akses data (Supabase CIKOPS) + sinkron G-C lewat /api/gc-nc. */
 
 import { supabase } from "../supabaseClient";
-import { DEFAULT_KHUSUS, monthStart, normalizeData, type DriverNames, type GcCase, type SecData } from "./model";
+import { DEFAULT_KHUSUS, addMonthsKey, monthStart, normalizeData, type DriverNames, type GcCase, type SecData } from "./model";
+import { sdHasData, sdToSecData, type SdReport } from "./secdesk";
 
 const PLANT = "CIK";
 
 export interface SecMonthRow { key: string; data: SecData; updatedAt: string | null }
 
 export async function getSecurityMonth(key: string): Promise<SecMonthRow> {
+  const [row, sd] = await Promise.all([getSecurityMonthLocal(key), fetchSecDesk(key, key)]);
+  const r = sd.ok ? sd.months[key] : null;
+  return sdHasData(r) ? { ...row, data: sdToSecData(key, r, row.data) } : row;
+}
+
+async function getSecurityMonthLocal(key: string): Promise<SecMonthRow> {
   const { data, error } = await supabase
     .from("security_monthly")
     .select("period, data, updated_at")
@@ -29,6 +36,13 @@ export async function getSecurityMonths(fromKey: string, toKey: string): Promise
   if (error) throw error;
   const out: Record<string, SecData> = {};
   (data || []).forEach((r) => { out[String(r.period).slice(0, 7)] = (r.data as SecData) || {}; });
+  // bulan yang sudah diisi di Security Desk memakai angka Security Desk
+  for (let k = fromKey; k <= toKey; k = addMonthsKey(k, 24)) {
+    const end = addMonthsKey(k, 23) < toKey ? addMonthsKey(k, 23) : toKey;
+    const sd = await fetchSecDesk(k, end);
+    if (!sd.ok) break;
+    for (const [mk, r] of Object.entries(sd.months)) if (sdHasData(r)) out[mk] = sdToSecData(mk, r, out[mk]);
+  }
   return out;
 }
 
@@ -108,5 +122,32 @@ export async function pingGc(): Promise<GcPing> {
     return { ok: !!j.ok, configured: r.status !== 503, mode: j.mode, plant: j.plant, latest: j.latest ?? null, total: j.total, error: j.error };
   } catch (e) {
     return { ok: false, configured: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/* ── Security Desk ── */
+export type SdResult =
+  | { ok: true; months: Record<string, SdReport>; fetchedAt: string }
+  | { ok: false; error: string; notConfigured?: boolean };
+
+const sdCache = new Map<string, { at: number; res: SdResult }>();
+
+/** Laporan Security Desk per bulan (YYYY-MM, maks 26 bulan). Cache 2 menit. Gagal = { ok:false }, tidak melempar. */
+export async function fetchSecDesk(fromKey: string, toKey: string, force = false): Promise<SdResult> {
+  const ck = `${fromKey}|${toKey}`;
+  const hit = sdCache.get(ck);
+  if (!force && hit && Date.now() - hit.at < 120_000) return hit.res;
+  const h = await authHeader();
+  if (!h) return { ok: false, error: "Sesi login tidak ditemukan" };
+  try {
+    const r = await fetch(`/api/gc-nc?sd=1&from=${fromKey}&to=${toKey}`, { headers: h, cache: "no-store" });
+    const j = await r.json().catch(() => null);
+    const res: SdResult = !r.ok || !j?.ok
+      ? { ok: false, error: j?.error || `HTTP ${r.status}`, notConfigured: r.status === 503 }
+      : { ok: true, months: j.months as Record<string, SdReport>, fetchedAt: j.fetchedAt };
+    sdCache.set(ck, { at: Date.now(), res });
+    return res;
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

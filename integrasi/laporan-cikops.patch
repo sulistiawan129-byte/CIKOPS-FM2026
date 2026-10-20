@@ -1,0 +1,718 @@
+From f13aaf5de29008b0a66f2e3551dc9d469761c80f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 20 Oct 2026 14:07:49 +0000
+Subject: [PATCH] Data tambahan laporan + sinkron ke CIKOPS
+
+Transporter & biomas harian, selisih timbang, kunjungan team support,
+issue area, 2 slide baru, dan fungsi baca security.cikops_report.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0172SN2MsFNL8ezSue6XnfJL
+---
+ README.md                        |  18 ++-
+ src/app/(app)/harian/page.tsx    |  49 +++++++-
+ src/app/(app)/kejadian/page.tsx  |   3 +
+ src/app/globals.css              |   6 +
+ src/components/ExtraSections.tsx | 111 ++++++++++++++++++
+ src/lib/constants.ts             |  11 ++
+ src/lib/data.ts                  |  40 ++++++-
+ src/lib/slides.ts                |  40 ++++++-
+ src/lib/types.ts                 |   9 +-
+ supabase/laporan_cikops.sql      | 190 +++++++++++++++++++++++++++++++
+ 10 files changed, 464 insertions(+), 13 deletions(-)
+ create mode 100644 src/components/ExtraSections.tsx
+ create mode 100644 supabase/laporan_cikops.sql
+
+diff --git a/README.md b/README.md
+index d3bdfae..b2af0fd 100644
+--- a/README.md
++++ b/README.md
+@@ -19,7 +19,7 @@ Sistem operasional security **dan** kepatuhan transporter (G-C) untuk **FFI Plan
+ | Kejadian & patroli | `/kejadian` | Jumlah kejadian per kategori + keterangan, data guard tour |
+ | Personel & temuan | `/personel` | Cuti/sakit + backup, need improvement + progres & status |
+ | KPI | `/kpi` | Skor 1–5 per objektif per bulan, nilai tahun berjalan |
+-| Laporan bulanan | `/laporan` | 10 slide format laporan, catatan highlight, **unduh PowerPoint** |
++| Laporan bulanan | `/laporan` | 12 slide format laporan, catatan highlight, **unduh PowerPoint** |
+ | Dashboard NC, Laporan NC, Input NC, Total pemeriksaan, Supplier & tujuan | `/gc/...` | Modul G-C (lihat bagian Penggabungan) |
+ | Pengguna | `/pengguna` | (Admin G4S / Admin GA) buat akun, atur peran/site/menu, nonaktifkan, reset password, log aktivitas |
+ | Gate transporter | `/gate` | Ringkasan gate (masuk, keluar, di dalam, > 4 jam, temuan, rata-rata durasi), arus per jam, transporter teratas, Gate In/Out, persetujuan SL/SPV, cetak form, laporan NC |
+@@ -140,6 +140,20 @@ Layar ini menjaga agar monitor tidak masuk mode tidur, memilih bulan terbaru sec
+ 
+ ---
+ 
++## Data tambahan laporan & sinkron ke CIKOPS
++
++Supaya laporan manajemen di CIKOPS (FM) terisi otomatis tanpa input ulang, Security Desk menyimpan beberapa angka tambahan yang dulu diketik di CIKOPS:
++
++| Di mana | Isi |
++|---|---|
++| **Data harian** → kelompok *Transporter & biomas* | Transporter timbang, non-timbang, suplai sekam & buang abu (PT Becis) per hari |
++| **Kejadian & patroli** → *Transporter & biomas* | Selisih timbang ≥ 40 kg dan jumlahnya dari kendaraan Palm Oil / Fat Blend (bulanan) |
++| **Kejadian & patroli** → *Kunjungan team support* | Jumlah kunjungan Team G / External / Lingkungan / G4S + catatan |
++| **Kejadian & patroli** → *Issue area* | Tanggal, jenis, deskripsi, status Open/Close |
++| **Laporan bulanan** | 2 slide baru: *Transporter & biomas* dan *Kunjungan & issue area* |
++
++**Setup (sekali):** jalankan `supabase/laporan_cikops.sql` di SQL Editor (setelah `merger_gc.sql`). Tabel lama tidak diubah. File ini juga membuat fungsi baca-saja `security.cikops_report(bulan, site)` yang dipanggil server CIKOPS dengan akun berperan **Management**. Sebelum SQL dijalankan, bagian tambahan ini tidak tampil dan halaman lain tetap berjalan normal.
++
+ ## Modul Gate transporter
+ 
+ Digitalisasi form **Ceklist Pemeriksaan Kelengkapan Transporter**: Gate In (kedatangan), daftar kendaraan di dalam area, Gate Out (keberangkatan), persetujuan Shift Leader/Supervisor, cetak form, dan pembuatan laporan pelanggaran ke aplikasi NC.
+@@ -189,7 +203,7 @@ src/
+     supabase/             klien browser, server, dan service role
+     data.ts               ambil data per bulan + langganan realtime + fungsi simpan
+     calc.ts               rata-rata, selisih, KPI, daftar "perlu dicek"
+-    slides.ts             pembentuk 10 slide laporan (format G4S)
++    slides.ts             pembentuk 12 slide laporan (format G4S)
+     constants.ts dates.ts types.ts useDrafts.ts latest.ts
+   components/             AppContext (sesi, site, bulan, toast), Shell, komponen UI
+   app/
+diff --git a/src/app/(app)/harian/page.tsx b/src/app/(app)/harian/page.tsx
+index a580168..8fce844 100644
+--- a/src/app/(app)/harian/page.tsx
++++ b/src/app/(app)/harian/page.tsx
+@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
+ import { useSearchParams } from "next/navigation";
+ import { useApp } from "@/components/AppContext";
+ import { CategoryDrawer, Loading } from "@/components/ui";
+-import { CATS, DOWL, fmt, type CatKey } from "@/lib/constants";
++import { CATS, DOWL, EXTRA_CATS, fmt, type CatKey, type ExtraKey } from "@/lib/constants";
+ import { agg, monthName, r4Day } from "@/lib/calc";
+ import { firstMonOffset } from "@/lib/dates";
+ import { api, debounced } from "@/lib/data";
+@@ -64,12 +64,27 @@ function Harian() {
+     }, 450, (e) => { setSaving(0); fail(e); });
+   }
+   function step(k: CatKey, dl: number) { change(k, String(Math.max(0, (parseInt(val(`${sel}:${k}`, D!.daily[k][sel - 1])) || 0) + dl))); }
+-  function onKey(e: React.KeyboardEvent<HTMLInputElement>, k: CatKey) {
++  function changeX(k: ExtraKey, raw: string) {
++    if (!siteId || !D) return;
++    const v = Math.max(0, parseInt(raw) || 0);
++    const key = `${sel}:${k}`, day = x.iso, i = sel - 1;
++    set(key, raw);
++    setD((p) => { if (!p) return p; const ed = { ...p.extraDaily, [k]: [...p.extraDaily[k]] }; ed[k][i] = v; return { ...p, extraDaily: ed }; });
++    setSaving((n) => n + 1);
++    debounced(key, async () => {
++      try { await api.setDailyExtra(siteId, day, k, v); clear(key); setSavedAt(Date.now()); }
++      finally { setSaving((n) => Math.max(0, n - 1)); }
++    }, 450, (e) => { setSaving(0); fail(e); });
++  }
++  function stepX(k: ExtraKey, dl: number) { changeX(k, String(Math.max(0, (parseInt(val(`${sel}:${k}`, D!.extraDaily[k][sel - 1])) || 0) + dl))); }
++  // urutan kolom untuk tombol Enter: kendaraan & visitor, lalu transporter & biomas
++  const ORDER: string[] = [...CATS.map((c) => c.k), ...(D.extraReady ? EXTRA_CATS.map((c) => c.k) : [])];
++  function onKey(e: React.KeyboardEvent<HTMLInputElement>, k: string) {
+     if (e.key !== "Enter") return;
+     e.preventDefault();
+-    const i = CATS.findIndex((c) => c.k === k);
+-    if (i < CATS.length - 1) { const n = document.getElementById(`f-${CATS[i + 1].k}`) as HTMLInputElement; n?.focus(); n?.select(); return; }
+-    if (sel < D!.days.length) { setSel(sel + 1); toast(`Lanjut ke ${sel + 1} ${name}`); setTimeout(() => { const n = document.getElementById(`f-${CATS[0].k}`) as HTMLInputElement; n?.focus(); n?.select(); }, 30); }
++    const i = ORDER.indexOf(k);
++    if (i < ORDER.length - 1) { const n = document.getElementById(`f-${ORDER[i + 1]}`) as HTMLInputElement; n?.focus(); n?.select(); return; }
++    if (sel < D!.days.length) { setSel(sel + 1); toast(`Lanjut ke ${sel + 1} ${name}`); setTimeout(() => { const n = document.getElementById(`f-${ORDER[0]}`) as HTMLInputElement; n?.focus(); n?.select(); }, 30); }
+   }
+ 
+   return (
+@@ -77,7 +92,7 @@ function Harian() {
+       <section>
+         <div className="eyebrow">Data harian</div>
+         <h1>Isi per hari, sekali di akhir shift malam</h1>
+-        <p className="lede">Pilih tanggal, isi lima angka, tekan Enter untuk pindah kolom. Di kolom terakhir, Enter membuka hari berikutnya. Tersimpan otomatis.</p>
++        <p className="lede">Pilih tanggal, isi angkanya, tekan Enter untuk pindah kolom. Di kolom terakhir, Enter membuka hari berikutnya. Tersimpan otomatis.</p>
+         <div className="fillbar" style={{ marginTop: 20 }}><span><b>{filled}</b> dari {past} hari terisi</span><div className="t"><i style={{ width: `${(filled / past) * 100}%` }}></i></div></div>
+         {!canWrite && <p className="readonly-note" style={{ marginTop: 14 }}>Akun ini hanya bisa melihat data.</p>}
+       </section>
+@@ -139,6 +154,28 @@ function Harian() {
+                 })}
+               </div>
+             ))}
++            {D.extraReady && (
++              <div className="dp-group">
++                <div className="dp-gh"><span>Transporter & biomas</span></div>
++                {EXTRA_CATS.map((c) => {
++                  const v = val(`${sel}:${c.k}`, D.extraDaily[c.k][sel - 1]);
++                  const tot = D.extraDaily[c.k].reduce((a, b) => a + b, 0);
++                  return (
++                    <div className="dp-row" key={c.k}>
++                      <label htmlFor={`f-${c.k}`}>
++                        <span className="dp-name">{c.n}</span>
++                        <span className="dp-meta">Total bulan ini {fmt(tot)} {c.u}</span>
++                      </label>
++                      <div className="step">
++                        <button type="button" onClick={() => stepX(c.k, -1)} aria-label={`Kurangi ${c.n}`}>−</button>
++                        <input id={`f-${c.k}`} type="number" min={0} inputMode="numeric" value={v} onChange={(e) => changeX(c.k, e.target.value)} onKeyDown={(e) => onKey(e, c.k)} onFocus={(e) => e.target.select()} />
++                        <button type="button" onClick={() => stepX(c.k, 1)} aria-label={`Tambah ${c.n}`}>+</button>
++                      </div>
++                    </div>
++                  );
++                })}
++              </div>
++            )}
+           </fieldset>
+ 
+           <footer className="dp-foot">
+diff --git a/src/app/(app)/kejadian/page.tsx b/src/app/(app)/kejadian/page.tsx
+index e0c9376..fdfa34b 100644
+--- a/src/app/(app)/kejadian/page.tsx
++++ b/src/app/(app)/kejadian/page.tsx
+@@ -2,6 +2,7 @@
+ import { useRef, useState } from "react";
+ import { useApp } from "@/components/AppContext";
+ import { Count, Loading } from "@/components/ui";
++import { ExtraSections } from "@/components/ExtraSections";
+ import { dec, fmt } from "@/lib/constants";
+ import { incTotal, monthName, patrolPct } from "@/lib/calc";
+ import { api, debounced } from "@/lib/data";
+@@ -105,6 +106,8 @@ export default function Kejadian() {
+           </div>
+         </div>
+       </fieldset>
++
++      <ExtraSections />
+     </div>
+   );
+ }
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 26eb9b3..f8efa88 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -1273,3 +1273,9 @@ button.dk{border:0;border-left:1px solid rgba(255,255,255,.08);background:none;t
+   .xcats>*:last-child{grid-column:1/-1}
+ }
+ @media (max-width:1180px) and (min-width:761px){.xcats>*:nth-child(n+4){grid-column:span 1}.xcats{grid-template-columns:repeat(6,minmax(0,1fr))}.xcats>*{grid-column:span 2}.xcats>*:nth-child(4),.xcats>*:nth-child(5){grid-column:span 3}}
++
++/* Issue area (halaman Kejadian & patroli) */
++.isl li{grid-template-columns:56px minmax(120px,180px) 1fr auto auto}
++.issue-add{display:grid;grid-template-columns:150px minmax(140px,200px) 1fr 110px auto;gap:10px;align-items:center}
++.issue-add .inline{border-color:var(--line2)}
++@media (max-width:980px){.isl li,.issue-add{grid-template-columns:1fr}}
+diff --git a/src/components/ExtraSections.tsx b/src/components/ExtraSections.tsx
+new file mode 100644
+index 0000000..2a7318d
+--- /dev/null
++++ b/src/components/ExtraSections.tsx
+@@ -0,0 +1,111 @@
++"use client";
++/**
++ * Bagian tambahan halaman Kejadian & patroli (tabel dari laporan_cikops.sql):
++ * transporter bulanan, kunjungan team support pengamanan, dan issue area.
++ * Semua angka ini juga dibaca CIKOPS (FM) untuk laporan manajemen.
++ */
++import { useRef, useState } from "react";
++import { useApp } from "@/components/AppContext";
++import { EXTRA_CATS, INC_CATS, TEAM_KEYS, fmt } from "@/lib/constants";
++import { monthEnd } from "@/lib/dates";
++import { api, debounced } from "@/lib/data";
++import { useDrafts } from "@/lib/useDrafts";
++import type { AreaIssue, MonthExtra } from "@/lib/types";
++
++const shortDate = (iso: string) => { const [, m, d] = iso.split("-"); return `${Number(d)}/${Number(m)}`; };
++
++export function ExtraSections() {
++  const { D, setD, siteId, canWrite, toast, fail } = useApp();
++  const { set, clear, val } = useDrafts();
++  const Dref = useRef(D);
++  Dref.current = D;
++  const [day, setDay] = useState("");
++  const [cat, setCat] = useState(INC_CATS[3]);
++  const [desc, setDesc] = useState("");
++  const [status, setStatus] = useState<AreaIssue["status"]>("Open");
++
++  if (!D) return null;
++  if (!D.extraReady) {
++    return (
++      <section className="sec">
++        <h2>Transporter, kunjungan & issue area</h2>
++        <p className="sub">Bagian ini aktif setelah admin menjalankan <b>supabase/laporan_cikops.sql</b> di Supabase.</p>
++      </section>
++    );
++  }
++
++  const tot = (k: (typeof EXTRA_CATS)[number]["k"]) => D.extraDaily[k].reduce((a, b) => a + b, 0);
++
++  function patch(p: Partial<MonthExtra>, key: string, raw: string) {
++    if (!siteId || !D) return;
++    set(key, raw);
++    const next = { ...D.extra, ...p, team: { ...D.extra.team, ...(p.team || {}) } };
++    setD((x) => x && { ...x, extra: next });
++    const month = D.month;
++    debounced("extra", async () => { await api.setMonthExtra(siteId, month, Dref.current?.extra ?? next); clear(key); }, 500, fail);
++  }
++  const n = (raw: string) => Math.max(0, parseInt(raw) || 0);
++
++  async function addIssue() {
++    if (!siteId || !D || !desc.trim()) return;
++    const d = day || (new Date().toISOString().slice(0, 7) === D.month.slice(0, 7) ? new Date().toISOString().slice(0, 10) : D.month);
++    try { await api.addIssue(siteId, { day: d, category: cat, description: desc.trim(), status }); setDesc(""); toast("Issue area ditambahkan"); } catch (e) { fail(e as Error); }
++  }
++  function toggle(i: AreaIssue) {
++    const s: AreaIssue["status"] = i.status === "Open" ? "Close" : "Open";
++    setD((x) => x && { ...x, issues: x.issues.map((y) => (y.id === i.id ? { ...y, status: s } : y)) });
++    api.updateIssue(i.id, { status: s }).catch(fail);
++  }
++
++  const open = D.issues.filter((i) => i.status === "Open").length;
++
++  return (
++    <>
++      <fieldset className="sec ro" disabled={!canWrite}>
++        <div><h2>Transporter & biomas</h2><p className="sub">Jumlah harian diisi di menu Data harian. Di sini cukup dua angka bulanan.</p></div>
++        <div className="totals">
++          {EXTRA_CATS.map((c) => <div className="tot" key={c.k}><div className="num">{fmt(tot(c.k))}</div><div className="l">{c.n}</div></div>)}
++        </div>
++        <div className="pat">
++          <div><label htmlFor="x-sel">Selisih timbang ≥ 40 kg</label><input id="x-sel" type="number" min={0} value={val("x:sel", D.extra.selisih_timbang)} onChange={(e) => patch({ selisih_timbang: n(e.target.value) }, "x:sel", e.target.value)} /></div>
++          <div><label htmlFor="x-po">dari kendaraan Palm Oil / Fat Blend</label><input id="x-po" type="number" min={0} value={val("x:po", D.extra.palm_oil)} onChange={(e) => patch({ palm_oil: n(e.target.value) }, "x:po", e.target.value)} /></div>
++        </div>
++      </fieldset>
++
++      <fieldset className="sec ro" disabled={!canWrite}>
++        <div><h2>Kunjungan team support pengamanan</h2><p className="sub">Jumlah kunjungan per kelompok bulan ini, plus siapa saja yang berkunjung.</p></div>
++        <div className="pat">
++          {TEAM_KEYS.map((k) => (
++            <div key={k}><label htmlFor={`t-${k}`}>{k}</label><input id={`t-${k}`} type="number" min={0} value={val(`t:${k}`, D.extra.team[k] ?? 0)} onChange={(e) => patch({ team: { [k]: n(e.target.value) } }, `t:${k}`, e.target.value)} /></div>
++          ))}
++        </div>
++        <label htmlFor="t-note" style={{ display: "block", fontSize: 13, fontWeight: 600, margin: "4px 0 6px" }}>Catatan kunjungan</label>
++        <textarea id="t-note" className="inline" value={val("t:note", D.extra.team_note)} placeholder="mis. External: BHABINSA, Polsek … · G4S: Supervisor Area, OH …" onChange={(e) => patch({ team_note: e.target.value }, "t:note", e.target.value)} />
++      </fieldset>
++
++      <fieldset className="sec ro" disabled={!canWrite}>
++        <div><h2>Issue area</h2><p className="sub">{D.issues.length ? `${D.issues.length} issue bulan ini, ${open} masih open. Klik status untuk mengubah.` : "Belum ada issue area bulan ini."}</p></div>
++        {D.issues.length > 0 && (
++          <ul className="rows isl">
++            {D.issues.map((i) => (
++              <li key={i.id}>
++                <b>{shortDate(i.day)}</b>
++                <span className="sub" style={{ margin: 0 }}>{i.category}</span>
++                <span>{i.description}</span>
++                <button type="button" className={`btn ${i.status === "Open" ? "red" : "q"}`} onClick={() => toggle(i)}>{i.status}</button>
++                <button type="button" className="btn q" aria-label="Hapus issue" onClick={() => api.deleteIssue(i.id).then(() => toast("Issue dihapus")).catch(fail)}>Hapus</button>
++              </li>
++            ))}
++          </ul>
++        )}
++        <div className="issue-add">
++          <input type="date" className="inline" aria-label="Tanggal" value={day} min={D.month} max={monthEnd(D.month)} onChange={(e) => setDay(e.target.value)} />
++          <select className="inline" aria-label="Jenis" value={cat} onChange={(e) => setCat(e.target.value)}>{INC_CATS.map((c) => <option key={c}>{c}</option>)}</select>
++          <input className="inline" placeholder="Deskripsi singkat…" aria-label="Deskripsi" value={desc} onChange={(e) => setDesc(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addIssue()} />
++          <select className="inline" aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as AreaIssue["status"])}><option>Open</option><option>Close</option></select>
++          <button type="button" className="btn red" onClick={addIssue}>+ Tambah</button>
++        </div>
++      </fieldset>
++    </>
++  );
++}
+diff --git a/src/lib/constants.ts b/src/lib/constants.ts
+index 0c21bb4..77aa975 100644
+--- a/src/lib/constants.ts
++++ b/src/lib/constants.ts
+@@ -15,6 +15,17 @@ export const INC_CATS = [
+   "Kejadian Lain-lain", "Kegiatan Khusus", "Pelanggaran KDM",
+ ];
+ 
++/** Data harian tambahan (tabel daily_extra) — ikut laporan & sinkron CIKOPS. */
++export type ExtraKey = "timbang" | "non_timbang" | "sekam" | "abu";
++export const EXTRA_CATS: { k: ExtraKey; n: string; u: string }[] = [
++  { k: "timbang", n: "Transporter timbang", u: "unit" },
++  { k: "non_timbang", n: "Transporter non-timbang", u: "unit" },
++  { k: "sekam", n: "Suplai sekam (PT Becis)", u: "unit" },
++  { k: "abu", n: "Buang abu (PT Becis)", u: "unit" },
++];
++/** Kelompok kunjungan team support pengamanan (tabel monthly_extra). */
++export const TEAM_KEYS = ["Team G", "External", "Lingkungan", "G4S"];
++
+ export const KPI_OBJ: [string, number][] = [
+   ["Internal audit finding", 15], ["Follow up internal audit", 15], ["External audit finding", 15],
+   ["Follow up external audit", 15], ["Kepuasan klien", 15], ["NC & komplain", 15], ["Follow up NC & komplain", 10],
+diff --git a/src/lib/data.ts b/src/lib/data.ts
+index 976f1c9..98fc8fe 100644
+--- a/src/lib/data.ts
++++ b/src/lib/data.ts
+@@ -1,16 +1,19 @@
+ "use client";
+ import { useCallback, useEffect, useRef, useState } from "react";
+ import { supabaseBrowser } from "./supabase/client";
+-import { CATS, INC_CATS, KPI_OBJ, type CatKey } from "./constants";
++import { CATS, EXTRA_CATS, INC_CATS, KPI_OBJ, type CatKey, type ExtraKey } from "./constants";
+ import { addMonths, last13, monthDays, monthEnd, parseMonth } from "./dates";
+-import type { DayEvent, Improvement, Leave, MonthData, Note, Patrol } from "./types";
++import type { AreaIssue, DayEvent, Improvement, Leave, MonthData, MonthExtra, Note, Patrol } from "./types";
+ 
+ const REALTIME_TABLES = [
+   "daily_counts", "day_events", "incident_counts", "patrol_monthly", "leaves",
+   "improvements", "kpi_scores", "report_notes", "monthly_baseline",
+ ] as const;
++/** Tabel dari laporan_cikops.sql — dilanggan di channel terpisah supaya realtime utama tetap jalan bila SQL belum dijalankan. */
++const EXTRA_TABLES = ["daily_extra", "monthly_extra", "area_issues"] as const;
+ 
+ const emptyPatrol: Patrol = { target_patrol: 0, target_checkpoint: 0, actual_patrol: 0, actual_checkpoint: 0, note: "" };
++const emptyExtra = (): MonthExtra => ({ selisih_timbang: 0, palm_oil: 0, team: {}, team_note: "" });
+ 
+ /** Ambil semua data satu bulan untuk satu site. */
+ export async function fetchMonth(siteId: string, month: string): Promise<MonthData> {
+@@ -32,6 +35,19 @@ export async function fetchMonth(siteId: string, month: string): Promise<MonthDa
+     sb.from("report_notes").select("category,note,weekly_note").eq("site_id", siteId).eq("month", month),
+     sb.from("day_events").select("id,day,kind,description,created_at").eq("site_id", siteId).gte("day", month).lte("day", monthEnd(month)).order("created_at"),
+   ]);
++  // Data tambahan: kalau tabelnya belum ada (SQL belum dijalankan), halaman tetap jalan tanpa bagian ini.
++  const [xd, xm, xi] = await Promise.all([
++    sb.from("daily_extra").select("day,category,value").eq("site_id", siteId).gte("day", month).lte("day", monthEnd(month)),
++    sb.from("monthly_extra").select("selisih_timbang,palm_oil,team,team_note").eq("site_id", siteId).eq("month", month).maybeSingle(),
++    sb.from("area_issues").select("id,day,category,description,status").eq("site_id", siteId).gte("day", month).lte("day", monthEnd(month)).order("day").order("created_at"),
++  ]);
++  const extraReady = !xd.error && !xm.error && !xi.error;
++  const extraDaily = {} as Record<ExtraKey, number[]>;
++  EXTRA_CATS.forEach((c) => (extraDaily[c.k] = days.map(() => 0)));
++  (extraReady ? xd.data ?? [] : []).forEach((r: { day: string; category: ExtraKey; value: number }) => {
++    const i = Number(r.day.slice(8, 10)) - 1;
++    if (extraDaily[r.category] && i >= 0 && i < days.length) extraDaily[r.category][i] = r.value;
++  });
+   const err = [daily, totals, base, inc, pat, lv, ni, kpi, notes, ev].find((r) => r.error);
+   if (err?.error) throw new Error(err.error.message);
+ 
+@@ -79,6 +95,9 @@ export async function fetchMonth(siteId: string, month: string): Promise<MonthDa
+     improvements: (ni.data ?? []) as Improvement[],
+     kpi: kpiGrid, notes: noteMap,
+     events: (ev.data ?? []) as DayEvent[],
++    extraReady, extraDaily,
++    extra: extraReady && xm.data ? { ...emptyExtra(), ...(xm.data as MonthExtra) } : emptyExtra(),
++    issues: (extraReady ? xi.data ?? [] : []) as AreaIssue[],
+     loadedAt: Date.now(),
+   };
+ }
+@@ -120,6 +139,14 @@ export function useMonthData(siteId: string | null, month: string | null) {
+       })
+     );
+     ch.subscribe((status) => setLive(status === "SUBSCRIBED"));
++    const chx = sb.channel(`site-x-${siteId}-${month}-${Math.random().toString(36).slice(2, 7)}`);
++    EXTRA_TABLES.forEach((t) =>
++      chx.on("postgres_changes", { event: "*", schema: "security", table: t, filter: `site_id=eq.${siteId}` }, () => {
++        clearTimeout(timer.current);
++        timer.current = setTimeout(() => { load(); setPulse((p) => p + 1); }, 250);
++      })
++    );
++    chx.subscribe();
+     const onVis = () => { if (document.visibilityState === "visible") load(); };
+     const onOnline = () => load();
+     document.addEventListener("visibilitychange", onVis);
+@@ -132,6 +159,7 @@ export function useMonthData(siteId: string | null, month: string | null) {
+       document.removeEventListener("visibilitychange", onVis);
+       window.removeEventListener("online", onOnline);
+       sb.removeChannel(ch);
++      sb.removeChannel(chx);
+     };
+   }, [siteId, month, load]);
+ 
+@@ -176,6 +204,14 @@ export const api = {
+   addEvent: (site_id: string, day: string, kind: string, description: string) =>
+     run(sb().from("day_events").insert({ site_id, day, kind, description })),
+   deleteEvent: (id: string) => run(sb().from("day_events").delete().eq("id", id)),
++
++  setDailyExtra: (site_id: string, day: string, category: ExtraKey, value: number) =>
++    run(sb().from("daily_extra").upsert({ site_id, day, category, value })),
++  setMonthExtra: (site_id: string, month: string, x: MonthExtra) =>
++    run(sb().from("monthly_extra").upsert({ site_id, month, ...x })),
++  addIssue: (site_id: string, i: Omit<AreaIssue, "id">) => run(sb().from("area_issues").insert({ site_id, ...i })),
++  updateIssue: (id: string, patch: Partial<AreaIssue>) => run(sb().from("area_issues").update(patch).eq("id", id)),
++  deleteIssue: (id: string) => run(sb().from("area_issues").delete().eq("id", id)),
+ };
+ 
+ /** Debounce per kunci — dipakai untuk simpan otomatis saat mengetik. */
+diff --git a/src/lib/slides.ts b/src/lib/slides.ts
+index 7009767..1e2f731 100644
+--- a/src/lib/slides.ts
++++ b/src/lib/slides.ts
+@@ -3,7 +3,7 @@
+  * biasa dikirim ke FFI (1280×720, grafik batang 3D, kotak highlight navy,
+  * footer merah). Output berupa HTML string; semua teks dari pengguna di-escape.
+  */
+-import { CATS, KPI_OBJ, MON, MONTH_ID, dec, esc, fmt, type Cat } from "./constants";
++import { CATS, KPI_OBJ, MON, MONTH_ID, TEAM_KEYS, dec, esc, fmt, type Cat, type ExtraKey } from "./constants";
+ import { last13, monthLabelEn, parseMonth } from "./dates";
+ import { agg, catHighlights, incOrdered, incTotal, kpiCalc, monthName, monthsOpen, patrolPct } from "./calc";
+ import type { MonthData, Site } from "./types";
+@@ -117,12 +117,47 @@ function slideKPI(ctx: SlideCtx, page: number) {
+   <p style="font-size:13px;color:#444;margin-top:10px">Skor YTD = rata-rata bulan yang sudah dinilai (${k.rows[0].n} bulan) × bobot. Skala 1–5.</p></div>`, page);
+ }
+ 
+-export interface SlideDef { n: string; render: (ctx: SlideCtx, page: number) => string; go?: string; cat?: string; patrol?: boolean }
++/** Jumlah per minggu (hari kerja / libur) untuk data harian tambahan. */
++function weekX(D: SlideCtx["D"], keys: ExtraKey[]) {
++  const wd = [0, 0, 0, 0, 0], we = [0, 0, 0, 0, 0];
++  D.days.forEach((x) => { const v = keys.reduce((a, k) => a + (D.extraDaily[k][x.d - 1] || 0), 0); (x.we ? we : wd)[x.wk - 1] += v; });
++  return { wd, we, total: [...wd, ...we].reduce((a, b) => a + b, 0) };
++}
++
++function slideTransporter(ctx: SlideCtx, page: number) {
++  const D = ctx.D, { name, year } = monthName(D.month), wk = ["Minggu 1", "Minggu 2", "Minggu 3", "Minggu 4", "Minggu 5"];
++  const t = weekX(D, ["timbang"]), non = weekX(D, ["non_timbang"]).total, b = weekX(D, ["sekam", "abu"]);
++  const sekam = weekX(D, ["sekam"]).total, abu = weekX(D, ["abu"]).total;
++  const chT = bar3d({ labels: wk, series: [{ values: t.wd, ...BLUE }, { values: t.we, ...RED }], W: 584, H: 300, legend: true, labelSize: 12 });
++  const chB = bar3d({ labels: wk, series: [{ values: b.wd, ...BLUE }, { values: b.we, ...RED }], W: 584, H: 300, legend: true, labelSize: 12 });
++  const left = [`Kendaraan timbang ${fmt(t.total)} unit dan non-timbang ${fmt(non)} unit, total ${fmt(t.total + non)} unit transporter material.`,
++    `Selisih timbang ≥ 40 kg: ${fmt(D.extra.selisih_timbang)} kejadian${D.extra.palm_oil ? `, ${fmt(D.extra.palm_oil)} di antaranya kendaraan Palm Oil / Fat Blend` : ""}.`];
++  const right = [`Suplai sekam ${fmt(sekam)} unit dan buang abu ${fmt(abu)} unit, total ${fmt(sekam + abu)} kendaraan biomas.`];
++  return frame(ctx, `TRANSPORTER MATERIAL & BIOMAS ${name.toUpperCase()} ${year}`,
++    `<div class="pan" style="left:0;top:92px;width:600px;height:360px"><div class="ct">KENDARAAN TIMBANG PER MINGGU<br>PERIODE ${name.toUpperCase()} ${year}</div>${chT}</div>
++     <div class="hb" style="left:0;top:452px;width:600px;height:216px">${hl(left.map(esc), "HIGHLIGHTS")}</div>
++     <div class="pan" style="left:680px;top:92px;width:600px;height:360px"><div class="ct">BIOMAS PT BECIS (SEKAM + ABU)<br>PERIODE ${name.toUpperCase()} ${year}</div>${chB}</div>
++     <div class="hb" style="left:680px;top:452px;width:600px;height:216px">${hl(right.map(esc), "Highlights", true)}</div>`, page);
++}
++
++function slideVisitIssue(ctx: SlideCtx, page: number) {
++  const D = ctx.D, x = D.extra, c = "text-align:center";
++  const team = `<table><tr>${TEAM_KEYS.map((k) => `<th>${esc(k)}</th>`).join("")}<th>Total</th></tr><tr>${TEAM_KEYS.map((k) => `<td style="${c};font-weight:700">${fmt(x.team[k] || 0)}</td>`).join("")}<td style="${c};font-weight:800">${fmt(TEAM_KEYS.reduce((a, k) => a + (x.team[k] || 0), 0))}</td></tr></table>
++    <div style="margin-top:10px;background:#F6A99F;padding:10px 16px;font-size:15px;border:1px solid #333"><b>Catatan:</b> ${esc(x.team_note) || "-"}</div>`;
++  const rows = D.issues.map((i, n) => { const [, m, d] = i.day.split("-"); return `<tr><td style="${c}">${n + 1}</td><td style="${c}">${Number(d)} ${MON[Number(m) - 1]}</td><td>${esc(i.category)}</td><td>${esc(i.description)}</td><td style="${c}"><span class="tag" style="color:#fff;background:${i.status === "Open" ? "#C4122F" : "#1C8A4E"}">${i.status}</span></td></tr>`; }).join("");
++  return frame(ctx, "KUNJUNGAN TEAM SUPPORT & ISSUE AREA",
++    `<div style="position:absolute;left:40px;right:40px;top:96px"><h4 style="margin:0 0 8px">Kunjungan team support pengamanan</h4>${team}
++     <h4 style="margin:22px 0 8px">Issue area</h4><table style="font-size:14px"><tr><th>No</th><th>Tanggal</th><th>Jenis</th><th>Kejadian</th><th>Status</th></tr>${rows || '<tr><td colspan="5" style="text-align:center">Tidak ada issue area bulan ini.</td></tr>'}</table></div>`, page);
++}
++
++export interface SlideDef { n: string; render: (ctx: SlideCtx, page: number) => string; go?: string; cat?: string; patrol?: boolean; extra?: boolean }
+ export const SLIDES: SlideDef[] = [
+   { n: "Cuti & sakit", render: slideLeave, go: "/personel" },
+   { n: "Kejadian", render: slideInc, go: "/kejadian" },
+   ...CATS.map((c) => ({ n: c.n, render: (ctx: SlideCtx, p: number) => slideCat(ctx, c, p), cat: c.k })),
+   { n: "Patroli", render: slidePatrol, patrol: true, go: "/kejadian" },
++  { n: "Transporter & biomas", render: slideTransporter, go: "/harian", extra: true },
++  { n: "Kunjungan & issue area", render: slideVisitIssue, go: "/kejadian", extra: true },
+   { n: "Need improvement", render: slideNI, go: "/personel" },
+   { n: "KPI", render: slideKPI, go: "/kpi" },
+ ];
+@@ -132,6 +167,7 @@ import { checks } from "./calc";
+ export function slideOk(D: MonthData, s: SlideDef, ch = checks(D)): boolean {
+   const m0 = parseMonth(D.month).m0;
+   if (s.patrol) return !!D.patrol.target_checkpoint;
++  if (s.extra) return D.extraReady && (s.go === "/kejadian" || D.extraDaily.timbang.some((v) => v > 0));
+   if (s.cat) return !ch.some((c) => c.go === "/harian");
+   if (s.go === "/personel") return !ch.some((c) => c.go === "/personel");
+   if (s.go === "/kejadian") return !ch.some((c) => c.go === "/kejadian" && !c.title.startsWith("Data patroli"));
+diff --git a/src/lib/types.ts b/src/lib/types.ts
+index a94898d..f5350ea 100644
+--- a/src/lib/types.ts
++++ b/src/lib/types.ts
+@@ -1,4 +1,4 @@
+-import type { CatKey } from "./constants";
++import type { CatKey, ExtraKey } from "./constants";
+ import type { DayInfo } from "./dates";
+ 
+ import type { Role } from "./access";
+@@ -11,6 +11,8 @@ export interface Patrol { target_patrol: number; target_checkpoint: number; actu
+ export interface Leave { id: string; name: string; date_text: string; type: string; backup: string }
+ export interface Improvement { id: string; opened_month: string; description: string; priority: string; progress: string; status: "Open" | "Proses" | "Selesai" }
+ export interface DayEvent { id: string; day: string; kind: string; description: string; created_at: string }
++export interface MonthExtra { selisih_timbang: number; palm_oil: number; team: Record<string, number>; team_note: string }
++export interface AreaIssue { id: string; day: string; category: string; description: string; status: "Open" | "Close" }
+ export interface Note { note: string; weekly_note: string }
+ 
+ export interface MonthData {
+@@ -27,5 +29,10 @@ export interface MonthData {
+   kpi: (number | null)[][];
+   notes: Record<string, Note>;
+   events: DayEvent[];
++  /** false = laporan_cikops.sql belum dijalankan (tabel tambahan belum ada). */
++  extraReady: boolean;
++  extraDaily: Record<ExtraKey, number[]>;
++  extra: MonthExtra;
++  issues: AreaIssue[];
+   loadedAt: number;
+ }
+diff --git a/supabase/laporan_cikops.sql b/supabase/laporan_cikops.sql
+new file mode 100644
+index 0000000..23c7e69
+--- /dev/null
++++ b/supabase/laporan_cikops.sql
+@@ -0,0 +1,190 @@
++-- ════════════════════════════════════════════════════════════════
++--  SECURITY DESK — DATA TAMBAHAN LAPORAN + SINKRON KE CIKOPS
++--  Jalankan SEKALI di Supabase → SQL Editor, SETELAH schema.sql,
++--  gate_module.sql, akses_akun.sql dan merger_gc.sql. Aman dijalankan ulang.
++--
++--  Yang ditambahkan (tabel lama tidak diubah):
++--   1. security.daily_extra    per hari: kendaraan timbang, non-timbang,
++--                              suplai sekam, buang abu (biomas PT Becis)
++--   2. security.monthly_extra  per bulan: selisih timbang ≥ 40 kg, dari
++--                              kendaraan Palm Oil/Fat Blend, kunjungan team
++--                              support pengamanan (+ catatan)
++--   3. security.area_issues    issue area: tanggal, jenis, deskripsi, Open/Close
++--   4. security.cikops_report  satu fungsi baca-saja untuk CIKOPS (FM):
++--                              semua angka satu bulan dalam satu panggilan
++-- ════════════════════════════════════════════════════════════════
++
++-- ── 1. Data harian tambahan ─────────────────────────────────────
++create table if not exists security.daily_extra (
++  site_id     uuid not null references security.sites(id) on delete cascade,
++  day         date not null,
++  category    text not null check (category in ('timbang','non_timbang','sekam','abu')),
++  value       integer not null default 0 check (value >= 0),
++  updated_by  uuid default auth.uid(),
++  updated_at  timestamptz not null default now(),
++  primary key (site_id, day, category)
++);
++
++-- ── 2. Data bulanan tambahan ────────────────────────────────────
++create table if not exists security.monthly_extra (
++  site_id          uuid not null references security.sites(id) on delete cascade,
++  month            date not null,
++  selisih_timbang  integer not null default 0 check (selisih_timbang >= 0),
++  palm_oil         integer not null default 0 check (palm_oil >= 0),
++  team             jsonb not null default '{}',   -- {"Team G":2,"External":1,"Lingkungan":0,"G4S":3}
++  team_note        text not null default '',
++  updated_at       timestamptz not null default now(),
++  primary key (site_id, month)
++);
++
++-- ── 3. Issue area ───────────────────────────────────────────────
++create table if not exists security.area_issues (
++  id          uuid primary key default gen_random_uuid(),
++  site_id     uuid not null references security.sites(id) on delete cascade,
++  day         date not null,
++  category    text not null default 'Security Issue',
++  description text not null default '',
++  status      text not null default 'Open' check (status in ('Open','Close')),
++  created_by  uuid default auth.uid(),
++  created_at  timestamptz not null default now(),
++  updated_at  timestamptz not null default now()
++);
++create index if not exists area_issues_site_day on security.area_issues(site_id, day);
++
++-- ── Jejak perubahan, updated_at, RLS, realtime (sama dengan tabel lain) ──
++do $$
++declare t text;
++begin
++  foreach t in array array['daily_extra','monthly_extra','area_issues'] loop
++    execute format('drop trigger if exists trg_log_%1$s on security.%1$s', t);
++    execute format('create trigger trg_log_%1$s after insert or update or delete on security.%1$s for each row execute function security.log_activity()', t);
++    execute format('drop trigger if exists trg_touch_%1$s on security.%1$s', t);
++    execute format('create trigger trg_touch_%1$s before update on security.%1$s for each row execute function security.touch_updated_at()', t);
++
++    execute format('alter table security.%I enable row level security', t);
++    execute format('drop policy if exists %1$s_read on security.%1$s', t);
++    execute format('create policy %1$s_read on security.%1$s for select to authenticated using (security.has_site(site_id))', t);
++    execute format('drop policy if exists %1$s_ins on security.%1$s', t);
++    execute format('create policy %1$s_ins on security.%1$s for insert to authenticated with check (security.can_write(site_id))', t);
++    execute format('drop policy if exists %1$s_upd on security.%1$s', t);
++    execute format('create policy %1$s_upd on security.%1$s for update to authenticated using (security.can_write(site_id)) with check (security.can_write(site_id))', t);
++    execute format('drop policy if exists %1$s_del on security.%1$s', t);
++    execute format('create policy %1$s_del on security.%1$s for delete to authenticated using (security.can_write(site_id))', t);
++
++    begin
++      execute format('alter publication supabase_realtime add table security.%I', t);
++    exception when duplicate_object then null;
++    end;
++    execute format('alter table security.%I replica identity full', t);
++  end loop;
++end $$;
++
++grant select, insert, update, delete on security.daily_extra, security.monthly_extra, security.area_issues to authenticated;
++grant all on security.daily_extra, security.monthly_extra, security.area_issues to service_role;
++
++-- ── 4. Laporan satu bulan untuk CIKOPS ──────────────────────────
++--  Dipanggil oleh server CIKOPS dengan akun baca-saja (peran Management
++--  atau GA Department). security invoker = tetap patuh RLS: akun tanpa akses
++--  site hanya mendapat data kosong.
++--  p_month: tanggal mana pun di bulan itu. p_site: kode site (default CIK).
++create or replace function security.cikops_report(p_month date, p_site text default 'CIK')
++returns jsonb
++language plpgsql stable security invoker set search_path = security as $$
++declare
++  m0 date := date_trunc('month', p_month)::date;
++  m1 date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
++  sid uuid; sname text; scode text; plant text;
++  tz text := 'Asia/Jakarta';
++  out jsonb;
++begin
++  select id, name, code, coalesce(gc_plant, name) into sid, sname, scode, plant
++    from sites where upper(code) = upper(coalesce(nullif(p_site, ''), 'CIK')) limit 1;
++  if sid is null then
++    raise exception 'Site % tidak ditemukan atau akun ini tidak punya akses Security Desk.', p_site;
++  end if;
++
++  select jsonb_build_object(
++    'version', 1,
++    'site', jsonb_build_object('code', scode, 'name', sname, 'plant', plant),
++    'month', to_char(m0, 'YYYY-MM'),
++    'generated_at', to_char(now() at time zone tz, 'YYYY-MM-DD"T"HH24:MI:SS'),
++
++    -- per hari: kategori bawaan + tambahan → [{d:"2026-10-01", c:"karyawan", v:120}, ...]
++    'daily', coalesce((
++      select jsonb_agg(jsonb_build_object('d', to_char(x.day, 'YYYY-MM-DD'), 'c', x.category, 'v', x.value) order by x.day, x.category)
++      from (
++        select day, category, value from daily_counts where site_id = sid and day between m0 and m1
++        union all
++        select day, category, value from daily_extra where site_id = sid and day between m0 and m1
++      ) x), '[]'::jsonb),
++
++    'incidents', coalesce((
++      select jsonb_agg(jsonb_build_object('category', category, 'value', value, 'note', note) order by category)
++      from incident_counts where site_id = sid and month = m0), '[]'::jsonb),
++
++    'patrol', (
++      select jsonb_build_object('target_patrol', target_patrol, 'actual_patrol', actual_patrol,
++               'target_checkpoint', target_checkpoint, 'actual_checkpoint', actual_checkpoint, 'note', note)
++      from patrol_monthly where site_id = sid and month = m0),
++
++    'extra', (
++      select jsonb_build_object('selisih_timbang', selisih_timbang, 'palm_oil', palm_oil, 'team', team, 'team_note', team_note)
++      from monthly_extra where site_id = sid and month = m0),
++
++    'issues', coalesce((
++      select jsonb_agg(jsonb_build_object('day', to_char(day, 'YYYY-MM-DD'), 'category', category, 'description', description, 'status', status) order by day, created_at)
++      from area_issues where site_id = sid and day between m0 and m1), '[]'::jsonb),
++
++    'leaves', coalesce((
++      select jsonb_agg(jsonb_build_object('name', name, 'date_text', date_text, 'type', type, 'backup', backup) order by created_at)
++      from leaves where site_id = sid and month = m0), '[]'::jsonb),
++
++    -- need improvement: semua yang masih berjalan + yang dibuka s/d bulan ini
++    'improvements', coalesce((
++      select jsonb_agg(jsonb_build_object('opened_month', to_char(opened_month, 'YYYY-MM'), 'description', description,
++               'priority', priority, 'progress', progress, 'status', status) order by opened_month, id)
++      from improvements where site_id = sid and opened_month <= m1), '[]'::jsonb),
++
++    -- KPI tahun berjalan: [{m:1, o:1, s:5}, ...]
++    'kpi', coalesce((
++      select jsonb_agg(jsonb_build_object('m', month, 'o', objective, 's', score) order by month, objective)
++      from kpi_scores where site_id = sid and year = extract(year from m0)::int and score is not null), '[]'::jsonb),
++
++    -- gate transporter bulan ini + kondisi saat ini
++    'gate', jsonb_build_object(
++      'days', coalesce((
++        select jsonb_agg(jsonb_build_object('d', d, 'n', n) order by d)
++        from (select to_char((in_at at time zone tz)::date, 'YYYY-MM-DD') d, count(*)::int n
++              from gate_inspections where site_id = sid and (in_at at time zone tz)::date between m0 and m1 group by 1) g), '[]'::jsonb),
++      'total_in', (select count(*)::int from gate_inspections where site_id = sid and (in_at at time zone tz)::date between m0 and m1),
++      'total_out', (select count(*)::int from gate_inspections where site_id = sid and status = 'out' and (in_at at time zone tz)::date between m0 and m1),
++      'with_findings', (select count(*)::int from gate_inspections where site_id = sid and finding_count > 0 and (in_at at time zone tz)::date between m0 and m1),
++      'avg_minutes', (select round(avg(extract(epoch from (out_at - in_at)) / 60))::int from gate_inspections
++                       where site_id = sid and out_at is not null and (in_at at time zone tz)::date between m0 and m1),
++      'inside_now', (select count(*)::int from gate_inspections where site_id = sid and status = 'in'),
++      'over_4h', (select count(*)::int from gate_inspections where site_id = sid and status = 'in' and in_at < now() - interval '4 hours'),
++      'top_companies', coalesce((
++        select jsonb_agg(jsonb_build_object('name', company_name, 'n', n) order by n desc)
++        from (select company_name, count(*)::int n from gate_inspections
++              where site_id = sid and (in_at at time zone tz)::date between m0 and m1 and company_name <> ''
++              group by 1 order by 2 desc limit 8) t), '[]'::jsonb)
++    )
++  ) into out;
++  return out;
++end $$;
++
++grant execute on function security.cikops_report(date, text) to authenticated, service_role;
++
++notify pgrst, 'reload schema';
++
++-- ════════════════════════════════════════════════════════════════
++--  AKUN BACA UNTUK CIKOPS
++--  Server CIKOPS memakai akun GC_READER_EMAIL (sudah dipakai untuk data NC).
++--  Pastikan akun itu punya akses Security Desk dengan peran Management
++--  (lihat saja). Ganti email lalu jalankan:
++--
++--  insert into security.profiles (id, email, full_name, role, active)
++--  select id, email, 'CIKOPS (baca)', 'management', true
++--  from auth.users where email = 'email-akun-cikops@contoh.com'
++--  on conflict (id) do update set role = 'management', active = true;
++-- ════════════════════════════════════════════════════════════════
+-- 
+2.43.0
+

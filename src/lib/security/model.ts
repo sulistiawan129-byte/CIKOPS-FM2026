@@ -67,6 +67,8 @@ export interface SecData {
   /** Riwayat: total sebulan untuk bulan yang tidak diisi per minggu. */
   totals?: Partial<Record<TotalKey, number>>;
   status?: "draft" | "ready";
+  /** Ada = angka bulan ini dibaca otomatis dari Security Desk (lihat secdesk.ts). */
+  sd?: { at: string };
 }
 
 export interface Week { from: string; to: string; label: string; wdDays: number; weDays: number }
