@@ -2058,8 +2058,26 @@ export function isPrbOnly(profile: MyProfile | null): boolean {
   return profile?.plantScope === "PRB";
 }
 
+/** Role yang dikunci ke SATU menu saja (tanpa Home, Ringkasan, Kalender, atau menu lain).
+ *  Kunci ini berlaku apa pun isi allowed_tabs-nya. */
+export const LOCKED_ROLE_TAB: Record<string, string> = { receptionist: "receptionist" };
+
+/** Menu tunggal milik akun ini, atau null bila akun boleh berpindah menu. */
+export function lockedTabOf(profile: MyProfile | null): string | null {
+  return profile ? LOCKED_ROLE_TAB[profile.role] ?? null : null;
+}
+
+/** Label role untuk ditampilkan di kartu profil. */
+export function roleLabel(profile: MyProfile | null): string {
+  if (profile?.role === "admin") return "Admin";
+  if (profile?.role === "receptionist") return "Receptionist";
+  return "GA Manager";
+}
+
 export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  const locked = lockedTabOf(profile);
+  if (locked) return tab === locked;
   if (isPrbOnly(profile) && !PRB_TABS.includes(tab)) return false;
   if (tab === "activitylog") return profile.isMasterAdmin === true;
   // Kalender (agenda + penugasan) sama dengan widget di Home: terbuka untuk semua akun non-PRB.
