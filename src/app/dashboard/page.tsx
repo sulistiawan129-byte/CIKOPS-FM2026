@@ -179,6 +179,8 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import Icon from "@/components/Icon";
 import SideNav, { type SideNavGroup } from "./SideNav";
 import of from "./opfund.module.css";
+import vh from "./vehicles.module.css";
+import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
 
 function todayStr() {
   return toLocalISODate(new Date());
@@ -194,6 +196,7 @@ export type DashboardTab =
   | "claims"
   | "overtime"
   | "driverbudget"
+  | "gate"
   | "opfund"
   | "gasstations"
   | "reports"
@@ -222,6 +225,7 @@ const NAV_GROUPS: NavGroup[] = [
     tabs: [
       { id: "tasks", icon: "🗂️", labelId: "Penugasan", labelEn: "Tasks", descId: "Kelola penugasan kendaraan & driver", descEn: "Manage vehicle & driver tasks" },
       { id: "vehicles", icon: "🚗", labelId: "Armada", labelEn: "Vehicles", descId: "Data kendaraan & kelengkapannya", descEn: "Vehicle data & documents" },
+      { id: "gate", icon: "🚧", labelId: "Gate Log", labelEn: "Gate Log", descId: "Keluar-masuk kendaraan di pos gate", descEn: "Vehicle in/out at the gate post" },
       { id: "gasstations", icon: "⛽", labelId: "Pom Bensin", labelEn: "Gas Stations", descId: "Mapping & transaksi bahan bakar", descEn: "Fuel mapping & transactions" },
     ],
   },
@@ -931,6 +935,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "home" && <HomeTab setActiveTab={setActiveTab} openTasksOn={openTasksOn} myProfile={myProfile} activeGroupId={activeHomeGroup} setActiveGroupId={setActiveHomeGroup} />}
           {activeTab === "overview" && <OverviewTab setActiveTab={setActiveTab} myProfile={myProfile} />}
           {activeTab === "vehicles" && <VehiclesTab myProfile={myProfile} />}
+          {activeTab === "gate" && <GateTab myProfile={myProfile} />}
           {activeTab === "claims" && <ClaimsTab myProfile={myProfile} />}
           {activeTab === "driverbudget" && <DriverBudgetTab myProfile={myProfile} />}
           {activeTab === "opfund" && <OpFundTab myProfile={myProfile} />}
@@ -5295,25 +5300,14 @@ const BLANK_VEHICLE_FORM: VehicleFormState = {
   plant: "CIK",
 };
 
-function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
-  const isAdmin = myProfile?.role === "admin";
+/* ── GATE LOG — modul sendiri (dulu tab di dalam Armada) ── */
+function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
   const { lang, t } = useLang();
-  const [viewMode, setViewMode] = useState<"list" | "gatelog">("list");
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Vehicle | null>(null);
-  const [form, setForm] = useState<VehicleFormState>(BLANK_VEHICLE_FORM);
-  const [confirmDelete, setConfirmDelete] = useState<Vehicle | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  // ── Gate Log ──
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
   const [gateLogs, setGateLogs] = useState<VehicleGateLog[]>([]);
   const [loadingGateLogs, setLoadingGateLogs] = useState(false);
-  const [gatePlantFilter, setGatePlantFilter] = useState<"all" | Plant>("all");
+  const [gatePlantFilter, setGatePlantFilter] = useState<"all" | Plant>(myProfile?.plantScope ?? "all");
   const [gateDateFrom, setGateDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
@@ -5339,9 +5333,7 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     }
   }, [gatePlantFilter, gateDateFrom, gateDateTo]);
 
-  useEffect(() => {
-    if (viewMode === "gatelog") loadGateLogs();
-  }, [viewMode, loadGateLogs]);
+  useEffect(() => { loadGateLogs(); }, [loadGateLogs]);
 
   async function handleForceCloseGateLog(log: VehicleGateLog) {
     setBusyGateLogId(log.id);
@@ -5366,6 +5358,108 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     }
   }
 
+  return (
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Fleet · Pos Security", "Fleet · Security post")}
+        title="Gate Log"
+        desc={L("Catatan keluar-masuk kendaraan di pos gate: jam keluar, jam kembali, KM, dan driver. Petugas gate menginput lewat halaman /gate.",
+          "Vehicle in/out records at the gate post: departure, return, mileage and driver. Gate officers log entries on the /gate page.")}
+        actions={<>
+          <a className={vh.headLink} href="/gate" target="_blank" rel="noopener noreferrer">🚧 {L("Buka halaman petugas gate ↗", "Open gate officer page ↗")}</a>
+          <button type="button" className={vh.btn} onClick={loadGateLogs} disabled={loadingGateLogs}>{loadingGateLogs ? "…" : "↻"} {L("Muat ulang", "Refresh")}</button>
+        </>}
+      />
+      <GateLogPanel
+        logs={gateLogs}
+        loading={loadingGateLogs}
+        dateFrom={gateDateFrom}
+        dateTo={gateDateTo}
+        onDateFrom={setGateDateFrom}
+        onDateTo={setGateDateTo}
+        onQuickRange={(days) => {
+          const d = new Date(); const from = new Date(); from.setDate(d.getDate() - days);
+          setGateDateFrom(from.toISOString().slice(0, 10)); setGateDateTo(d.toISOString().slice(0, 10));
+        }}
+        plant={gatePlantFilter}
+        onPlant={setGatePlantFilter}
+        busyId={busyGateLogId}
+        onForceClose={handleForceCloseGateLog}
+        onDelete={setConfirmDeleteGateLog}
+        onExport={() => exportGateLogsToCsv(gateLogs)}
+      />
+      {confirmDeleteGateLog && (
+        <ModalPortal onOverlayClick={() => setConfirmDeleteGateLog(null)} maxWidth={380}>
+          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>
+              {lang === "en" ? "Delete this gate log entry?" : "Hapus catatan gate ini?"}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
+              <strong style={{ color: "var(--t1)" }}>{confirmDeleteGateLog.nopol}</strong> — {confirmDeleteGateLog.driverName} ({formatDateLabel(confirmDeleteGateLog.createdAt.slice(0, 10))}) {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDeleteGateLog(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
+                {t.actionCancel}
+              </button>
+              <button onClick={handleDeleteGateLog} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                {t.actionYesDelete}
+              </button>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+    </ModulePage>
+  );
+}
+
+/* ── ARMADA KENDARAAN — tampilan baru: ringkasan, filter interaktif, kartu & tabel ── */
+type DocKey = "KIR" | "Service" | "STNK";
+interface DocState { key: DocKey; last: string | null; next: string | null; early: string | null; days: number | null; level: "none" | "ok" | "soon" | "due" | "over" }
+const DOC_INTERVAL_DAYS: Record<DocKey, number> = { KIR: 182, Service: 182, STNK: 365 };
+
+function vehicleDocs(v: Vehicle): DocState[] {
+  return ([["KIR", v.kir_date], ["Service", v.service_date], ["STNK", v.stnk_date]] as [DocKey, string | null | undefined][]).map(([key, last]) => {
+    const { next, nextEarly } = nextDocDate(key, last);
+    if (!next) return { key, last: last ?? null, next: null, early: null, days: null, level: "none" };
+    const days = daysUntil(next);
+    const earlyDays = nextEarly ? daysUntil(nextEarly) : null;
+    const level: DocState["level"] = days <= 0 ? "over" : days <= 7 ? "due" : days <= 30 || (earlyDays !== null && earlyDays <= 0) ? "soon" : "ok";
+    return { key, last: last ?? null, next, early: nextEarly, days, level };
+  });
+}
+const DOC_RANK: Record<DocState["level"], number> = { over: 0, due: 1, soon: 2, none: 3, ok: 4 };
+function worstDoc(docs: DocState[]): DocState {
+  return [...docs].sort((a, b) => DOC_RANK[a.level] - DOC_RANK[b.level] || (a.days ?? 9999) - (b.days ?? 9999))[0];
+}
+
+function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
+  const isAdmin = myProfile?.role === "admin";
+  const { lang, t } = useLang();
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
+  const [form, setForm] = useState<VehicleFormState>(BLANK_VEHICLE_FORM);
+  const [confirmDelete, setConfirmDelete] = useState<Vehicle | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Filter & tampilan
+  const [q, setQ] = useState("");
+  const [plantF, setPlantF] = useState<"all" | Plant>("all");
+  const [statusF, setStatusF] = useState<"all" | "active" | "maint" | "attention" | "over">("all");
+  const [sortBy, setSortBy] = useState<"due" | "nopol" | "odo" | "year">("due");
+  const [view, setView] = useState<"grid" | "table">(() => {
+    try { return (localStorage.getItem("cikops_vehicle_view") as "grid" | "table") || "grid"; } catch { return "grid"; }
+  });
+  const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => { try { localStorage.setItem("cikops_vehicle_view", view); } catch { /* privat */ } }, [view]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -5387,7 +5481,9 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
   function driverName(id: string | null | undefined) {
     return drivers.find((d) => d.id === id)?.nama || "-";
   }
-
+  function driverOf(id: string | null | undefined) {
+    return drivers.find((d) => d.id === id) ?? null;
+  }
   function openAdd() {
     setEditing(null);
     setForm({ ...BLANK_VEHICLE_FORM, plant: myProfile?.plantScope ?? BLANK_VEHICLE_FORM.plant });
@@ -5460,260 +5556,221 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     }
   }
 
- const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
-  const inputStyle: CSSProperties = {};
-  const labelStyle: CSSProperties = {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "var(--t2)",
-    marginBottom: 5,
-    display: "block",
-  };
+  const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
+
+  const rows = useMemo(() => vehicles.map((v) => {
+    const docs = vehicleDocs(v);
+    return { v, docs, worst: worstDoc(docs) };
+  }), [vehicles]);
+
+  const stats = useMemo(() => ({
+    total: rows.length,
+    active: rows.filter((r) => r.v.aktif).length,
+    maint: rows.filter((r) => !r.v.aktif).length,
+    over: rows.filter((r) => r.docs.some((d) => d.level === "over")).length,
+    attention: rows.filter((r) => r.docs.some((d) => d.level === "due" || d.level === "soon")).length,
+    noDocs: rows.filter((r) => r.docs.every((d) => d.level === "none")).length,
+  }), [rows]);
+
+  const upcoming = useMemo(() => rows.flatMap((r) => r.docs.filter((d) => d.next && d.level !== "ok").map((d) => ({ v: r.v, d })))
+    .sort((a, b) => (a.d.days ?? 0) - (b.d.days ?? 0)).slice(0, 8), [rows]);
+
+  const list = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const out = rows.filter(({ v, docs }) => {
+      if (plantF !== "all" && (v.plant || "CIK") !== plantF) return false;
+      if (statusF === "active" && !v.aktif) return false;
+      if (statusF === "maint" && v.aktif) return false;
+      if (statusF === "over" && !docs.some((d) => d.level === "over")) return false;
+      if (statusF === "attention" && !docs.some((d) => d.level === "due" || d.level === "soon")) return false;
+      if (!needle) return true;
+      return [v.nopol, v.jenis, v.dept, v.color, v.fuel, driverName(v.default_driver_id)].join(" ").toLowerCase().includes(needle);
+    });
+    out.sort((a, b) => {
+      if (sortBy === "nopol") return a.v.nopol.localeCompare(b.v.nopol);
+      if (sortBy === "odo") return (b.v.odometer || 0) - (a.v.odometer || 0);
+      if (sortBy === "year") return (b.v.year || 0) - (a.v.year || 0);
+      return DOC_RANK[a.worst.level] - DOC_RANK[b.worst.level] || (a.worst.days ?? 9999) - (b.worst.days ?? 9999);
+    });
+    return out;
+  }, [rows, q, plantF, statusF, sortBy, drivers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fmtD = (ds: string | null) => (ds ? new Date(ds).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—");
+  const dueText = (d: DocState) => d.level === "none" ? L("Belum diisi", "Not set") : (d.days ?? 0) <= 0 ? L(`Lewat ${Math.abs(d.days ?? 0)} hr`, `${Math.abs(d.days ?? 0)}d overdue`) : L(`${d.days} hari lagi`, `in ${d.days}d`);
+  const levelLabel: Record<DocState["level"], string> = { over: L("Lewat", "Overdue"), due: L("≤ 7 hari", "≤ 7 days"), soon: L("Segera", "Soon"), ok: "OK", none: L("Kosong", "Empty") };
+  const lockedPlant = myProfile?.plantScope ?? null;
+
+  const KPIS: { id: typeof statusF; label: string; value: number; foot: string; tone: string; icon: string }[] = [
+    { id: "all", label: L("Total armada", "Fleet"), value: stats.total, foot: stats.noDocs ? `${stats.noDocs} ${L("belum ada data dokumen", "without document data")}` : `${stats.active} ${L("aktif", "active")} · ${stats.maint} maint.`, tone: "brand", icon: "🚗" },
+    { id: "active", label: L("Siap jalan", "Ready"), value: stats.active, foot: stats.total ? `${Math.round((stats.active / stats.total) * 100)}% ${L("dari armada", "of fleet")}` : "—", tone: "green", icon: "✅" },
+    { id: "maint", label: "Maintenance", value: stats.maint, foot: L("sedang tidak beroperasi", "out of service"), tone: "orange", icon: "🔧" },
+    { id: "attention", label: L("Dokumen segera", "Docs due soon"), value: stats.attention, foot: L("KIR / service / STNK ≤ 30 hari", "KIR / service / STNK ≤ 30 days"), tone: "gold", icon: "⏳" },
+    { id: "over", label: L("Dokumen lewat", "Docs overdue"), value: stats.over, foot: L("lewat jatuh tempo — perlu tindakan", "past due — needs action"), tone: "red", icon: "⛔" },
+  ];
 
   return (
-    <div style={{ padding: 20 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setViewMode("list")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "list" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "list" ? "#fff" : "var(--t2)" }}
-          >
-            {lang === "en" ? "Vehicle Fleet" : "Armada Kendaraan"}
+    <ModulePage>
+      <ModuleHeader
+        kicker={L("Fleet · Armada", "Fleet · Vehicles")}
+        title={L("Armada Kendaraan", "Vehicle Fleet")}
+        desc={L("Status armada, driver tetap, dan jadwal KIR, service, serta STNK — kendaraan yang perlu perhatian otomatis naik ke atas.",
+          "Fleet status, assigned drivers, and KIR, service and STNK schedules — vehicles needing attention float to the top.")}
+        actions={<button type="button" className={vh.primary} onClick={openAdd}>+ {L("Tambah kendaraan", "Add vehicle")}</button>}
+      />
+
+      {error && <div className={vh.err}>{error}</div>}
+
+      <div className={vh.kpis}>
+        {KPIS.map((k) => (
+          <button key={k.id} type="button" className={`${vh.kpi} ${vh["k_" + k.tone]} ${statusF === k.id ? vh.kpiOn : ""}`} onClick={() => setStatusF(statusF === k.id ? "all" : k.id)} aria-pressed={statusF === k.id}>
+            <span className={vh.kpiIcon}>{k.icon}</span>
+            <span className={vh.kpiBody}><small>{k.label}</small><b>{loading ? "…" : k.value}</b><em>{k.foot}</em></span>
           </button>
-          {!isPrbOnly(myProfile) && <button
-            onClick={() => setViewMode("gatelog")}
-            style={{ padding: "7px 16px", borderRadius: "var(--pill)", border: "1px solid var(--border2)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: viewMode === "gatelog" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: viewMode === "gatelog" ? "#fff" : "var(--t2)" }}
-          >
-            🚧 Gate Log
-          </button>}
-        </div>
-        {viewMode === "list" && (
-          <button className="pillBtn" onClick={openAdd}>
-            + {lang === "en" ? "Add Vehicle" : "Tambah Kendaraan"}
-          </button>
-        )}
+        ))}
       </div>
 
-      {viewMode === "gatelog" && (
-        <GateLogPanel
-          logs={gateLogs}
-          loading={loadingGateLogs}
-          dateFrom={gateDateFrom}
-          dateTo={gateDateTo}
-          onDateFrom={setGateDateFrom}
-          onDateTo={setGateDateTo}
-          onQuickRange={(days) => {
-            const d = new Date(); const from = new Date(); from.setDate(d.getDate() - days);
-            setGateDateFrom(from.toISOString().slice(0, 10)); setGateDateTo(d.toISOString().slice(0, 10));
-          }}
-          plant={gatePlantFilter}
-          onPlant={setGatePlantFilter}
-          busyId={busyGateLogId}
-          onForceClose={handleForceCloseGateLog}
-          onDelete={setConfirmDeleteGateLog}
-          onExport={() => exportGateLogsToCsv(gateLogs)}
-        />
+      {upcoming.length > 0 && (
+        <section className={vh.upcoming}>
+          <div className={vh.upHead}><b>📅 {L("Jatuh tempo terdekat", "Coming due")}</b><small>{L("Klik untuk membuka kendaraan", "Click to open the vehicle")}</small></div>
+          <div className={vh.upList}>
+            {upcoming.map(({ v, d }) => (
+              <button key={v.id + d.key} type="button" className={`${vh.upItem} ${vh["lv_" + d.level]}`} onClick={() => { setOpenId(v.id); setStatusF("all"); setQ(v.nopol); }}>
+                <span className={vh.upDoc}>{d.key}</span>
+                <span className={vh.upPlate}>{v.nopol}</span>
+                <span className={vh.upDays}>{dueText(d)}</span>
+                <small>{fmtD(d.next)}</small>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
-      <div style={{ display: viewMode === "list" ? "block" : "none" }}>
-      {error && (
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 10,
-            background: "var(--red-soft)",
-            color: "var(--red)",
-            marginBottom: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
+      <div className={vh.toolbar}>
+        <div className={vh.search}>
+          <span>⌕</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari nopol, tipe, driver, departemen…", "Search plate, type, driver, department…")} />
+          {q && <button type="button" onClick={() => setQ("")} aria-label={L("Hapus", "Clear")}>✕</button>}
         </div>
-      )}
+        {!lockedPlant && (
+          <div className={vh.seg}>
+            {(["all", "CIK", "PRB"] as const).map((p) => (
+              <button key={p} type="button" className={plantF === p ? vh.segOn : ""} onClick={() => setPlantF(p)}>{p === "all" ? L("Semua plant", "All plants") : p}</button>
+            ))}
+          </div>
+        )}
+        <label className={vh.sort}>
+          <span>{L("Urutkan", "Sort")}</span>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="due">{L("Perlu perhatian dulu", "Needs attention first")}</option>
+            <option value="nopol">{L("Nomor polisi", "Plate number")}</option>
+            <option value="odo">{L("Odometer tertinggi", "Highest odometer")}</option>
+            <option value="year">{L("Tahun terbaru", "Newest year")}</option>
+          </select>
+        </label>
+        <div className={vh.seg} role="group" aria-label={L("Tampilan", "View")}>
+          <button type="button" className={view === "grid" ? vh.segOn : ""} onClick={() => setView("grid")} aria-pressed={view === "grid"}>▦ {L("Kartu", "Cards")}</button>
+          <button type="button" className={view === "table" ? vh.segOn : ""} onClick={() => setView("table")} aria-pressed={view === "table"}>☰ {L("Tabel", "Table")}</button>
+        </div>
+      </div>
+      <p className={vh.count}>{list.length} {L("dari", "of")} {stats.total} {L("kendaraan", "vehicles")}{statusF !== "all" && <> · <button type="button" className={vh.linkBtn} onClick={() => setStatusF("all")}>{L("hapus filter", "clear filter")}</button></>}</p>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
-          {lang === "en" ? "Loading vehicles..." : "Memuat kendaraan..."}
-        </div>
+        <div className={vh.grid}>{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={vh.skel} />)}</div>
       ) : vehicles.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
-          {lang === "en" ? "No vehicles yet." : "Belum ada kendaraan."}
+        <div className={vh.empty}>
+          <span>🚗</span><b>{L("Belum ada kendaraan", "No vehicles yet")}</b>
+          <small>{L("Tambahkan armada pertama untuk mulai memantau dokumen dan penugasan.", "Add your first vehicle to start tracking documents and tasks.")}</small>
+          <button type="button" className={vh.primary} onClick={openAdd}>+ {L("Tambah kendaraan", "Add vehicle")}</button>
         </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: 14,
-          }}
-        >
-          {vehicles.map((v) => {
+      ) : list.length === 0 ? (
+        <div className={vh.empty}><span>🔎</span><b>{L("Tidak ada yang cocok", "No matches")}</b><small>{L("Ubah kata kunci atau filter.", "Change the search or filters.")}</small></div>
+      ) : view === "grid" ? (
+        <div className={vh.grid}>
+          {list.map(({ v, docs, worst }, i) => {
+            const drv = driverOf(v.default_driver_id);
+            const open = openId === v.id;
             return (
-              <div key={v.id} className="statPop" style={{ ...cardStyle, padding: 16, position: "relative" }}>
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 4,
-                    borderRadius: "var(--r2) 0 0 var(--r2)",
-                    background: v.aktif ? "var(--green)" : "var(--orange)",
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                  <div>
-                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-     <span style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 15, color: "var(--t1)" }}>
-      {v.nopol}
-    </span>
-    <span
-      style={{
-       fontSize: 9.5, fontWeight: 800, padding: "1px 7px", borderRadius: 6,
-       background: "var(--bg2)", color: PLANT_COLOR[v.plant || "CIK"], border: `1px solid ${PLANT_COLOR[v.plant || "CIK"]}33`,
-     }}
-   >
-      {v.plant || "CIK"}
-    </span>
-  </div>
-                    <div style={{ fontSize: 13, color: "var(--t3)" }}>
-                      {v.jenis} · {v.year}
+              <article key={v.id} className={`${vh.card} ${v.aktif ? "" : vh.cardMaint} ${open ? vh.cardOpen : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}>
+                <div className={`${vh.cardTop} ${vh["lv_" + worst.level]}`}>
+                  <span className={vh.statusDot} />
+                  <span>{v.aktif ? L("Aktif", "Active") : "Maintenance"}</span>
+                  <span className={vh.cardTopRight}>{worst.level === "ok" ? L("Dokumen aman", "Docs OK") : worst.level === "none" ? L("Dokumen belum diisi", "No document data") : `${worst.key} · ${dueText(worst)}`}</span>
+                </div>
+                <div className={vh.cardBody}>
+                  <div className={vh.identity}>
+                    <div className={vh.plate}><b>{v.nopol}</b><small>{(v.plant || "CIK")}</small></div>
+                    <div className={vh.model}>
+                      <b>{v.jenis || "—"}</b>
+                      <span>{[v.year, v.color, v.fuel].filter(Boolean).join(" · ") || "—"}</span>
                     </div>
                   </div>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "3px 10px",
-                      borderRadius: "var(--pill)",
-                      background: v.aktif ? "var(--green-soft)" : "var(--orange-soft)",
-                      color: v.aktif ? "var(--green)" : "var(--orange)",
-                      height: "fit-content",
-                    }}
-                  >
-                    {v.aktif ? (lang === "en" ? "Active" : "Aktif") : (lang === "en" ? "Maintenance" : "Maintenance")}
-                  </span>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12, fontSize: 12 }}>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>Driver</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{driverName(v.default_driver_id)}</div>
+                  <div className={vh.facts}>
+                    <div><small>Driver</small><b>{drv ? <>{drv.avatar_emoji || "🧑‍✈️"} {drv.nama}</> : "—"}</b></div>
+                    <div><small>{L("Departemen", "Department")}</small><b>{v.dept || "—"}</b></div>
+                    <div><small>Odometer</small><b>{fmtRp(v.odometer || 0)} km</b></div>
                   </div>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>{lang === "en" ? "Dept" : "Departemen"}</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{v.dept || "-"}</div>
+                  <div className={vh.docs}>
+                    {docs.map((d) => {
+                      const pct = d.days === null ? 0 : Math.max(0, Math.min(100, (d.days / DOC_INTERVAL_DAYS[d.key]) * 100));
+                      return (
+                        <button key={d.key} type="button" className={`${vh.doc} ${vh["lv_" + d.level]}`} onClick={() => setOpenId(open ? null : v.id)} title={`${d.key}: ${L("terakhir", "last")} ${fmtD(d.last)} · ${L("jatuh tempo", "due")} ${fmtD(d.next)}`}>
+                          <span className={vh.docRing} style={{ ["--p" as string]: d.level === "none" ? 0 : d.level === "over" ? 100 : pct }}><i>{d.key === "Service" ? "SVC" : d.key}</i></span>
+                          <span className={vh.docText}><b>{levelLabel[d.level]}</b><small>{d.level === "none" ? "—" : dueText(d)}</small></span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>BBM</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{v.fuel || "-"}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: "var(--t3)", fontSize: 10 }}>Odometer</div>
-                    <div style={{ color: "var(--t1)", fontWeight: 600 }}>{fmtRp(v.odometer || 0)} km</div>
-                  </div>
-                </div>
-
-                <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginBottom: 12 }}>
-                  {([ ["KIR", v.kir_date], ["Service", v.service_date], ["STNK", v.stnk_date] ] as [string, string | null | undefined][]).map(([label, lastDate]) => {
-                    const docType = label as "KIR" | "STNK" | "Service";
-                    const { next, nextEarly } = nextDocDate(docType, lastDate);
-                    // Hari menuju next date (pakai nextEarly dulu kalau ada — Service 3 bulan)
-                    const daysToNext = daysUntil(next);
-                    const daysToEarly = nextEarly ? daysUntil(nextEarly) : null;
-                    // Warna: pakai countdown yang paling dekat
-                    const effectiveDays = daysToEarly !== null && daysToEarly <= 0
-                      ? daysToNext   // early sudah lewat → pakai countdown ke batas akhir
-                      : daysToEarly !== null
-                      ? daysToEarly  // Service dalam window 3-6 bulan → warnai dari early
-                      : daysToNext;
-                    const fmtDate = (ds: string) =>
-                      new Date(ds).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" });
-                    const intervalLabel = docType === "KIR" ? "(6 bln)" : docType === "STNK" ? "(1 thn)" : "(3–6 bln)";
-                    return (
-                      <div key={label} style={{ marginBottom: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
-                          <span style={{ color: "var(--t3)", fontWeight: 600 }}>{label} <span style={{ fontSize: 10, fontWeight: 400 }}>{intervalLabel}</span></span>
-                          {next ? (
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: `${urgencyColor(effectiveDays)}18`, color: urgencyColor(effectiveDays) }}>
-                              {daysToNext <= 0 ? (lang === "en" ? "Overdue" : "Lewat") : `${daysToNext}h`}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 11, color: "var(--t3)" }}>—</span>
-                          )}
+                  {open && (
+                    <div className={vh.detail}>
+                      {docs.map((d) => (
+                        <div key={d.key}>
+                          <b>{d.key}</b>
+                          <span>{L("Terakhir", "Last")}: {fmtD(d.last)}</span>
+                          <span>{L("Jatuh tempo", "Due")}: <strong className={vh["tx_" + d.level]}>{fmtD(d.next)}</strong></span>
+                          {d.key === "Service" && d.early && <span>⚡ {L("Reminder awal", "Early reminder")}: {fmtD(d.early)}</span>}
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                          <span style={{ color: "var(--t3)" }}>
-                            {lang === "en" ? "Last:" : "Terakhir:"} {lastDate ? fmtDate(lastDate) : "—"}
-                          </span>
-                          <span style={{ color: next ? urgencyColor(effectiveDays) : "var(--t3)", fontWeight: next ? 600 : 400 }}>
-                            {next
-                              ? `${lang === "en" ? "Due:" : "Jatuh:"} ${fmtDate(next)}`
-                              : (lang === "en" ? "Not set" : "Belum diisi")}
-                          </span>
-                        </div>
-                        {/* Service: tampilkan juga reminder 3 bulan kalau belum lewat */}
-                        {nextEarly && daysToEarly !== null && daysToEarly > 0 && (
-                          <div style={{ fontSize: 10.5, color: "var(--orange)", marginTop: 2, textAlign: "right" }}>
-                            ⚡ {lang === "en" ? "Early reminder:" : "Reminder awal:"} {fmtDate(nextEarly)} ({daysToEarly}h)
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => openEdit(v)}
-                    style={{
-                      flex: 1,
-                      padding: "7px",
-                      borderRadius: 8,
-                      border: "1px solid var(--border2)",
-                      background: "var(--surface2)",
-                      color: "var(--t2)",
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✏️ {t.actionEdit}
-                  </button>
-                  {isAdmin && (
-                  <button
-                    onClick={() => setConfirmDelete(v)}
-                    style={{
-                      padding: "7px 12px",
-                      borderRadius: 8,
-                      border: "1px solid var(--red)",
-                      background: "var(--red-soft)",
-                      color: "var(--red)",
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    🗑️
-                  </button>
-                   )}
+                <div className={vh.cardFoot}>
+                  <button type="button" className={vh.linkBtn} onClick={() => setOpenId(open ? null : v.id)}>{open ? L("Tutup detail", "Hide details") : L("Detail dokumen", "Document details")}</button>
+                  <span className={vh.grow} />
+                  <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️ {t.actionEdit}</button>
+                  {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
+      ) : (
+        <div className={vh.tableWrap}>
+          <table className={vh.table}>
+            <thead><tr>
+              <th>{L("Nopol", "Plate")}</th><th>{L("Kendaraan", "Vehicle")}</th><th>Status</th><th>Driver</th><th>{L("Dept", "Dept")}</th><th>Odometer</th><th>KIR</th><th>Service</th><th>STNK</th><th />
+            </tr></thead>
+            <tbody>
+              {list.map(({ v, docs }) => (
+                <tr key={v.id}>
+                  <td><span className={vh.plateSm}>{v.nopol}</span></td>
+                  <td><b>{v.jenis || "—"}</b><br /><small>{[v.year, v.fuel, v.plant].filter(Boolean).join(" · ")}</small></td>
+                  <td><span className={`${vh.pill} ${v.aktif ? vh.pillOk : vh.pillWarn}`}>{v.aktif ? L("Aktif", "Active") : "Maint."}</span></td>
+                  <td>{driverName(v.default_driver_id)}</td>
+                  <td>{v.dept || "—"}</td>
+                  <td className={vh.num}>{fmtRp(v.odometer || 0)} km</td>
+                  {docs.map((d) => <td key={d.key}><span className={`${vh.pill} ${vh["pl_" + d.level]}`}>{d.level === "none" ? "—" : dueText(d)}</span></td>)}
+                  <td className={vh.rowAct}>
+                    <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️</button>
+                    {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      </div>
 
+      <div>
       {showForm && (
         <ModalPortal onOverlayClick={() => setShowForm(false)} maxWidth={560}>
           <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
@@ -5864,28 +5921,9 @@ function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
         </ModalPortal>
       )}
 
-      {confirmDeleteGateLog && (
-        <ModalPortal onOverlayClick={() => setConfirmDeleteGateLog(null)} maxWidth={380}>
-          <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>
-              {lang === "en" ? "Delete this gate log entry?" : "Hapus catatan gate ini?"}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{confirmDeleteGateLog.nopol}</strong> — {confirmDeleteGateLog.driverName} ({formatDateLabel(confirmDeleteGateLog.createdAt.slice(0, 10))}) {lang === "en" ? "will be permanently deleted." : "akan dihapus permanen."}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDeleteGateLog(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionCancel}
-              </button>
-              <button onClick={handleDeleteGateLog} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                {t.actionYesDelete}
-              </button>
-            </div>
-          </div>
-        </ModalPortal>
-      )}
-    </div>
+
+      </div>
+    </ModulePage>
   );
 }
 
