@@ -22,6 +22,7 @@ import type { ReportColumn, ReportLang } from "@/lib/reportEngine";
 import a from "./atk.module.css";
 import g from "./ga.module.css";
 import TgaAccounts from "./TgaAccounts";
+import TgaTasks from "./TgaTasks";
 
 type Lang = "id" | "en";
 type View = "dashboard" | "matrix" | "tga" | "event" | "improvement" | "inventory" | "sync";
@@ -159,7 +160,7 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
         </div>
       )}
 
-      {noData && view !== "sync" ? (
+      {noData && view !== "sync" && view !== "tga" ? (
         <section className={a.card}>
           <p className={a.empty}>{L("Belum ada data dari Excel. Pasang modSyncGA di file ISS GA System lalu klik Sinkron CIKOPS (lihat tab Sinkron Excel).", "No data from Excel yet. Install modSyncGA in the ISS GA System file and click Sync (see the Excel Sync tab).")}</p>
         </section>
@@ -538,6 +539,8 @@ const TGA_ST: Record<string, { id: string; en: string; cls: string }> = {
   proses: { id: "Proses", en: "In progress", cls: "tagWeb" },
   pending: { id: "Pending", en: "Pending", cls: "tagPending" },
   butuh_part: { id: "Butuh part", en: "Needs part", cls: "tagPending" },
+  baru: { id: "Baru (belum diterima)", en: "New (not accepted)", cls: "tagPending" },
+  batal: { id: "Dibatalkan", en: "Cancelled", cls: "tagWeb" },
 };
 const tgaSt = (t: GaTga, lang: Lang) => (t.status ? (lang === "en" ? TGA_ST[t.status]?.en : TGA_ST[t.status]?.id) ?? t.status : "");
 
@@ -601,6 +604,7 @@ function TgaView({ lang, rows, all, periode, manpower }: { lang: Lang; rows: GaT
 
   return (
     <div className={a.dash}>
+      <TgaTasks lang={lang} />
       <div className={g.grid3}>
         <section className={a.card}>
           <div className={a.cardHead}><div><h2>{L("Aktivitas bulan ini", "Activities this month")}</h2><p>{L("Perbaikan / permintaan yang dikerjakan TGA", "Repairs / requests handled by TGA")}</p></div></div>

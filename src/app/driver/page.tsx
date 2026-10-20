@@ -22,6 +22,8 @@ import { computeStats, plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
 import { todayLocalISODate } from "@/lib/dateUtils";
+import { enablePush, disablePush, pushState, testPush, type PushState, type PushSubData } from "@/lib/push";
+import { supabase } from "@/lib/supabaseClient";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeLabel } from "@/lib/duty";
 
 type Screen = "splash" | "login" | "app";
@@ -1722,6 +1724,8 @@ function ProfileTab({
         )}
       </div>
 
+      <DriverNotifSection />
+
       <div className={styles.profileSection}>
         <div className={styles.profileSectionHeader}>{t.keamanan}</div>
         <div className={styles.profileRow}>
@@ -1744,6 +1748,61 @@ function ProfileTab({
       </div>
 
       <div className={styles.profileFooter}>CIKOPS-FM SYSTEM v1.0</div>
+    </div>
+  );
+}
+
+/** Notifikasi push (Web Push) — HP berbunyi saat ada tugas baru walau aplikasi tertutup. */
+function DriverNotifSection() {
+  const { lang } = useLang();
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const [st, setSt] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Aplikasi Median (APK lama) memakai OneSignal sendiri
+  const median = typeof window !== "undefined" && !!(window as unknown as { median?: unknown }).median;
+  useEffect(() => { pushState().then(setSt); }, []);
+  async function run(fn: () => Promise<void>, ok: string) {
+    setBusy(true); setMsg(null);
+    try { await fn(); setMsg({ ok: true, text: ok }); }
+    catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
+    finally { setBusy(false); setSt(await pushState()); }
+  }
+  const register = async (s: PushSubData) => {
+    const { error } = await supabase.rpc("push_subscribe_driver", { p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_ua: s.ua });
+    if (error) throw new Error(/could not find the function/i.test(error.message) ? L("Notifikasi belum aktif di server — admin perlu menjalankan 036.", "Notifications not set up on the server yet (run 036).") : error.message);
+  };
+  const desc = median ? L("Notifikasi diatur oleh aplikasi (OneSignal).", "Notifications are handled by the app (OneSignal).")
+    : st === "on" ? L("Aktif — HP berbunyi saat ada tugas baru walau aplikasi tertutup.", "On — your phone rings for new tasks even when the app is closed.")
+    : st === "denied" ? L("Diblokir. Izinkan notifikasi di pengaturan situs / aplikasi, lalu coba lagi.", "Blocked. Allow notifications in site / app settings, then retry.")
+    : st === "ios-install" ? L("iPhone: pasang dulu ke Layar Utama, buka dari ikon, lalu aktifkan.", "iPhone: add to Home Screen first, open from the icon, then enable.")
+    : st === "unsupported" ? L("Browser ini belum mendukung notifikasi — pakai Chrome.", "This browser doesn't support notifications — use Chrome.")
+    : L("Aktifkan supaya HP berdering saat ada tugas baru.", "Enable so your phone rings for new tasks.");
+  return (
+    <div className={styles.profileSection}>
+      <div className={styles.profileSectionHeader}>{L("Notifikasi", "Notifications")}</div>
+      <div className={styles.profileRow}>
+        <span className={styles.profileRowIco}>🔔</span>
+        <span className={styles.profileRowLabel} style={{ whiteSpace: "normal", lineHeight: 1.35 }}>{desc}</span>
+        {!median && (st === "off" || st === "denied") && (
+          <button className={styles.pinRowBtn} disabled={busy} onClick={() => run(() => enablePush(register), L("Notifikasi aktif! 🎉", "Notifications on! 🎉"))}>
+            {busy ? "…" : L("Aktifkan", "Enable")}
+          </button>
+        )}
+        {!median && st === "on" && (
+          <button className={styles.pinRowBtn} disabled={busy} onClick={() => run(() => testPush({ app: "driver" }), L("Tes dikirim — cek bar notifikasi.", "Test sent — check your notifications."))}>
+            {L("Tes", "Test")}
+          </button>
+        )}
+      </div>
+      {!median && st === "on" && (
+        <div className={styles.profileRow}>
+          <span className={styles.profileRowIco}>🔕</span>
+          <span className={styles.profileRowLabel}>{L("Matikan untuk HP ini", "Turn off on this phone")}</span>
+          <button className={styles.pinRowBtn} disabled={busy} onClick={() => run(disablePush, L("Notifikasi dimatikan.", "Notifications off."))}>{L("Matikan", "Off")}</button>
+        </div>
+      )}
+      {msg && <div style={{ padding: "8px 16px 12px", fontSize: 13, fontWeight: 700, color: msg.ok ? "var(--green-text, #15803d)" : "var(--red, #dc2626)" }}>{msg.text}</div>}
     </div>
   );
 }

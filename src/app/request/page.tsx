@@ -2,8 +2,10 @@
 import { useState, useEffect } from "react";
 import type { CSSProperties } from "react";
 import { submitEmployeeRequest, submitPrinterRequestPublic, getPrinterLocationsPublic } from "@/lib/api";
+import { TGA_CATEGORIES, tgaRequestPublic } from "@/lib/tga/api";
+import { notifyTgaTask } from "@/lib/push";
 
-type FormKind = "DRIVER" | "PRINTER" | "OTHER";
+type FormKind = "DRIVER" | "PRINTER" | "TGA" | "OTHER";
 
 /** Identitas dokumen resmi di bukti cetak — ubah di sini kalau ada
  *  pergantian administrator atau data perusahaan. */
@@ -34,6 +36,8 @@ function todayISO(): string {
 
 interface Receipt {
   refId: string;
+  /** Nomor resmi dari server (mis. TGA-2610-001); kosong → dibentuk dari refId */
+  refNo?: string;
   createdAt: string;
   kind: FormKind;
   employeeName: string;
@@ -64,6 +68,11 @@ export default function RequestPage() {
   // Other fields
   const [description, setDescription] = useState("");
 
+  // TGA (perbaikan / teknisi GA)
+  const [tgaKategori, setTgaKategori] = useState("");
+  const [tgaLokasi, setTgaLokasi] = useState("");
+  const [tgaUrgent, setTgaUrgent] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -82,6 +91,7 @@ export default function RequestPage() {
     setEventDate(todayISO()); setDestination(""); setDepartureTime(""); setPurpose(""); setAdditionalNotes("");
     setPrintAction("RESET_KUOTA"); setPrintUserId(""); setPrintReason(""); setSelectedAreas([]);
     setDescription("");
+    setTgaKategori(""); setTgaLokasi(""); setTgaUrgent(false);
     setReceipt(null); setError("");
   }
 
@@ -94,6 +104,8 @@ export default function RequestPage() {
       ? printAction === "RESET_KUOTA"
         ? selectedAreas.length > 0
         : printUserId.trim() !== ""
+      : kind === "TGA"
+      ? tgaLokasi.trim() !== "" && description.trim().length >= 5
       : description.trim() !== "");
 
   async function handleSubmit() {
@@ -142,6 +154,23 @@ export default function RequestPage() {
             ...(printAction === "TAMBAH_KUOTA" ? [{ label: "Alasan / Keperluan", value: printReason.trim() }] : []),
           ],
         });
+      } else if (kind === "TGA") {
+        const kat = tgaKategori || "Lainnya";
+        const result = await tgaRequestPublic({
+          nama: employeeName.trim(), dept: department.trim(), phone: phone.trim(), kategori: kat,
+          lokasi: tgaLokasi.trim(), activity: description.trim(), prioritas: tgaUrgent ? "urgent" : "normal",
+        });
+        notifyTgaTask(result.id); // HP teknisi TGA berdering
+        setReceipt({
+          refId: result.id, refNo: result.ref_no, createdAt: new Date().toISOString(), kind, employeeName: employeeName.trim(), department: department.trim(),
+          lines: [
+            { label: "Jenis Pekerjaan", value: kat },
+            { label: "Lokasi", value: tgaLokasi.trim() },
+            { label: "Masalah / Permintaan", value: description.trim() },
+            { label: "Prioritas", value: tgaUrgent ? "URGENT" : "Normal" },
+            { label: "Status", value: "Diteruskan ke teknisi GA (TGA)" },
+          ],
+        });
       } else {
         const result = await submitEmployeeRequest({
           requestType: "OTHER",
@@ -169,8 +198,8 @@ export default function RequestPage() {
   }
 
   if (receipt) {
-    const kindLabel = receipt.kind === "DRIVER" ? "Request Driver / Kendaraan" : receipt.kind === "PRINTER" ? "Permintaan Kuota Printer" : "Permintaan Lainnya";
-    const refNo = `REQ-${new Date(receipt.createdAt).toISOString().slice(0, 10).replace(/-/g, "")}-${receipt.refId.slice(0, 6).toUpperCase()}`;
+    const kindLabel = receipt.kind === "DRIVER" ? "Request Driver / Kendaraan" : receipt.kind === "PRINTER" ? "Permintaan Kuota Printer" : receipt.kind === "TGA" ? "Perbaikan / Teknisi GA" : "Permintaan Lainnya";
+    const refNo = receipt.refNo || `REQ-${new Date(receipt.createdAt).toISOString().slice(0, 10).replace(/-/g, "")}-${receipt.refId.slice(0, 6).toUpperCase()}`;
     return (
       <div style={{ minHeight: "100vh", background: "#eef3fc", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
         <div style={{ width: "100%", maxWidth: 480 }}>
@@ -297,6 +326,7 @@ export default function RequestPage() {
             {([
               ["DRIVER", "🚗", "Request Driver / Kendaraan"],
               ["PRINTER", "🖨️", "Reset / Tambah Kuota Printer"],
+              ["TGA", "🔧", "Perbaikan / Teknisi GA (AC, listrik, air, dll.)"],
               ["OTHER", "📝", "Lainnya"],
             ] as const).map(([val, icon, label]) => (
               <button
@@ -418,6 +448,31 @@ export default function RequestPage() {
               </>
             )}
           </>
+        )}
+
+        {kind === "TGA" && (
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>JENIS PEKERJAAN</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {TGA_CATEGORIES.map((c) => (
+                <button key={c.id} type="button" onClick={() => setTgaKategori(tgaKategori === c.id ? "" : c.id)}
+                  style={{ padding: "8px 12px", borderRadius: 99, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    border: tgaKategori === c.id ? "2px solid #2d5bff" : "1.5px solid #e1e8f5", background: tgaKategori === c.id ? "#eef3ff" : "#fff", color: tgaKategori === c.id ? "#1d44d6" : "#44537a" }}>
+                  {c.icon} {c.id}
+                </button>
+              ))}
+            </div>
+            <label style={labelStyle}>LOKASI *</label>
+            <input value={tgaLokasi} onChange={(e) => setTgaLokasi(e.target.value)} placeholder="Contoh: Ruang meeting lt. 2, Gedung A" style={{ ...inputStyle, marginBottom: 14 }} />
+            <label style={labelStyle}>MASALAH / YANG PERLU DIKERJAKAN *</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Contoh: AC tidak dingin dan menetes air" style={{ ...inputStyle, resize: "vertical", marginBottom: 12 }} />
+            <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+              border: tgaUrgent ? "2px solid #e5484d" : "1.5px solid #e1e8f5", background: tgaUrgent ? "#fff1f2" : "#fff" }}>
+              <input type="checkbox" checked={tgaUrgent} onChange={(e) => setTgaUrgent(e.target.checked)} style={{ width: 18, height: 18 }} />
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: tgaUrgent ? "#c42b31" : "#0d1a36" }}>🔥 Mendesak (mengganggu pekerjaan / keselamatan)</span>
+            </label>
+            <div style={{ fontSize: 12, color: "#7886a8", marginTop: 10, lineHeight: 1.5 }}>Permintaan langsung masuk ke aplikasi teknisi GA. Isi No. HP supaya teknisi bisa menghubungi Anda.</div>
+          </div>
         )}
 
         {kind === "OTHER" && (

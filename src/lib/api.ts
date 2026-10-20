@@ -577,9 +577,11 @@ export async function sendPushToDriver(
   data?: Record<string, string>
 ): Promise<void> {
   try {
-    await supabase.functions.invoke("send-push-notification", {
-      body: { driverIds, title, body, data: data ?? {} },
-    });
+    // OneSignal (APK Median) + Web Push (PWA / APK GitHub, migrasi 036) — keduanya non-kritis
+    await Promise.allSettled([
+      supabase.functions.invoke("send-push-notification", { body: { driverIds, title, body, data: data ?? {} } }),
+      supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body } }),
+    ]);
   } catch (e) {
     console.warn("Push notification failed (non-critical):", e);
   }

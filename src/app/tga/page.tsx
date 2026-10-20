@@ -6,9 +6,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./tga.module.css";
+import { createRinger, enablePush, disablePush, pushState, testPush, type PushState } from "@/lib/push";
 import {
-  TGA_CATEGORIES, TGA_STATUS, isSessionError, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
-  tgaCachedRequestors, tgaRequestors, tgaSave, tgaStatusLabel, tgaStoredSession,
+  TGA_CATEGORIES, TGA_SOURCE_LABEL, TGA_STATUS, isSessionError, tgaAccept, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
+  tgaCachedRequestors, tgaPushSubscribe, tgaRequestors, tgaSave, tgaStatusInfo, tgaStatusLabel, tgaStoredSession,
   type TgaActivity, type TgaDraft, type TgaMyData, type TgaRequestor, type TgaStatus,
 } from "@/lib/tga/api";
 
@@ -66,6 +67,9 @@ export default function TgaAppPage() {
   const [online, setOnline] = useState(true);
   const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [incoming, setIncoming] = useState<TgaActivity | null>(null);
+  const ringer = useRef<ReturnType<typeof createRinger> | null>(null);
+  const knownNew = useRef<Set<string> | null>(null);
 
   const today = data?.today ?? localToday();
 
@@ -109,6 +113,17 @@ export default function TgaAppPage() {
     try {
       const d = await tgaMyData(token, 90);
       setData(d); setLoadErr(null);
+      // Tugas baru (untukku atau permintaan terbuka) sejak pemeriksaan terakhir → bunyikan
+      const fresh = [...d.activities.filter((a) => a.status === "baru"), ...(d.pool ?? [])];
+      if (knownNew.current) {
+        const added = fresh.filter((a) => !knownNew.current!.has(a.id));
+        if (added.length) {
+          const first = added.find((a) => !a.pool) ?? added[0];
+          setIncoming(first);
+          ringer.current?.ring(6);
+        }
+      }
+      knownNew.current = new Set(fresh.map((a) => a.id));
     } catch (e) {
       if (isSessionError(e)) { signOut("Sesi berakhir — silakan masuk lagi."); return; }
       setLoadErr(e instanceof Error ? e.message : String(e));
@@ -121,8 +136,25 @@ export default function TgaAppPage() {
     tgaRequestors(token).then(setRequestors).catch(() => {});
     const onVis = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
+    // Cek tugas baru tiap 20 detik selama aplikasi terbuka
+    const poll = setInterval(() => { if (document.visibilityState === "visible") load(); }, 20000);
+    const onMsg = (e: MessageEvent) => { if (e.data?.type === "push-click") load(); };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(poll);
+      navigator.serviceWorker?.removeEventListener("message", onMsg);
+    };
   }, [screen, token, load]);
+
+  // Nada dering: browser hanya mengizinkan suara setelah layar disentuh sekali
+  useEffect(() => {
+    ringer.current = createRinger("/notif.wav");
+    const unlock = () => ringer.current?.unlock();
+    document.addEventListener("touchstart", unlock, { once: true, passive: true });
+    document.addEventListener("click", unlock, { once: true });
+    return () => { document.removeEventListener("touchstart", unlock); document.removeEventListener("click", unlock); ringer.current?.stop(); };
+  }, []);
 
   const formOpen = form !== null;
   useEffect(() => {
@@ -130,6 +162,7 @@ export default function TgaAppPage() {
   }, [formOpen, token]);
 
   const acts = useMemo(() => data?.activities ?? [], [data]);
+  const pool = useMemo(() => data?.pool ?? [], [data]);
   const recentReqIds = useMemo(() => {
     const seen: string[] = [];
     acts.forEach((a) => { if (a.requestor_id && !seen.includes(a.requestor_id)) seen.push(a.requestor_id); });
@@ -156,6 +189,20 @@ export default function TgaAppPage() {
     } catch (e) {
       if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
       flash(e instanceof Error ? e.message : String(e));
+    }
+  }
+  async function accept(a: TgaActivity) {
+    ringer.current?.stop(); setIncoming(null);
+    try {
+      const r = await tgaAccept(token, a.id);
+      upsertLocal(r);
+      setData((d) => d && ({ ...d, pool: (d.pool ?? []).filter((x) => x.id !== a.id) }));
+      setDetail(null); flash(`👍 ${r.ref_no} diterima — selamat bekerja!`);
+      if (navigator.vibrate) navigator.vibrate(40);
+    } catch (e) {
+      if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
+      flash(e instanceof Error ? e.message : String(e));
+      load();
     }
   }
   async function remove(a: TgaActivity) {
@@ -200,11 +247,11 @@ export default function TgaAppPage() {
         {loadErr && <div className={s.errBox}>{loadErr} <button type="button" onClick={load}>Coba lagi</button></div>}
         {!data && !loadErr ? <Skeleton /> : (
           <>
-            {tab === "home" && <Home acts={acts} today={today} onOpen={setDetail} onDone={quickDone} onNew={() => setForm({ id: null, draft: emptyDraft(today) })} />}
-            {tab === "open" && <OpenList acts={acts} today={today} onOpen={setDetail} onDone={quickDone} />}
+            {tab === "home" && <Home acts={acts} pool={pool} today={today} onOpen={setDetail} onDone={quickDone} onAccept={accept} onNew={() => setForm({ id: null, draft: emptyDraft(today) })} />}
+            {tab === "open" && <OpenList acts={acts} pool={pool} today={today} onOpen={setDetail} onDone={quickDone} onAccept={accept} />}
             {tab === "history" && <History acts={acts} today={today} onOpen={setDetail} />}
             {tab === "profile" && (
-              <Profile nama={nama} acts={acts} monthCount={data?.month_count ?? 0} today={today}
+              <Profile nama={nama} acts={acts} monthCount={data?.month_count ?? 0} today={today} token={token}
                 installEvt={installEvt} installed={installed}
                 onInstall={async () => { if (!installEvt) return; await installEvt.prompt(); const c = await installEvt.userChoice; if (c.outcome === "accepted") setInstalled(true); setInstallEvt(null); }}
                 onLogout={() => { if (confirm("Keluar dari aplikasi TGA?")) signOut(); }} />
@@ -219,12 +266,12 @@ export default function TgaAppPage() {
         <button type="button" className={s.fab} onClick={() => setForm({ id: null, draft: emptyDraft(today) })} aria-label="Catat kegiatan baru">
           <span>＋</span>
         </button>
-        <NavBtn on={tab === "open"} icon="◷" label="Terbuka" badge={acts.filter((a) => a.status !== "selesai").length} onClick={() => setTab("open")} />
+        <NavBtn on={tab === "open"} icon="◷" label="Terbuka" badge={acts.filter((a) => a.status !== "selesai").length + pool.length} onClick={() => setTab("open")} />
         <NavBtn on={tab === "profile"} icon="◉" label="Profil" onClick={() => setTab("profile")} />
       </nav>
 
       {detail && (
-        <Detail a={detail} today={today} onClose={() => setDetail(null)} onDone={() => quickDone(detail)}
+        <Detail a={detail} today={today} onClose={() => setDetail(null)} onDone={() => quickDone(detail)} onAccept={() => accept(detail)}
           onEdit={() => { setForm({ id: detail.id, draft: draftOf(detail) }); setDetail(null); }} onDelete={() => remove(detail)} />
       )}
 
@@ -246,7 +293,33 @@ export default function TgaAppPage() {
           onAnother={() => { setSaved(null); setForm({ id: null, draft: { ...emptyDraft(today), kategori: saved.a.kategori, lokasi: saved.a.lokasi } }); }} />
       )}
 
+      {incoming && (
+        <Incoming a={incoming} onAccept={() => accept(incoming)} onLater={() => { ringer.current?.stop(); setIncoming(null); }} />
+      )}
+
       {toast && <div className={s.toast}>{toast}</div>}
+    </div>
+  );
+}
+
+/* ════════════ TUGAS MASUK (berdering) ════════════ */
+function Incoming({ a, onAccept, onLater }: { a: TgaActivity; onAccept: () => void; onLater: () => void }) {
+  const c = tgaCategory(a.kategori);
+  return (
+    <div className={s.incomingWrap} role="alertdialog" aria-modal="true" aria-labelledby="tga-incoming">
+      <div className={s.incomingCard}>
+        <div className={s.bell}>🔔</div>
+        <small className={s.incomingKicker}>{a.pool ? "Permintaan baru · siapa cepat" : "Tugas baru untukmu"}</small>
+        <h2 id="tga-incoming">{a.activity}</h2>
+        <div className={s.incomingMeta}>
+          <span>{c.icon} {c.id}</span>
+          {a.lokasi && <span>📍 {a.lokasi}</span>}
+          {a.request_by && <span>👤 {a.request_by}{a.departemen ? ` · ${a.departemen}` : ""}</span>}
+          {a.prioritas === "urgent" && <span className={s.urgent}>URGENT</span>}
+        </div>
+        <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? "✋ Ambil tugas ini" : "✓ Terima & kerjakan"}</button>
+        <button type="button" className={s.ghostBtn} onClick={onLater}>Nanti</button>
+      </div>
     </div>
   );
 }
@@ -352,11 +425,52 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
 }
 
 /* ════════════ BERANDA ════════════ */
-function Home({ acts, today, onOpen, onDone, onNew }: {
-  acts: TgaActivity[]; today: string; onOpen: (a: TgaActivity) => void; onDone: (a: TgaActivity) => void; onNew: () => void;
+/** Ajakan singkat mengaktifkan notifikasi (sampai aktif / ditutup). */
+function NotifNudge() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    let off = false;
+    try { off = localStorage.getItem("cikops_tga_nudge") === "0"; } catch {}
+    if (!off) pushState().then((st) => setShow(st === "off" || st === "ios-install"));
+  }, []);
+  if (!show) return null;
+  return (
+    <div className={s.nudge}>
+      <span>🔔</span>
+      <p><b>Aktifkan notifikasi</b><small>Supaya HP berdering saat ada tugas baru. Buka tab Profil.</small></p>
+      <button type="button" aria-label="Tutup" onClick={() => { setShow(false); try { localStorage.setItem("cikops_tga_nudge", "0"); } catch {} }}>✕</button>
+    </div>
+  );
+}
+
+function TaskCard({ a, today, onOpen, onAccept }: { a: TgaActivity; today: string; onOpen: (a: TgaActivity) => void; onAccept: (a: TgaActivity) => void }) {
+  const c = tgaCategory(a.kategori);
+  return (
+    <div className={`${s.taskCard} ${a.prioritas === "urgent" ? s.taskUrgent : ""}`} onClick={() => onOpen(a)} role="button" tabIndex={0}>
+      <div className={s.taskTop}>
+        <span className={s.catIcon} style={{ ["--h" as string]: c.hue }}>{c.icon}</span>
+        <div className={s.rowBody}>
+          <small className={s.taskFrom}>{a.pool ? "Siapa cepat" : TGA_SOURCE_LABEL[a.sumber ?? "tugas"]}{a.assigned_by && a.sumber === "tugas" ? ` · ${a.assigned_by}` : ""}</small>
+          <b className={s.taskTitle}>{a.activity}</b>
+          <div className={s.rowMeta}>
+            {a.lokasi && <span>📍 {a.lokasi}</span>}
+            {a.request_by && <span>👤 {a.request_by}</span>}
+            {a.tanggal !== today && <span>{fmtDay(a.tanggal, today)}</span>}
+          </div>
+        </div>
+        {a.prioritas === "urgent" && <span className={s.urgent}>URGENT</span>}
+      </div>
+      <button type="button" className={s.acceptBtn} onClick={(e) => { e.stopPropagation(); onAccept(a); }}>{a.pool ? "✋ Ambil tugas" : "✓ Terima & kerjakan"}</button>
+    </div>
+  );
+}
+
+function Home({ acts, pool, today, onOpen, onDone, onAccept, onNew }: {
+  acts: TgaActivity[]; pool: TgaActivity[]; today: string; onOpen: (a: TgaActivity) => void; onDone: (a: TgaActivity) => void; onAccept: (a: TgaActivity) => void; onNew: () => void;
 }) {
-  const todayActs = acts.filter((a) => a.tanggal === today);
-  const open = acts.filter((a) => a.status !== "selesai");
+  const mine = acts.filter((a) => a.status === "baru");
+  const todayActs = acts.filter((a) => a.tanggal === today && a.status !== "baru");
+  const open = acts.filter((a) => a.status !== "selesai" && a.status !== "baru");
   const doneToday = todayActs.filter((a) => a.status === "selesai").length;
   const weekStart = (() => { const d = new Date(today + "T00:00:00"); d.setDate(d.getDate() - 6); return d; })();
   const week = Array.from({ length: 7 }, (_, i) => {
@@ -369,6 +483,7 @@ function Home({ acts, today, onOpen, onDone, onNew }: {
 
   return (
     <div className={s.stack}>
+      <NotifNudge />
       <section className={s.statCard}>
         <div className={s.ring} style={{ ["--p" as string]: pct }}>
           <div><b>{todayActs.length}</b><small>hari ini</small></div>
@@ -379,6 +494,16 @@ function Home({ acts, today, onOpen, onDone, onNew }: {
           <div><i className={s.tRed} /> <span>Urgent terbuka</span><b>{open.filter((a) => a.prioritas === "urgent").length}</b></div>
         </div>
       </section>
+
+      {(mine.length > 0 || pool.length > 0) && (
+        <section>
+          <div className={s.secHead}><h3>🔔 Tugas masuk</h3><span className={`${s.badge} ${s.badgeRed}`}>{mine.length + pool.length}</span></div>
+          <div className={s.list}>
+            {mine.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}
+            {pool.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}
+          </div>
+        </section>
+      )}
 
       <section className={s.card}>
         <div className={s.cardHead}><h3>7 hari terakhir</h3><span>{week.reduce((x, w) => x + w.n, 0)} kegiatan</span></div>
@@ -420,7 +545,7 @@ function Home({ acts, today, onOpen, onDone, onNew }: {
 
 function ActRow({ a, today, onOpen, onDone, showDate }: { a: TgaActivity; today: string; onOpen: (a: TgaActivity) => void; onDone?: (a: TgaActivity) => void; showDate?: boolean }) {
   const c = tgaCategory(a.kategori);
-  const st = TGA_STATUS.find((x) => x.id === a.status);
+  const st = tgaStatusInfo(a.status);
   return (
     <div className={s.row} onClick={() => onOpen(a)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOpen(a); }}>
       <span className={s.catIcon} style={{ ["--h" as string]: c.hue }}>{c.icon}</span>
@@ -436,7 +561,9 @@ function ActRow({ a, today, onOpen, onDone, showDate }: { a: TgaActivity; today:
           {a.request_by && <span>👤 {a.request_by}</span>}
         </div>
       </div>
-      {a.status !== "selesai" && onDone ? (
+      {a.status === "baru" ? (
+        <span className={`${s.pill} ${s.t_red}`}>Baru</span>
+      ) : a.status !== "selesai" && onDone ? (
         <button type="button" className={s.doneBtn} onClick={(e) => { e.stopPropagation(); onDone(a); }} aria-label="Tandai selesai" title="Tandai selesai">✓</button>
       ) : (
         <span className={`${s.pill} ${s["t_" + (st?.tone ?? "green")]}`}>{st?.short ?? a.status}</span>
@@ -446,8 +573,11 @@ function ActRow({ a, today, onOpen, onDone, showDate }: { a: TgaActivity; today:
 }
 
 /* ════════════ TERBUKA ════════════ */
-function OpenList({ acts, today, onOpen, onDone }: { acts: TgaActivity[]; today: string; onOpen: (a: TgaActivity) => void; onDone: (a: TgaActivity) => void }) {
-  const open = acts.filter((a) => a.status !== "selesai")
+function OpenList({ acts, pool, today, onOpen, onDone, onAccept }: {
+  acts: TgaActivity[]; pool: TgaActivity[]; today: string; onOpen: (a: TgaActivity) => void; onDone: (a: TgaActivity) => void; onAccept: (a: TgaActivity) => void;
+}) {
+  const incoming = [...acts.filter((a) => a.status === "baru"), ...pool];
+  const open = acts.filter((a) => a.status !== "selesai" && a.status !== "baru")
     .sort((x, y) => (x.prioritas === "urgent" ? 0 : 1) - (y.prioritas === "urgent" ? 0 : 1) || x.tanggal.localeCompare(y.tanggal));
   return (
     <div className={s.stack}>
@@ -456,11 +586,17 @@ function OpenList({ acts, today, onOpen, onDone }: { acts: TgaActivity[]; today:
           <div key={x.id} className={s["t_" + x.tone]}><b>{open.filter((a) => a.status === x.id).length}</b><span>{x.label}</span></div>
         ))}
       </div>
-      {open.length === 0 ? (
-        <div className={s.emptyBox}><span className={s.emptyIcon}>🎉</span><b>Semua pekerjaan selesai</b><small>Tidak ada pekerjaan yang masih terbuka.</small></div>
-      ) : (
+      {incoming.length > 0 && (
         <>
-          <p className={s.count}>Urgent di atas · ketuk ✓ bila sudah selesai</p>
+          <p className={s.count}>🔔 Menunggu diterima / diambil</p>
+          <div className={s.list}>{incoming.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}</div>
+        </>
+      )}
+      {open.length === 0 && incoming.length === 0 ? (
+        <div className={s.emptyBox}><span className={s.emptyIcon}>🎉</span><b>Semua pekerjaan selesai</b><small>Tidak ada pekerjaan yang masih terbuka.</small></div>
+      ) : open.length === 0 ? null : (
+        <>
+          <p className={s.count}>Sedang dikerjakan · urgent di atas · ketuk ✓ bila sudah selesai</p>
           <div className={s.list}>{open.map((a) => <ActRow key={a.id} a={a} today={today} onOpen={onOpen} onDone={onDone} showDate />)}</div>
         </>
       )}
@@ -507,8 +643,8 @@ function History({ acts, today, onOpen }: { acts: TgaActivity[]; today: string; 
 }
 
 /* ════════════ PROFIL ════════════ */
-function Profile({ nama, acts, monthCount, today, installEvt, installed, onInstall, onLogout }: {
-  nama: string; acts: TgaActivity[]; monthCount: number; today: string;
+function Profile({ nama, acts, monthCount, today, token, installEvt, installed, onInstall, onLogout }: {
+  nama: string; acts: TgaActivity[]; monthCount: number; today: string; token: string;
   installEvt: BeforeInstallPromptEvent | null; installed: boolean; onInstall: () => void; onLogout: () => void;
 }) {
   const month = acts.filter((a) => a.tanggal.slice(0, 7) === today.slice(0, 7));
@@ -545,6 +681,8 @@ function Profile({ nama, acts, monthCount, today, installEvt, installed, onInsta
         )}
       </section>
 
+      <NotifCard token={token} />
+
       <section className={s.card}>
         <div className={s.cardHead}><h3>📲 Pasang di HP</h3></div>
         {installed ? <p className={s.muted}>Aplikasi sudah terpasang di layar utama. 👍</p>
@@ -574,12 +712,50 @@ function Profile({ nama, acts, monthCount, today, installEvt, installed, onInsta
   );
 }
 
+/* ════════════ NOTIFIKASI ════════════ */
+function NotifCard({ token }: { token: string }) {
+  const [st, setSt] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => { pushState().then(setSt); }, []);
+  async function run(fn: () => Promise<void>, ok: string) {
+    setBusy(true); setMsg(null);
+    try { await fn(); setMsg({ ok: true, text: ok }); }
+    catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
+    finally { setBusy(false); setSt(await pushState()); }
+  }
+  return (
+    <section className={`${s.card} ${s.notifCard}`}>
+      <div className={s.cardHead}><h3>🔔 Notifikasi & nada dering</h3>{st === "on" && <span className={`${s.pill} ${s.t_green}`}>Aktif</span>}</div>
+      <p className={s.muted}>
+        {st === "on" ? "HP ini akan berbunyi & bergetar saat ada tugas baru, walau aplikasi tertutup."
+          : st === "denied" ? "Notifikasi diblokir. Buka pengaturan situs / aplikasi di HP → Notifikasi → Izinkan, lalu coba lagi."
+          : st === "ios-install" ? "Di iPhone: pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), buka dari ikon, lalu aktifkan di sini."
+          : st === "unsupported" ? "Browser ini belum mendukung notifikasi. Buka aplikasi lewat Chrome."
+          : "Aktifkan supaya HP berbunyi saat admin atau karyawan memberi tugas baru."}
+      </p>
+      {st === "on" ? (
+        <div className={s.btnRow}>
+          <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => run(() => testPush({ app: "tga", token }), "Notifikasi tes dikirim — cek bar notifikasi HP.")}>Kirim tes</button>
+          <button type="button" className={`${s.ghostBtn} ${s.danger}`} disabled={busy} onClick={() => run(disablePush, "Notifikasi dimatikan untuk HP ini.")}>Matikan</button>
+        </div>
+      ) : st === "off" || st === "denied" ? (
+        <button type="button" className={s.primaryBtn} disabled={busy} onClick={() => run(() => enablePush((sub) => tgaPushSubscribe(token, sub)), "Notifikasi aktif! 🎉")}>
+          {busy ? "Mengaktifkan…" : "🔔 Aktifkan notifikasi"}
+        </button>
+      ) : null}
+      {msg && <p className={msg.ok ? s.okText : s.errText}>{msg.text}</p>}
+    </section>
+  );
+}
+
 /* ════════════ DETAIL ════════════ */
-function Detail({ a, today, onClose, onDone, onEdit, onDelete }: {
-  a: TgaActivity; today: string; onClose: () => void; onDone: () => void; onEdit: () => void; onDelete: () => void;
+function Detail({ a, today, onClose, onDone, onAccept, onEdit, onDelete }: {
+  a: TgaActivity; today: string; onClose: () => void; onDone: () => void; onAccept: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const c = tgaCategory(a.kategori);
-  const st = TGA_STATUS.find((x) => x.id === a.status);
+  const st = tgaStatusInfo(a.status);
+  const fromOthers = (a.sumber ?? "mandiri") !== "mandiri";
   return (
     <div className={s.sheetWrap} onClick={onClose}>
       <div className={s.sheet} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
@@ -600,14 +776,22 @@ function Detail({ a, today, onClose, onDone, onEdit, onDelete }: {
           <div><dt>Jam</dt><dd>{a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? ` – ${a.jam_selesai}` : ""}` : "—"}</dd></div>
           <div><dt>Lokasi</dt><dd>{a.lokasi || "—"}</dd></div>
           <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}{a.request_by && !a.requestor_id ? <small> (di luar data karyawan)</small> : null}</dd></div>
+          {fromOthers && <div><dt>Sumber</dt><dd>{a.pool ? "Siapa cepat" : TGA_SOURCE_LABEL[a.sumber ?? "tugas"]}{a.assigned_by && a.sumber === "tugas" ? <small> · {a.assigned_by}</small> : null}</dd></div>}
+          {a.request_phone && <div><dt>Kontak</dt><dd><a className={s.callLink} href={`tel:${a.request_phone.replace(/[^\d+]/g, "")}`}>📞 {a.request_phone}</a></dd></div>}
           {a.catatan && <div className={s.dlWide}><dt>Catatan</dt><dd>{a.catatan}</dd></div>}
         </dl>
         <div className={s.sheetActions}>
-          {a.status !== "selesai" && <button type="button" className={s.primaryBtn} onClick={onDone}>✓ Tandai selesai</button>}
-          <div className={s.btnRow}>
-            <button type="button" className={s.ghostBtn} onClick={onEdit}>✎ Ubah</button>
-            <button type="button" className={`${s.ghostBtn} ${s.danger}`} onClick={onDelete}>🗑 Hapus</button>
-          </div>
+          {a.status === "baru" ? (
+            <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? "✋ Ambil tugas ini" : "✓ Terima & kerjakan"}</button>
+          ) : (
+            <>
+              {a.status !== "selesai" && <button type="button" className={s.primaryBtn} onClick={onDone}>✓ Tandai selesai</button>}
+              <div className={fromOthers ? undefined : s.btnRow}>
+                <button type="button" className={s.ghostBtn} onClick={onEdit}>✎ {fromOthers ? "Ubah status / catatan" : "Ubah"}</button>
+                {!fromOthers && <button type="button" className={`${s.ghostBtn} ${s.danger}`} onClick={onDelete}>🗑 Hapus</button>}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
