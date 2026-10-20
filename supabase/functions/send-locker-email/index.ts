@@ -38,6 +38,12 @@ function reasonText(p: LockerEmailPayload): string {
   return isEmployee ? "Karyawan mengakhiri penggunaan locker" : "Peserta magang mengonfirmasi selesai tugas";
 }
 
+/** Rapatkan HTML (sama dengan fungsi email lain). denomailer mengirim HTML sebagai
+ *  quoted-printable; baris ber-indentasi membuat "=20" tampil di sebagian aplikasi email. */
+function minify(html: string): string {
+  return html.replace(/>\s+</g, "><").replace(/\s{2,}/g, " ").trim();
+}
+
 /* ═══════════════ TEMPLATE: register (ke user) ═══════════════ */
 function registerUserTemplate(p: LockerEmailPayload) {
   const subject = "Locker Registration Confirmation";
@@ -203,20 +209,20 @@ serve(async (req) => {
     if (payload.kind === "register") {
       if (payload.toEmail) {
         const { subject, html } = registerUserTemplate(payload);
-        await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: payload.toEmail, subject, content: "HTML required", html });
+        await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: payload.toEmail, subject, content: "HTML required", html: minify(html) });
         sent.push("user");
       }
       const { subject, html } = registerAdminTemplate(payload);
-      await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: ADMIN_EMAIL, subject, content: "HTML required", html });
+      await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: ADMIN_EMAIL, subject, content: "HTML required", html: minify(html) });
       sent.push("admin");
     } else if (payload.kind === "release") {
       if (payload.toEmail) {
         const { subject, html } = releaseUserTemplate(payload);
-        await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: payload.toEmail, subject, content: "HTML required", html });
+        await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: payload.toEmail, subject, content: "HTML required", html: minify(html) });
         sent.push("user");
       }
       const { subject, html } = releaseAdminTemplate(payload);
-      await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: ADMIN_EMAIL, subject, content: "HTML required", html });
+      await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: ADMIN_EMAIL, subject, content: "HTML required", html: minify(html) });
       sent.push("admin");
     } else if (payload.kind === "confirm-request") {
       if (!payload.toEmail) {
@@ -226,7 +232,7 @@ serve(async (req) => {
         });
       }
       const { subject, html } = confirmRequestTemplate(payload);
-      await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: payload.toEmail, subject, content: "HTML required", html });
+      await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: payload.toEmail, subject, content: "HTML required", html: minify(html) });
       sent.push("user");
     }
 

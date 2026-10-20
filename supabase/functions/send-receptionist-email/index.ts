@@ -184,6 +184,22 @@ function bookingTemplate(p: Payload) {
   return { subject, html };
 }
 
+/** Rapatkan HTML jadi satu baris. denomailer mengirim HTML sebagai quoted-printable; baris
+ *  ber-indentasi dari template membuat spasi di awal/akhir baris tampil sebagai "=20" di
+ *  sebagian aplikasi email. Baris baru + indentasi diganti satu spasi (aman untuk teks). */
+const compactHtml = (h: string) => h.replace(/\s*\n\s*/g, " ").replace(/>\s+</g, "> <").trim();
+
+/** Versi teks biasa (alternatif untuk aplikasi email tanpa HTML). */
+function textOf(h: string): string {
+  return h
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (_m, href: string, label: string) => (label.includes(href) ? href : `${label}: ${href}`))
+    .replace(/<(br|\/p|\/div|\/tr|\/li|\/h\d)[^>]*>/gi, "\n")
+    .replace(/<\/?(b|strong|i|em|span|u|img)\b[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -201,7 +217,8 @@ serve(async (req) => {
     const client = new SMTPClient({
       connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD } },
     });
-    await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: p.toEmail, subject: t.subject, content: "HTML required", html: t.html });
+    const html = compactHtml(t.html);
+    await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: p.toEmail, subject: t.subject, content: textOf(html), html });
     await client.close();
     return json({ success: true });
   } catch (err) {
