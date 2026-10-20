@@ -18,7 +18,7 @@
      (alternatif) GC_SUPABASE_SERVICE_ROLE_KEY — dipakai bila diisi, menggantikan login akun
      GC_PLANT                   nilai kolom plant di nc_reports (default "Cikarang")
      GC_HASH_SALT               teks acak untuk hash nomor SIM (disarankan diisi)
-     SECDESK_SITE               kode site Security Desk (default "CIK")
+     SECDESK_SITE               kode site Security Desk (kosong = site yang berisi data harian)
 
    Security Desk (?sd=1&from=YYYY-MM&to=YYYY-MM): G-C & Security Desk satu project
    Supabase, jadi kredensial di atas dipakai juga. Akun GC_READER_EMAIL perlu
@@ -157,7 +157,19 @@ export async function GET(req: Request) {
         keys.push(k);
       }
       if (keys.length > 26) throw new HttpErr(400, "Rentang maksimal 26 bulan.");
-      const site = env("SECDESK_SITE") || "CIK";
+      // Site: SECDESK_SITE kalau diisi; kalau tidak, site yang paling banyak berisi data harian
+      // di rentang ini (site CIK bawaan bisa kosong bila tim security memakai site lain).
+      const sdb = db.schema("security");
+      const [ty, tm] = tk.split("-").map(Number);
+      const endExcl = tm === 12 ? `${ty + 1}-01-01` : `${ty}-${String(tm + 1).padStart(2, "0")}-01`;
+      const { data: sl } = await sdb.from("sites").select("id, code, name");
+      const sites = await Promise.all(((sl || []) as { id: string; code: string; name: string }[]).map(async (x) => {
+        const { count } = await sdb.from("daily_counts").select("day", { count: "exact", head: true })
+          .eq("site_id", x.id).gte("day", `${fk}-01`).lt("day", endExcl);
+        return { code: x.code, name: x.name, n: count ?? 0 };
+      }));
+      const best = [...sites].sort((a, b) => b.n - a.n || (a.code === "CIK" ? -1 : b.code === "CIK" ? 1 : 0))[0];
+      const site = env("SECDESK_SITE") || best?.code || "CIK";
       const months: Record<string, unknown> = {};
       for (let i = 0; i < keys.length; i += 6) {
         const part = await Promise.all(keys.slice(i, i + 6).map((k) => db.schema("security").rpc("cikops_report", { p_month: `${k}-01`, p_site: site })));
@@ -172,7 +184,7 @@ export async function GET(req: Request) {
           months[keys[i + j]] = data;
         }
       }
-      return json({ ok: true, site, fetchedAt: new Date().toISOString(), months });
+      return json({ ok: true, site, sites, fetchedAt: new Date().toISOString(), months });
     }
 
     const from = u.searchParams.get("from"), to = u.searchParams.get("to");

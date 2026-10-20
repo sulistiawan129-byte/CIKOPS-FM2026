@@ -245,9 +245,13 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           <b>{sdOn ? "Tersinkron dengan Security Desk" : sd && !sd.ok ? "Security Desk belum tersambung" : "Security Desk belum ada data bulan ini"}</b>
           <span>
             {sdOn
-              ? `Data ${monthLabel(monthKey)} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
+              ? `Data ${monthLabel(monthKey)}${sd && sd.ok && sd.site ? ` · site ${sd.site}` : ""} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
               : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: BACA-DULU-SECURITY-DESK.md.`
-              : "Bulan ini belum diisi di Security Desk, jadi data CIKOPS (input manual) yang dipakai."}
+              : sd && sd.ok && sd.sites && !sd.sites.length
+                ? "Akun pembaca CIKOPS tidak bisa melihat site mana pun di Security Desk. Beri peran Management ke akun GC_READER_EMAIL (menu Pengguna)."
+              : sd && sd.ok && sd.sites && !sd.sites.some((x) => x.n > 0)
+                ? `Tidak ada data harian ${monthLabel(monthKey)} yang bisa dibaca akun CIKOPS (site: ${sd.sites.map((x) => x.code).join(", ")}). Pastikan akun GC_READER_EMAIL berperan Management di Security Desk.`
+              : `Bulan ini belum diisi di Security Desk${sd && sd.ok && sd.site ? ` (site ${sd.site})` : ""}, jadi data CIKOPS (input manual) yang dipakai.`}
           </span>
         </div>
         <div className={s.sdBtns}>

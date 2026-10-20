@@ -127,7 +127,7 @@ export async function pingGc(): Promise<GcPing> {
 
 /* ── Security Desk ── */
 export type SdResult =
-  | { ok: true; months: Record<string, SdReport>; fetchedAt: string }
+  | { ok: true; months: Record<string, SdReport>; fetchedAt: string; site?: string; sites?: { code: string; name: string; n: number }[] }
   | { ok: false; error: string; notConfigured?: boolean };
 
 const sdCache = new Map<string, { at: number; res: SdResult }>();
@@ -144,7 +144,7 @@ export async function fetchSecDesk(fromKey: string, toKey: string, force = false
     const j = await r.json().catch(() => null);
     const res: SdResult = !r.ok || !j?.ok
       ? { ok: false, error: j?.error || `HTTP ${r.status}`, notConfigured: r.status === 503 }
-      : { ok: true, months: j.months as Record<string, SdReport>, fetchedAt: j.fetchedAt };
+      : { ok: true, months: j.months as Record<string, SdReport>, fetchedAt: j.fetchedAt, site: j.site, sites: j.sites };
     sdCache.set(ck, { at: Date.now(), res });
     return res;
   } catch (e) {
