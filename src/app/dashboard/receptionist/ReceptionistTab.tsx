@@ -137,7 +137,7 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
         </button>
       </div>
 
-      <div className={r.grid2}>
+      <div className={r.grid3}>
         <section className={r.card}>
           <div className={r.cardHead}><h2>Barang menunggu diambil</h2><button type="button" className={r.link} onClick={() => go("parcels")}>Kelola →</button></div>
           {waiting.length === 0 ? <p className={r.empty}>Tidak ada barang yang menunggu.</p> : (
@@ -244,7 +244,7 @@ function Settings({ settings, onSaved }: { settings: RcpSettings; onSaved: (s: R
           <label className={`${r.field} ${r.full}`}><span>Ketentuan <em>— satu baris satu poin</em></span><textarea className={r.input} style={{ minHeight: 140 }} value={s.wifiTerms} onChange={(e) => set("wifiTerms", e.target.value)} /></label>
         </div>
       </section>
-      <div className={`${r.row} ${r.full}`}>
+      <div className={`${r.card} ${r.full}`} style={{ gridColumn: "1 / -1", flexDirection: "row", flexWrap: "wrap", alignItems: "center" }}>
         {!valid && <div className={r.err}>Jam tutup harus setelah jam buka.</div>}
         {msg && <div className={msg.ok ? r.ok : r.err}>{msg.text}</div>}
         <span className={r.grow} />

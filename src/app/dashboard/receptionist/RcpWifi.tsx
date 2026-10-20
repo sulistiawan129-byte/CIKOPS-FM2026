@@ -89,6 +89,7 @@ function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings;
       <section className={r.card}>
         <div className={r.cardHead}><h2>Beri akses wifi</h2><small>{usable.reduce((s, a) => s + a.free, 0)} slot tersedia</small></div>
         <div className={r.form}>
+          <div className={r.section}>Requestor</div>
           <label className={r.field}><span>Nama requestor *</span>
             <NameInput dir={dir} value={f.requestorName} onChange={(v) => set("requestorName", v)} onPick={(p) => setF((x) => ({ ...x, requestorEmail: p.email || x.requestorEmail, department: p.department || x.department }))} placeholder="Karyawan yang meminta" />
           </label>
@@ -97,45 +98,50 @@ function GrantForm({ settings, accounts, dir, reload }: { settings: RcpSettings;
           </label>
           <label className={r.field}><span>Departemen</span><input className={r.input} value={f.department} onChange={(e) => set("department", e.target.value)} /></label>
           <label className={r.field}><span>Line manager <em>(hanya dicatat)</em></span><input className={r.input} value={f.lineManager} onChange={(e) => set("lineManager", e.target.value)} /></label>
+          <div className={r.section}>Tamu</div>
           <label className={r.field}><span>Nama tamu *</span><input className={r.input} value={f.guestName} onChange={(e) => set("guestName", e.target.value)} /></label>
           <label className={r.field}><span>Perusahaan / instansi tamu</span><input className={r.input} value={f.guestCompany} onChange={(e) => set("guestCompany", e.target.value)} /></label>
           <div className={`${r.field} ${r.full}`}><span>Slot yang dipakai</span>
             <div className={r.chips}>
-              <button type="button" className={r.chip} aria-pressed={slots === 1} onClick={() => setSlots(1)}>1 slot · 1 orang / 1 perangkat</button>
-              <button type="button" className={r.chip} aria-pressed={slots === 2} onClick={() => setSlots(2)}>2 slot · 2 orang, atau 1 orang 2 perangkat</button>
+              <button type="button" className={r.chip} aria-pressed={slots === 1} onClick={() => setSlots(1)}>1 slot — 1 perangkat</button>
+              <button type="button" className={r.chip} aria-pressed={slots === 2} onClick={() => setSlots(2)}>2 slot — 2 orang / 2 perangkat</button>
             </div>
+          </div>
+          <div className={r.section}>Waktu pemakaian</div>
+          <div className={`${r.field} ${r.full}`}><span>Durasi</span>
+            <div className={r.chips}>{WIFI_DURATIONS.map((d) => <button key={d.key} type="button" className={r.chip} aria-pressed={dur === d.key} onClick={() => { setDur(d.key); if (d.key === "custom") setCustomEnd(end); }}>{d.label}</button>)}</div>
           </div>
           <label className={r.field}><span>Mulai</span><input className={r.input} type="date" value={start} min={today} onChange={(e) => setStart(e.target.value || today)} /></label>
           <div className={r.field}><span>Berlaku sampai</span>
             {dur === "custom"
               ? <input className={r.input} type="date" value={customEnd} min={start} onChange={(e) => setCustomEnd(e.target.value)} />
-              : <div className={r.input} style={{ display: "flex", alignItems: "center" }}><b>{fmtDate(end, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</b>&nbsp;<span className={r.mute}>· {days} hari</span></div>}
-          </div>
-          <div className={`${r.field} ${r.full}`}><span>Durasi pemakaian</span>
-            <div className={r.chips}>{WIFI_DURATIONS.map((d) => <button key={d.key} type="button" className={r.chip} aria-pressed={dur === d.key} onClick={() => { setDur(d.key); if (d.key === "custom") setCustomEnd(end); }}>{d.label}</button>)}</div>
+              : <div className={r.readout}><b>{fmtDate(end, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</b><span className={r.mute}>· {days} hari</span></div>}
           </div>
           <label className={`${r.field} ${r.full}`}><span>Keperluan <em>(opsional)</em></span><input className={r.input} value={f.purpose} onChange={(e) => set("purpose", e.target.value)} placeholder="mis. audit, vendor, training" /></label>
         </div>
       </section>
 
       <section className={r.card}>
-        <div className={r.cardHead}><h2>Akun yang disarankan</h2><small>berlaku ≥ {fmtDate(end)} · butuh {slots} slot</small></div>
-        <p className={r.hint}>Hanya akun yang masa berlakunya cukup sampai tanggal selesai. Urutan teratas = paling pas (paling cepat habis), jadi tamu harian memakai akun 30 hari dan pemakaian panjang otomatis ke akun berdurasi panjang.</p>
+        <div className={r.cardHead}><div><h2>Akun yang disarankan</h2><p>Berlaku sampai ≥ {fmtDate(end)} · butuh {slots} slot</p></div></div>
+        <p className={r.hint}>Hanya akun yang masa berlakunya cukup. Teratas = paling pas (paling cepat habis), jadi tamu harian memakai akun 30 hari dan pemakaian panjang otomatis ke akun berdurasi panjang.</p>
         {sugs === null ? <p className={r.empty}>Mencari akun…</p> : sugs.length === 0 ? (
           <div className={r.warn}>Tidak ada akun yang cukup sampai {fmtDate(end)} dengan {slots} slot kosong. Impor akun baru dari IT (tab “Akun dari IT”) atau kurangi durasi.</div>
         ) : (
           <div className={r.sugs}>
-            {sugs.map((s) => (
+            {sugs.map((s, i) => (
               <button key={s.id} type="button" className={r.sug} aria-pressed={pick === s.id} onClick={() => setPick(s.id)}>
                 <span className={r.radio} />
-                <span><b>{s.username}</b><small>akun {s.durationDays + 1} hari · berlaku s/d {fmtDate(s.validUntil)} ({s.daysLeft} hari lagi)</small></span>
+                <span><b>{s.username}</b>{i === 0 && <span className={r.tagBest}>paling pas</span>}<small>akun {s.durationDays + 1} hari · berlaku s/d {fmtDate(s.validUntil)} ({s.daysLeft} hari lagi)</small></span>
                 <span className={r.slotDots} title={`${s.free} slot kosong`}>{Array.from({ length: Math.max(s.free, 0) }, (_, i) => <i key={i} />)}</span>
               </button>
             ))}
           </div>
         )}
         {err && <div className={r.err}>{err}</div>}
-        <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : "Beri akses & kirim tanda terima"}</button>
+        <div className={r.formFoot}>
+          <span className={r.hint}>{f.requestorEmail.trim() ? `Tanda terima dikirim ke ${f.requestorEmail.trim()}` : "Isi email requestor agar tanda terima terkirim."}</span>
+          <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : "Beri akses"}</button>
+        </div>
         {done && <Receipt done={done} onClose={() => setDone(null)} />}
       </section>
     </div>
@@ -146,10 +152,10 @@ function Receipt({ done, onClose }: { done: { res: WifiGrantResult; email: strin
   const t = `No. ${done.res.receiptNo}\nUser: ${done.res.username}\nPassword: ${done.res.password}\nBerlaku sampai: ${fmtDate(done.res.endDate)}`;
   return (
     <div className={r.receipt} role="status">
-      <div className={r.row}><span className={r.kicker}>Tanda terima</span><b>{done.res.receiptNo}</b><span className={r.grow} /><button type="button" className={r.link} style={{ color: "#fff" }} onClick={onClose}>Tutup</button></div>
+      <div className={r.receiptHead}><span className={r.receiptIcon}>✓</span><div><span className={r.kicker}>Akses diberikan · tanda terima</span><br /><b>{done.res.receiptNo}</b></div><span className={r.grow} /><button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button></div>
       <div className={r.cred}><div><small>User</small><b>{done.res.username}</b></div><div><small>Password</small><b>{done.res.password}</b></div></div>
       <div>{done.guest} · {done.slots} slot · berlaku sampai <b>{fmtDate(done.res.endDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b></div>
-      <div style={{ fontSize: 12.5, opacity: 0.85 }}>{done.email ? (done.emailErr ? `⚠ ${done.emailErr}` : `✓ Tanda terima dikirim ke ${done.email}`) : "Email requestor kosong — tanda terima tidak dikirim."}</div>
+      <div className={r.hint}>{done.email ? (done.emailErr ? `⚠ ${done.emailErr}` : `✓ Tanda terima dikirim ke ${done.email}`) : "Email requestor kosong — tanda terima tidak dikirim."}</div>
       <div className={r.row}><button type="button" className={r.ghost} onClick={() => navigator.clipboard?.writeText(t)}>Salin</button></div>
     </div>
   );
@@ -293,8 +299,11 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
   }
   return (
     <ModalPortal onOverlayClick={onClose} maxWidth={760}>
-      <div className={r.modal}>
-        <h3>Impor akun wifi dari IT</h3>
+      <div className={r.modal} role="dialog" aria-modal="true" aria-labelledby="rcp-imp-title">
+        <div className={r.modalHead}>
+          <div><h2 id="rcp-imp-title">Impor akun wifi dari IT</h2><p>Tempel dari Excel atau unggah file</p></div>
+          <button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button>
+        </div>
         <p className={r.hint}>Tempel dari Excel (salin kolom) atau unggah file .xlsx / .csv. Kolom yang dikenali: <b>Username</b>, <b>Password</b>, <b>Berlaku sampai</b> (atau <b>Durasi/Hari</b>), opsional <b>Berlaku mulai</b>, <b>Slot</b>, <b>Batch</b>. Tanpa baris judul, urutannya: username, password, berlaku sampai. Username yang sudah ada akan diperbarui.</p>
         <div className={r.form}>
           <label className={r.field}><span>Berlaku mulai <em>(jika tidak ada di data)</em></span><input className={r.input} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
@@ -321,7 +330,7 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
           </div>
         )}
         {msg && <div className={msg.startsWith("✓") ? r.ok : r.err}>{msg}</div>}
-        <div className={r.modalActions}>
+        <div className={r.modalFoot}>
           <button type="button" className={r.ghost} onClick={onClose}>Tutup</button>
           <button type="button" className={r.btn} disabled={!ok.length || busy} onClick={go}>{busy ? "Mengimpor…" : `Impor ${ok.length} akun`}</button>
         </div>
