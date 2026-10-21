@@ -1,9 +1,13 @@
-// send-web-push — notifikasi Web Push untuk aplikasi Driver & TGA (PWA / APK GitHub).
-// Berbunyi & bergetar walau aplikasi tertutup. Langganan HP ada di tabel push_subscriptions (036).
+// send-web-push — notifikasi untuk aplikasi Driver & TGA.
+// Berbunyi & bergetar walau aplikasi tertutup. Langganan HP ada di tabel push_subscriptions (036):
+//   • endpoint https://…   → Web Push (browser / PWA)
+//   • endpoint fcm:<token> → Firebase Cloud Messaging (APK, notifikasi native) — bagian 042
 //
 // Deploy : supabase functions deploy send-web-push
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (mis. mailto:ga@perusahaan.com)
 //          → buat sekali: npx web-push generate-vapid-keys
+//          FCM_SERVICE_ACCOUNT  isi file JSON service account Firebase
+//          (Firebase → Project settings → Service accounts → Generate new private key)
 //
 // Permintaan (POST JSON):
 //   { action: "vapid-key" }                          → kunci publik untuk mendaftar (tanpa login)
@@ -21,6 +25,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@cikops.com";
+const FCM_SERVICE_ACCOUNT = Deno.env.get("FCM_SERVICE_ACCOUNT") ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,14 +34,89 @@ const corsHeaders = {
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 interface Sub { endpoint: string; p256dh: string; auth: string }
-interface Message { title: string; body: string; url: string; tag: string; app: "driver" | "tga"; urgent?: boolean }
+interface Message { title: string; body: string; url: string; tag: string; app: "driver" | "tga"; urgent?: boolean; kind?: "task" | "info" }
 
 const CAT_ICON: Record<string, string> = { Listrik: "⚡", AC: "❄️", Plumbing: "🚰", Furniture: "🪑", Sipil: "🧱", Lainnya: "🔧" };
+
+/* ── Firebase Cloud Messaging (HTTP v1) ── */
+interface ServiceAccount { project_id: string; client_email: string; private_key: string }
+let fcmCache: { token: string; exp: number } | null = null;
+
+const b64url = (b: ArrayBuffer | Uint8Array | string) => {
+  const bytes = typeof b === "string" ? new TextEncoder().encode(b) : new Uint8Array(b instanceof Uint8Array ? b : new Uint8Array(b));
+  let s = "";
+  for (const x of bytes) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
+
+function serviceAccount(): ServiceAccount | null {
+  if (!FCM_SERVICE_ACCOUNT) return null;
+  try {
+    const sa = JSON.parse(FCM_SERVICE_ACCOUNT) as ServiceAccount;
+    return sa.project_id && sa.client_email && sa.private_key ? sa : null;
+  } catch { return null; }
+}
+
+async function fcmAccessToken(sa: ServiceAccount): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  if (fcmCache && fcmCache.exp - 60 > now) return fcmCache.token;
+  const pem = sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const unsigned = `${b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64url(JSON.stringify({
+    iss: sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600,
+  }))}`;
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${unsigned}.${b64url(sig)}` }),
+  });
+  const j = await res.json() as { access_token?: string; expires_in?: number; error_description?: string };
+  if (!j.access_token) throw new Error(`FCM auth gagal: ${j.error_description ?? res.status}`);
+  fcmCache = { token: j.access_token, exp: now + (j.expires_in ?? 3600) };
+  return j.access_token;
+}
+
+/** Kirim satu pesan data FCM. "gone" = token sudah tidak berlaku (aplikasi dihapus / data dibersihkan). */
+async function sendFcm(sa: ServiceAccount, token: string, msg: Message): Promise<"ok" | "gone" | "fail"> {
+  const access = await fcmAccessToken(sa);
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: {
+        token,
+        // pesan data saja → selalu ditampilkan oleh PushService dengan kanal bunyi + getar CIKOPS
+        data: { title: msg.title, body: msg.body, url: msg.url, tag: msg.tag, urgent: msg.urgent ? "1" : "0", kind: msg.kind ?? "task" },
+        android: { priority: "HIGH", ttl: "21600s" },
+      },
+    }),
+  });
+  if (res.ok) return "ok";
+  const t = await res.text();
+  if (res.status === 404 || /UNREGISTERED|registration-token-not-registered/i.test(t)) return "gone";
+  if (res.status === 400 && /INVALID_ARGUMENT/.test(t) && /token/i.test(t)) return "gone";
+  console.warn("fcm gagal", res.status, t.slice(0, 300));
+  return "fail";
+}
 
 async function sendAll(admin: ReturnType<typeof createClient>, subs: Sub[], msg: Message) {
   let sent = 0;
   const gone: string[] = [];
+  const sa = serviceAccount();
   await Promise.all(subs.map(async (s) => {
+    if (s.endpoint.startsWith("fcm:")) {
+      if (!sa) { console.warn("FCM_SERVICE_ACCOUNT belum diset — notifikasi APK dilewati"); return; }
+      try {
+        const r = await sendFcm(sa, s.endpoint.slice(4), msg);
+        if (r === "ok") sent++;
+        else if (r === "gone") gone.push(s.endpoint);
+      } catch (e) { console.warn("fcm error", (e as Error).message); }
+      return;
+    }
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -64,13 +144,15 @@ async function staffOf(admin: ReturnType<typeof createClient>, req: Request) {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return json({ ok: false, error: "VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY belum diset di secrets." });
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ ok: false, error: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY tidak tersedia." });
-    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
     let p: Record<string, unknown> = {};
     try { p = await req.json(); } catch { /* GET / body kosong */ }
-    if (req.method === "GET" || p.action === "vapid-key") return json({ ok: true, publicKey: VAPID_PUBLIC_KEY });
+    if (req.method === "GET" || p.action === "vapid-key") {
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return json({ ok: false, error: "VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY belum diset di secrets." });
+      return json({ ok: true, publicKey: VAPID_PUBLIC_KEY });
+    }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -110,7 +192,7 @@ serve(async (req) => {
       if (!ids.length) return json({ ok: false, error: "driverIds kosong." });
       const { data: subs } = await admin.from("push_subscriptions").select("endpoint, p256dh, auth").eq("app", "driver").in("driver_id", ids);
       const msg: Message = {
-        app: "driver", url: "/driver", tag: `driver-${Date.now()}`, urgent: true,
+        app: "driver", url: "/driver", tag: `driver-${Date.now()}`, urgent: p.kind !== "info", kind: p.kind === "info" ? "info" : "task",
         title: String(p.title ?? "Tugas baru").slice(0, 120), body: String(p.body ?? "").slice(0, 400),
       };
       return json({ ok: true, ...(await sendAll(admin, (subs ?? []) as Sub[], msg)) });
@@ -136,7 +218,7 @@ serve(async (req) => {
       }
       if (!subs.length) return json({ ok: false, error: "HP ini belum terdaftar untuk notifikasi." });
       const msg: Message = {
-        app, url: app === "tga" ? "/tga" : "/driver", tag: "tes", urgent: true,
+        app, url: app === "tga" ? "/tga" : "/driver", tag: "tes", urgent: false,
         title: "🔔 Tes notifikasi berhasil", body: "Notifikasi aktif — kamu akan diberi tahu saat ada tugas baru.",
       };
       return json({ ok: true, ...(await sendAll(admin, subs, msg)) });

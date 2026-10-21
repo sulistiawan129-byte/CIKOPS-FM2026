@@ -5,8 +5,10 @@
    Bisa di-install ke layar utama HP (PWA, manifest-tga.json). */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import s from "./tga.module.css";
-import { createRinger, enablePush, disablePush, pushState, testPush, type PushState } from "@/lib/push";
+import s from "@/components/fieldapp/fieldapp.module.css";
+import { BottomNav, NavBtn, PullIndicator, Skeleton, SuccessScreen, SunMoon, haptic, useOnline, usePullRefresh } from "@/components/fieldapp/FieldKit";
+import { useTheme } from "@/lib/providers";
+import { autoEnableNative, createRinger, enablePush, disablePush, pushState, testPush, type PushState } from "@/lib/push";
 import {
   TGA_CATEGORIES, TGA_SOURCE_LABEL, TGA_STATUS, isSessionError, tgaAccept, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
   tgaCachedRequestors, tgaPushSubscribe, tgaRequestors, tgaSave, tgaStatusInfo, tgaStatusLabel, tgaStoredSession,
@@ -65,7 +67,8 @@ export default function TgaAppPage() {
   const [detail, setDetail] = useState<TgaActivity | null>(null);
   const [saved, setSaved] = useState<{ a: TgaActivity; isNew: boolean } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [online, setOnline] = useState(true);
+  const online = useOnline();
+  const { theme, toggleTheme } = useTheme();
   const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [incoming, setIncoming] = useState<TgaActivity | null>(null);
@@ -82,13 +85,7 @@ export default function TgaAppPage() {
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
     setInstalled(window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
-    const net = () => setOnline(navigator.onLine);
-    net();
-    window.addEventListener("online", net); window.addEventListener("offline", net);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled);
-      window.removeEventListener("online", net); window.removeEventListener("offline", net);
-    };
+    return () => { window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled); };
   }, []);
 
   useEffect(() => {
@@ -165,7 +162,13 @@ export default function TgaAppPage() {
     return () => { document.removeEventListener("touchstart", unlock); document.removeEventListener("click", unlock); ringer.current?.stop(); };
   }, []);
 
+  // Dibuka dari APK CIKOPS (Firebase) → daftarkan HP untuk notifikasi native otomatis
+  useEffect(() => {
+    if (screen === "app" && token) autoEnableNative((sub) => tgaPushSubscribe(token, sub)).then((ok) => { if (ok) flash("🔔 Notifikasi aktif di HP ini"); });
+  }, [screen, token, flash]);
+
   const formOpen = form !== null;
+  const { pull, busy: pulling } = usePullRefresh(load, screen === "app" && !formOpen && !detail);
   useEffect(() => {
     if (formOpen && token) loadRequestors();
   }, [formOpen, token]);
@@ -194,7 +197,7 @@ export default function TgaAppPage() {
     try {
       const r = await tgaSave(token, a.id, { ...draftOf(a), status: "selesai", jam_selesai: a.jam_selesai || nowHM() });
       upsertLocal(r); setDetail(null); flash(`✓ ${r.ref_no} ditandai selesai`);
-      if (navigator.vibrate) navigator.vibrate(30);
+      haptic(30);
     } catch (e) {
       if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
       flash(e instanceof Error ? e.message : String(e));
@@ -207,7 +210,7 @@ export default function TgaAppPage() {
       upsertLocal(r);
       setData((d) => d && ({ ...d, pool: (d.pool ?? []).filter((x) => x.id !== a.id) }));
       setDetail(null); flash(`👍 ${r.ref_no} diterima — selamat bekerja!`);
-      if (navigator.vibrate) navigator.vibrate(40);
+      haptic(40);
     } catch (e) {
       if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
       flash(e instanceof Error ? e.message : String(e));
@@ -241,11 +244,15 @@ export default function TgaAppPage() {
 
   return (
     <div className={s.app}>
+      <PullIndicator pull={pull} busy={pulling} />
       {!online && <div className={s.offline}>Tidak ada koneksi — periksa internet sebelum menyimpan.</div>}
       <header className={s.hero}>
         <div className={s.heroTop}>
           <div className={s.brandMini}><span><ToolGlyph /></span>CIKOPS TGA</div>
-          <button type="button" className={`${s.iconBtn} ${refreshing ? s.spin : ""}`} onClick={load} aria-label="Muat ulang">⟳</button>
+          <div className={s.heroBtns}>
+            <button type="button" className={s.iconBtn} onClick={toggleTheme} aria-label="Ganti tema"><SunMoon dark={theme === "dark"} /></button>
+            <button type="button" className={`${s.iconBtn} ${refreshing ? s.spin : ""}`} onClick={load} aria-label="Muat ulang">⟳</button>
+          </div>
         </div>
         <p className={s.hello}>{greeting()},</p>
         <h1 className={s.heroName}>{firstName(nama) || "Teknisi"} 👋</h1>
@@ -269,15 +276,17 @@ export default function TgaAppPage() {
         )}
       </main>
 
-      <nav className={s.nav}>
-        <NavBtn on={tab === "home"} icon="⌂" label="Beranda" onClick={() => setTab("home")} />
-        <NavBtn on={tab === "history"} icon="☰" label="Riwayat" onClick={() => setTab("history")} />
-        <button type="button" className={s.fab} onClick={() => setForm({ id: null, draft: emptyDraft(today) })} aria-label="Catat kegiatan baru">
-          <span>＋</span>
-        </button>
-        <NavBtn on={tab === "open"} icon="◷" label="Terbuka" badge={acts.filter((a) => a.status !== "selesai").length + pool.length} onClick={() => setTab("open")} />
-        <NavBtn on={tab === "profile"} icon="◉" label="Profil" onClick={() => setTab("profile")} />
-      </nav>
+      <BottomNav
+        left={<>
+          <NavBtn on={tab === "home"} icon="⌂" label="Beranda" onClick={() => setTab("home")} />
+          <NavBtn on={tab === "history"} icon="☰" label="Riwayat" onClick={() => setTab("history")} />
+        </>}
+        fab={{ label: "Catat kegiatan baru", onClick: () => setForm({ id: null, draft: emptyDraft(today) }) }}
+        right={<>
+          <NavBtn on={tab === "open"} icon="◷" label="Terbuka" badge={acts.filter((a) => a.status !== "selesai").length + pool.length} onClick={() => setTab("open")} />
+          <NavBtn on={tab === "profile"} icon="◉" label="Profil" onClick={() => setTab("profile")} />
+        </>}
+      />
 
       {detail && (
         <Detail a={detail} today={today} onClose={() => setDetail(null)} onDone={() => quickDone(detail)} onAccept={() => accept(detail)}
@@ -292,7 +301,6 @@ export default function TgaAppPage() {
             upsertLocal(r);
             if (form.id === null) setData((d) => d && ({ ...d, month_count: d.month_count + (r.tanggal.slice(0, 7) === today.slice(0, 7) ? 1 : 0) }));
             setSaved({ a: r, isNew: form.id === null }); setForm(null);
-            if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
           }}
           onSessionLost={() => signOut("Sesi berakhir — silakan masuk lagi.")} />
       )}
@@ -359,7 +367,7 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setShake(true); setTimeout(() => setShake(false), 500);
-      if (navigator.vibrate) navigator.vibrate(120);
+      haptic(120);
       setPin("");
     } finally { setBusy(false); }
   }, [nama, onDone]);
@@ -1053,38 +1061,19 @@ function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClo
 function Success({ a, isNew, onClose, onAnother }: { a: TgaActivity; isNew: boolean; onClose: () => void; onAnother: () => void }) {
   const c = tgaCategory(a.kategori);
   return (
-    <div className={s.successWrap}>
-      <div className={s.confetti}>{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ ["--i" as string]: i }} />)}</div>
-      <div className={s.successCard}>
-        <div className={s.check}><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M15 27l7 7 15-16" /></svg></div>
-        <h2>{isNew ? "Tercatat!" : "Tersimpan!"}</h2>
-        <p>{isNew ? "Kegiatan masuk ke laporan GA." : "Perubahan sudah disimpan."}</p>
-        <div className={s.ticket}>
-          <div className={s.ticketTop}><span>{c.icon} {c.id}</span><b>{a.ref_no}</b></div>
-          <strong>{a.activity}</strong>
-          <div className={s.ticketMeta}>
-            {a.lokasi && <span>📍 {a.lokasi}</span>}
-            {a.request_by && <span>👤 {a.request_by}</span>}
-            <span className={`${s.pill} ${s["t_" + (TGA_STATUS.find((x) => x.id === a.status)?.tone ?? "green")]}`}>{tgaStatusLabel(a.status)}</span>
-          </div>
+    <SuccessScreen title={isNew ? "Tercatat!" : "Tersimpan!"} text={isNew ? "Kegiatan masuk ke laporan GA." : "Perubahan sudah disimpan."}
+      primary={{ label: "＋ Catat lagi", onClick: onAnother }} secondary={{ label: "Kembali ke beranda", onClick: onClose }}>
+      <div className={s.ticket}>
+        <div className={s.ticketTop}><span>{c.icon} {c.id}</span><b>{a.ref_no}</b></div>
+        <strong>{a.activity}</strong>
+        <div className={s.ticketMeta}>
+          {a.lokasi && <span>📍 {a.lokasi}</span>}
+          {a.request_by && <span>👤 {a.request_by}</span>}
+          <span className={`${s.pill} ${s["t_" + (TGA_STATUS.find((x) => x.id === a.status)?.tone ?? "green")]}`}>{tgaStatusLabel(a.status)}</span>
         </div>
-        <button type="button" className={s.primaryBtn} onClick={onAnother}>＋ Catat lagi</button>
-        <button type="button" className={s.ghostBtn} onClick={onClose}>Kembali ke beranda</button>
       </div>
-    </div>
+    </SuccessScreen>
   );
-}
-
-function NavBtn({ on, icon, label, badge, onClick }: { on: boolean; icon: string; label: string; badge?: number; onClick: () => void }) {
-  return (
-    <button type="button" className={`${s.navBtn} ${on ? s.navOn : ""}`} onClick={onClick}>
-      <span>{icon}{badge ? <em className={s.navBadge}>{badge > 99 ? "99+" : badge}</em> : null}</span><small>{label}</small>
-    </button>
-  );
-}
-
-function Skeleton() {
-  return <div className={s.stack}><div className={`${s.skel} ${s.skelBig}`} /><div className={s.skel} /><div className={s.skel} /><div className={s.skel} /></div>;
 }
 
 function ToolGlyph() {

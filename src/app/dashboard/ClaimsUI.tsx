@@ -340,6 +340,8 @@ export interface ClaimFormProps {
   evalExpr: (raw: string) => number | null;
   cancelText: string; savingText: string;
   editing?: boolean;
+  /** Verifikasi pengajuan Self-Claim driver: judul, info pengajuan, tombol "Verifikasi". */
+  review?: { driverName: string; nota: "ada" | "menyusul"; submittedAt: string; driverNote: string };
 }
 
 const QUICK = [10000, 20000, 50000, 100000];
@@ -372,8 +374,10 @@ export function ClaimForm(p: ClaimFormProps) {
     <div className={styles.form}>
       <header className={styles.formHead}>
         <div>
-          <h2>{p.editing ? (en ? "Edit claim" : "Edit klaim") : (en ? "New claim" : "Buat klaim")}</h2>
-          <p>{p.editing
+          <h2>{p.review ? (en ? "Review driver request" : "Verifikasi pengajuan driver") : p.editing ? (en ? "Edit claim" : "Edit klaim") : (en ? "New claim" : "Buat klaim")}</h2>
+          <p>{p.review
+            ? (en ? `Submitted by ${p.review.driverName} from the driver app. Fix anything that doesn't match the receipts, then verify.` : `Diajukan ${p.review.driverName} dari aplikasi driver. Koreksi yang tidak sesuai nota, lalu verifikasi.`)
+            : p.editing
             ? (en ? "Fix any wrong input, then save the changes." : "Perbaiki data yang salah input, lalu simpan perubahan.")
             : (en ? "Add what the driver spent — the receipt on the right updates as you type." : "Catat pengeluaran driver. Struk di kanan ikut terisi saat Anda mengetik.")}</p>
         </div>
@@ -384,6 +388,16 @@ export function ClaimForm(p: ClaimFormProps) {
 
       <div className={styles.formBody}>
         <div className={styles.formCol}>
+          {p.review && (
+            <section className={styles.block} style={{ borderColor: "color-mix(in srgb, var(--amber, #e98a00) 45%, var(--border2))", background: "color-mix(in srgb, var(--amber, #e98a00) 8%, var(--surface))" }}>
+              <h3>{en ? "Driver request" : "Pengajuan driver"}</h3>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--t2)" }}>
+                {en ? "Sent" : "Dikirim"} {new Date(p.review.submittedAt).toLocaleString(en ? "en-GB" : "id-ID", { dateStyle: "medium", timeStyle: "short" })} ·{" "}
+                <b>{p.review.nota === "ada" ? (en ? "receipts ready" : "nota sudah ada") : (en ? "receipts to follow" : "nota menyusul")}</b>
+                {p.review.driverNote ? <><br />📝 {p.review.driverNote}</> : null}
+              </p>
+            </section>
+          )}
           {/* 1 · driver */}
           <section className={styles.block}>
             <h3>{en ? "Who is claiming?" : "Klaim untuk siapa?"}</h3>
@@ -529,7 +543,7 @@ export function ClaimForm(p: ClaimFormProps) {
         <div className={styles.footCta}>
           {hint && <span className={styles.hint}>{hint}</span>}
           <button className={styles.submit} onClick={p.onSave} disabled={!p.canSave || p.saving}>
-            {p.saving ? p.savingText : p.editing ? (en ? "Save changes" : "Simpan perubahan") : (en ? "Submit claim" : "Ajukan klaim")}
+            {p.saving ? p.savingText : p.review ? (en ? "Verify & create claim" : "Verifikasi & buat klaim") : p.editing ? (en ? "Save changes" : "Simpan perubahan") : (en ? "Submit claim" : "Ajukan klaim")}
           </button>
         </div>
       </footer>

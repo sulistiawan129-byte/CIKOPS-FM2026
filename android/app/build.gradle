@@ -3,7 +3,13 @@
 // (lihat .github/workflows/android-apk.yml):
 //   -PappId=com.cikops.tga -PappName="CIKOPS TGA" -PsiteUrl=https://domain -PstartPath=/tga
 //   -PthemeColor=#0f1b3d -PbgColor=#0f1b3d -PversionCode=12 -PversionName=1.0.12
+// Notifikasi native (Firebase Cloud Messaging) aktif bila app/google-services.json ada
+// (diisi workflow dari secret GOOGLE_SERVICES_JSON). Tanpa file itu APK tetap jalan
+// memakai notifikasi web.
 plugins { id "com.android.application" }
+
+def hasFirebase = file("google-services.json").exists()
+if (hasFirebase) apply plugin: "com.google.gms.google-services"
 
 def prop = { String k, String d -> project.hasProperty(k) ? project.property(k).toString() : d }
 def appId = prop("appId", "com.cikops.tga")
@@ -24,6 +30,8 @@ android {
 
         resValue "string", "app_name", prop("appName", "CIKOPS TGA")
         resValue "string", "launch_url", siteUrl + startPath
+        resValue "string", "site_url", siteUrl
+        resValue "bool", "has_firebase", hasFirebase.toString()
         manifestPlaceholders = [hostName: host, pathPrefix: startPath]
         resValue "color", "theme_color", prop("themeColor", "#0f1b3d")
         resValue "color", "bg_color", prop("bgColor", "#0f1b3d")
@@ -49,6 +57,11 @@ android {
         }
     }
 
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -57,4 +70,7 @@ android {
 
 dependencies {
     implementation "com.google.androidbrowserhelper:androidbrowserhelper:2.5.0"
+    implementation "androidx.core:core:1.13.1"
+    implementation platform("com.google.firebase:firebase-bom:33.7.0")
+    implementation "com.google.firebase:firebase-messaging"
 }

@@ -1,6 +1,8 @@
-// Notifikasi Web Push untuk aplikasi Driver & TGA (036 + edge function send-web-push).
-// Berbunyi & bergetar walau aplikasi tertutup (Android: Chrome / APK GitHub; iPhone: iOS 16.4+
-// dan aplikasi harus dipasang ke Layar Utama).
+// Notifikasi untuk aplikasi Driver & TGA (036 + edge function send-web-push).
+// Berbunyi & bergetar walau aplikasi tertutup:
+//  • APK CIKOPS (Firebase): notifikasi native. APK membuka halaman dengan ?fcm=<token>;
+//    token disimpan lalu didaftarkan otomatis sesudah login (bagian 042).
+//  • Browser / PWA: Web Push (Android Chrome; iPhone iOS 16.4+ dan harus dipasang ke Layar Utama).
 import { supabase } from "./supabaseClient";
 
 export type PushState = "unsupported" | "ios-install" | "denied" | "on" | "off";
@@ -12,6 +14,38 @@ const standalone = () =>
   typeof window !== "undefined" &&
   (window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
+/* ── Token FCM dari APK ── */
+const FCM_KEY = "cikops_fcm";
+const FCM_REG_KEY = "cikops_fcm_reg";
+const store = {
+  get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* mode privat */ } },
+};
+
+/** Ambil ?fcm= dari alamat (dikirim APK saat dibuka), simpan, lalu bersihkan alamatnya. */
+function captureNativeToken() {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  const tok = url.searchParams.get("fcm");
+  if (!tok) return;
+  if (/^[A-Za-z0-9_:.-]{20,4096}$/.test(tok)) store.set(FCM_KEY, tok);
+  url.searchParams.delete("fcm");
+  window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+}
+captureNativeToken();
+
+/** Token FCM bila halaman dibuka dari APK CIKOPS yang mendukung notifikasi native. */
+export function nativeToken(): string | null {
+  return typeof window === "undefined" ? null : store.get(FCM_KEY);
+}
+
+/** Daftarkan HP ini otomatis (tanpa tombol) bila dibuka dari APK dan belum terdaftar. */
+export async function autoEnableNative(register: (s: PushSubData) => Promise<void>): Promise<boolean> {
+  const tok = nativeToken();
+  if (!tok || store.get(FCM_REG_KEY) === tok) return false;
+  try { await enablePush(register); return true; } catch { return false; }
+}
+
 export function pushSupported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
@@ -22,6 +56,8 @@ async function registration() {
 }
 
 export async function pushState(): Promise<PushState> {
+  const tok = nativeToken();
+  if (tok) return store.get(FCM_REG_KEY) === tok ? "on" : "off";
   if (!pushSupported()) return isIOS() && !standalone() ? "ios-install" : "unsupported";
   if (Notification.permission === "denied") return "denied";
   try {
@@ -48,6 +84,17 @@ async function vapidKey(): Promise<string> {
 
 /** Minta izin + daftarkan HP. register() menyimpan langganan ke database (per aplikasi). */
 export async function enablePush(register: (s: PushSubData) => Promise<void>): Promise<void> {
+  const tok = nativeToken();
+  if (tok) {
+    await register({ endpoint: `fcm:${tok}`, p256dh: "", auth: "", ua: navigator.userAgent });
+    store.set(FCM_REG_KEY, tok);
+    // Langganan Web Push lama di HP yang sama dimatikan supaya notifikasi tidak dobel
+    if (pushSupported()) {
+      const sub = await navigator.serviceWorker.getRegistration().then((r) => r?.pushManager.getSubscription()).catch(() => null);
+      if (sub) { await supabase.rpc("push_unsubscribe", { p_endpoint: sub.endpoint }); await sub.unsubscribe().catch(() => false); }
+    }
+    return;
+  }
   if (!pushSupported()) {
     throw new Error(isIOS() ? "Di iPhone, pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), lalu buka dari ikon." : "Browser ini belum mendukung notifikasi. Pakai Chrome.");
   }
@@ -63,6 +110,12 @@ export async function enablePush(register: (s: PushSubData) => Promise<void>): P
 }
 
 export async function disablePush(): Promise<void> {
+  const tok = nativeToken();
+  if (tok) {
+    await supabase.rpc("push_unsubscribe", { p_endpoint: `fcm:${tok}` });
+    store.set(FCM_REG_KEY, null);
+    return;
+  }
   if (!pushSupported()) return;
   const reg = await registration();
   const sub = await reg.pushManager.getSubscription();

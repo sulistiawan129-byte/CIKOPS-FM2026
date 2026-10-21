@@ -8,6 +8,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 |---|---|---|
 | `supabase/01_dasar.sql` | Semua migrasi lama (skema inti + bagian 001 … 038): driver, armada, tugas, klaim, kantin, gift, gate, security, kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA | **Sudah berjalan di production** — tidak perlu diulang. Cari `## BAGIAN 0xx` untuk melihat migrasi tertentu |
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
+| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -21,7 +22,7 @@ bagian 039 & 041 tetap tersimpan; kirim hasil bagian 7 dari
 | `manage-staff-account` | — (memakai `SUPABASE_SERVICE_ROLE_KEY` bawaan) |
 | `send-driver-credentials`, `send-claim-email`, `send-task-email`, `send-receptionist-email`, `send-gift-passcode` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
 | `send-locker-email` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOCKER_ADMIN_EMAIL` (opsional) |
-| `send-web-push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
+| `send-web-push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, dan `FCM_SERVICE_ACCOUNT` (isi JSON service account Firebase, untuk notifikasi APK) |
 | `vehicle-document-reminder` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Dijadwalkan harian lewat Supabase Cron dengan header `Authorization: Bearer <service_role>` (lihat bagian 041 di `supabase/02_peran_keamanan.sql`) |
 
 Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase secrets set NAMA=nilai`.
@@ -759,10 +760,61 @@ Enter it in Vercel → Settings → Environment Variables → `TWA_SHA256` → *
 Check it: open `https://<domain>/.well-known/assetlinks.json` — it should show `com.cikops.tga` and `com.cikops.driver`.
 Before this is set, the app still works but shows a thin address bar at the top.
 
+### Notifikasi native (Firebase) — bunyi & getar seperti aplikasi asli
+Tanpa Firebase, APK memakai notifikasi web: bunyinya suara notifikasi bawaan HP dan bisa
+"tidur" saat HP hemat baterai. Dengan Firebase Cloud Messaging (FCM), APK punya kanal
+notifikasi sendiri: **bunyi CIKOPS + getar panjang, muncul di atas layar, dan tugas baru
+berbunyi berulang sampai notifikasinya dibuka** (seperti panggilan masuk).
+
+**Pasang sekali:**
+1. https://console.firebase.google.com → **Add project** (mis. `cikops`). Google Analytics boleh dimatikan.
+2. Di project itu, **Add app → Android** dua kali:
+   - package `com.cikops.driver` (nama: CIKOPS Driver)
+   - package `com.cikops.tga` (nama: CIKOPS TGA)
+3. Unduh **google-services.json** (sesudah kedua aplikasi ditambahkan, file ini berisi keduanya).
+   GitHub → Settings → Secrets and variables → Actions → **New repository secret**
+   `GOOGLE_SERVICES_JSON` = seluruh isi file itu.
+4. Firebase → ⚙ Project settings → **Service accounts** → **Generate new private key** → unduh JSON.
+   Supabase → Edge Functions → Secrets → `FCM_SERVICE_ACCOUNT` = seluruh isi JSON itu.
+   Lalu deploy ulang `send-web-push`.
+5. Jalankan `supabase/04_aplikasi_lapangan.sql` (bila belum).
+6. Actions → **APK Android (TGA & Driver)** → Run workflow. Ringkasan run menulis
+   "Notifikasi native (Firebase): **aktif** 🔔". Pasang APK baru di HP (menimpa APK lama,
+   selama kunci APK sama).
+
+**Di HP:** buka aplikasi → izinkan notifikasi → login. HP terdaftar otomatis (muncul pesan
+"🔔 Notifikasi aktif di HP ini"); tidak perlu menekan tombol apa pun. Tes lewat Profil → **Kirim tes**.
+Bunyi dan getar bisa diatur per kanal di Pengaturan HP → Aplikasi → CIKOPS → Notifikasi
+(kanal **Tugas baru** dan **Info**).
+
+> Merek HP yang agresif menghemat baterai (Xiaomi, Oppo, Vivo, Realme): Pengaturan → Baterai →
+> CIKOPS Driver/TGA → **Tanpa batasan**, dan izinkan *Autostart*. Tanpa ini notifikasi bisa terlambat.
+
 ### Catatan untuk driver
 OneSignal / APK Median sudah tidak dipakai. Driver yang masih memakai APK Median harus pindah ke APK
 **CIKOPS Driver** (GitHub Actions di atas), lalu Profil → Notifikasi → **Aktifkan** supaya tetap
 mendapat notifikasi tugas.
+
+## Self-Claim driver
+Driver mengajukan klaim sendiri dari aplikasi; admin tidak perlu mengetik ulang, cukup
+memeriksa dan memverifikasi.
+
+**Pasang:** jalankan `supabase/04_aplikasi_lapangan.sql` (sesudah `02_peran_keamanan.sql`), lalu deploy website.
+
+**Alur:**
+1. **Driver:** tombol **＋** di aplikasi driver (atau tab Klaim) → tanggal pengeluaran → rincian
+   (Bensin/Tol/Parkir/Servis/…, nominal boleh dijumlah: `50000+25000`) → **Nota: menyusul / sudah ada**
+   → keterangan → **Kirim ke admin**. Draf tersimpan di HP bila aplikasi tertutup.
+   Selama belum diproses, driver masih bisa **mengubah** atau **membatalkan** pengajuannya.
+2. **Admin Finance:** Dashboard → Finance → Klaim → tab **Pengajuan driver** (ada angka jumlah yang
+   menunggu, muncul langsung tanpa refresh) → **Periksa & verifikasi** membuka form klaim yang sudah terisi.
+   Koreksi bila tidak sesuai nota → **Verifikasi & buat klaim**. Klaim resmi dibuat dan driver mendapat
+   notifikasi "Klaim diverifikasi" (ditandai "dikoreksi admin" bila nominal berubah).
+   Atau **Tolak** dengan alasan; alasan tampil di aplikasi driver.
+3. Pengajuan yang belum diverifikasi **tidak** masuk rekap mingguan, laporan, maupun Dana Operasional.
+
+**Hak akses:** yang bisa memverifikasi/menolak hanya role yang mengelola Finance
+(Master Admin, Admin GA CIK, dan role lama admin/ga). Driver hanya melihat pengajuannya sendiri.
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
