@@ -166,7 +166,8 @@ export default function DriverPanelPage() {
       knownAssigned.current = new Set(assigned.map((t) => t.id));
       setBadge(assigned.length);
     } catch (e) {
-      setTasksErr(e instanceof Error ? e.message : L("Gagal memuat tugas.", "Failed to load tasks."));
+      const m = e instanceof Error ? e.message : (e as { message?: string } | null)?.message;
+      setTasksErr(m || L("Gagal memuat tugas.", "Failed to load tasks."));
     } finally { setRefreshing(false); }
   }, [driver, announce, setBadge, L]);
 
@@ -406,7 +407,7 @@ export default function DriverPanelPage() {
           primary={{ label: L("Lihat pengajuan saya", "View my requests"), onClick: () => { setClaimSent(null); setTab("claims"); } }}
           secondary={{ label: L("Kembali", "Back"), onClick: () => setClaimSent(null) }}>
           <div className={s.ticket}>
-            <div className={s.ticketTop}><span>🧾 Self-Claim</span><b>{claimSent.lines} {L("rincian", "items")}</b></div>
+            <div className={s.ticketTop}><span>🧾 Self-Claim</span><span>{claimSent.lines} {L("rincian", "items")}</span></div>
             <strong className={s.money}>Rp {fmtRp(claimSent.total)}</strong>
             <div className={s.ticketMeta}><span className={`${s.pill} ${s.t_orange}`}>{L("Menunggu verifikasi", "Awaiting review")}</span></div>
           </div>
@@ -461,7 +462,7 @@ function LoginScreen({ L, lang, theme, toggleTheme, setLang, onDone }: {
         <div className={s.stack} style={{ gap: 10 }}>
           <input className={s.input} type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false}
             placeholder="nama@perusahaan.com" value={email} onChange={(e) => { setEmail(e.target.value); setErr(null); }} disabled={busy} aria-label="Email" />
-          <div className={s.amountWrap}>
+          <div className={s.pwWrap}>
             <input className={s.input} type={show ? "text" : "password"} autoComplete="current-password" placeholder="Password"
               value={password} onChange={(e) => { setPassword(e.target.value); setErr(null); }} disabled={busy} aria-label="Password" style={{ paddingRight: 52 }} />
             <button type="button" className={s.linkBtn} style={{ position: "absolute", right: 7 }} onClick={() => setShow((v) => !v)} tabIndex={-1}>

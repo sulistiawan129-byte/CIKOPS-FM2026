@@ -499,6 +499,7 @@
 .nudge b { font-size: 13.5px; }
 .nudge small { font-size: 12px; color: var(--ink2); }
 .nudge button { border: 0; background: none; color: var(--ink3); font-size: 15px; }
+.nudge .linkBtn { border: 0; background: var(--acc); color: #fff; font-size: 13px; }
 
 /* ═══════════ Tambahan design system (dipakai Driver & TGA) ═══════════ */
 
@@ -580,7 +581,7 @@
 .duty small { font-size: 12px; opacity: .9; }
 
 /* Klaim: daftar & form */
-.money { font-family: var(--mono), ui-monospace, monospace; font-weight: 800; letter-spacing: -.01em; }
+.money { font-variant-numeric: tabular-nums; font-weight: 800; letter-spacing: -.01em; }
 .claimRow { display: flex; flex-direction: column; gap: 10px; padding: 13px 14px; border-radius: 16px; background: var(--card); box-shadow: 0 6px 18px -16px rgba(15,27,61,.5); cursor: pointer; transition: transform .1s; }
 .claimRow:active { transform: scale(.99); }
 .claimTop { display: flex; align-items: center; gap: 12px; }
@@ -630,3 +631,8 @@
   .hero > * { max-width: 760px; }
   .list.cols2 { display: grid; grid-template-columns: 1fr 1fr; }
 }
+
+.pwWrap { position: relative; display: flex; align-items: center; }
+/* Tema gelap: latar ikon kategori & kartu detail lebih redup */
+:global(html[data-theme="dark"]) .catIcon, :global(html[data-theme="dark"]) .detailHead { background: hsl(var(--h) 45% 20%); }
+:global(html[data-theme="dark"]) .catIconLg { background: var(--card); }
