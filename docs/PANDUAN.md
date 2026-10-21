@@ -764,6 +764,46 @@ OneSignal / APK Median sudah tidak dipakai. Driver yang masih memakai APK Median
 **CIKOPS Driver** (GitHub Actions di atas), lalu Profil → Notifikasi → **Aktifkan** supaya tetap
 mendapat notifikasi tugas.
 
+## Backup & pemulihan
+Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
+menyimpan backup harian 7 hari). Karena itu ada workflow GitHub **Backup database**
+(`.github/workflows/backup-database.yml`) yang jalan setiap hari pukul 02.00 WIB.
+
+### Isi backup
+Satu file `<nama>-<tanggal>.tar.gpg` per database, terenkripsi AES-256, disimpan sebagai
+artifact GitHub selama 30 hari:
+- `data.dump`: semua tabel aplikasi (struktur + data, fungsi, policy)
+- `auth.dump`: akun login (`auth.users`, `auth.identities`, password tetap ter-hash)
+- `cron_job.csv`: daftar jadwal pg_cron
+
+Tidak termasuk: Edge Function & secret (kodenya di repo, secret catat sendiri), pengaturan
+Auth di Dashboard, dan file Storage (CIKOPS tidak memakai Storage).
+
+### Pasang (sekali)
+1. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   - `BACKUP_PASSPHRASE`: kata sandi panjang. **Simpan juga di tempat lain** (password
+     manager / brankas). Tanpa ini backup tidak bisa dibuka.
+   - `CIKOPS_DB_URL`: Supabase CIKOPS → **Connect** → *Session pooler* → URI, isi password database.
+   - `SECDESK_DB_URL` (opsional): sama, untuk project Security Desk.
+2. **Actions → Backup database → Run workflow** sekali untuk uji. Pastikan hijau dan ada
+   artifact `backup-cikops-…`.
+3. GitHub menonaktifkan jadwal workflow bila repo tidak ada aktivitas 60 hari. Kalau itu
+   terjadi, ada email dari GitHub; buka Actions lalu **Enable workflow**.
+
+### Memulihkan
+Butuh `psql`/`pg_restore` versi 17 dan `gpg` di laptop.
+```bash
+gpg -d cikops-20261021-0200.tar.gpg | tar -x          # minta BACKUP_PASSPHRASE
+pg_restore --data-only -d "$DB_URL" auth.dump           # 1) akun login dulu
+pg_restore --no-owner -d "$DB_URL" data.dump            # 2) tabel aplikasi
+```
+- Target sebaiknya **project Supabase baru/kosong** (extension `pgcrypto`, `pg_cron`,
+  `pg_net` aktif). Pesan `schema "public" already exists` boleh diabaikan.
+- Hanya satu tabel yang rusak/terhapus? Pulihkan ke project cadangan dulu, lalu salin
+  baris yang dibutuhkan, supaya data lain yang sudah masuk hari ini tidak tertimpa.
+- Buat ulang jadwal pg_cron dari `cron_job.csv` (`select cron.schedule(nama, jadwal, perintah)`).
+- Latih pemulihan ke project uji minimal sekali setiap 3 bulan.
+
 ## Pindah akun Supabase & Vercel tanpa mengganggu operasional
 
 Prinsipnya: **domain tetap sama, database disalin utuh (termasuk akun login), dan
