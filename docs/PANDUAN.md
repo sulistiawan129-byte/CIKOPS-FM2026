@@ -856,58 +856,69 @@ pg_restore --no-owner -d "$DB_URL" data.dump            # 2) tabel aplikasi
 - Buat ulang jadwal pg_cron dari `cron_job.csv` (`select cron.schedule(nama, jadwal, perintah)`).
 - Latih pemulihan ke project uji minimal sekali setiap 3 bulan.
 
-## Pindah akun Supabase & Vercel tanpa mengganggu operasional
+## Pindah akun Supabase & GitHub (Vercel tetap)
 
-Prinsipnya: **domain tetap sama, database disalin utuh (termasuk akun login), dan
-kunci rahasia disalin persis**. Dengan begitu APK, QR yang sudah dicetak, layar TV,
-notifikasi, dan file Excel tetap jalan.
+Keputusan: **Vercel tetap di akun sekarang** (domain `cikops-onefm.vercel.app` dan
+`cik-g4s.vercel.app` tidak berubah, jadi APK, QR, TV, dan link email aman).
+Yang pindah hanya **Supabase** (CIKOPS, dan Security Desk bila ikut) dan **repo GitHub**.
 
-### Yang terikat ke akun lama
-| Hal | Di mana sekarang | Saat pindah | Kalau lupa |
-|---|---|---|---|
-| Domain `cikops-onefm.vercel.app`, `cik-g4s.vercel.app` | Project Vercel | **Transfer Project** ke akun Vercel baru (domain ikut) | APK, QR, TV, link email rusak |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel env | Isi nilai project baru, lalu redeploy | Aplikasi tidak bisa login |
-| `GC_*`, `SECDESK_SITE` | Vercel env CIKOPS | Arahkan ke project G-C/Security Desk (baru bila ikut pindah). **`GC_HASH_SALT` tetap sama** | Data NC & Security Desk hilang dari CIKOPS |
-| `TWA_SHA256`, `TWA_PACKAGES` | Vercel env | Salin sama | APK tampil dengan address bar |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Supabase Edge secrets | **Salin persis sama**. Jangan jalankan `vapid-keys.yml` lagi | Semua notifikasi driver/TGA mati |
-| `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOCKER_ADMIN_EMAIL` | Supabase Edge secrets | Salin sama | Semua email berhenti |
-| Keystore APK (`ANDROID_KEYSTORE_*`) & variabel `SITE_URL` | GitHub Actions | Tetap (atau salin bila repo pindah) | APK tidak bisa update, harus instal ulang |
-| Kunci sinkron Excel (`ga_sync_config`, `atk_sync_config`) | Database | Ikut otomatis bila database disalin (jangan dibuat ulang lewat SQL) | Excel "kunci salah" |
-| URL & anon key di file Excel GA & ATK | Konstanta VBA di setiap PC | Ganti ke nilai project baru | Sinkron Excel gagal |
-| pg_cron `auto-complete-tasks-1700` | Database | Ikut database; **matikan di project lama** | Tugas ditutup dua kali |
-| Realtime publication, schema `security` di Exposed schemas (G-C) | Pengaturan Supabase | Cek & samakan | Layar tidak update otomatis |
+### A. Supabase — cara utama: Transfer project (tanpa salin data)
+Supabase bisa memindahkan project ke organisasi lain **utuh**: URL, kunci API, data,
+akun login, Edge Function, secret, dan jadwal cron tetap sama. Tidak ada yang perlu
+diganti di Vercel, APK, maupun Excel.
 
-### Langkah
-1. **Siapkan akun baru.** Buat project Supabase baru (CIKOPS, dan G-C/Security Desk
-   bila ikut pindah) di region yang sama (Singapore). Aktifkan extension `pgcrypto` dan
-   `pg_cron`. Untuk project G-C, tambahkan `security` ke Exposed schemas.
-2. **Latihan salin database** (belum pindah):
+1. Login Supabase dengan **email baru** → buat **Organization** baru (paket Free).
+2. Di organization baru itu: Team → **Invite** email lama sebagai **Owner**. Terima undangan dari email lama.
+3. Login dengan **email lama** → buka project CIKOPS → Project Settings → General →
+   **Transfer project** → pilih organization baru → Transfer.
+   Ulangi untuk project Security Desk (G-C) bila ikut pindah.
+4. Cek: buka aplikasi, login, buat satu tugas, kirim satu notifikasi tes.
+5. Di organization baru, keluarkan email lama dari Team (opsional, sesudah semua beres).
+
+> Batas paket Free: 2 project aktif per organization/akun — pas untuk CIKOPS + Security Desk.
+> Bila tombol Transfer tidak tersedia / ditolak (misalnya karena aturan paket), pakai cara B.
+
+### B. Supabase — cara cadangan: project baru + salin database
+Dipakai hanya bila cara A tidak bisa. Karena URL Supabase berubah, yang perlu diganti:
+
+| Hal | Tindakan |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel (akun sekarang) → env → isi nilai baru → Redeploy |
+| `GC_*` | Bila project Security Desk ikut pindah: isi nilai baru. **`GC_HASH_SALT` tetap sama** |
+| Edge secrets (`VAPID_*`, `GMAIL_*`, `LOCKER_ADMIN_EMAIL`, `FCM_SERVICE_ACCOUNT`) | Salin **persis sama** ke project baru, lalu deploy semua function di `supabase/functions/` |
+| pg_cron & jadwal `vehicle-document-reminder` | Buat ulang di project baru (data `cron.job` tidak ikut tersalin); matikan di project lama |
+| Auth → URL Configuration, template email | Salin manual dari project lama |
+| Excel GA & ATK | Ganti URL & anon key di VBA setiap PC (kunci sinkron ikut database) |
+| Secret GitHub `CIKOPS_DB_URL` / `SECDESK_DB_URL` (backup) | Ganti ke connection string baru |
+
+Langkah:
+1. Buat project baru di region yang sama (Singapore); aktifkan `pgcrypto`, `pg_cron`, `pg_net`
+   (Security Desk: tambahkan `security` ke Exposed schemas).
+2. Salin database (latihan dulu, ulangi di hari-H):
    ```bash
    supabase db dump --db-url "$LAMA" --role-only > roles.sql
    supabase db dump --db-url "$LAMA" > skema.sql
    supabase db dump --db-url "$LAMA" --data-only --use-copy -s public,security,auth > data.sql
    psql "$BARU" -f roles.sql -f skema.sql -c 'SET session_replication_role = replica' -f data.sql
    ```
-   Skema `auth` ikut disalin, jadi semua akun (staf, driver, TGA, receptionist) tetap
-   bisa login dengan password lama. Cek jumlah baris per tabel, `cron.job`, daftar
-   realtime, dan jalankan `supabase/cek_audit_keamanan.sql`.
-3. **Edge Function & secret.** Deploy semua function di `supabase/functions/` ke project
-   baru, lalu set secret dengan nilai **yang sama** (tabel di atas).
-4. **Uji paralel.** Di akun Vercel baru, buat deploy uji yang memakai Supabase baru,
-   lalu cek:
-   - login tiap role
-   - aplikasi driver & TGA
-   - email
-   - Command Center
-   - `/api/gc-nc`
-   - satu salinan file Excel
-5. **Hari-H** (malam, ±30 menit):
-   - umumkan jeda input
-   - ulangi salin data (`data.sql`)
-   - **Transfer Project** Vercel ke akun baru
-   - ganti env Supabase, lalu redeploy
-   - matikan pg_cron di project lama
-6. **Sesudahnya.** Ganti URL & anon key di semua file Excel GA dan ATK. APK tidak perlu
-   dibuat ulang selama domain dan keystore sama. Setiap pengguna cukup login ulang satu
-   kali.
-7. **Simpan cadangan.** Jeda (pause) project lama selama ±2 minggu sebelum dihapus.
+   Atau pulihkan dari backup harian (bab Backup & pemulihan).
+3. Hari-H (malam): jeda input → salin data terakhir → ganti env di Vercel → Redeploy →
+   matikan cron project lama → tes. Pengguna login ulang sekali. APK tidak perlu dibuat ulang.
+4. Pause project lama ±2 minggu sebelum dihapus.
+
+### C. GitHub — Transfer repository (gratis)
+1. Siapkan akun GitHub baru. Di repo lama: Settings → General → **Transfer ownership** →
+   isi akun baru → konfirmasi dari akun baru. Lakukan untuk `CIKOPS-FM2026` dan `CIK-G4S`.
+   Link lama otomatis diteruskan ke alamat baru.
+2. **Sebelum transfer, catat semua secret & variabel Actions** (nilainya tidak bisa dibaca lagi):
+   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (simpan file
+   kunci APK di tempat aman — **tanpa ini APK tidak bisa di-update**), `GOOGLE_SERVICES_JSON`,
+   `BACKUP_PASSPHRASE`, `CIKOPS_DB_URL`, `SECDESK_DB_URL`, variabel `SITE_URL`.
+   Sesudah transfer, cek Settings → Secrets and variables → Actions; isi ulang yang kosong.
+3. **Sambungkan ulang Vercel:** akun GitHub baru → install **Vercel** GitHub App dan beri akses
+   ke kedua repo. Di Vercel (akun sekarang) → project → Settings → **Git** → Connect ke repo
+   di akun baru. Tes dengan satu push: deploy harus jalan otomatis.
+4. Install juga GitHub App **Claude** di akun baru bila masih dipakai.
+5. Actions di repo hasil transfer: buka tab Actions → aktifkan workflow bila diminta
+   (backup harian & build APK).
+
