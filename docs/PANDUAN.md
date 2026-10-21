@@ -856,7 +856,30 @@ pg_restore --no-owner -d "$DB_URL" data.dump            # 2) tabel aplikasi
 - Buat ulang jadwal pg_cron dari `cron_job.csv` (`select cron.schedule(nama, jadwal, perintah)`).
 - Latih pemulihan ke project uji minimal sekali setiap 3 bulan.
 
-## Pindah akun Supabase & GitHub (Vercel tetap)
+## Akses bersama akun (tidak dipindah)
+
+Keputusan terakhir: **Vercel, Supabase, dan GitHub tetap di akun sekarang.** Akun kedua
+diberi akses supaya pengelolaan tidak bergantung pada satu orang.
+
+| Layanan | Cara | Hak yang didapat |
+|---|---|---|
+| Supabase | Organization → **Team** → Invite → role **Owner** | Penuh: semua project, SQL, secret, Edge Function, billing, menambah/menghapus anggota |
+| GitHub (repo pribadi) | Repo → Settings → **Collaborators** → Add people | **Write**: push, merge PR, menjalankan Actions. *Tidak bisa* mengubah Settings, secret Actions, menghapus/transfer repo — repo pribadi tidak punya peran "Owner" untuk collaborator |
+| Vercel (Hobby) | Tidak bisa menambah anggota di paket gratis | Tetap dikelola akun pemilik |
+
+Catatan:
+- Lakukan untuk kedua repo (`CIKOPS-FM2026`, `CIK-G4S`) dan kedua project Supabase.
+- Supabase: minimal 2 Owner, jadi bila satu akun hilang akses, project tetap bisa dikelola.
+- GitHub setara Owner hanya lewat **Organization** (gratis, bisa beberapa Owner), tetapi repo
+  harus dipindah ke organization itu, dan Vercel Hobby tidak bisa deploy dari repo **private**
+  milik organization (perlu Pro). Selama repo tetap di akun pribadi, simpan kode pemulihan 2FA
+  akun pemilik di tempat aman.
+- Simpan juga salinan semua secret Actions (terutama kunci APK `ANDROID_KEYSTORE_*`) di
+  password manager, karena hanya pemilik repo yang bisa melihat/mengubahnya.
+
+Bab di bawah tetap disimpan bila suatu saat memang perlu pindah akun.
+
+## Pindah akun Supabase & GitHub (bila suatu saat diperlukan)
 
 Keputusan: **Vercel tetap di akun sekarang** (domain `cikops-onefm.vercel.app` dan
 `cik-g4s.vercel.app` tidak berubah, jadi APK, QR, TV, dan link email aman).
