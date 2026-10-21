@@ -49,12 +49,18 @@ const b64url = (b: ArrayBuffer | Uint8Array | string) => {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 
+/** FCM_SERVICE_ACCOUNT boleh berisi JSON apa adanya atau versi base64-nya. */
 function serviceAccount(): ServiceAccount | null {
-  if (!FCM_SERVICE_ACCOUNT) return null;
-  try {
-    const sa = JSON.parse(FCM_SERVICE_ACCOUNT) as ServiceAccount;
-    return sa.project_id && sa.client_email && sa.private_key ? sa : null;
-  } catch { return null; }
+  const raw = FCM_SERVICE_ACCOUNT.trim();
+  if (!raw) return null;
+  for (const text of [raw, (() => { try { return atob(raw.replace(/\s+/g, "")); } catch { return ""; } })()]) {
+    try {
+      const sa = JSON.parse(text) as ServiceAccount;
+      if (sa.project_id && sa.client_email && sa.private_key) return { ...sa, private_key: sa.private_key.replace(/\\n/g, "\n") };
+    } catch { /* coba format berikutnya */ }
+  }
+  console.warn("FCM_SERVICE_ACCOUNT tidak terbaca — isi dengan JSON service account atau base64-nya");
+  return null;
 }
 
 async function fcmAccessToken(sa: ServiceAccount): Promise<string> {
