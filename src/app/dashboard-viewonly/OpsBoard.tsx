@@ -561,7 +561,7 @@ function AttentionPanel({ alerts }: { alerts: Alert[] }) {
 
 /** Papan operasional driver hari ini. `embedded` = tampil sebagai tab di FM Command Center
  *  (header sendiri disembunyikan, tinggi mengikuti wadah). */
-export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
+export default function OpsBoard({ embedded = false, light = false }: { embedded?: boolean; light?: boolean }) {
   const { data, error, loadedAt } = usePlantSnapshot();
   const [clock, setClock] = useState("");
   const [clockDate, setClockDate] = useState("");
@@ -674,44 +674,40 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
       `}</style>
       <style jsx>{`
         .page {
-          --bg: #050b1c; --card: rgba(12,22,48,.88); --card2: rgba(20,34,70,.7); --line: rgba(120,150,255,.14);
-          --t1: #f2f6ff; --t2: #b3c0e3; --t3: #7384ad; --track: rgba(255,255,255,.08);
+          --bg: #060b19; --card: rgba(255,255,255,.035); --card2: rgba(255,255,255,.06); --line: rgba(255,255,255,.08);
+          --t1: #eef2ff; --t2: #a8b3cf; --t3: #6d7898; --track: rgba(255,255,255,.08);
           --blue: #4d8dff; --green: #34d399; --cyan: #22d3ee; --amber: #fbbf24; --purple: #a78bfa; --red: #fb7185;
           --grid: rgba(120,150,255,.055);
           display: flex; flex-direction: column; gap: .9rem; height: 100vh; overflow: hidden; padding: 1.1rem 1.6rem .9rem;
-          font-family: var(--font-inter), system-ui, sans-serif; color: var(--t1);
+          font-family: var(--font-jakarta), system-ui, sans-serif; color: var(--t1);
           background:
             radial-gradient(60rem 30rem at 12% -12%, rgba(77,141,255,.18), transparent 60%),
             radial-gradient(50rem 28rem at 100% 110%, rgba(34,211,238,.1), transparent 60%),
-            linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
-            linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
             var(--bg);
         }
         .page.light {
-          --bg: #eef3fc; --card: rgba(255,255,255,.94); --card2: #f3f7fe; --line: #dbe4f5;
-          --t1: #0d1a36; --t2: #44537a; --t3: #7886a8; --track: #e3eaf8;
+          --bg: #f3f5fa; --card: rgba(255,255,255,.9); --card2: #f3f5fb; --line: rgba(15,23,42,.08);
+          --t1: #0f172a; --t2: #475069; --t3: #8a93a8; --track: #e3eaf8;
           --blue: #2d5bff; --green: #12a572; --cyan: #0fa3b8; --amber: #d98a06; --purple: #7c5cf0; --red: #e5484d;
           --grid: rgba(45,91,255,.05);
           background:
             radial-gradient(60rem 30rem at 12% -12%, rgba(45,91,255,.14), transparent 60%),
             radial-gradient(50rem 28rem at 100% 110%, rgba(15,181,164,.12), transparent 60%),
-            linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
-            linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 2.4rem 2.4rem,
             var(--bg);
         }
-        .page.embedded { height: 100%; padding-top: .6rem; background: transparent; }
+        .page.embedded { height: 100%; padding: 1.4rem 2rem 1.6rem; gap: 1.25rem; background: transparent; }
         .page.embedded .top { display: none; }
-        .disp { font-family: var(--font-display), var(--font-inter), sans-serif; }
+        .disp { font-family: var(--font-jakarta), sans-serif; }
 
         /* ───── header ───── */
         .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-shrink: 0; }
         .brand { display: flex; align-items: center; gap: .9rem; }
         .logo { width: 3rem; height: 3rem; border-radius: .95rem; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 0 1.4rem rgba(77,141,255,.35); }
         .logo img { width: 76%; height: 76%; object-fit: contain; }
-        .b-name { font-family: var(--font-display), sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: .04em; line-height: 1; }
+        .b-name { font-family: var(--font-jakarta), sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: .04em; line-height: 1; }
         .b-name sup { font-size: .9rem; color: var(--cyan); margin-left: .15rem; }
         .b-sep { width: 1px; height: 1.8rem; background: var(--line); }
-        .b-sub { font-family: var(--font-display), sans-serif; font-size: 1.1rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--t2); }
+        .b-sub { font-family: var(--font-jakarta), sans-serif; font-size: 1.1rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--t2); }
         .vo-badge { display: inline-flex; align-items: center; gap: .4rem; height: 1.9rem; padding: 0 .8rem; border-radius: 999px; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); border: 1px solid color-mix(in srgb, var(--cyan) 50%, transparent); background: color-mix(in srgb, var(--cyan) 10%, transparent); }
         .tools { display: flex; align-items: center; gap: .6rem; margin-left: 1rem; }
         .live { display: inline-flex; align-items: center; gap: .5rem; height: 2.1rem; padding: 0 .9rem; border-radius: 999px; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 55%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); }
@@ -720,36 +716,35 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         :global(.tbtn:hover) { transform: translateY(-1px); border-color: var(--blue); }
         .page.fs :global(.hide-fs) { display: none; }
         .clock { text-align: right; }
-        .clock .time { font-family: var(--font-display), sans-serif; font-size: 2.6rem; font-weight: 700; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+        .clock .time { font-family: var(--font-jakarta), sans-serif; font-size: 2.6rem; font-weight: 700; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
         .clock .date { font-size: .9rem; font-weight: 500; color: var(--t2); margin-top: .25rem; }
         .err { flex-shrink: 0; padding: .45rem .9rem; border-radius: .7rem; font-size: .85rem; font-weight: 600; color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); }
 
         /* ───── KPI ───── */
-        .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .8rem; flex-shrink: 0; }
-        :global(.kpi) { --c: var(--blue); padding: .8rem 1rem .75rem; border-radius: .95rem; background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--c); box-shadow: 0 14px 30px -20px rgba(0,0,0,.7); }
+        .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1.25rem; flex-shrink: 0; }
+        :global(.kpi) { --c: var(--blue); padding: 1.1rem 1.3rem; border-radius: 1.25rem; background: var(--card); border: 1px solid var(--line); box-shadow: 0 1.2rem 2.6rem -1.8rem rgba(0,0,0,.8); backdrop-filter: blur(12px); }
         :global(.kpi.t-green) { --c: var(--green); } :global(.kpi.t-cyan) { --c: var(--cyan); }
         :global(.kpi.t-amber) { --c: var(--amber); } :global(.kpi.t-purple) { --c: var(--purple); }
-        :global(.k-lbl) { font-size: .75rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        :global(.k-num) { font-family: var(--font-display), sans-serif; font-size: 3rem; font-weight: 700; line-height: 1.05; margin: .15rem 0 .1rem; color: var(--c); font-variant-numeric: tabular-nums; }
+        :global(.k-lbl) { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        :global(.k-lbl)::before { content: ""; display: inline-block; width: .42rem; height: .42rem; margin-right: .45rem; border-radius: 50%; background: var(--c); vertical-align: middle; }
+        :global(.k-num) { font-family: var(--font-jakarta), sans-serif; font-size: 2.4rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; margin: .45rem 0 .3rem; color: var(--t1); font-variant-numeric: tabular-nums; }
         :global(.k-unit) { font-size: 1.3rem; font-weight: 600; color: var(--t3); margin-left: .35rem; }
         :global(.k-sub) { font-size: .85rem; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* ───── panel umum ───── */
-        .mid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: .9rem; }
-        :global(.panel) { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: .85rem 1rem; border-radius: 1rem; background: var(--card); border: 1px solid var(--line); box-shadow: 0 14px 30px -22px rgba(0,0,0,.7); }
-        :global(.p-head) { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; margin-bottom: .6rem; flex-shrink: 0; }
-        :global(.p-head h2) { margin: 0; font-family: var(--font-display), sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+        .mid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: 1.25rem; }
+        :global(.panel) { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 1.2rem 1.4rem; border-radius: 1.25rem; background: var(--card); border: 1px solid var(--line); box-shadow: 0 1.2rem 2.6rem -1.8rem rgba(0,0,0,.8); backdrop-filter: blur(12px); }
+        :global(.p-head) { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; margin-bottom: 1rem; flex-shrink: 0; }
+        :global(.p-head h2) { margin: 0; font-family: var(--font-jakarta), sans-serif; font-size: 1rem; font-weight: 800; letter-spacing: -.005em; white-space: nowrap; }
         :global(.p-meta) { font-size: .85rem; font-weight: 500; color: var(--t3); white-space: nowrap; }
         :global(.p-meta.live) { display: inline-flex; align-items: center; gap: .4rem; color: var(--green); font-weight: 800; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
         :global(.p-meta.warn) { color: var(--amber); font-weight: 700; }
-        :global(.p-cik) { box-shadow: inset 0 3px 0 var(--blue), 0 14px 30px -22px rgba(0,0,0,.7); }
-        :global(.p-prb) { box-shadow: inset 0 3px 0 var(--cyan), 0 14px 30px -22px rgba(0,0,0,.7); }
-        :global(.up) { box-shadow: inset 0 3px 0 var(--purple), 0 14px 30px -22px rgba(0,0,0,.7); }
+        
 
         :global(.rows) { flex: 1; min-height: 0; overflow: hidden; }
         :global(.rows-in) { display: flex; flex-direction: column; gap: .5rem; }
         @keyframes row-in { from { opacity: 0; transform: translateX(.8rem); } to { opacity: 1; transform: none; } }
-        :global(.none) { display: grid; place-items: center; min-height: 6rem; color: var(--t3); font-size: 1rem; border: 1px dashed var(--line); border-radius: .8rem; }
+        :global(.none) { display: grid; place-items: center; min-height: 6rem; color: var(--t3); font-size: .95rem; border: 1px dashed var(--line); border-radius: 1rem; }
         :global(.none.sm) { font-size: .85rem; border: none; padding: .8rem 0; justify-content: start; }
         :global(.dots) { display: flex; justify-content: center; gap: .4rem; padding-top: .55rem; flex-shrink: 0; }
         :global(.dots button) { width: .55rem; height: .55rem; padding: 0; border: none; border-radius: 999px; background: var(--track); cursor: pointer; transition: all .25s; }
@@ -759,8 +754,8 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         :global(.drow), :global(.urow) {
           --tone: var(--green);
           display: flex; align-items: flex-start; gap: .8rem; min-width: 0; padding: .65rem .9rem;
-          border-radius: .8rem; border: 1px solid color-mix(in srgb, var(--tone) 34%, transparent);
-          background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 11%, transparent), color-mix(in srgb, var(--tone) 3%, transparent));
+          border-radius: .9rem; border: 1px solid var(--line); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--tone) 75%, transparent);
+          background: color-mix(in srgb, var(--tone) 5%, transparent);
           animation: row-in .45s ease both;
         }
         :global(.drow.s-go) { --tone: var(--blue); } :global(.drow.s-long) { --tone: var(--red); }
@@ -768,13 +763,13 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         :global(.drow.s-done) { --tone: var(--t3); } :global(.drow.s-duty) { --tone: var(--purple); } :global(.drow.s-off) { --tone: var(--t3); }
         :global(.u-name) { color: var(--t1); font-weight: 700; }
         :global(.urow) { --tone: var(--purple); }
-        :global(.av) { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-family: var(--font-display), sans-serif; font-size: .9rem; font-weight: 700; color: #04122e; background: linear-gradient(140deg, #6cc4ff, #3a86ff); }
+        :global(.av) { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-family: var(--font-jakarta), sans-serif; font-size: .9rem; font-weight: 700; color: #04122e; background: linear-gradient(140deg, #6cc4ff, #3a86ff); }
         :global(.av.sm) { width: 2.1rem; height: 2.1rem; font-size: .78rem; }
         :global(.d-main) { min-width: 0; flex: 1; }
         :global(.d-top) { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
-        :global(.d-name) { font-family: var(--font-display), sans-serif; font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; line-height: 1.2; }
+        :global(.d-name) { font-family: var(--font-jakarta), sans-serif; font-size: 1.05rem; font-weight: 800; letter-spacing: -.005em; line-height: 1.25; }
         :global(.d-name.sm) { font-size: 1rem; }
-        :global(.d-type) { margin-left: .5rem; padding: .05rem .4rem; border-radius: .3rem; border: 1px solid currentColor; font-family: var(--font-inter), sans-serif; font-size: .62rem; font-weight: 800; letter-spacing: .08em; vertical-align: middle; color: var(--amber); }
+        :global(.d-type) { margin-left: .5rem; padding: .05rem .4rem; border-radius: .3rem; border: 1px solid currentColor; font-family: var(--font-jakarta), sans-serif; font-size: .62rem; font-weight: 800; letter-spacing: .08em; vertical-align: middle; color: var(--amber); }
         :global(.d-dest) { display: flex; align-items: flex-start; gap: .4rem; margin-top: .25rem; font-size: 1.05rem; line-height: 1.35; color: var(--t1); }
         :global(.d-dest svg) { color: var(--tone); flex-shrink: 0; margin-top: .2rem; }
         :global(.d-dest b) { font-weight: 700; overflow-wrap: anywhere; }
@@ -786,22 +781,22 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); } 70% { box-shadow: 0 0 0 .45rem transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
         :global(.pdot) { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; display: inline-block; animation: pulse 1.6s infinite; }
 
-        :global(.u-time) { font-family: var(--font-display), sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--purple); width: 3.6rem; flex-shrink: 0; font-variant-numeric: tabular-nums; line-height: 1.2; }
+        :global(.u-time) { font-family: var(--font-jakarta), sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--purple); width: 3.6rem; flex-shrink: 0; font-variant-numeric: tabular-nums; line-height: 1.2; }
         :global(.ptag) { font-size: .75rem; font-weight: 800; letter-spacing: .1em; padding: .25rem .6rem; border-radius: .5rem; flex-shrink: 0; }
         :global(.ptag.cik) { color: var(--blue); background: color-mix(in srgb, var(--blue) 16%, transparent); }
         :global(.ptag.prb) { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 16%, transparent); }
 
         /* ───── baris bawah ───── */
-        .bottom { flex-shrink: 0; min-height: 13.4rem; display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: .9rem; }
+        .bottom { flex-shrink: 0; min-height: 13.4rem; display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 1.25rem; }
         :global(.prog-body) { flex: 1; min-height: 0; display: flex; align-items: center; gap: 1.6rem; padding: 0 .4rem; }
         :global(.ring) { position: relative; height: 100%; max-height: 8.6rem; aspect-ratio: 1; flex-shrink: 0; }
         :global(.ring-txt) { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        :global(.ring-txt b) { font-family: var(--font-display), sans-serif; font-size: 1.6rem; font-weight: 700; line-height: 1; }
+        :global(.ring-txt b) { font-family: var(--font-jakarta), sans-serif; font-size: 1.6rem; font-weight: 700; line-height: 1; }
         :global(.ring-txt small) { font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--t3); margin-top: .3rem; }
         :global(.legend) { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
         :global(.legend li) { display: flex; align-items: center; gap: .7rem; }
         :global(.legend i) { width: .6rem; height: .6rem; border-radius: 3px; }
-        :global(.legend b) { font-family: var(--font-display), sans-serif; font-size: 1.7rem; font-weight: 700; min-width: 2.2rem; line-height: 1; }
+        :global(.legend b) { font-family: var(--font-jakarta), sans-serif; font-size: 1.7rem; font-weight: 700; min-width: 2.2rem; line-height: 1; }
         :global(.legend span) { font-size: 1rem; color: var(--t2); }
 
         :global(.g-cols) { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -810,7 +805,7 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         :global(.g-col h4) { margin: 0 0 .15rem; display: flex; align-items: center; gap: .55rem; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
         :global(.g-col h4 em) { margin-left: auto; font-style: normal; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--t3); }
         :global(.g-col.in h4) { color: var(--green); } :global(.g-col.out h4) { color: var(--amber); }
-        :global(.cnt) { min-width: 1.5rem; height: 1.5rem; padding: 0 .35rem; display: inline-grid; place-items: center; border-radius: .5rem; font-family: var(--font-display), sans-serif; font-size: .9rem; letter-spacing: 0; color: #04122e; background: var(--green); }
+        :global(.cnt) { min-width: 1.5rem; height: 1.5rem; padding: 0 .35rem; display: inline-grid; place-items: center; border-radius: .5rem; font-family: var(--font-jakarta), sans-serif; font-size: .9rem; letter-spacing: 0; color: #04122e; background: var(--green); }
         :global(.g-col.out .cnt) { background: var(--amber); }
         :global(.g-row) { --tone: var(--green); display: flex; align-items: flex-start; gap: .65rem; min-width: 0; }
         :global(.g-row.out) { --tone: var(--amber); }
@@ -822,7 +817,7 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
 
         :global(.ok) { flex: 1; display: flex; align-items: center; gap: 1rem; }
         :global(.ok-ic) { width: 3.6rem; height: 3.6rem; border-radius: 50%; display: grid; place-items: center; color: #04122e; background: var(--green); box-shadow: 0 0 1.6rem color-mix(in srgb, var(--green) 55%, transparent); }
-        :global(.ok b), :global(.alert b) { display: block; font-family: var(--font-display), sans-serif; font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; }
+        :global(.ok b), :global(.alert b) { display: block; font-family: var(--font-jakarta), sans-serif; font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; }
         :global(.ok small), :global(.alert small) { display: block; font-size: .9rem; color: var(--t2); margin-top: .15rem; }
         :global(.alerts) { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .45rem; overflow: hidden; }
         :global(.alert) { --tone: var(--red); display: flex; align-items: center; gap: .7rem; padding: .45rem .7rem; border-radius: .7rem; border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent); background: color-mix(in srgb, var(--tone) 11%, transparent); }
@@ -832,12 +827,12 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         :global(.alert small) { font-size: .85rem; margin-top: 0; }
 
         /* ───── GATE ticker ───── */
-        .ticker { flex-shrink: 0; display: flex; align-items: stretch; border-radius: .8rem; overflow: hidden; background: var(--card); border: 1px solid var(--line); }
-        .t-flag { display: flex; align-items: center; padding: 0 1.1rem; font-family: var(--font-display), sans-serif; font-size: .95rem; font-weight: 700; letter-spacing: .16em; color: #fff; background: linear-gradient(120deg, #2d6bff, #4d8dff); }
+        .ticker { flex-shrink: 0; display: flex; align-items: stretch; border-radius: 1rem; overflow: hidden; background: var(--card); border: 1px solid var(--line); }
+        .t-flag { display: flex; align-items: center; padding: 0 1.1rem; font-family: var(--font-jakarta), sans-serif; font-size: .95rem; font-weight: 700; letter-spacing: .1em; color: #fff; background: linear-gradient(120deg, #3f63f2, #22d3ee); }
         .t-track { flex: 1; overflow: hidden; display: flex; align-items: center; padding: .55rem 0; mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent); }
         .t-roll { display: flex; width: max-content; animation: roll 40s linear infinite; }
         .t-set { display: flex; gap: 3rem; padding-right: 3rem; white-space: nowrap; }
-        .t-set span { font-size: 1rem; font-weight: 600; color: var(--t2); }
+        .t-set span { font-size: .95rem; font-weight: 600; color: var(--t2); }
 
         @keyframes roll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
@@ -853,7 +848,7 @@ export default function OpsBoard({ embedded = false }: { embedded?: boolean }) {
         @media (prefers-reduced-motion: reduce) { .t-roll { animation: none; } :global(.drow), :global(.urow) { animation: none; } }
       `}</style>
 
-      <div className={`page ${display.variable} ${inter.variable}${theme === "light" && !embedded ? " light" : ""}${isFullscreen ? " fs" : ""}${embedded ? " embedded" : ""}`} ref={pageRef}>
+      <div className={`page ${display.variable} ${inter.variable}${(embedded ? light : theme === "light") ? " light" : ""}${isFullscreen ? " fs" : ""}${embedded ? " embedded" : ""}`} ref={pageRef}>
         <header className="top">
           <div className="brand">
             <div className="logo"><img src="/logo.png" alt="CIKOPS" /></div>
