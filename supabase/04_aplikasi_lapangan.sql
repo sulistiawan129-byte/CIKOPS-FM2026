@@ -17,7 +17,9 @@
 
 create or replace function push_endpoint_ok(p_endpoint text) returns boolean
 language sql immutable as $$
-  select coalesce(p_endpoint, '') ~ '^https://' or coalesce(p_endpoint, '') ~ '^fcm:[A-Za-z0-9_:.-]{20,4096}$'
+  -- catatan: PostgreSQL membatasi {m,n} maksimal 255, jadi panjang token dicek terpisah
+  select coalesce(p_endpoint, '') ~ '^https://'
+      or (coalesce(p_endpoint, '') ~ '^fcm:[A-Za-z0-9_:.-]+$' and length(p_endpoint) between 24 and 4100)
 $$;
 
 create or replace function push_subscribe_driver(p_endpoint text, p_p256dh text, p_auth text, p_ua text default '') returns boolean
