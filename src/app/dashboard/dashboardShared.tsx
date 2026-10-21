@@ -154,20 +154,8 @@ export function fmtRp(n: number): string {
   return new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
 }
 
-/** Safely evaluates a simple arithmetic expression like "50000+30000" —
- *  strips anything that isn't a digit/operator first, same approach the
- *  original FleetOS claim form used for its nominal field. */
-export function evalExpr(raw: string): number | null {
-  const cleaned = (raw || "").replace(/[^0-9+\-*/().\s]/g, "").slice(0, 120);
-  if (!cleaned.trim()) return null;
-  try {
-    // eslint-disable-next-line no-new-func
-    const value = Function('"use strict";return (' + cleaned + ")")();
-    return isFinite(value) && value >= 0 ? Math.round(value) : null;
-  } catch {
-    return null;
-  }
-}
+/** Hitung nominal dari isian seperti "50000+30000" — dipakai bersama aplikasi driver. */
+export { evalExpr } from "@/lib/claims/driverClaims";
 
 /** Computes the 4 Monday–Friday-anchored week boundaries (day-of-month
  *  numbers) for the month containing `dateStr`.

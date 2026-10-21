@@ -16,6 +16,8 @@ import of from "./opfund.module.css";
 import { ModuleHeader } from "./ModuleShell";
 import { todayStr, useIsMobile, useCountUp, formatDateLabel, fmtRp, evalExpr, monthWeekBoundaries, PLANT_COLOR } from "./dashboardShared";
 import { OpFundTab } from "./OpFundTab";
+import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
+import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 
 /** Which of the month's 4 work-weeks (1–4) a date falls into — see
  *  monthWeekBoundaries() above for the exact rule. */
@@ -131,7 +133,16 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const [driverUserIds, setDriverUserIds] = useState<string[]>([]);
   const [exportingRecap, setExportingRecap] = useState(false);
   const [exportingWeeklyRecap, setExportingWeeklyRecap] = useState<"excel" | "pdf" | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "weekly" | "wreath">("list");
+  const [viewMode, setViewMode] = useState<"list" | "weekly" | "wreath" | "requests">("list");
+  // ── Self-Claim: pengajuan dari aplikasi driver ──
+  const [requests, setRequests] = useState<ClaimRequest[]>([]);
+  const [requestsErr, setRequestsErr] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<ClaimRequest | null>(null);
+  const [rejecting, setRejecting] = useState<ClaimRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectBusy, setRejectBusy] = useState(false);
+  const canReview = ["master", "admin", "ga", "admin_ga_cik"].includes(myProfile?.role ?? "master");
+  const pendingRequests = requests.filter((r) => r.status === "menunggu").length;
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ name: string; total: number; edited?: boolean } | null>(null);
   useEffect(() => {
@@ -249,6 +260,40 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     load();
   }, [load]);
 
+  const loadRequests = useCallback(async () => {
+    try { setRequests(await getClaimRequests({ status: "all", plant: myProfile?.plantScope ?? null })); setRequestsErr(null); }
+    catch (e) { setRequestsErr(e instanceof Error ? e.message : String(e)); }
+  }, [myProfile?.plantScope]);
+  useEffect(() => {
+    loadRequests();
+    return subscribeClaimRequests(() => loadRequests());
+  }, [loadRequests]);
+
+  function openReview(r: ClaimRequest) {
+    setReviewing(r);
+    setEditingClaim(null);
+    setFormDriverId(r.driverId);
+    setSubmissionDate(todayStr());
+    setPeriodDate(r.periodDate);
+    setNote(r.note || "");
+    setLines(r.items.length ? r.items.map((it, i) => ({ id: Date.now() + i, type: it.type, expr: it.expr || String(it.total) })) : [{ id: Date.now(), type: "Gasoline", expr: "" }]);
+    setShowForm(true);
+  }
+
+  async function handleReject() {
+    if (!rejecting || !rejectReason.trim() || rejectBusy) return;
+    setRejectBusy(true);
+    try {
+      await rejectClaimRequest(rejecting.id, rejectReason.trim());
+      sendPushToDriver([rejecting.driverId], lang === "en" ? "Claim rejected ❌" : "Klaim ditolak ❌",
+        `Rp ${fmtRp(rejecting.total)} · ${rejectReason.trim()}`, { type: "claim" }).catch(() => {});
+      setRejecting(null); setRejectReason("");
+      await loadRequests();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally { setRejectBusy(false); }
+  }
+
   const filtered = useMemo(() => {
     let list = driverFilter === "all" ? claims : claims.filter((c) => c.driver_id === driverFilter);
     if (periodMode === "date") {
@@ -316,6 +361,17 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         expr: l.expr,
         total: evalExpr(l.expr) || 0,
       }));
+      if (reviewing) {
+        await approveClaimRequest(reviewing.id, { driverId: formDriverId, submissionDate, periodDate, items, note });
+        const changed = Math.round(grandTotal) !== Math.round(reviewing.total);
+        sendPushToDriver([formDriverId], lang === "en" ? "Claim verified ✅" : "Klaim diverifikasi ✅",
+          `Rp ${new Intl.NumberFormat("id-ID").format(grandTotal)}${changed ? (lang === "en" ? " (corrected by admin)" : " (dikoreksi admin)") : ""}`, { type: "claim" }).catch(() => {});
+        setShowForm(false);
+        setReviewing(null);
+        setNotice({ name: drivers.find((d) => d.id === formDriverId)?.nama || reviewing.driverName || "-", total: grandTotal });
+        await Promise.all([load(), loadRequests()]);
+        return;
+      }
       if (editingClaim) {
         await updateClaim(editingClaim.id, { driver_id: formDriverId, submissionDate, periodDate, items, total: grandTotal, note });
         setShowForm(false);
@@ -452,6 +508,9 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   try { formWeek = periodDate ? weekRangeOf(periodDate, lang).label : ""; } catch { formWeek = ""; }
   const driverOptions = drivers.map((d) => ({ id: d.id, nama: d.nama }));
   // Saat edit, driver klaim lama tetap muncul di daftar walau sudah nonaktif / beda filter.
+  if (reviewing && !driverOptions.some((d) => d.id === reviewing.driverId)) {
+    driverOptions.unshift({ id: reviewing.driverId, nama: reviewing.driverName || "-" });
+  }
   if (editingClaim && !driverOptions.some((d) => d.id === editingClaim.driver_id)) {
     driverOptions.unshift({ id: editingClaim.driver_id, nama: editingClaim.driverName || "-" });
   }
@@ -477,11 +536,24 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         options={[
           { key: "list", label: en ? "Claims" : "Daftar klaim" },
           { key: "weekly", label: en ? "Weekly recap" : "Rekap mingguan" },
+          { key: "requests", label: `${en ? "Driver requests" : "Pengajuan driver"}${pendingRequests ? ` (${pendingRequests})` : ""}`, icon: <span aria-hidden="true">📲</span> },
           { key: "wreath", label: en ? "Condolence wreaths" : "Karangan bunga duka cita", icon: <span aria-hidden="true">💐</span> },
         ]}
       />
 
-      {viewMode !== "wreath" && (
+      {viewMode === "requests" && (
+        <ClaimRequestsPanel lang={lang} requests={requests} error={requestsErr} canReview={canReview}
+          onReview={openReview} onReject={(r) => { setRejecting(r); setRejectReason(""); }} />
+      )}
+
+      {viewMode !== "list" || pendingRequests === 0 ? null : (
+        <button className={cs.notice} style={{ cursor: "pointer", textAlign: "left", width: "100%" }} onClick={() => setViewMode("requests")}>
+          <span aria-hidden="true">📲</span>
+          <span><b>{pendingRequests}</b> {en ? "claim request(s) from drivers awaiting review — open" : "pengajuan klaim dari driver menunggu verifikasi — buka"}</span>
+        </button>
+      )}
+
+      {viewMode !== "wreath" && viewMode !== "requests" && (
         <div className={cs.top}>
           <div className={cs.filters}>
             <select className={cs.select} value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} aria-label="Driver">
@@ -686,11 +758,29 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
             addLine={addLine} removeLine={removeLine} updateLine={updateLine}
             note={note} setNote={setNote}
             grandTotal={grandTotal} canSave={canSave} saving={saving}
-            onSave={handleSave} onClose={() => { setShowForm(false); setEditingClaim(null); }}
+            onSave={handleSave} onClose={() => { setShowForm(false); setEditingClaim(null); setReviewing(null); }}
             evalExpr={evalExpr}
             cancelText={t.actionCancel} savingText={t.actionSaving}
             editing={!!editingClaim}
+            review={reviewing ? { driverName: reviewing.driverName, nota: reviewing.nota, submittedAt: reviewing.createdAt, driverNote: reviewing.note } : undefined}
           />
+        </ModalPortal>
+      )}
+
+      {rejecting && (
+        <ModalPortal onOverlayClick={() => { if (!rejectBusy) setRejecting(null); }} maxWidth={420}>
+          <div className={`${cs.dialog} ${cs.dialogWarn}`}>
+            <div className={cs.warnIc} aria-hidden="true">!</div>
+            <h2>{en ? "Reject this request?" : "Tolak pengajuan ini?"}</h2>
+            <p><b>Rp {fmtRp(rejecting.total)}</b> ({rejecting.driverName}). {en ? "The driver will see the reason in the app." : "Driver akan melihat alasannya di aplikasi."}</p>
+            <textarea className={cs.select} style={{ width: "100%", minHeight: 84, height: "auto", padding: 10 }} autoFocus maxLength={500}
+              placeholder={en ? "Reason, e.g. receipt doesn't match / duplicate" : "Alasan, mis. nominal tidak sesuai nota / dobel"}
+              value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+            <div className={cs.dialogFoot}>
+              <button className={cs.btn} style={{ height: 44 }} onClick={() => setRejecting(null)} disabled={rejectBusy}>{t.actionCancel}</button>
+              <button className={cs.danger} onClick={handleReject} disabled={rejectBusy || !rejectReason.trim()}>{rejectBusy ? t.actionSaving : (en ? "Reject" : "Tolak")}</button>
+            </div>
+          </div>
         </ModalPortal>
       )}
 

@@ -584,8 +584,9 @@ export async function sendPushToDriver(
   data?: Record<string, string>
 ): Promise<void> {
   try {
-    void data;
-    const { error } = await supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body } });
+    // type "task" = tugas (bunyi berulang sampai dibuka); lainnya = info (bunyi sekali)
+    const kind = !data?.type || data.type === "task" ? "task" : "info";
+    const { error } = await supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body, kind } });
     if (error) console.warn("Push notification failed (non-critical):", error.message);
   } catch (e) {
     console.warn("Push notification failed (non-critical):", e);

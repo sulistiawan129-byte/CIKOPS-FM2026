@@ -5,6 +5,11 @@
 #
 # Cara pakai: GitHub → Actions → "APK Android (TGA & Driver)" → Run workflow.
 # Hasil: tab "Artifacts" di halaman run → unduh, kirim ke HP, lalu install.
+#
+# Notifikasi native (bunyi + getar seperti aplikasi asli) lewat Firebase Cloud Messaging:
+# isi secret GOOGLE_SERVICES_JSON dengan isi file google-services.json dari Firebase
+# (satu project Firebase berisi 2 aplikasi Android: com.cikops.driver & com.cikops.tga).
+# Tanpa secret itu APK tetap jadi, notifikasi memakai Web Push seperti sebelumnya.
 # Panduan lengkap: docs/PANDUAN.md (bab APK)
 name: APK Android (TGA & Driver)
 
@@ -75,8 +80,25 @@ jobs:
     env:
       SITE_URL: ${{ github.event.inputs.site_url || vars.SITE_URL || 'https://cikops-onefm.vercel.app' }}
       HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_FCM: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Bunyi notifikasi & Firebase
+        env:
+          GSJ: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p android/app/src/main/res/raw
+          cp public/notif.wav android/app/src/main/res/raw/notif.wav
+          if [ "$HAS_FCM" = "true" ]; then
+            printf '%s' "$GSJ" > android/app/google-services.json
+            if ! grep -q "\"${{ matrix.app == 'tga' && 'com.cikops.tga' || 'com.cikops.driver' }}\"" android/app/google-services.json; then
+              echo "::error::google-services.json belum berisi aplikasi ${{ matrix.app == 'tga' && 'com.cikops.tga' || 'com.cikops.driver' }} — tambahkan aplikasi Android itu di Firebase, unduh ulang file-nya."
+              exit 1
+            fi
+          else
+            echo "::warning::Secret GOOGLE_SERVICES_JSON kosong — APK dibuat tanpa notifikasi native (Web Push saja)."
+          fi
 
       - name: Identitas aplikasi
         id: cfg
@@ -167,6 +189,7 @@ jobs:
             echo "- Situs: \`$SITE_URL${{ steps.cfg.outputs.path }}\`"
             echo "- Package: \`${{ steps.cfg.outputs.id }}\`"
             echo "- Unduh APK di bagian **Artifacts** di bawah (APK-${{ matrix.app }})."
+            if [ "$HAS_FCM" = "true" ]; then echo "- Notifikasi native (Firebase): **aktif** 🔔"; else echo "- Notifikasi native (Firebase): belum — isi secret \`GOOGLE_SERVICES_JSON\`"; fi
             echo ""
             echo "### Sidik jari sertifikat (untuk layar penuh tanpa address bar)"
             echo "Isi Vercel → Settings → Environment Variables → \`TWA_SHA256\` dengan:"

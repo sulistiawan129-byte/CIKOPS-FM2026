@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -13,6 +14,20 @@
         android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
+
+        <!-- Pintu masuk: izin notifikasi + token FCM, lalu membuka halaman web -->
+        <activity
+            android:name=".StartActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <!-- Membuka halaman web (Chrome) dalam mode layar penuh -->
         <activity
@@ -26,11 +41,6 @@
             <meta-data android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE" android:resource="@drawable/ic_launcher" />
             <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION" android:value="300" />
             <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY" android:value="${applicationId}.fileprovider" />
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
 
             <!-- Tautan ke halaman aplikasi ini dibuka langsung di aplikasi -->
             <intent-filter android:autoVerify="true">
@@ -48,6 +58,17 @@
             android:exported="false">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/filepaths" />
         </provider>
+
+        <!-- Notifikasi native (Firebase Cloud Messaging) -->
+        <service
+            android:name=".PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="cikops_tugas_v1" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_notify" />
 
         <!-- Notifikasi web diteruskan sebagai notifikasi aplikasi -->
         <service
