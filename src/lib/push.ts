@@ -127,10 +127,10 @@ export async function disablePush(): Promise<void> {
 /** Kirim notifikasi tes ke HP ini. */
 export async function testPush(body: Record<string, unknown>): Promise<void> {
   const { data, error } = await supabase.functions.invoke("send-web-push", { body: { event: "test", ...body } });
-  const d = data as { ok?: boolean; sent?: number; error?: string } | null;
+  const d = data as { ok?: boolean; sent?: number; error?: string; errors?: string[] } | null;
   if (error) throw new Error(error.message);
   if (!d?.ok) throw new Error(d?.error ?? "Gagal mengirim notifikasi tes.");
-  if (!d.sent) throw new Error("Notifikasi tidak terkirim — coba matikan lalu aktifkan lagi.");
+  if (!d.sent) throw new Error(d.errors?.length ? `Notifikasi tidak terkirim: ${d.errors.join(" · ")}` : "Notifikasi tidak terkirim — coba matikan lalu aktifkan lagi. (Bila tetap gagal, pastikan fungsi send-web-push sudah versi terbaru.)");
 }
 
 /** Beri tahu teknisi TGA tentang tugas baru / dialihkan (isi pesan dibuat server dari database). */

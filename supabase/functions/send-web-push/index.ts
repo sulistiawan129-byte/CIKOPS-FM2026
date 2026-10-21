@@ -86,7 +86,7 @@ async function fcmAccessToken(sa: ServiceAccount): Promise<string> {
 }
 
 /** Kirim satu pesan data FCM. "gone" = token sudah tidak berlaku (aplikasi dihapus / data dibersihkan). */
-async function sendFcm(sa: ServiceAccount, token: string, msg: Message): Promise<"ok" | "gone" | "fail"> {
+async function sendFcm(sa: ServiceAccount, token: string, msg: Message): Promise<"ok" | "gone" | string> {
   const access = await fcmAccessToken(sa);
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
     method: "POST",
@@ -105,24 +105,32 @@ async function sendFcm(sa: ServiceAccount, token: string, msg: Message): Promise
   if (res.status === 404 || /UNREGISTERED|registration-token-not-registered/i.test(t)) return "gone";
   if (res.status === 400 && /INVALID_ARGUMENT/.test(t) && /token/i.test(t)) return "gone";
   console.warn("fcm gagal", res.status, t.slice(0, 300));
-  return "fail";
+  const m = /"message":\s*"([^"]+)"/.exec(t)?.[1] ?? t.slice(0, 160);
+  return res.status === 403 || res.status === 401
+    ? `Firebase menolak (${res.status}): ${m}. Cek FCM_SERVICE_ACCOUNT berasal dari project Firebase yang sama dengan APK.`
+    : `Firebase error ${res.status}: ${m}`;
 }
 
 async function sendAll(admin: ReturnType<typeof createClient>, subs: Sub[], msg: Message) {
   let sent = 0;
   const gone: string[] = [];
+  const errors = new Set<string>();
   const sa = serviceAccount();
   await Promise.all(subs.map(async (s) => {
     if (s.endpoint.startsWith("fcm:")) {
-      if (!sa) { console.warn("FCM_SERVICE_ACCOUNT belum diset — notifikasi APK dilewati"); return; }
+      if (!sa) {
+        errors.add(FCM_SERVICE_ACCOUNT ? "Secret FCM_SERVICE_ACCOUNT tidak terbaca — tempel ulang isi JSON service account (atau versi base64-nya)." : "Secret FCM_SERVICE_ACCOUNT belum diisi di Supabase → Edge Functions → Secrets.");
+        return;
+      }
       try {
         const r = await sendFcm(sa, s.endpoint.slice(4), msg);
         if (r === "ok") sent++;
-        else if (r === "gone") gone.push(s.endpoint);
-      } catch (e) { console.warn("fcm error", (e as Error).message); }
+        else if (r === "gone") { gone.push(s.endpoint); errors.add("Token HP sudah tidak berlaku — buka ulang aplikasi lalu aktifkan lagi."); }
+        else errors.add(r);
+      } catch (e) { console.warn("fcm error", (e as Error).message); errors.add(`Gagal menghubungi Firebase: ${(e as Error).message}`); }
       return;
     }
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) { errors.add("VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY belum diset."); return; }
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -132,12 +140,12 @@ async function sendAll(admin: ReturnType<typeof createClient>, subs: Sub[], msg:
       sent++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
-      if (code === 404 || code === 410) gone.push(s.endpoint);  // HP sudah tidak berlangganan
-      else console.warn("push gagal", code, (e as Error).message);
+      if (code === 404 || code === 410) { gone.push(s.endpoint); errors.add("Langganan notifikasi browser kedaluwarsa — matikan lalu aktifkan lagi."); }  // HP sudah tidak berlangganan
+      else { console.warn("push gagal", code, (e as Error).message); errors.add(`Web Push gagal${code ? ` (${code})` : ""}: ${(e as Error).message}`); }
     }
   }));
   if (gone.length) await admin.from("push_subscriptions").delete().in("endpoint", gone);
-  return { sent, total: subs.length, removed: gone.length };
+  return { sent, total: subs.length, removed: gone.length, errors: [...errors].slice(0, 3) };
 }
 
 async function staffOf(admin: ReturnType<typeof createClient>, req: Request) {
