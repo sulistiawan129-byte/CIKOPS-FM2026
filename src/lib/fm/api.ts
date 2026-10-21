@@ -5,7 +5,7 @@ import type { FmSnapshot, NcBoard, RcpBoard } from "./model";
 
 function friendly(error: { code?: string; message?: string }): Error {
   if (error.code === "PGRST202" || error.code === "42883" || /Could not find the function|does not exist/i.test(error.message ?? "")) {
-    return new Error("FM Command Center belum aktif — jalankan supabase/028_fm_command_center.sql di Supabase.");
+    return new Error("FM Command Center belum aktif — jalankan supabase/01_dasar.sql (bagian 028) di Supabase.");
   }
   return new Error(error.message ?? String(error));
 }

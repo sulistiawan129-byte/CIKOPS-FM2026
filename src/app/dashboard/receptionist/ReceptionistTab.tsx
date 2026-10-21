@@ -4,9 +4,10 @@
    RECEPTIONIST — pilar Fasilitas.
    Dashboard (wifi, barang menunggu, booking hari ini) · Wifi Guest ·
    Barang & Surat · Induction Room · Pengaturan.
-   Database: supabase/031_receptionist.sql · Email: send-receptionist-email.
+   Database: supabase/01_dasar.sql (bagian 031) · Email: send-receptionist-email.
 ════════════════════════════════════════════════════════════ */
 
+import { SettingsGroup, SettingsPage } from "@/components/settings/Settings";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MyProfile } from "@/lib/api";
 import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
@@ -214,44 +215,36 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
 
 /* ── Pengaturan ── */
 function Settings({ settings, onSaved }: { settings: RcpSettings; onSaved: (s: RcpSettings) => void }) {
-  const [s, setS] = useState(settings);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  useEffect(() => setS(settings), [settings]);
-  const set = <K extends keyof RcpSettings>(k: K, v: RcpSettings[K]) => setS((x) => ({ ...x, [k]: v }));
-  const valid = toMin(s.closeTime) > toMin(s.openTime);
-  async function save() {
-    setBusy(true); setMsg(null);
-    try { await saveRcpSettings(s); onSaved(s); setMsg({ ok: true, text: "✓ Pengaturan disimpan." }); }
-    catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); }
+  // Model CRUD standar: setiap nilai diubah lewat formulir sendiri dan langsung tersimpan.
+  async function save(patch: Partial<RcpSettings>) {
+    const next = { ...settings, ...patch, slotMinutes: Number(patch.slotMinutes ?? settings.slotMinutes) };
+    if (toMin(next.closeTime) <= toMin(next.openTime)) throw new Error("Jam tutup harus setelah jam buka.");
+    await saveRcpSettings(next);
+    onSaved(next);
   }
+  const values = settings as unknown as RcpSettings & Record<string, unknown>;
+  type V = typeof values;
   return (
-    <div className={r.grid2}>
-      <section className={r.card}>
-        <div className={r.cardHead}><h2>Ruangan</h2></div>
-        <div className={r.form}>
-          <label className={`${r.field} ${r.full}`}><span>Nama ruangan</span><input className={r.input} value={s.roomName} onChange={(e) => set("roomName", e.target.value)} /></label>
-          <label className={r.field}><span>Jam buka</span><input className={r.input} type="time" step={900} value={s.openTime} onChange={(e) => set("openTime", e.target.value)} /></label>
-          <label className={r.field}><span>Jam tutup</span><input className={r.input} type="time" step={900} value={s.closeTime} onChange={(e) => set("closeTime", e.target.value)} /></label>
-          <div className={`${r.field} ${r.full}`}><span>Panjang slot grid</span>
-            <div className={r.chips}>{[15, 30, 60].map((m) => <button key={m} type="button" className={r.chip} aria-pressed={s.slotMinutes === m} onClick={() => set("slotMinutes", m)}>{m} menit</button>)}</div>
-          </div>
-        </div>
-        <p className={r.hint}>Booking boleh lebih dari 1 slot (mis. 08:00–11:30). Panjang slot hanya mengatur ketelitian pilihan jam.</p>
-      </section>
-      <section className={r.card}>
-        <div className={r.cardHead}><h2>Wifi Guest</h2></div>
-        <div className={r.form}>
-          <label className={`${r.field} ${r.full}`}><span>Nama wifi (SSID) <em>— dicantumkan di email</em></span><input className={r.input} value={s.wifiSsid} onChange={(e) => set("wifiSsid", e.target.value)} placeholder="mis. FFI-Guest" /></label>
-          <label className={`${r.field} ${r.full}`}><span>Ketentuan <em>— satu baris satu poin</em></span><textarea className={r.input} style={{ minHeight: 140 }} value={s.wifiTerms} onChange={(e) => set("wifiTerms", e.target.value)} /></label>
-        </div>
-      </section>
-      <div className={`${r.card} ${r.full}`} style={{ gridColumn: "1 / -1", flexDirection: "row", flexWrap: "wrap", alignItems: "center" }}>
-        {!valid && <div className={r.err}>Jam tutup harus setelah jam buka.</div>}
-        {msg && <div className={msg.ok ? r.ok : r.err}>{msg.text}</div>}
-        <span className={r.grow} />
-        <button type="button" className={r.btn} disabled={busy || !valid} onClick={save}>{busy ? "Menyimpan…" : "Simpan pengaturan"}</button>
-      </div>
-    </div>
+    <SettingsPage>
+      <SettingsGroup<V>
+        icon="🚪" title="Ruangan" values={values} onSave={save}
+        desc="Booking boleh lebih dari satu slot (mis. 08:00–11:30). Panjang slot hanya mengatur ketelitian pilihan jam."
+        items={[
+          { key: "roomName", label: "Nama ruangan", required: true },
+          { key: "openTime", label: "Jam buka", type: "time", required: true },
+          { key: "closeTime", label: "Jam tutup", type: "time", required: true },
+          { key: "slotMinutes", label: "Panjang slot", type: "chips", required: true,
+            options: [15, 30, 60].map((m) => ({ value: String(m), label: `${m} menit` })), display: (v) => `${v} menit` },
+        ]}
+      />
+      <SettingsGroup<V>
+        icon="📶" title="Wifi Guest" values={values} onSave={save}
+        desc="Dicantumkan di email akses wifi untuk tamu."
+        items={[
+          { key: "wifiSsid", label: "Nama wifi (SSID)", placeholder: "mis. FFI-Guest" },
+          { key: "wifiTerms", label: "Ketentuan", type: "textarea", hint: "Satu baris satu poin" },
+        ]}
+      />
+    </SettingsPage>
   );
 }

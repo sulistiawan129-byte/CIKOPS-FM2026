@@ -58,10 +58,6 @@ const P: Record<string, ReactNode> = {
 
 export type IconName = keyof typeof P;
 
-export function hasIcon(name: string): name is IconName {
-  return name in P;
-}
-
 export default function Icon({
   name,
   size = 19,

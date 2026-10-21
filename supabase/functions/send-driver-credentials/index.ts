@@ -118,7 +118,7 @@ function template(p: {
       }</p>
     </div>
     <p style="text-align:center;font-size:11px;color:#9aa7c2;margin-top:14px">CIKOPS-FM SYSTEM</p>
-  </div>`;)
+  </div>`);
 
   return { subject, html };
 }

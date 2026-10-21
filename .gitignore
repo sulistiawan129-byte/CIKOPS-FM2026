@@ -1,3 +1,19 @@
+# dependencies & build
 node_modules/
 .next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# env & lokal
+.env
 .env*.local
+.vercel
+supabase/.temp/
+
+# lain-lain
+*.log
+.DS_Store
+
+# disalin otomatis dari vba/ (scripts/sync-downloads.mjs)
+public/downloads/

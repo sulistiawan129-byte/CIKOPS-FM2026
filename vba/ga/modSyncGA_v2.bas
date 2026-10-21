@@ -151,7 +151,7 @@ Private Function Tarik(ByVal dariPeriode As Long, ByVal diam As Boolean) As Stri
     teks = resp
     If Left$(teks, 1) = """" Then teks = JsonStr(teks)
     If Left$(teks, 9) <> "##CIKOPS" & vbTab Then
-        Tarik = "Jawaban CIKOPS tidak dikenali. Pastikan SQL 038_ga_cikops_master.sql sudah dijalankan."
+        Tarik = "Jawaban CIKOPS tidak dikenali. Pastikan SQL 01_dasar.sql (bagian 038) sudah dijalankan."
         CatatError Tarik
         Application.StatusBar = False
         Exit Function

@@ -25,7 +25,7 @@ Option Explicit
 '      - SUPABASE_URL dan SUPABASE_ANON_KEY (sama seperti dulu)
 '      - CIKOPS_SYNC_KEY: salin dari CIKOPS -> menu ATK -> tab
 '        "Sinkron Excel" (hanya admin yang bisa melihat), atau dari
-'        hasil SQL 026_atk_dua_arah.sql.
+'        hasil SQL 01_dasar.sql (bagian 026).
 '   3. Buat tombol "Tarik dari CIKOPS" (opsional) - SyncToCikops sudah
 '      otomatis menarik dulu sebelum mengirim.
 '
@@ -362,7 +362,8 @@ Private Function SyncStokBarang() As Long
             json = "{""p_kode_barang"":" & JQ(kode) & _
                    ",""p_nama_barang"":" & JQ(nama) & _
                    ",""p_satuan"":" & JQ(satuan) & _
-                   ",""p_stok"":" & NumStr(stok) & "}"
+                   ",""p_stok"":" & NumStr(stok) & _
+                   ",""p_key"":" & JQ(CIKOPS_SYNC_KEY) & "}"
             errDetail = ""
             If PostJson(SUPABASE_URL & "/rest/v1/rpc/atk_upsert_item", json, "return=minimal", errDetail) Then
                 count = count + 1

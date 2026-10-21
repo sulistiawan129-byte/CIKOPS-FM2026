@@ -92,11 +92,6 @@ export function byLowestAch(a: GaGroup, b: GaGroup): number {
   return (a.ach ?? 2) - (b.ach ?? 2) || b.plan - a.plan;
 }
 
-export function statusAch(s: GaSummary): "achieve" | "not" | "na" {
-  if (s.ach === null) return "na";
-  return s.ach >= 0.999 ? "achieve" : "not";
-}
-
 export function periodeOf(isoDate: string): number {
   return Number(isoDate.slice(0, 4)) * 100 + Number(isoDate.slice(5, 7));
 }

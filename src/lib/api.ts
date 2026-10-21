@@ -1,4 +1,13 @@
 import { supabase } from "./supabaseClient";
+
+/** Update yang ditolak RLS tidak memberi error — 0 baris berubah. Jangan tampilkan "tersimpan". */
+function noChangeError(): Error {
+  return new Error("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.");
+}
+
+/** Batas hari kalender WIB untuk filter kolom timestamp (created_at disimpan dalam UTC). */
+const dayStartWIB = (d: string) => `${d}T00:00:00+07:00`;
+const dayEndWIB = (d: string) => `${d}T23:59:59.999+07:00`;
 import { todayLocalISODate } from "./dateUtils";
 import { plantLocation } from "./types";
 import type {
@@ -317,7 +326,6 @@ export async function ensureTaskAutoComplete(): Promise<void> {
   }
 }
 
-
 export async function getDriverTasksToday(
   driverId: string
 ): Promise<TaskDetail[]> {
@@ -502,9 +510,9 @@ export async function createTaskBatch(input: CreateTaskBatchInput): Promise<{ cr
   const batchId: string = row?.batch_id ?? "";
   // Best-effort: isi lokasi asal untuk seluruh hari di batch ini (migrasi 017)
   if (batchId && input.lokasiAsal?.trim()) {
-    try {
-      await supabase.rpc("set_task_origin_batch", { p_batch_id: batchId, p_asal: input.lokasiAsal.trim() });
-    } catch { /* abaikan — default lokasi plant tetap berlaku */ }
+    // rpc() tidak melempar error — cek hasilnya; gagal = lokasi default plant tetap berlaku
+    const { error: originErr } = await supabase.rpc("set_task_origin_batch", { p_batch_id: batchId, p_asal: input.lokasiAsal.trim() });
+    if (originErr) console.warn("Lokasi asal tidak tersimpan:", originErr.message);
   }
   return { createdCount: row?.created_count ?? 0, batchId };
 }
@@ -567,8 +575,7 @@ export async function sendTaskBatchEmail(input: {
   }
 }
 
-/** Kirim push notification OneSignal ke satu atau lebih driver.
- *  driverIds = array UUID dari tabel drivers (External User ID di OneSignal).
+/** Kirim notifikasi Web Push (send-web-push, migrasi 036) ke satu atau lebih driver.
  *  Fire-and-forget — error diabaikan supaya tidak ganggu alur utama. */
 export async function sendPushToDriver(
   driverIds: string[],
@@ -577,11 +584,9 @@ export async function sendPushToDriver(
   data?: Record<string, string>
 ): Promise<void> {
   try {
-    // OneSignal (APK Median) + Web Push (PWA / APK GitHub, migrasi 036) — keduanya non-kritis
-    await Promise.allSettled([
-      supabase.functions.invoke("send-push-notification", { body: { driverIds, title, body, data: data ?? {} } }),
-      supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body } }),
-    ]);
+    void data;
+    const { error } = await supabase.functions.invoke("send-web-push", { body: { event: "driver", driverIds, title, body } });
+    if (error) console.warn("Push notification failed (non-critical):", error.message);
   } catch (e) {
     console.warn("Push notification failed (non-critical):", e);
   }
@@ -602,7 +607,6 @@ export async function updateTaskStatus(
   });
   if (error) throw error;
 }
-
 
 export async function cancelTaskByAdmin(
   taskId: string,
@@ -679,7 +683,8 @@ export async function updateVehicle(
   id: string,
   input: Partial<VehicleInput>
 ): Promise<void> {
-  const { error } = await supabase.from("vehicles").update(input).eq("id", id);
+  const { data: updated, error } = await supabase.from("vehicles").update(input).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -831,7 +836,7 @@ export async function updateClaim(id: string, input: AddClaimInput): Promise<voi
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) {
-    throw new Error("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/019_claims_update.sql di Supabase SQL Editor.");
+    throw new Error("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/01_dasar.sql (bagian 019) di Supabase SQL Editor.");
   }
 }
 
@@ -894,7 +899,8 @@ export async function addWreath(input: AddWreathInput): Promise<void> {
 }
 
 export async function setWreathClaimed(id: string, claimed: boolean): Promise<void> {
-  const { error } = await supabase.from("condolence_wreaths").update({ claimed }).eq("id", id);
+  const { data: updated, error } = await supabase.from("condolence_wreaths").update({ claimed }).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -1065,13 +1071,13 @@ export async function getVehicleGateLogs(params?: {
   if (params?.plant) q = q.eq("plant", params.plant);
   if (params?.includeActive && (params.dateFrom || params.dateTo)) {
     const range = [
-      params.dateFrom ? `created_at.gte.${params.dateFrom}` : "",
-      params.dateTo ? `created_at.lte.${params.dateTo}T23:59:59` : "",
+      params.dateFrom ? `created_at.gte.${dayStartWIB(params.dateFrom)}` : "",
+      params.dateTo ? `created_at.lte.${dayEndWIB(params.dateTo)}` : "",
     ].filter(Boolean).join(",");
     q = q.or(`status.neq.DONE,and(${range})`);
   } else {
-    if (params?.dateFrom) q = q.gte("created_at", params.dateFrom);
-    if (params?.dateTo) q = q.lte("created_at", params.dateTo + "T23:59:59");
+    if (params?.dateFrom) q = q.gte("created_at", dayStartWIB(params.dateFrom));
+    if (params?.dateTo) q = q.lte("created_at", dayEndWIB(params.dateTo));
   }
   const { data, error } = await q;
   if (error) throw error;
@@ -1094,7 +1100,8 @@ export async function forceCloseGateLog(log: VehicleGateLog): Promise<void> {
   const updates: { status: "DONE"; time_out?: string; time_in?: string } = { status: "DONE" };
   if (!log.timeOut) updates.time_out = now;
   if (!log.timeIn) updates.time_in = now;
-  const { error } = await supabase.from("vehicle_gate_logs").update(updates).eq("id", log.id);
+  const { data: updated, error } = await supabase.from("vehicle_gate_logs").update(updates).eq("id", log.id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -1208,8 +1215,8 @@ export async function getPrinterRequests(params?: { dateFrom?: string; dateTo?: 
     .from("printer_requests")
     .select("*, printers(no_eq, location)")
     .order("created_at", { ascending: false });
-  if (params?.dateFrom) q = q.gte("created_at", params.dateFrom);
-  if (params?.dateTo) q = q.lte("created_at", params.dateTo + "T23:59:59");
+  if (params?.dateFrom) q = q.gte("created_at", dayStartWIB(params.dateFrom));
+  if (params?.dateTo) q = q.lte("created_at", dayEndWIB(params.dateTo));
   const { data, error } = await q;
   if (error) throw error;
   return (data as PrinterRequestRow[] ?? []).map(mapPrinterRequestRow);
@@ -1390,7 +1397,8 @@ export async function updateEmployeeRequestStatus(id: string, status: EmployeeRe
   const updates: { status: EmployeeRequestStatus; admin_notes?: string; processed_at?: string } = { status };
   if (adminNotes !== undefined) updates.admin_notes = adminNotes;
   if (status === "DONE" || status === "REJECTED") updates.processed_at = new Date().toISOString();
-  const { error } = await supabase.from("employee_requests").update(updates).eq("id", id);
+  const { data: updated, error } = await supabase.from("employee_requests").update(updates).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -1401,7 +1409,7 @@ export async function deleteEmployeeRequest(id: string): Promise<void> {
 
 /* ════════════════════════════════════════════════════════════
    ATK (ALAT TULIS KANTOR) — sinkron DUA ARAH dengan Excel/VBA
-   (vba/modSyncCikops.bas + supabase/026_atk_dua_arah.sql).
+   (vba/modSyncCikops.bas + supabase/01_dasar.sql (bagian 026)).
    • Excel → CIKOPS: tombol "Sinkron ke CIKOPS" (stok, permintaan, restock).
    • CIKOPS → Excel: input di sini lewat fungsi atk_web_* (stok langsung
      berubah), lalu ditarik Excel lewat "Tarik dari CIKOPS".
@@ -1482,7 +1490,7 @@ export async function getAtkRestocks(params?: { dateFrom?: string; dateTo?: stri
 /** Pesan error RPC yang ramah (termasuk bila migrasi 026 belum dijalankan). */
 function atkRpcError(error: { code?: string; message?: string }): Error {
   if (error.code === "PGRST202" || /Could not find the function/i.test(error.message ?? "")) {
-    return new Error("Fitur input ATK belum aktif — jalankan supabase/026_atk_dua_arah.sql di Supabase.");
+    return new Error("Fitur input ATK belum aktif — jalankan supabase/01_dasar.sql (bagian 026) di Supabase.");
   }
   return new Error(error.message ?? String(error));
 }
@@ -1595,7 +1603,7 @@ export async function updateAgendaEvent(id: string, input: Partial<AgendaEventIn
     ({ data, error } = await supabase.from("agenda_events").update(agendaRow(input, false)).eq("id", id).select("id"));
   }
   if (error) throw error;
-  if (!data || data.length === 0) throw new Error("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/025_kalender_agenda.sql).");
+  if (!data || data.length === 0) throw new Error("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/01_dasar.sql (bagian 025)).");
 }
 export async function deleteAgendaEvent(id: string): Promise<void> {
   const { error } = await supabase.from("agenda_events").delete().eq("id", id);
@@ -1619,15 +1627,6 @@ export async function addAnnouncement(input: { title: string; body: string; crea
   const { error } = await supabase.from("announcements").insert({ title: input.title, body: input.body, created_by: input.createdBy || "" });
   if (error) throw error;
 }
-export async function setAnnouncementActive(id: string, isActive: boolean): Promise<void> {
-  const { error } = await supabase.from("announcements").update({ is_active: isActive }).eq("id", id);
-  if (error) throw error;
-}
-export async function deleteAnnouncement(id: string): Promise<void> {
-  const { error } = await supabase.from("announcements").delete().eq("id", id);
-  if (error) throw error;
-}
-
 /* ════════════════════════════════════════════════════════════
    FLEETOS — OVERTIME (Lembur, CIK vs PRB)
 ════════════════════════════════════════════════════════════ */
@@ -1680,31 +1679,6 @@ export interface AddOvertimeInput {
   hours: number;
   amount: number;
   reason?: string;
-}
-
-export async function addOvertime(input: AddOvertimeInput): Promise<void> {
-  const { error } = await supabase.from("overtime").insert({
-    driver_id: input.driver_id,
-    period: input.period,
-    plant: input.plant,
-    hours: input.hours,
-    amount: input.amount,
-    reason: input.reason || "",
-  });
-  if (error) throw error;
-}
-
-export async function updateOvertime(
-  id: string,
-  input: Partial<AddOvertimeInput>
-): Promise<void> {
-  const { error } = await supabase.from("overtime").update(input).eq("id", id);
-  if (error) throw error;
-}
-
-export async function deleteOvertime(id: string): Promise<void> {
-  const { error } = await supabase.from("overtime").delete().eq("id", id);
-  if (error) throw error;
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1840,7 +1814,7 @@ claimPaid: number;
 }
 
 export async function updateKantongBudget(input: KantongInput): Promise<void> {
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("kantong")
     .update({
       total_budget: input.totalBudget,
@@ -1853,8 +1827,10 @@ export async function updateKantongBudget(input: KantongInput): Promise<void> {
       last_reset: input.lastReset,
     })
     .eq("period", input.period)
-    .eq("plant", input.plant);
+    .eq("plant", input.plant)
+    .select("id");
   if (error) throw error;
+  if (!updated?.length) throw noChangeError();
 }
 
 /** Creates the very first Dana Operasional row for the current period —
@@ -2037,18 +2013,75 @@ export async function getMyProfile(userId: string): Promise<MyProfile | null> {
       .eq("id", userId)
       .maybeSingle();
     if (error || !data) return null;
+    const role = String(data.role || "");
+    const info = ROLE_INFO[role as StaffRole];
     return {
       fullName: data.full_name,
-      role: data.role,
-      plantScope: (data.plant_scope as Plant | null) ?? null,
+      role,
+      // Role baru menentukan plant & menu sendiri; role lama (admin/ga) memakai kolom profil.
+      plantScope: info ? info.plant : ((data.plant_scope as Plant | null) ?? null),
       accessScope: (data.access_scope as "full" | "tasks_only") ?? "full",
-    allowedTabs: (data.allowed_tabs as string[] | null) ?? null,
-      isMasterAdmin: Boolean(data.is_master_admin),
+      allowedTabs: info ? null : ((data.allowed_tabs as string[] | null) ?? null),
+      isMasterAdmin: role === "master" || Boolean(data.is_master_admin),
     };
   } catch {
     return null;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   ROLE PER SCOPE (SQL 02_peran_keamanan bagian 039) — setiap admin mengelola modulnya sendiri.
+   Database ikut menjaga hak TULIS per modul; di sini menu & tampilan.
+════════════════════════════════════════════════════════════ */
+export type StaffRole = "master" | "admin_ga_cik" | "admin_ga_prb" | "admin_iss" | "admin_security" | "receptionist" | "management";
+export type ReportModule = "fleet" | "claims" | "canteen" | "atk" | "ga" | "security";
+
+export interface RoleInfo {
+  id: string; en: string; descId: string; descEn: string;
+  /** null = semua menu */
+  tabs: string[] | null;
+  /** boleh Beranda/Ringkasan; false = langsung ke menu pertama */
+  home: boolean;
+  plant: Plant | null;
+  /** modul yang boleh ditarik di Report */
+  reports: ReportModule[];
+  /** Kalender menampilkan penugasan driver */
+  calendarTasks: boolean;
+}
+
+const ALL_REPORTS: ReportModule[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
+export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
+  master: {
+    id: "Master Admin", en: "Master Admin", descId: "Semua modul, semua akun & log aktivitas", descEn: "All modules, all accounts & activity log",
+    tabs: null, home: true, plant: null, reports: ALL_REPORTS, calendarTasks: true,
+  },
+  admin_ga_cik: {
+    id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
+    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "gift", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
+    home: true, plant: "CIK", reports: ["fleet", "claims", "atk"], calendarTasks: true,
+  },
+  admin_ga_prb: {
+    id: "Admin GA PRB", en: "GA Admin PRB", descId: "Fleet PRB: penugasan, armada, driver, pegawai, report", descEn: "Fleet PRB: tasks, vehicles, drivers, employees, reports",
+    tabs: ["tasks", "vehicles", "calendar", "reports", "masterdata", "accounts"], home: true, plant: "PRB", reports: ["fleet"], calendarTasks: true,
+  },
+  admin_iss: {
+    id: "Admin / SPV ISS", en: "ISS Admin / SPV", descId: "Cleaning, Gardening & TGA", descEn: "Cleaning, gardening & TGA",
+    tabs: ["gafacility", "reports", "accounts"], home: false, plant: null, reports: ["ga"], calendarTasks: false,
+  },
+  admin_security: {
+    id: "Admin / SPV Security", en: "Security Admin / SPV", descId: "Modul Security", descEn: "Security module",
+    tabs: ["security", "reports", "accounts"], home: false, plant: null, reports: ["security"], calendarTasks: false,
+  },
+  receptionist: {
+    id: "Receptionist", en: "Receptionist", descId: "Modul Receptionist & kalender kunjungan", descEn: "Receptionist module & visit calendar",
+    tabs: ["receptionist", "calendar"], home: false, plant: null, reports: [], calendarTasks: false,
+  },
+  management: {
+    id: "Management", en: "Management", descId: "Lihat saja: Command Center & tarik laporan", descEn: "View only: Command Center & report export",
+    tabs: ["executive", "reports"], home: false, plant: null, reports: ALL_REPORTS, calendarTasks: false,
+  },
+};
+export const roleInfoOf = (profile: MyProfile | null): RoleInfo | null => (profile ? ROLE_INFO[profile.role as StaffRole] ?? null : null);
 
 /** Helper — dipakai di sidebar & tempat lain buat cek apakah profil ini
  *  boleh lihat tab tertentu. `allowedTabs === null` artinya akses penuh. */
@@ -2060,24 +2093,39 @@ export function isPrbOnly(profile: MyProfile | null): boolean {
   return profile?.plantScope === "PRB";
 }
 
-/** Role yang dikunci ke SATU menu saja (tanpa Home, Ringkasan, Kalender, atau menu lain).
- *  Kunci ini berlaku apa pun isi allowed_tabs-nya. */
-export const LOCKED_ROLE_TAB: Record<string, string> = { receptionist: "receptionist" };
-
-/** Menu tunggal milik akun ini, atau null bila akun boleh berpindah menu. */
+/** Akun tanpa Beranda (role satu modul / Management): menu pertama yang dibuka, atau null bila akun boleh ke Beranda. */
 export function lockedTabOf(profile: MyProfile | null): string | null {
-  return profile ? LOCKED_ROLE_TAB[profile.role] ?? null : null;
+  const info = roleInfoOf(profile);
+  if (info) return info.home ? null : info.tabs?.[0] ?? null;
+  return profile?.role === "receptionist" ? "receptionist" : null;
+}
+
+/** Modul yang boleh ditarik di Report. */
+export function reportModulesOf(profile: MyProfile | null): ReportModule[] {
+  return roleInfoOf(profile)?.reports ?? ALL_REPORTS;
 }
 
 /** Label role untuk ditampilkan di kartu profil. */
 export function roleLabel(profile: MyProfile | null): string {
+  const info = roleInfoOf(profile);
+  if (info) return info.id;
   if (profile?.role === "admin") return "Admin";
-  if (profile?.role === "receptionist") return "Receptionist";
   return "GA Manager";
 }
 
 export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  const info = roleInfoOf(profile);
+  if (info) {
+    if (tab === "home" || tab === "overview") return info.home && !(tab === "overview" && info.plant === "PRB");
+    if (tab === "activitylog") return profile.role === "master";
+    if (tab === "driverbudget") return info.tabs === null || info.tabs.includes("opfund");
+    if (tab === "executive") return profile.role === "management" || profile.role === "master";
+    return info.tabs === null || info.tabs.includes(tab);
+  }
+  // ── role lama (admin / ga) ──
+  if (tab === "executive") return false;
+  if (tab === "accounts") return profile.role === "admin";
   const locked = lockedTabOf(profile);
   if (locked) return tab === locked;
   if (isPrbOnly(profile) && !PRB_TABS.includes(tab)) return false;
@@ -2095,8 +2143,30 @@ export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
 /** Izin persis satu menu, tanpa aturan gabungan di atas (untuk sub-tab di dalam halaman). */
 export function hasTabPermission(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  const info = roleInfoOf(profile);
+  if (info) return info.tabs === null || info.tabs.includes(tab);
   return profile.allowedTabs === null || profile.allowedTabs.includes(tab);
 }
+
+/* ── Akun & Role (Edge Function manage-staff-account) ── */
+export interface StaffAccount {
+  id: string; email: string; fullName: string; role: string; plant: string | null;
+  active: boolean; lastSignIn: string | null; createdAt: string | null; self: boolean;
+}
+async function staffFn<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("manage-staff-account", { body });
+  if (error) throw new Error(/not found|404|Failed to send/i.test(error.message)
+    ? "Edge Function manage-staff-account belum di-deploy (lihat docs/PANDUAN.md, bab Role)."
+    : error.message);
+  if (!data?.ok) throw new Error(data?.error || "Gagal memproses akun.");
+  return data as T;
+}
+export const listStaffAccounts = () => staffFn<{ myRole: string; roles: string[]; rows: StaffAccount[] }>({ action: "list" });
+export const createStaffAccount = (a: { email: string; fullName: string; role: string; password?: string }) =>
+  staffFn<{ id: string; email: string; password: string; generated: boolean; existed: boolean }>({ action: "create", ...a });
+export const updateStaffAccount = (id: string, patch: { fullName?: string; role?: string }) => staffFn<{ ok: true }>({ action: "update", id, ...patch });
+export const resetStaffPassword = (id: string, password?: string) => staffFn<{ password: string; generated: boolean }>({ action: "reset", id, password });
+export const setStaffActive = (id: string, active: boolean) => staffFn<{ ok: true }>({ action: "active", id, active });
 
 export interface ActivityLogEntry {
   id: string;
@@ -2164,8 +2234,8 @@ export interface DriverInput {
   assigned_user_title?: string | null;
 }
 
-const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/014_driver_type.sql di Supabase SQL Editor dulu.";
-const MIGRATION_030_MSG = "Tipe Driver Support belum diizinkan database — jalankan supabase/030_driver_support.sql di Supabase SQL Editor dulu.";
+const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/01_dasar.sql (bagian 014) di Supabase SQL Editor dulu.";
+const MIGRATION_030_MSG = "Tipe Driver Support belum diizinkan database — jalankan supabase/01_dasar.sql (bagian 030) di Supabase SQL Editor dulu.";
 /** Constraint lama (014) menolak 'support'. */
 function isDriverTypeCheckViolation(error: { message?: string; code?: string } | null): boolean {
   return !!error && (error.code === "23514" || /drivers_driver_type_check/i.test(error.message || ""));
@@ -2183,7 +2253,8 @@ export async function addDriver(input: DriverInput, initialPin?: string): Promis
 }
 
 export async function updateDriver(id: string, input: DriverInput): Promise<void> {
-  const { error } = await supabase.from("drivers").update(input).eq("id", id);
+  const { data: updated, error } = await supabase.from("drivers").update(input).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG);
   if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
   if (error) throw error;
@@ -2244,7 +2315,8 @@ export async function addEmployee(input: EmployeeInput): Promise<void> {
 }
 
 export async function updateEmployee(id: string, input: EmployeeInput): Promise<void> {
-  const { error } = await supabase.from("employees").update(input).eq("id", id);
+  const { data: updated, error } = await supabase.from("employees").update(input).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -2265,7 +2337,8 @@ export async function addJobType(label: string): Promise<void> {
 }
 
 export async function updateJobType(id: string, label: string): Promise<void> {
-  const { error } = await supabase.from("job_types").update({ label }).eq("id", id);
+  const { data: updated, error } = await supabase.from("job_types").update({ label }).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
 
@@ -2604,7 +2677,7 @@ export async function getGiftRegistrations(eventId: string): Promise<GiftRegistr
 export function generateGiftPasscode(): string {
   const arr = new Uint32Array(1);
   crypto.getRandomValues(arr);
-  return String(arr[0] % 10000).padStart(4, "0");
+  return String(arr[0] % 100000000).padStart(8, "0");
 }
 
 export async function registerGift(input: {

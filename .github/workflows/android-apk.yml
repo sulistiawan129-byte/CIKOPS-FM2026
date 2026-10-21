@@ -5,7 +5,7 @@
 #
 # Cara pakai: GitHub → Actions → "APK Android (TGA & Driver)" → Run workflow.
 # Hasil: tab "Artifacts" di halaman run → unduh, kirim ke HP, lalu install.
-# Panduan lengkap: BACA-DULU-APK.md
+# Panduan lengkap: docs/PANDUAN.md (bab APK)
 name: APK Android (TGA & Driver)
 
 on:

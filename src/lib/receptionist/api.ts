@@ -6,7 +6,7 @@ import {
   type RoomBooking, type WifiAccount, type WifiGrant, type WifiGrantResult, type WifiSuggestion,
 } from "./model";
 
-const MIGRATION_MSG = "Modul Receptionist belum aktif — jalankan supabase/031_receptionist.sql di Supabase SQL Editor.";
+const MIGRATION_MSG = "Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031) di Supabase SQL Editor.";
 function friendly(error: { code?: string; message?: string } | null): Error {
   if (!error) return new Error("Terjadi kesalahan");
   if (error.code === "42P01" || error.code === "PGRST202" || error.code === "PGRST205" || error.code === "42883" || /Could not find the (function|table)|does not exist/i.test(error.message ?? "")) {
@@ -154,8 +154,8 @@ export type RcpEmployeeInput = Omit<RcpEmployee, "id" | "createdAt">;
 /** Pesan bila kolom migrasi 033 tidak dikenali — sertakan error asli supaya penyebabnya jelas. */
 const migration033Msg = (e: { code?: string; message?: string }) =>
   e.code === "PGRST204"
-    ? `Kolom karyawan belum dikenali API Supabase (cache skema lama). Jalankan di SQL Editor:  notify pgrst, 'reload schema';  lalu coba lagi. Bila masih gagal, pastikan supabase/033_receptionist_data_bukti.sql sudah berhasil dijalankan. [${e.code}: ${e.message ?? ""}]`
-    : `Kolom email/no HP karyawan belum ada — jalankan supabase/033_receptionist_data_bukti.sql di Supabase SQL Editor. [${e.code ?? ""}: ${e.message ?? ""}]`;
+    ? `Kolom karyawan belum dikenali API Supabase (cache skema lama). Jalankan di SQL Editor:  notify pgrst, 'reload schema';  lalu coba lagi. Bila masih gagal, pastikan supabase/01_dasar.sql (bagian 033) sudah berhasil dijalankan. [${e.code}: ${e.message ?? ""}]`
+    : `Kolom email/no HP karyawan belum ada — jalankan supabase/01_dasar.sql (bagian 033) di Supabase SQL Editor. [${e.code ?? ""}: ${e.message ?? ""}]`;
 const empRow = (e: RcpEmployeeInput) => ({
   nama: e.nama.trim(), nik: e.nik.trim() || null, departement: e.departement.trim() || null, email: e.email.trim().toLowerCase() || null,
   no_hp: e.noHp.trim() || null, jabatan: e.jabatan.trim() || null, aktif: e.aktif,

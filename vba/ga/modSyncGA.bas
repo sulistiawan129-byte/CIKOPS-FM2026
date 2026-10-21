@@ -27,7 +27,7 @@ Option Explicit
 ' PASANG:
 '   1. Alt+F11 -> File -> Import File -> modSyncGA.bas
 '   2. Isi 3 konstanta di bawah (URL & anon key sama dengan modul ATK,
-'      GA_SYNC_KEY dari hasil SQL 027_ga_facility.sql atau dari CIKOPS:
+'      GA_SYNC_KEY dari hasil SQL 01_dasar.sql (bagian 027) atau dari CIKOPS:
 '      Fasilitas -> Cleaning, Gardening & TGA -> tab Sinkron).
 '   3. Import juga modGA versi 1.7 (sudah berisi pemanggilan otomatis),
 '      lalu jalankan Setup_Tombol sekali.

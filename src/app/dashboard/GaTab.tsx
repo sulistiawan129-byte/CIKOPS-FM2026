@@ -926,7 +926,7 @@ function KeyBox({ lang, sync, onRotated, onError }: { lang: Lang; sync: GaSyncSt
                 <button type="button" className={`${a.ghostBtn} ${a.dangerText}`} onClick={rotate}>{L("Ganti kunci", "Rotate key")}</button>
               </div>
             </>
-          ) : <span className={a.hint}>{L("Hanya admin yang bisa melihat kunci. Pastikan SQL 027_ga_facility.sql sudah dijalankan.", "Only admins can view the key. Make sure SQL 027_ga_facility.sql has been run.")}</span>}
+          ) : <span className={a.hint}>{L("Hanya admin yang bisa melihat kunci. Pastikan SQL 01_dasar.sql (bagian 027) sudah dijalankan.", "Only admins can view the key. Make sure SQL 01_dasar.sql (bagian 027) has been run.")}</span>}
         </div>
   );
 }

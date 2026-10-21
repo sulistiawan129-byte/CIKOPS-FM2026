@@ -1,5 +1,10 @@
 import { supabase } from "./supabaseClient";
 
+/** Update yang ditolak RLS tidak memberi error — 0 baris berubah. Jangan tampilkan "tersimpan". */
+function noChangeError(): Error {
+  return new Error("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.");
+}
+
 /* ════════════════════════════════════════════════════════════
    LOCKER MODULE — API layer
    Kept as its own file (not merged into lib/api.ts) so nothing about
@@ -143,7 +148,8 @@ export async function updateLocker(id: string, input: LockerInput): Promise<void
   };
   if (input.pin?.trim()) payload.pin = input.pin.trim();
 
-  const { error } = await supabase.from("lockers").update(payload).eq("id", id);
+  const { data: updated, error } = await supabase.from("lockers").update(payload).eq("id", id).select("id");
+  if (!error && !updated?.length) throw noChangeError();
   if (error) {
     if (error.code === "23505") {
       throw new Error(`Nomor locker ${input.number} sudah dipakai locker lain.`);
@@ -158,13 +164,16 @@ export async function deleteLocker(id: string): Promise<void> {
 }
 
 /* ── Search & report (admin) ── */
+const pgQuote = (v: string) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
 export async function searchLockerUser(keyword: string): Promise<LockerRow[]> {
   const kw = keyword.trim();
   if (!kw) return [];
   const { data, error } = await supabase
     .from("lockers")
     .select("id, number, pin, prev_pin, status, nama, no_hp, email, periode, extra, end_date, last_confirmed")
-    .or(`number.eq.${kw},nama.ilike.%${kw}%`);
+    // kata kunci dikutip supaya koma/titik/kurung tidak merusak filter PostgREST
+    .or(`number.eq.${pgQuote(kw)},nama.ilike.${pgQuote(`%${kw}%`)}`);
   if (error) throw new Error(error.message);
   return ((data as LockerDbRow[]) ?? []).map(mapLockerRow);
 }
@@ -177,14 +186,6 @@ export async function getLockerReport(): Promise<LockerRow[]> {
     .order("row_no", { ascending: true });
   if (error) throw new Error(error.message);
   return ((data as LockerDbRow[]) ?? []).map(mapLockerRow);
-}
-
-/* ── Employee NIK lookup (public registration flow) ── */
-export async function getEmployeeByNik(nik: string): Promise<{ nama: string; dept: string } | null> {
-  const { data, error } = await supabase.rpc("get_employee_by_nik", { p_nik: nik });
-  if (error) throw new Error(error.message);
-  if (!data || data.length === 0) return null;
-  return { nama: data[0].nama, dept: data[0].dept };
 }
 
 /* ── Register (public flow) ── */
@@ -250,12 +251,14 @@ function mapReleaseRow(row: {
 export async function releaseLockerByUser(number: string, pin: string): Promise<ReleaseLockerResult> {
   const { data, error } = await supabase.rpc("release_locker_by_user", { p_number: number, p_pin: pin });
   if (error) throw new Error(error.message);
+  if (!data?.[0]) throw new Error("Locker tidak ditemukan atau PIN salah.");
   return mapReleaseRow(data[0]);
 }
 
 export async function adminReleaseLocker(number: string): Promise<ReleaseLockerResult> {
   const { data, error } = await supabase.rpc("admin_release_locker", { p_number: number });
   if (error) throw new Error(error.message);
+  if (!data?.[0]) throw new Error("Locker tidak ditemukan atau PIN salah.");
   return mapReleaseRow(data[0]);
 }
 
@@ -311,6 +314,7 @@ export async function getLockerByConfirmToken(token: string): Promise<{ lockerNu
   const { data, error } = await supabase.rpc("get_locker_by_confirm_token", { p_token: token });
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) return null;
+  if (!data?.[0]) throw new Error("Link konfirmasi tidak berlaku.");
   return { lockerNumber: data[0].locker_number, nama: data[0].nama };
 }
 
@@ -321,7 +325,8 @@ export interface ConfirmLockerAnswerResult extends ReleaseLockerResult {
 export async function confirmLockerAnswer(token: string, answer: "yes" | "no"): Promise<ConfirmLockerAnswerResult> {
   const { data, error } = await supabase.rpc("confirm_locker_answer", { p_token: token, p_answer: answer });
   if (error) throw new Error(error.message);
-  const row = data[0];
+  const row = data?.[0];
+  if (!row) throw new Error("Data locker tidak ditemukan.");
   return { ...mapReleaseRow(row), kept: row.kept };
 }
 
@@ -373,6 +378,7 @@ export async function verifyLockerRelease(
 ): Promise<{ lockerNumber: string; nama: string; extra: string; periode: string }> {
   const { data, error } = await supabase.rpc("verify_locker_release", { p_number: number, p_pin: pin });
   if (error) throw new Error(error.message);
-  const row = data[0];
+  const row = data?.[0];
+  if (!row) throw new Error("Data locker tidak ditemukan.");
   return { lockerNumber: row.locker_number, nama: row.nama ?? "", extra: row.extra ?? "", periode: row.periode ?? "" };
 }

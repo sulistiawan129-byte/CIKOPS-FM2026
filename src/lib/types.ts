@@ -416,69 +416,6 @@ export interface DriverSummary {
   avgDurationMinutes: number | null;
 }
 
-export function computeDriverSummaries(
-  tasks: TaskDetail[],
-  drivers: Driver[]
-): DriverSummary[] {
-  const byDriver = new Map<string, TaskDetail[]>();
-  for (const t of tasks) {
-    if (!t.driver_id) continue;
-    const list = byDriver.get(t.driver_id) ?? [];
-    list.push(t);
-    byDriver.set(t.driver_id, list);
-  }
-
-  const driverById = new Map(drivers.map((d) => [d.id, d]));
-
-  const summaries: DriverSummary[] = [];
-  // Iterate over byDriver (derived straight from `tasks`), not over `drivers`.
-  // Iterating over `drivers` would silently drop any task whose driver_id
-  // isn't present in that array (e.g. an inactive/deleted driver that was
-  // filtered out before calling this function).
-  for (const [driverId, list] of byDriver) {
-    const driver = driverById.get(driverId);
-    // Fall back to the name already denormalized onto the task row when the
-    // driver record itself isn't available.
-    const driverNama = driver?.nama ?? list[0]?.driver_nama ?? "Unknown";
-
-    const done = list.filter((t) => t.status === "DONE").length;
-    const cancelled = list.filter((t) => t.status === "CANCELLED").length;
-    const ongoingOrAssigned = list.filter(
-      (t) => t.status === "ASSIGNED" || t.status === "ON GOING"
-    ).length;
-
-    const durations: number[] = [];
-    for (const t of list) {
-      if (t.status === "DONE" && t.accepted_at && t.completed_at) {
-        const ms =
-          new Date(t.completed_at).getTime() -
-          new Date(t.accepted_at).getTime();
-        if (ms > 0) durations.push(ms / 60000);
-      }
-    }
-    const avgDurationMinutes =
-      durations.length > 0
-        ? Math.round(
-            (durations.reduce((a, b) => a + b, 0) / durations.length) * 100
-          ) / 100
-        : null;
-
-    summaries.push({
-      driverId,
-      driverNama,
-      total: list.length,
-      done,
-      cancelled,
-      ongoingOrAssigned,
-      completionRate:
-        list.length > 0 ? Math.round((done / list.length) * 10000) / 100 : 0,
-      avgDurationMinutes,
-    });
-  }
-
-  return summaries.sort((a, b) => b.total - a.total);
-}
-
 export interface CanteenReport {
   id: string;
   reportDate: string;
@@ -500,29 +437,6 @@ export interface CanteenKPI {
   totalMealLeftover: number;
   snackEff: number;
   mealEff: number;
-}
-
-export function computeCanteenKPI(rows: CanteenReport[]): CanteenKPI {
-  let totalSnackOrder = 0, totalSnackLeftover = 0, totalMealOrder = 0, totalMealLeftover = 0;
-  rows.forEach((r) => {
-    totalSnackOrder += r.snackOrder[0] + r.snackOrder[1] + r.snackOrder[2];
-    totalSnackLeftover += r.snackLeftover[0] + r.snackLeftover[1] + r.snackLeftover[2];
-    totalMealOrder += r.mealOrder[0] + r.mealOrder[1] + r.mealOrder[2];
-    totalMealLeftover += r.mealLeftover[0] + r.mealLeftover[1] + r.mealLeftover[2];
-  });
-  const totalSnackConsumed = Math.max(0, totalSnackOrder - totalSnackLeftover);
-  const totalMealConsumed = Math.max(0, totalMealOrder - totalMealLeftover);
-  return {
-    days: rows.length,
-    totalSnackOrder,
-    totalSnackConsumed,
-    totalSnackLeftover,
-    totalMealOrder,
-    totalMealConsumed,
-    totalMealLeftover,
-    snackEff: totalSnackOrder > 0 ? Math.round((totalSnackConsumed / totalSnackOrder) * 10000) / 100 : 0,
-    mealEff: totalMealOrder > 0 ? Math.round((totalMealConsumed / totalMealOrder) * 10000) / 100 : 0,
-  };
 }
 
 // ── Gift Distribution System ──────────────────────────────────

@@ -399,7 +399,7 @@ function Canteen({ v }: { v: FmView }) {
         <Kpi label="Snack bulan ini" value={nf(c.snack.orderMonth)} sub={sub(c.snack.orderMonth, c.snack.leftMonth, c.snack.effMonth)} c={effC(c.snack.effMonth)} />
         <Kpi label="Makan bulan ini" value={nf(c.meal.orderMonth)} sub={sub(c.meal.orderMonth, c.meal.leftMonth, c.meal.effMonth)} c={effC(c.meal.effMonth)} />
       </div>
-      {!c.split && <div className={s.muted} style={{ fontSize: ".85rem" }}>Data snack &amp; makan terpisah belum tersedia — jalankan migrasi supabase/029_fm_canteen_split.sql.</div>}
+      {!c.split && <div className={s.muted} style={{ fontSize: ".85rem" }}>Data snack &amp; makan terpisah belum tersedia — jalankan migrasi supabase/01_dasar.sql (bagian 029).</div>}
       <div className={s.grid3}>
         <Chart title={`Efisiensi snack per hari · ${v.monthLabel}`} note={`hijau ≥ ${TARGET.canteenOk}% · kuning ≥ ${TARGET.canteenWarn}%`} bars={c.snack.daily} />
         <Chart title={`Efisiensi makan per hari · ${v.monthLabel}`} note={`hijau ≥ ${TARGET.canteenOk}% · kuning ≥ ${TARGET.canteenWarn}%`} bars={c.meal.daily} />
@@ -459,7 +459,7 @@ function Atk({ v }: { v: FmView }) {
 /* ════════════════ 7 · RECEPTIONIST ════════════════ */
 function Rcp({ v }: { v: FmView }) {
   const r = v.rcp;
-  if (!r) return <div className={s.empty}>Modul Receptionist belum aktif — jalankan supabase/031_receptionist.sql.</div>;
+  if (!r) return <div className={s.empty}>Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031).</div>;
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const freePct = r.wifi.slots ? (r.free / r.wifi.slots) * 100 : 0;

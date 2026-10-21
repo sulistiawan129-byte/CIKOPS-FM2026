@@ -6,7 +6,7 @@
 ════════════════════════════════════════════════════════════ */
 
 import { useMemo, useState } from "react";
-import type { MyProfile } from "@/lib/api";
+import { reportModulesOf, type MyProfile } from "@/lib/api";
 import { useLang } from "@/lib/providers";
 import { buildMgmtReport, reportFilename } from "@/lib/mgmtReport/build";
 import { renderChartPNG } from "@/lib/mgmtReport/chartImage";
@@ -17,7 +17,7 @@ import {
 import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
-const ALL: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
+const ALL_MODULES: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 /** Rentang periode untuk mode kalender (minggu Senin–Minggu, bulan, kuartal, tahun) yang memuat tanggal anchor. */
@@ -51,6 +51,8 @@ const Ic = {
 
 export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | null }) {
   const { lang: appLang } = useLang();
+  // modul yang boleh ditarik role ini (mis. Admin ISS hanya Cleaning & Gardening)
+  const ALL = useMemo(() => { const ok = reportModulesOf(myProfile); return ALL_MODULES.filter((k) => ok.includes(k)); }, [myProfile]);
   const today = iso(new Date());
   const [mods, setMods] = useState<ModuleKey[]>(ALL);
   const [mode, setMode] = useState<Mode>("month");

@@ -1,9 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GMAIL_USER = Deno.env.get("GMAIL_USER") ?? "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
 const FROM_NAME = "Facility Management";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ADMIN_EMAIL = Deno.env.get("LOCKER_ADMIN_EMAIL") ?? "facilitymanagement.admin@gmail.com";
 const LOGO_URL = "https://www.frisianflag.com/storage/app/media/logo-frisianflag-resize.png";
 
@@ -187,12 +190,48 @@ serve(async (req) => {
       );
     }
 
-    const payload: LockerEmailPayload = await req.json();
-    if (!payload.kind || !payload.lockerNumber) {
+    const raw: LockerEmailPayload = await req.json();
+    if (!raw.kind || !raw.lockerNumber) {
       return new Response(JSON.stringify({ error: "Missing required fields." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── Keamanan: function ini bisa dipanggil tanpa login (halaman /locker) ──
+    // 1) Semua isi dari pemanggil di-escape supaya tidak bisa menyisipkan HTML.
+    // 2) Email ke PENGGUNA hanya dikirim ke alamat yang terdaftar di locker itu
+    //    (atau email karyawan), dan PIN diambil dari database — tidak bisa dipakai
+    //    untuk mengirim email sembarangan dari akun perusahaan.
+    // 3) confirm-request hanya untuk staf yang login.
+    const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+    const payload: LockerEmailPayload = {
+      ...raw,
+      lockerNumber: esc(raw.lockerNumber).slice(0, 20), nama: raw.nama && esc(raw.nama).slice(0, 120), noHp: raw.noHp && esc(raw.noHp).slice(0, 40),
+      extra: raw.extra && esc(raw.extra).slice(0, 160), periode: raw.periode && esc(raw.periode).slice(0, 60), pin: raw.pin && esc(raw.pin).slice(0, 12),
+      toEmail: raw.toEmail && /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(raw.toEmail.trim()) ? raw.toEmail.trim().toLowerCase() : undefined,
+    };
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY tidak tersedia.");
+    const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: locker } = await db.from("lockers").select("email, pin").eq("number", String(raw.lockerNumber).trim()).maybeSingle();
+    if (payload.toEmail) {
+      let ok = !!locker?.email && String(locker.email).toLowerCase() === payload.toEmail;
+      if (!ok) {
+        const { data: emp } = await db.from("employees").select("id").ilike("email", payload.toEmail.replace(/[\\%_]/g, (m) => `\\${m}`)).limit(1);
+        ok = !!emp && emp.length > 0;
+      }
+      if (!ok) payload.toEmail = undefined;              // alamat asing → hanya email admin yang dikirim
+      else if (payload.kind === "register" && locker?.pin) payload.pin = esc(locker.pin);
+    }
+    if (payload.kind === "confirm-request") {
+      const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      const { data: caller } = await db.auth.getUser(token);
+      const { data: staff } = caller?.user ? await db.from("profiles").select("id").eq("id", caller.user.id).maybeSingle() : { data: null };
+      if (!staff) {
+        return new Response(JSON.stringify({ error: "Hanya staf yang boleh mengirim konfirmasi locker." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const client = new SMTPClient({

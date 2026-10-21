@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/sync-downloads.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/sync-downloads.mjs",
     "build": "next build",
     "start": "next start"
   },

@@ -1,0 +1,49 @@
+/* Akun & Role */
+.tMaster { --tone: #7c3aed; } .tGa { --tone: var(--brand); } .tPrb { --tone: #0891b2; } .tIss { --tone: var(--green); }
+.tSec { --tone: var(--red); } .tRcp { --tone: var(--orange); } .tMgmt { --tone: #475569; }
+
+.roleGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.roleCard { --tone: var(--brand); position: relative; display: flex; flex-direction: column; gap: 3px; padding: 14px 14px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); color: var(--t1); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow-sm); transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; overflow: hidden; }
+.roleCard::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--tone); }
+.roleCard:hover { transform: translateY(-2px); }
+.roleCard b { font-size: 13.5px; }
+.roleCard small { font-size: 11.5px; color: var(--t3); line-height: 1.35; }
+.roleCard em { margin-top: 4px; font-style: normal; font-size: 12px; font-weight: 800; color: var(--tone); }
+.roleOn { border-color: var(--tone); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 18%, transparent); }
+.roleDot { position: absolute; top: 14px; right: 14px; width: 9px; height: 9px; border-radius: 50%; background: var(--tone); }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.toolbar > input:first-child { flex: 1 1 240px; max-width: none; }
+.list { list-style: none; margin: 0; padding: 0; }
+.row { display: grid; grid-template-columns: 42px minmax(180px, 1.4fr) minmax(150px, auto) minmax(150px, 1fr) auto; align-items: center; gap: 14px; padding: 12px 6px; border-bottom: 1px solid var(--border); }
+.row:last-child { border-bottom: 0; }
+.rowOff { opacity: .6; }
+.avatar { --tone: var(--brand); width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--tone) 14%, var(--surface)); color: var(--tone); font-weight: 800; font-size: 13px; }
+.who { min-width: 0; display: flex; flex-direction: column; }
+.who b { font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.who small { font-size: 12px; color: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me { font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 99px; background: var(--surface2); color: var(--t2); }
+.rolePill { --tone: var(--brand); justify-self: start; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, var(--surface)); white-space: nowrap; }
+.meta { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.meta small { font-size: 11px; color: var(--t3); }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 900px) {
+  .row { grid-template-columns: 42px 1fr; }
+  .rolePill, .meta, .acts { grid-column: 2; }
+  .acts { justify-content: flex-start; }
+}
+
+.rolePick { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.pickItem { --tone: var(--brand); display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--border2); background: var(--surface2); color: var(--t1); font: inherit; text-align: left; cursor: pointer; }
+.pickItem b { font-size: 13px; }
+.pickItem small { font-size: 11px; color: var(--t3); line-height: 1.3; }
+.pickItem:disabled { opacity: .45; cursor: not-allowed; }
+.pickOn { border-color: var(--tone); background: color-mix(in srgb, var(--tone) 10%, var(--surface)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 16%, transparent); }
+
+.secret { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; padding: 14px; border-radius: 12px; background: var(--surface2); border: 1px dashed var(--border2); font-size: 13.5px; }
+.secret span { color: var(--t3); }
+.mono { font-family: var(--mono); font-size: 16px; letter-spacing: .04em; }
+
+/* Management: Command Center */
+.board { border-radius: 18px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); background: #0b1220; }
+.board iframe { display: block; width: 100%; height: calc(100vh - 230px); min-height: 560px; border: 0; }

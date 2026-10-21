@@ -56,7 +56,6 @@ const inter = Inter({
 });
 
 const POLL_MS = 15000;
-const PER_PAGE = 5;
 const ROTATE_MS = 10000;
 const LATE_MIN = 120;
 const THEME_KEY = "cikops_tv_theme";

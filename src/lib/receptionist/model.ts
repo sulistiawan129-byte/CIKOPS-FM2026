@@ -1,5 +1,5 @@
 /* RECEPTIONIST — tipe data & logika murni (Wifi Guest, Barang & Surat, Induction Room).
-   Aturan slot/berlaku/bentrok ditegakkan di database (supabase/031_receptionist.sql);
+   Aturan slot/berlaku/bentrok ditegakkan di database (supabase/01_dasar.sql (bagian 031));
    di sini hanya untuk tampilan & pengolahan di klien. */
 
 export type WifiStatus = "available" | "partial" | "full" | "expired" | "inactive";

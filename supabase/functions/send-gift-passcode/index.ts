@@ -1,9 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GMAIL_USER = Deno.env.get("GMAIL_USER") ?? "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
 const FROM_NAME = "CIKOPS-FM System";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +40,26 @@ serve(async (req) => {
     if (!email || !nama || !passcode) {
       return new Response(JSON.stringify({ error: "Missing required fields." }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Keamanan: function ini dipanggil tanpa login (halaman /gift). Email hanya
+    // dikirim ke pendaftar yang BARU SAJA terdaftar (≤ 15 menit) dengan email itu,
+    // dan passcode harus berupa angka — tidak bisa dipakai mengirim email sembarangan.
+    if (!/^\d{4,10}$/.test(String(passcode))) {
+      return new Response(JSON.stringify({ error: "Passcode tidak valid." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY tidak tersedia.");
+    const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: reg } = await db.from("gift_registrations").select("id")
+      .ilike("email", String(email).trim().replace(/[\\%_]/g, (m) => `\\${m}`)).gte("registered_at", since)
+      .order("registered_at", { ascending: false }).limit(1);
+    if (!reg || reg.length === 0) {
+      return new Response(JSON.stringify({ error: "Tidak ada pendaftaran baru dengan email ini." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

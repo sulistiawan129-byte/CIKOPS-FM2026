@@ -22,7 +22,7 @@
 
    Security Desk (?sd=1&from=YYYY-MM&to=YYYY-MM): G-C & Security Desk satu project
    Supabase, jadi kredensial di atas dipakai juga. Akun GC_READER_EMAIL perlu
-   peran Management di Security Desk (lihat BACA-DULU-SECURITY-DESK.md).
+   peran Management di Security Desk (lihat docs/PANDUAN.md, bab Security).
 ════════════════════════════════════════════════════════════ */
 
 import { createHash } from "crypto";
@@ -134,7 +134,11 @@ export async function GET(req: Request) {
   try {
     const u = new URL(req.url);
     const plant = env("GC_PLANT") || "Cikarang";
-    if (u.searchParams.get("board")) return json(await boardSummary(await gc(), plant));
+    if (u.searchParams.get("board")) {
+      // Mode publik (layar TV): pesan error dibuat umum supaya detail internal tidak bocor
+      try { return json(await boardSummary(await gc(), plant)); }
+      catch (e) { console.error("gc-nc board:", e); return json({ ok: false, error: "Data G-C belum tersedia." }, e instanceof HttpErr ? e.status : 500); }
+    }
     await requireDashboardUser(req);
     const db = await gc();
 

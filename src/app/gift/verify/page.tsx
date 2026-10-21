@@ -23,8 +23,10 @@ export default function GiftVerifyPage() {
       const result = await verifyGiftPasscode(code);
       if (!result) { setError("Passcode tidak ditemukan atau sudah tidak berlaku."); return; }
       setReg(result);
-    } catch {
-      setError("Gagal memverifikasi. Periksa koneksi internet.");
+    } catch (e) {
+      // tampilkan pesan dari server (mis. batas percobaan passcode), selain itu pesan umum
+      const m = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "";
+      setError(m && !/fetch|network/i.test(m) ? m : "Gagal memverifikasi. Periksa koneksi internet.");
     } finally {
       setLoading(false);
     }

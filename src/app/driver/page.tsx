@@ -21,7 +21,7 @@ import type { Claim, Driver, TaskDetail } from "@/lib/types";
 import { computeStats, plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import type { Dict } from "@/lib/dictionary";
-import { todayLocalISODate } from "@/lib/dateUtils";
+import { todayLocalISODate, toLocalISODate } from "@/lib/dateUtils";
 import { enablePush, disablePush, pushState, testPush, type PushState, type PushSubData } from "@/lib/push";
 import { supabase } from "@/lib/supabaseClient";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeLabel } from "@/lib/duty";
@@ -111,7 +111,7 @@ useEffect(() => {
     };
   }, []);
 
-  // Preload audio element — HTML Audio works in Median WebView where
+  // Preload audio element — HTML Audio works in Android WebView where
   // Web Audio API is often blocked without user gesture workaround.
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -124,7 +124,7 @@ useEffect(() => {
   }, []);
 
   function playNotificationSound() {
-    // Try HTML Audio first (most reliable in Median WebView)
+    // Try HTML Audio first (most reliable in Android WebView)
     try {
       if (audioRef.current) {
         const a = audioRef.current;
@@ -214,55 +214,6 @@ useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
-
-  // OneSignal JavaScript Bridge — daftarkan driver sebagai External User ID
-  // Median SDK v5: pakai median.onesignal.login(externalId)
-  // 4 jalur supaya pasti terpanggil terlepas dari timing bridge ready:
-  // 1. median_onesignal_info callback (dipanggil otomatis Median setelah page load)
-  // 2. Langsung saat komponen mount
-  // 3. Retry 2 detik  4. Retry 5 detik (cold start lambat)
-  useEffect(() => {
-    if (screen !== "app" || !loggedDriver) return;
-    const driverId = loggedDriver.id;
-
-    function doLogin() {
-      try {
-        const w = window as Window & {
-          median?: { onesignal?: { login?: (id: string) => void } };
-        };
-        if (w.median?.onesignal?.login) {
-          w.median.onesignal.login(driverId);
-        }
-      } catch {}
-    }
-
-    // Jalur 1: callback global yang Median panggil otomatis setelah bridge siap
-    (window as Window & {
-      median_onesignal_info?: (data: unknown) => void;
-    }).median_onesignal_info = () => { doLogin(); };
-
-    // Jalur 2, 3, 4
-    doLogin();
-    const t1 = setTimeout(doLogin, 2000);
-    const t2 = setTimeout(doLogin, 5000);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      delete (window as Window & { median_onesignal_info?: unknown }).median_onesignal_info;
-    };
-  }, [screen, loggedDriver?.id]);
-
-  // Logout OneSignal saat driver keluar supaya device tidak terima notif driver lain
-  // (dipanggil dari fungsi logout() di bawah)
-  function oneSignalLogout() {
-    try {
-      const w = window as Window & {
-        median?: { onesignal?: { logout?: () => void } };
-      };
-      w.median?.onesignal?.logout?.();
-    } catch {}
-  }
 
   // Clear badge saat driver membuka app dari background
   useEffect(() => {
@@ -498,7 +449,6 @@ useEffect(() => {
   }
 
   async function logout() {
-    oneSignalLogout();
     try {
       await driverSignOut();
     } catch {
@@ -1436,7 +1386,7 @@ function claimWeekKey(dateStr: string): string {
   const diffToMonday = day === 0 ? -6 : 1 - day;
   const monday = new Date(d);
   monday.setDate(d.getDate() + diffToMonday);
-  return monday.toISOString().slice(0, 10); // "YYYY-MM-DD" of the Monday
+  return toLocalISODate(monday); // "YYYY-MM-DD" of the Monday
 }
 
 function ClaimsTab({
@@ -1759,8 +1709,6 @@ function DriverNotifSection() {
   const [st, setSt] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // Aplikasi Median (APK lama) memakai OneSignal sendiri
-  const median = typeof window !== "undefined" && !!(window as unknown as { median?: unknown }).median;
   useEffect(() => { pushState().then(setSt); }, []);
   async function run(fn: () => Promise<void>, ok: string) {
     setBusy(true); setMsg(null);
@@ -1772,8 +1720,7 @@ function DriverNotifSection() {
     const { error } = await supabase.rpc("push_subscribe_driver", { p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_ua: s.ua });
     if (error) throw new Error(/could not find the function/i.test(error.message) ? L("Notifikasi belum aktif di server — admin perlu menjalankan 036.", "Notifications not set up on the server yet (run 036).") : error.message);
   };
-  const desc = median ? L("Notifikasi diatur oleh aplikasi (OneSignal).", "Notifications are handled by the app (OneSignal).")
-    : st === "on" ? L("Aktif — HP berbunyi saat ada tugas baru walau aplikasi tertutup.", "On — your phone rings for new tasks even when the app is closed.")
+  const desc = st === "on" ? L("Aktif — HP berbunyi saat ada tugas baru walau aplikasi tertutup.", "On — your phone rings for new tasks even when the app is closed.")
     : st === "denied" ? L("Diblokir. Izinkan notifikasi di pengaturan situs / aplikasi, lalu coba lagi.", "Blocked. Allow notifications in site / app settings, then retry.")
     : st === "ios-install" ? L("iPhone: pasang dulu ke Layar Utama, buka dari ikon, lalu aktifkan.", "iPhone: add to Home Screen first, open from the icon, then enable.")
     : st === "unsupported" ? L("Browser ini belum mendukung notifikasi — pakai Chrome.", "This browser doesn't support notifications — use Chrome.")
@@ -1784,18 +1731,18 @@ function DriverNotifSection() {
       <div className={styles.profileRow}>
         <span className={styles.profileRowIco}>🔔</span>
         <span className={styles.profileRowLabel} style={{ whiteSpace: "normal", lineHeight: 1.35 }}>{desc}</span>
-        {!median && (st === "off" || st === "denied") && (
+        {(st === "off" || st === "denied") && (
           <button className={styles.pinRowBtn} disabled={busy} onClick={() => run(() => enablePush(register), L("Notifikasi aktif! 🎉", "Notifications on! 🎉"))}>
             {busy ? "…" : L("Aktifkan", "Enable")}
           </button>
         )}
-        {!median && st === "on" && (
+        {st === "on" && (
           <button className={styles.pinRowBtn} disabled={busy} onClick={() => run(() => testPush({ app: "driver" }), L("Tes dikirim — cek bar notifikasi.", "Test sent — check your notifications."))}>
             {L("Tes", "Test")}
           </button>
         )}
       </div>
-      {!median && st === "on" && (
+      {st === "on" && (
         <div className={styles.profileRow}>
           <span className={styles.profileRowIco}>🔕</span>
           <span className={styles.profileRowLabel}>{L("Matikan untuk HP ini", "Turn off on this phone")}</span>

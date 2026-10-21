@@ -9,6 +9,7 @@
 //   supabase functions deploy send-claim-email --no-verify-jwt
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const GMAIL_USER = Deno.env.get("GMAIL_USER") ?? "";
@@ -150,7 +151,7 @@ function driverTemplate(p: ClaimEmailPayload): { subject: string; html: string }
       </p>
       <p style="font-size:11px;color:#9ba3be;margin-top:20px;">${id ? "Email otomatis dari" : "Automated email from"} CIKOPS Fleet Ops</p>
     </div>
-  </div>`;)
+  </div>`);
 
   return { subject, html };
 }
@@ -227,9 +228,22 @@ function managerTemplate(p: ClaimEmailPayload): { subject: string; html: string 
     <div style="background:#f7f8fb;border-top:1px solid #d1d5e6;padding:12px 28px;">
       <p style="font-size:10px;color:#9ba3be;">${id ? "Dokumen ini dibuat otomatis dan sah tanpa tanda tangan." : "This document is system-generated and valid without a signature."}</p>
     </div>
-  </div>`;)
+  </div>`);
 
   return { subject, html };
+}
+
+// Hanya staf CIKOPS yang login boleh memakai function ini (bukan relay email publik).
+async function requireStaff(req: Request): Promise<Response | null> {
+  const url = Deno.env.get("SUPABASE_URL") ?? "", key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const deny = (msg: string) => new Response(JSON.stringify({ error: msg }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  if (!url || !key) return deny("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY tidak tersedia.");
+  const db = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const { data } = await db.auth.getUser(token);
+  if (!data?.user) return deny("Tidak terautentikasi.");
+  const { data: prof } = await db.from("profiles").select("id").eq("id", data.user.id).maybeSingle();
+  return prof ? null : deny("Hanya staf CIKOPS yang boleh mengirim email ini.");
 }
 
 serve(async (req) => {
@@ -243,6 +257,8 @@ serve(async (req) => {
     });
   }
 
+  const denied = await requireStaff(req);
+  if (denied) return denied;
   try {
     if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
       return new Response(
