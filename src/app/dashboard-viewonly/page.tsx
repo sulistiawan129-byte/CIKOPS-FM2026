@@ -111,7 +111,7 @@ export default function CommandCenterPage() {
 
   return (
     <div className={`${s.cc} ${light ? s.light : ""}`} ref={rootRef}>
-      <style>{`html{font-size:clamp(12px,min(0.95vw,1.75vh),30px)}@media (max-width:1100px){html{font-size:14px!important}}body{margin:0;background:${light ? "#f3f5fa" : "#060b19"}}`}</style>
+      <style>{`html{font-size:clamp(14px,min(1.04vw,1.85vh),32px)}@media (max-width:899px){html{font-size:14px!important}}body{margin:0;background:${light ? "#f3f5fa" : "#060b19"}}`}</style>
       <header className={s.bar}>
         <div className={s.brand}>
           <img className={s.logo} src="/logo.png" alt="CIKOPS FM" />
@@ -176,17 +176,64 @@ export default function CommandCenterPage() {
 function Pill({ st, children }: { st: Status | "info"; children?: React.ReactNode }) {
   return <span className={`${s.pill} ${s["s_" + st]}`}>{children ?? STATUS_LABEL[st as Status]}</span>;
 }
+/** Lebar elemen (px) — dipakai grafik supaya label tidak saling menimpa. */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
+/** Daftar yang tidak muat di layar TV bergulir pelan sendiri (berhenti sebentar di ujung, berhenti saat disorot). */
+function useAutoScroll<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let dir = 1, pause = 75;
+    const iv = setInterval(() => {
+      if (el.scrollHeight <= el.clientHeight + 2 || el.matches(":hover")) return;
+      if (pause > 0) { pause--; return; }
+      el.scrollTop += dir;
+      if (dir > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 1) { dir = -1; pause = 75; }
+      else if (dir < 0 && el.scrollTop <= 0) { dir = 1; pause = 75; }
+    }, 40);
+    return () => clearInterval(iv);
+  }, []);
+  return ref;
+}
+const remPx = () => (typeof window === "undefined" ? 16 : parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+
+/** Grafik batang. Angka di atas batang hanya tampil bila muat (bila tidak: hanya hari ini / batang
+ *  yang disorot); label sumbu dijarangkan otomatis supaya tidak bertumpuk. */
 function Bars({ bars, height = "9rem", showVal = true }: { bars: Bar[]; height?: string; showVal?: boolean }) {
-  const max = Math.max(...bars.map((b) => b.value), 0) * 1.1 || 1;
+  const [ref, width] = useWidth<HTMLDivElement>();
+  const max = Math.max(...bars.map((b) => b.value), 0) * 1.12 || 1;
+  const rem = remPx();
+  const per = bars.length ? width / bars.length : 0;
+  const charPx = 0.62 * rem * 0.78;
+  const valW = Math.max(...bars.map((b) => (b.value ? b.display.length : 0)), 1) * charPx + 6;
+  const lblW = Math.max(...bars.map((b) => b.label.length), 1) * charPx + 8;
+  const allVals = showVal && width > 0 && per >= valW;
+  const step = width > 0 ? Math.max(1, Math.ceil(lblW / Math.max(1, per))) : 1;
   return (
-    <div className={s.bars} style={{ height }}>
-      {bars.map((b, i) => (
-        <div key={i} className={s.bcol} title={`${b.label}: ${b.display}`}>
-          {showVal && <span className={s.bv}>{b.value ? b.display : ""}</span>}
-          <div className={`${s.bfill} ${b.tone ? s["t_" + b.tone] : b.highlight ? s.bHi : ""}`} style={{ height: `${Math.max(2, (b.value / max) * 100)}%` }} />
-          <span className={s.bl}>{b.label}</span>
-        </div>
-      ))}
+    <div ref={ref} className={s.bars} style={{ height }}>
+      {bars.map((b, i) => {
+        const showV = showVal && b.value > 0 && (allVals || b.highlight);
+        const showL = i % step === 0 || i === bars.length - 1 && (bars.length - 1) % step >= step / 2;
+        return (
+          <div key={i} className={s.bcol} title={`${b.label}: ${b.display}`}>
+            <span className={s.bv}>{showV ? b.display : ""}</span>
+            <div className={`${s.bfill} ${b.tone ? s["t_" + b.tone] : b.highlight ? s.bHi : ""}`} style={{ height: `${Math.max(2, (b.value / max) * 100)}%` }} />
+            <span className={s.bl}>{showL ? b.label : ""}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -221,10 +268,11 @@ function Chart({ title, note, bars }: { title: string; note?: string; bars: Bar[
   );
 }
 function Card({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  const ref = useAutoScroll<HTMLDivElement>();
   return (
     <div className={s.card}>
       <div className={s.cardHead}><span className={s.title}>{title}</span>{note && <small>{note}</small>}</div>
-      <div className={s.scroll}>{children}</div>
+      <div className={s.scroll} ref={ref}>{children}</div>
     </div>
   );
 }
@@ -262,15 +310,18 @@ function AreaTile({ a, onOpen, i }: { a: AreaCard; onOpen: (t: TabId) => void; i
     >
       <div className={s.areaHead}><span className={s.title}>{a.name}</span><Pill st={a.status} /></div>
       <p className={s.hook}>{a.hook}</p>
-      <div className={s.areaVal}>
-        <div>
-          <div className={s.num}>{a.today}</div>
-          <div className={s.areaUnit}>{a.todayUnit}</div>
+      <div className={s.areaBody}>
+        <div className={s.areaVal}>
+          <div>
+            <div className={s.num}>{a.today}</div>
+            <div className={s.areaUnit}>{a.todayUnit}</div>
+          </div>
+          <div className={s.areaMonth}>
+            <b>{a.month}</b>
+            <span>{a.monthUnit}</span>
+          </div>
         </div>
-        <div className={s.areaMonth}>
-          <b>{a.month}</b>
-          <span>{a.monthUnit}</span>
-        </div>
+        <Trend bars={a.trend} label={a.trendLabel} />
       </div>
       {a.facts.length > 0 && (
         <div className={s.facts}>
@@ -279,7 +330,6 @@ function AreaTile({ a, onOpen, i }: { a: AreaCard; onOpen: (t: TabId) => void; i
           ))}
         </div>
       )}
-      <Trend bars={a.trend} label={a.trendLabel} />
     </div>
   );
 }
@@ -290,6 +340,7 @@ const LEVEL_ST = { kritis: "kritis", perhatian: "perhatian", info: "info" } as c
 /** Perlu tindakan — dikelompokkan per masalah; klik untuk membuka rincian. */
 function ActionList({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const listRef = useAutoScroll<HTMLUListElement>();
   return (
     <div className={`${s.card} ${s.actions} ${s.fade}`} style={{ animationDelay: "80ms" }}>
       <div className={s.cardHead}><span className={s.title}>Perlu tindakan</span><small>{v.groups.length} masalah</small></div>
@@ -301,7 +352,7 @@ function ActionList({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
       {v.groups.length === 0 ? (
         <div className={s.allGood}><Icon name="check" size={22} strokeWidth={2.6} /><div><b>Semua aman</b><small>Tidak ada yang perlu ditindaklanjuti.</small></div></div>
       ) : (
-        <ul className={s.groups}>
+        <ul className={s.groups} ref={listRef}>
           {v.groups.map((g, i) => {
             const key = `${g.area}-${g.level}-${i}`;
             const isOpen = openKey === key;
@@ -412,6 +463,14 @@ function Fleet({ v }: { v: FmView }) {
 }
 
 /* ════════════════ 4 · KANTIN — snack & makan terpisah ════════════════ */
+/** Ringkasan grafik efisiensi: rata-rata & hari terendah (angka per batang sering tidak muat). */
+function effNote(bars: Bar[]) {
+  const vals = bars.filter((b) => b.value > 0);
+  if (!vals.length) return `target ≥ ${TARGET.canteenOk}%`;
+  const avg = vals.reduce((a, b) => a + b.value, 0) / vals.length;
+  const low = vals.reduce((a, b) => (b.value < a.value ? b : a));
+  return `rata-rata ${pct(avg, 1)} · terendah ${low.display} (tgl ${low.label})`;
+}
 function Canteen({ v }: { v: FmView }) {
   const c = v.canteen;
   const effC = (e: number | null) => (e === null ? "var(--na)" : e >= TARGET.canteenOk ? C.ok : e >= TARGET.canteenWarn ? C.warn : C.bad);
@@ -427,8 +486,8 @@ function Canteen({ v }: { v: FmView }) {
       ]} />
       {!c.split && <div className={s.note}>Data snack &amp; makan terpisah belum tersedia — jalankan supabase/01_dasar.sql (bagian 029).</div>}
       <div className={s.grid3}>
-        <Chart title="Efisiensi snack per hari" note={`hijau ≥ ${TARGET.canteenOk}%`} bars={c.snack.daily} />
-        <Chart title="Efisiensi makan per hari" note={`hijau ≥ ${TARGET.canteenOk}%`} bars={c.meal.daily} />
+        <Chart title="Efisiensi snack per hari" note={effNote(c.snack.daily)} bars={c.snack.daily} />
+        <Chart title="Efisiensi makan per hari" note={effNote(c.meal.daily)} bars={c.meal.daily} />
         <Card title="Per shift" note={c.hasToday ? "hari ini" : lastLbl ? `laporan ${lastLbl}` : "—"}>
           {[0, 1, 2].map((i) => (
             <div key={i} className={s.shift}>
