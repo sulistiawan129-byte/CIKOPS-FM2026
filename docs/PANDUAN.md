@@ -816,6 +816,15 @@ memeriksa dan memverifikasi.
 **Hak akses:** yang bisa memverifikasi/menolak hanya role yang mengelola Finance
 (Master Admin, Admin GA CIK, dan role lama admin/ga). Driver hanya melihat pengajuannya sendiri.
 
+## Tautan (menu Sistem → Tautan)
+Semua link CIKOPS di satu halaman: aplikasi Driver & TGA, halaman publik (permintaan karyawan,
+locker, pembagian, kantin, pos gate, Command Center TV), link login per role, link langsung ke
+setiap menu, Security Desk, dan modul Excel. Setiap link punya tombol **Salin**, **Buka**,
+**WA** (kirim lewat WhatsApp beserta keterangannya), dan **QR** (unduh PNG / cetak).
+Setiap akun hanya melihat link untuk modul yang boleh dibukanya. **Salin semua link** menyalin
+daftar lengkap sebagai teks. Bagian **Link lainnya** untuk link di luar CIKOPS (mis. APK di
+Google Drive, SOP) — bisa ditambah/diubah oleh Master Admin & Admin GA CIK.
+
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
 menyimpan backup harian 7 hari). Karena itu ada workflow GitHub **Backup database**

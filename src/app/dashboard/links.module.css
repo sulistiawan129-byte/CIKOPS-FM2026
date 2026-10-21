@@ -1,0 +1,41 @@
+/* Tautan & bagikan */
+.root { display: flex; flex-direction: column; gap: 18px; }
+.search { width: 100%; max-width: 520px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border2); background: var(--surface); color: var(--t1); font: inherit; font-size: 14px; }
+.search:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.group header h2 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; color: var(--t1); }
+.group header em { font-style: normal; font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--surface2); color: var(--t3); }
+.group header p { margin: 3px 0 0; font-size: 12.5px; color: var(--t3); }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); overflow: hidden; }
+.row { display: grid; grid-template-columns: 40px minmax(180px, 1.1fr) minmax(200px, 1fr) auto; align-items: center; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--border); }
+.row:first-child { border-top: 0; }
+.row:hover { background: color-mix(in srgb, var(--brand) 3%, transparent); }
+.icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface2); font-size: 19px; }
+.info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.info b { font-size: 14px; color: var(--t1); }
+.info small { font-size: 12px; color: var(--t3); line-height: 1.4; }
+.who { align-self: flex-start; margin-top: 3px; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--brand) 10%, var(--surface)); color: var(--brand); font-size: 11px; font-weight: 700; }
+.url { min-width: 0; max-width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--border2); background: var(--surface2); color: var(--t2); font-family: var(--mono), ui-monospace, monospace; font-size: 12px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: copy; }
+.url:hover { border-color: var(--brand); color: var(--brand); }
+.actions { display: flex; gap: 6px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border2); background: var(--surface); color: var(--t1); font: inherit; font-size: 12.5px; font-weight: 800; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--brand); color: var(--brand); }
+.btnMain { border-color: var(--brand); background: var(--brand); color: #fff; }
+.btnMain:hover { color: #fff; filter: brightness(1.08); }
+.btnOk { border-color: var(--green); background: var(--green); color: #fff; }
+.btnOk:hover { color: #fff; }
+.more { align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 10px; border: 1px dashed var(--border2); background: none; color: var(--brand); font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.inline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.inline .url { flex: 1; }
+.note { margin-top: 2px; font-size: 12px; color: var(--t3); }
+.qr { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px; text-align: center; }
+.qr h2 { margin: 0; font-size: 17px; color: var(--t1); }
+.qr img, .qrPh { width: 260px; height: 260px; border-radius: 14px; background: #fff; }
+.qr code { max-width: 100%; font-size: 12px; color: var(--t2); word-break: break-all; }
+.qrBtns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+@media (max-width: 860px) {
+  .row { grid-template-columns: 40px minmax(0, 1fr); }
+  .url { grid-column: 1 / -1; }
+  .actions { grid-column: 1 / -1; }
+  .actions > * { flex: 1; }
+}

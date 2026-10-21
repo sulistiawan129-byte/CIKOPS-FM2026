@@ -38,7 +38,8 @@ export type DashboardTab =
   | "calendar"
   | "executive"
   | "accounts"
-  | "activitylog";
+  | "activitylog"
+  | "links";
 
 interface NavGroup { id: string; icon: string; labelId: string; labelEn: string; tabs: NavTab[] }
 
@@ -100,6 +101,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "calendar", icon: "📅", labelId: "Kalender", labelEn: "Calendar", descId: "Agenda kunjungan, event & penugasan driver", descEn: "Visits, events & driver tasks" },
       { id: "reports", icon: "📈", labelId: "Report", labelEn: "Reports", descId: "Laporan & analisis data", descEn: "Reports & data analysis" },
       { id: "masterdata", icon: "🗄️", labelId: "Master Data", labelEn: "Master Data", descId: "Kelola master data sistem", descEn: "Manage system master data" },
+      { id: "links", icon: "🔗", labelId: "Tautan", labelEn: "Links", descId: "Semua link aplikasi & halaman — salin, WhatsApp, QR", descEn: "Every app & page link — copy, WhatsApp, QR" },
       { id: "accounts", icon: "👥", labelId: "Akun & Role", labelEn: "Accounts & Roles", descId: "Kelola akun tim dan perannya", descEn: "Manage team accounts and roles" },
       { id: "activitylog", icon: "📋", labelId: "Log Aktivitas", labelEn: "Activity Log", descId: "Riwayat aktivitas sistem", descEn: "System activity history" },
     ],
