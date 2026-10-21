@@ -1,0 +1,77 @@
+# Backup database harian (CIKOPS, dan Security Desk bila diisi) — terenkripsi.
+# Jadwal: setiap hari 02.00 WIB, atau manual: GitHub → Actions → "Backup database" → Run workflow.
+# Hasil: artifact "backup-<nama>-<tanggal>" (disimpan 30 hari), isinya *.gpg.
+# Secret repo (Settings → Secrets and variables → Actions):
+#   BACKUP_PASSPHRASE   kata sandi enkripsi — SIMPAN JUGA DI TEMPAT LAIN, tanpa ini backup tidak bisa dibuka
+#   CIKOPS_DB_URL       connection string Supabase CIKOPS (Connect → Session pooler, port 5432)
+#   SECDESK_DB_URL      (opsional) connection string Supabase Security Desk
+# Pemulihan: docs/PANDUAN.md (bab Backup & pemulihan)
+name: Backup database
+
+on:
+  schedule:
+    - cron: "0 19 * * *"   # 19.00 UTC = 02.00 WIB
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cikops
+            secret: CIKOPS_DB_URL
+            schemas: public
+          - name: secdesk
+            secret: SECDESK_DB_URL
+            schemas: public security
+    env:
+      DB_URL: ${{ secrets[matrix.secret] }}
+      PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Cek secret
+        id: cek
+        run: |
+          if [ -z "$DB_URL" ]; then
+            if [ "${{ matrix.name }}" = "cikops" ]; then echo "::error::Secret CIKOPS_DB_URL belum diisi"; exit 1; fi
+            echo "::notice::${{ matrix.secret }} kosong — ${{ matrix.name }} dilewati"; echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -z "$PASS" ]; then echo "::error::Secret BACKUP_PASSPHRASE belum diisi"; exit 1; fi
+
+      - name: Pasang pg_dump 17
+        if: steps.cek.outputs.skip != '1'
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 >/dev/null
+
+      - name: Dump & enkripsi
+        if: steps.cek.outputs.skip != '1'
+        run: |
+          export PATH=/usr/lib/postgresql/17/bin:$PATH
+          mkdir -p out && cd out
+          n=""; for s in ${{ matrix.schemas }}; do n="$n -n $s"; done
+          # 1) tabel aplikasi: struktur + data
+          pg_dump "$DB_URL" -Fc --no-owner --no-privileges $n -f data.dump
+          # 2) akun login (password tetap ter-hash)
+          pg_dump "$DB_URL" -Fc --data-only -t auth.users -t auth.identities -f auth.dump
+          # 3) jadwal pg_cron (bila ada)
+          psql "$DB_URL" -qAc "\copy (select jobname, schedule, command from cron.job) to cron_job.csv csv header" || echo "tanpa pg_cron"
+          pg_restore -l data.dump | grep -c "TABLE DATA" | xargs echo "Jumlah tabel berisi data:"
+          tar -cf backup.tar *
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$PASS" --symmetric --cipher-algo AES256 \
+            -o "${{ matrix.name }}-$(TZ=Asia/Jakarta date +%Y%m%d-%H%M).tar.gpg" backup.tar
+          rm -f backup.tar *.dump *.csv
+          ls -lh
+
+      - name: Simpan artifact
+        if: steps.cek.outputs.skip != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ matrix.name }}-${{ github.run_id }}
+          path: out/*.gpg
+          retention-days: 30
+          if-no-files-found: error

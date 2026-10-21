@@ -22,7 +22,7 @@ Security (tersinkron dengan Security Desk G4S), report manajemen, dan Command Ce
 | `vba/` | Modul Excel (GA, ATK). Salinan unduhan ada di `public/downloads/` |
 
 ## Dokumentasi
-- **`docs/PANDUAN.md`**: file SQL, Edge Function & secret, env Vercel, langkah per modul, dan pindah akun Supabase/Vercel
+- **`docs/PANDUAN.md`**: file SQL, Edge Function & secret, env Vercel, langkah per modul, backup & pemulihan, dan pindah akun Supabase/Vercel
 - Riwayat perubahan: `git log`
 
 ## Menjalankan lokal
