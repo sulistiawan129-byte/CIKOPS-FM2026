@@ -208,7 +208,7 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
         { label: "Sedang di luar", value: nf(open.length), tone: longOpen.length ? "perhatian" : undefined },
         { label: "Selesai hari sama", value: pct(sameDayPct, 0), tone: sameDayPct === null ? undefined : sameDayPct < TARGET.sameDayWarn ? "kritis" : sameDayPct < TARGET.sameDayOk ? "perhatian" : "baik" },
       ],
-      trend: trendOf((d) => td.find((r) => r.d === d)?.n ?? 0, (n) => `${nf(n)} tugas`), trendLabel: "Tugas per hari · 14 hari",
+      trend: trendOf((d) => td.find((r) => r.d === d)?.n ?? 0, (n) => `${nf(n)} tugas`), trendLabel: "Tugas / hari",
     },
     {
       key: "canteen", name: "Kantin",
@@ -224,7 +224,7 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
         { label: "Laporan hari ini", value: cToday ? "Masuk" : "Belum", tone: cToday ? "baik" : "perhatian" },
       ],
       trend: trendOf((d) => { const rs = cd.filter((r) => r.d === d); return minEff(effOf(rs, "snack"), effOf(rs, "meal")); }, (n) => `${pct(n, 0)} (terendah snack/makan)`, effTone),
-      trendLabel: "Efisiensi terendah snack/makan · 14 hari",
+      trendLabel: "Efisiensi / hari",
     },
     {
       key: "atk", name: "ATK & Supplies", today: nf(atkToday), todayUnit: "unit keluar hari ini", month: nf(atkMonth), monthUnit: "unit keluar bulan ini", status: atkStatus,
@@ -236,7 +236,7 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
         { label: "Menipis", value: nf(atkCrit.length - atkOut.length), tone: atkCrit.length - atkOut.length ? "perhatian" : undefined },
         ...((s.atk_depts ?? [])[0] ? [{ label: "Pemakai terbesar", value: (s.atk_depts ?? [])[0].k }] : []),
       ],
-      trend: trendOf((d) => Number(ad.find((r) => r.d === d)?.n ?? 0), (n) => `${nf(n)} unit`), trendLabel: "Unit keluar per hari · 14 hari",
+      trend: trendOf((d) => Number(ad.find((r) => r.d === d)?.n ?? 0), (n) => `${nf(n)} unit`), trendLabel: "Unit / hari",
     },
     {
       key: "nc", name: "Pelanggaran / NC", today: nc ? nf(ncToday.length) : "–", todayUnit: "NC hari ini", month: nc ? nf(ni.length) : "–", monthUnit: "NC bulan ini", status: ncStatus,
@@ -248,7 +248,7 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
         ...(ncTrans[0] ? [{ label: "Transporter", value: `${ncTrans[0].k} · ${ncTrans[0].n}` }] : []),
         { label: "Berulang ≥ 3×", value: nf(ncRepeat.length), tone: ncRepeat.length ? "perhatian" : undefined },
       ] : [],
-      trend: trendOf((d) => (nc ? ni.filter((x) => x.d === d).length : null), (n) => `${nf(n)} NC`), trendLabel: "NC per hari · 14 hari",
+      trend: trendOf((d) => (nc ? ni.filter((x) => x.d === d).length : null), (n) => `${nf(n)} NC`), trendLabel: "NC / hari",
     },
   ];
 
@@ -321,10 +321,10 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
   const pulse: Pulse[] = [
     { key: "tasks", label: "Tugas driver", value: nf(tasksToday), unit: `${nf(doneToday)} selesai`, tab: "ops" },
     { key: "gate", label: "Gerak gate", value: nf(gateToday), unit: `${nf(open.length)} di luar`, tab: "fleet", tone: longOpen.length ? "perhatian" : undefined },
-    { key: "canteen", label: "Kantin snack · makan", value: cToday ? `${nf(cSnack.orderToday)} · ${nf(cMeal.orderToday)}` : "–", unit: cToday ? "porsi dipesan" : "belum diinput", tab: "canteen" },
+    { key: "canteen", label: "Kantin", value: cToday ? `${nf(cSnack.orderToday)} · ${nf(cMeal.orderToday)}` : "–", unit: cToday ? "porsi snack · makan" : "belum diinput", tab: "canteen" },
     { key: "atk", label: "ATK keluar", value: nf(atkToday), unit: "unit", tab: "atk" },
     { key: "nc", label: "Pelanggaran", value: nc ? nf(ncToday.length) : "–", unit: nc ? "NC hari ini" : "belum tersambung", tab: "nc", tone: ncToday.length ? ncStatus : undefined },
-    ...(rcp ? [{ key: "rcp", label: "Resepsionis", value: nf(rcp.parcels.waiting), unit: `barang menunggu · ${nf(rcp.bookings.length)} booking`, tab: "rcp", tone: rcp.parcels.waiting_old ? ("perhatian" as Status) : undefined }] : []),
+    ...(rcp ? [{ key: "rcp", label: "Resepsionis", value: nf(rcp.parcels.waiting), unit: `barang menunggu`, tab: "rcp", tone: rcp.parcels.waiting_old ? ("perhatian" as Status) : undefined }] : []),
   ];
 
   return {
