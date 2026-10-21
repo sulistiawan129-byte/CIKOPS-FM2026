@@ -2116,6 +2116,8 @@ export function roleLabel(profile: MyProfile | null): string {
 
 export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (!profile) return true;
+  // Tautan: semua akun staf (isinya disaring per menu yang boleh dibuka)
+  if (tab === "links") return true;
   const info = roleInfoOf(profile);
   if (info) {
     if (tab === "home" || tab === "overview") return info.home && !(tab === "overview" && info.plant === "PRB");

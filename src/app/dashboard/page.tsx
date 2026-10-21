@@ -14,6 +14,7 @@ import LockerTab from "./LockerTab";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
 import SecurityTab from "./SecurityTab";
+import { LinksTab } from "./LinksTab";
 import AccountsTab, { ExecutiveView } from "./AccountsTab";
 import CalendarAgenda from "./CalendarAgenda";
 import AtkTab from "./AtkTab";
@@ -690,6 +691,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "security" && <SecurityTab myProfile={myProfile} />}
           {activeTab === "executive" && <ExecutiveView onReports={() => setActiveTab("reports")} />}
           {activeTab === "accounts" && <AccountsTab myProfile={myProfile} />}
+          {activeTab === "links" && <LinksTab myProfile={myProfile} />}
           {activeTab === "calendar" && <CalendarAgenda variant="full" myProfile={myProfile} onOpenTasks={openTasksOn} />}
           {activeTab === "activitylog" && <ActivityLogTab />}
           </TabErrorBoundary>
