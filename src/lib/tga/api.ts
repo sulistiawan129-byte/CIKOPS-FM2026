@@ -110,7 +110,9 @@ function storeSession(token: string | null, nama = "") {
 function friendly(e: { message?: string; code?: string } | null): Error {
   const msg = e?.message ?? "Terjadi kesalahan.";
   if (e?.code === "PGRST202" || e?.code === "42883" || /could not find the function/i.test(msg)) {
-    return new Error("Aplikasi TGA belum aktif — admin perlu menjalankan supabase/01_dasar.sql (bagian 034).");
+    return new Error(/tga_admin_save|tga_admin_delete_act|tga_assign|assign_config|assign_code/i.test(msg)
+      ? "Fitur ini belum aktif — admin perlu menjalankan supabase/04_aplikasi_lapangan.sql (bagian 045)."
+      : "Aplikasi TGA belum aktif — admin perlu menjalankan supabase/01_dasar.sql (bagian 034).");
   }
   if (/failed to fetch|network/i.test(msg)) return new Error("Tidak ada koneksi internet. Coba lagi.");
   return new Error(msg);
@@ -170,6 +172,29 @@ export const tgaAdminDeleteUser = (id: string) => rpc<null>("tga_admin_delete_us
 export const tgaAdminAssign = (id: string | null, userId: string | null, d: Record<string, unknown>) =>
   rpc<TgaActivity>("tga_admin_assign", { p_id: id, p_user_id: userId, p_data: d });
 export const tgaAdminCancel = (id: string, reason = "") => rpc<null>("tga_admin_cancel", { p_id: id, p_reason: reason });
+/** Dashboard (menu TGA): tambah / ubah pekerjaan apa pun — teknisi, status, tanggal, jam (045). */
+export const tgaAdminSaveActivity = (id: string | null, userId: string | null, d: Record<string, unknown>) =>
+  rpc<TgaActivity>("tga_admin_save_activity", { p_id: id, p_user_id: userId, p_data: d });
+/** Hapus permanen (berbeda dengan batal yang tetap tercatat). */
+export const tgaAdminDeleteActivity = (id: string) => rpc<null>("tga_admin_delete_activity", { p_id: id });
+
+// ── Form penugasan publik /tugas-tga (045) ──
+export interface TgaAssignConfig { aktif: boolean; has_code: boolean; updated_at: string | null; updated_by: string; locked: boolean; today: number }
+export const tgaAdminAssignConfig = () => rpc<TgaAssignConfig>("tga_admin_assign_config");
+export const tgaAdminSetAssignCode = (code: string, aktif: boolean) => rpc<null>("tga_admin_set_assign_code", { p_code: code, p_aktif: aktif });
+export interface TgaAssignInfo { technicians: { id: string; nama: string; open: number }[]; employees: { id: string; nama: string; dept: string }[] }
+/** Error kode (salah / terkunci / belum aktif) dikembalikan sebagai Error biasa. */
+export async function tgaAssignPublicInfo(code: string): Promise<TgaAssignInfo> {
+  const r = await rpc<TgaAssignInfo & { error?: string }>("tga_assign_public_info", { p_code: code });
+  if (r?.error) throw new Error(r.error);
+  return { technicians: r?.technicians ?? [], employees: r?.employees ?? [] };
+}
+export async function tgaAssignPublic(code: string, userId: string | null, d: Record<string, unknown>) {
+  const r = await rpc<{ id?: string; ref_no?: string; nama_tga?: string; pool?: boolean; error?: string }>("tga_assign_public", { p_code: code, p_user_id: userId, p_data: d });
+  if (!r?.id) throw new Error(r?.error ?? "Gagal mengirim tugas.");
+  return r as { id: string; ref_no: string; nama_tga: string; pool: boolean };
+}
+
 /** Halaman publik /request: karyawan minta bantuan TGA. */
 export const tgaRequestPublic = (r: { nama: string; dept: string; phone: string; kategori: string; lokasi: string; activity: string; prioritas: string }) =>
   rpc<{ id: string; ref_no: string }>("tga_request_public", {

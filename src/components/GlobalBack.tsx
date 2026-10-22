@@ -12,7 +12,7 @@ import Icon from "@/components/Icon";
  * dashboard (back bar per modul), dashboard-viewonly (header), driver & root,
  * dan /bukti (bukti permintaan yang dibuka requestor dari tautan).
  */
-const HIDDEN_ON = ["/dashboard", "/dashboard-viewonly", "/tv-display", "/driver", "/bukti", "/tga"];
+const HIDDEN_ON = ["/dashboard", "/dashboard-viewonly", "/tv-display", "/driver", "/bukti", "/tga", "/tugas-tga"];
 
 export default function GlobalBack() {
   const pathname = usePathname();

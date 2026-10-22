@@ -33,6 +33,7 @@ export type DashboardTab =
   | "employeerequests"
   | "atk"
   | "gafacility"
+  | "tga"
   | "receptionist"
   | "security"
   | "calendar"
@@ -79,7 +80,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "employeerequests", icon: "📨", labelId: "Permintaan Karyawan", labelEn: "Employee Requests", descId: "Pengajuan permintaan dari karyawan", descEn: "Employee-submitted requests" },
       { id: "atk", icon: "✏️", labelId: "ATK", labelEn: "Office Supplies", descId: "Pengajuan ATK & perlengkapan", descEn: "Office supplies requests" },
       { id: "receptionist", icon: "🛎️", labelId: "Receptionist", labelEn: "Receptionist", descId: "Wifi tamu, barang & surat, booking Induction Room", descEn: "Guest wifi, parcels & mail, Induction Room booking" },
-      { id: "gafacility", icon: "🧹", labelId: "Cleaning & Gardening", labelEn: "Cleaning & Gardening", descId: "Cleaning Service, Gardener & TGA (sinkron Excel)", descEn: "Cleaning, gardening & GA technicians (Excel sync)" },
+      { id: "gafacility", icon: "🧹", labelId: "Cleaning & Gardening", labelEn: "Cleaning & Gardening", descId: "Cleaning Service & Gardener — jadwal, checklist, event", descEn: "Cleaning & gardening — schedule, checklist, events" },
+      { id: "tga", icon: "🛠️", labelId: "TGA", labelEn: "TGA", descId: "Teknisi GA — penugasan, data pekerjaan, akun & form penugasan", descEn: "GA technicians — tasks, jobs, accounts & assignment form" },
     ],
   },
   {

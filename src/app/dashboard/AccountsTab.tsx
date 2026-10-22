@@ -126,7 +126,7 @@ export default function AccountsTab({ myProfile }: { myProfile: MyProfile | null
             </ul>
           )}
       </div>
-      {myProfile && <p className={a.mute} style={{ margin: 0 }}>{L("Akun driver dikelola di Master Data → Driver, akun TGA di Cleaning & Gardening → TGA.", "Driver accounts are managed in Master Data → Drivers, TGA accounts in Cleaning & Gardening → TGA.")}</p>}
+      {myProfile && <p className={a.mute} style={{ margin: 0 }}>{L("Akun driver dikelola di Master Data → Driver, akun TGA di menu TGA → Teknisi.", "Driver accounts are managed in Master Data → Drivers, TGA accounts in TGA → Technicians.")}</p>}
 
       {edit && (
         <AccountModal
