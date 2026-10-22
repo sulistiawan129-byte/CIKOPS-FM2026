@@ -3,6 +3,9 @@
 --   Bagian 042  notifikasi native APK (Firebase Cloud Messaging)
 --   Bagian 043  Self-Claim driver: driver mengajukan klaim sendiri,
 --               admin Finance memverifikasi / mengedit → masuk ke tabel claims
+--   Bagian 044  Excel ATK: kirim permintaan & restock lewat kunci sinkron
+--   Bagian 045  Modul TGA: admin ubah / hapus pekerjaan + form penugasan publik
+--               (semua staf GA menugaskan TGA dengan kode penugasan)
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -260,3 +263,216 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+
+-- ######################################################################
+-- ## BAGIAN 045 — Modul TGA: CRUD pekerjaan oleh admin + form penugasan publik
+-- ######################################################################
+-- • Admin ISS (dashboard → menu TGA) boleh mengubah SEMUA kolom pekerjaan
+--   (teknisi, status, tanggal, jam, dst.), membatalkan, dan menghapus permanen.
+-- • Form publik /tugas-tga: semua staf GA bisa menugaskan TGA tanpa login,
+--   cukup dengan KODE PENUGASAN yang diatur admin. Kode disimpan sebagai hash;
+--   salah kode 8x → form terkunci 15 menit.
+
+-- ── 1) Admin: tambah / ubah pekerjaan apa pun ──
+-- p_user_id null = tanpa teknisi (masuk "siapa cepat" bila status Baru);
+-- p_data.nama_tga dipakai bila teknisinya tidak punya akun lagi.
+create or replace function tga_admin_save_activity(p_id uuid, p_user_id uuid, p_data jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare a tga_activities%rowtype; old tga_activities%rowtype; v_by text; v_nama text; v_act text; v_status text;
+        v_req_id uuid; v_req text; v_dept text; v_tgl date; v_mulai time; v_selesai time;
+begin
+  if not tga_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  select coalesce(nullif(trim(full_name), ''), 'Admin GA') into v_by from profiles where id = auth.uid();
+  v_act := trim(coalesce(p_data->>'activity', ''));
+  if v_act = '' then raise exception 'Isi pekerjaan yang dikerjakan.'; end if;
+  v_status := coalesce(nullif(p_data->>'status', ''), 'baru');
+  if v_status not in ('baru', 'proses', 'pending', 'butuh_part', 'selesai', 'batal') then raise exception 'Status tidak dikenal.'; end if;
+  if p_user_id is not null then
+    select nama into v_nama from tga_users where id = p_user_id;
+    if v_nama is null then raise exception 'Teknisi tidak ditemukan.'; end if;
+  else
+    v_nama := left(trim(coalesce(p_data->>'nama_tga', '')), 80);
+  end if;
+  if v_status in ('proses', 'pending', 'butuh_part', 'selesai') and v_nama = '' then
+    raise exception 'Pilih teknisi untuk status ini.';
+  end if;
+  v_req := left(trim(coalesce(p_data->>'request_by', '')), 80);
+  v_dept := left(trim(coalesce(p_data->>'departemen', '')), 80);
+  if coalesce(p_data->>'requestor_id', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select e.id, e.nama, coalesce(nullif(trim(e.departement), ''), v_dept) into v_req_id, v_req, v_dept
+      from employees e where e.id = (p_data->>'requestor_id')::uuid;
+  end if;
+  v_tgl := coalesce(nullif(p_data->>'tanggal', '')::date, (now() at time zone 'Asia/Jakarta')::date);
+  v_mulai := nullif(p_data->>'jam_mulai', '')::time;
+  v_selesai := nullif(p_data->>'jam_selesai', '')::time;
+
+  if p_id is null then
+    insert into tga_activities (ref_no, user_id, nama_tga, tanggal, jam_mulai, jam_selesai, kategori, lokasi, activity,
+                                request_by, requestor_id, departemen, request_phone, status, prioritas, catatan,
+                                sumber, assigned_by, assigned_at, accepted_at, selesai_at)
+    values (tga_next_no(), p_user_id, v_nama, v_tgl, v_mulai, v_selesai,
+            coalesce(nullif(trim(p_data->>'kategori'), ''), 'Lainnya'), left(trim(coalesce(p_data->>'lokasi', '')), 120), left(v_act, 1000),
+            v_req, v_req_id, v_dept, left(trim(coalesce(p_data->>'request_phone', '')), 30), v_status,
+            case when p_data->>'prioritas' = 'urgent' then 'urgent' else 'normal' end, trim(coalesce(p_data->>'catatan', '')),
+            'tugas', v_by, now(),
+            case when v_status in ('proses', 'pending', 'butuh_part', 'selesai') then now() end,
+            case when v_status = 'selesai' then now() end)
+    returning * into a;
+  else
+    select * into old from tga_activities where id = p_id;
+    if not found then raise exception 'Pekerjaan tidak ditemukan.'; end if;
+    update tga_activities set
+      user_id = p_user_id, nama_tga = v_nama, tanggal = v_tgl, jam_mulai = v_mulai, jam_selesai = v_selesai,
+      kategori = coalesce(nullif(trim(p_data->>'kategori'), ''), kategori), lokasi = left(trim(coalesce(p_data->>'lokasi', '')), 120),
+      activity = left(v_act, 1000), request_by = v_req, requestor_id = v_req_id, departemen = v_dept,
+      request_phone = left(trim(coalesce(p_data->>'request_phone', request_phone)), 30),
+      status = v_status, prioritas = case when p_data->>'prioritas' = 'urgent' then 'urgent' else 'normal' end,
+      catatan = trim(coalesce(p_data->>'catatan', '')),
+      accepted_at = case when v_status = 'baru' then null else coalesce(accepted_at, case when v_status <> 'batal' then now() end) end,
+      selesai_at = case when v_status = 'selesai' then coalesce(selesai_at, now()) else null end,
+      -- Kembali ke "Baru" untuk teknisi lain / dibuka ulang → dikirim ulang ke HP teknisi
+      assigned_by = case when v_status = 'baru' and (old.status <> 'baru' or old.user_id is distinct from p_user_id) then v_by else assigned_by end,
+      assigned_at = case when v_status = 'baru' and (old.status <> 'baru' or old.user_id is distinct from p_user_id) then now() else assigned_at end,
+      updated_at = now()
+     where id = p_id
+    returning * into a;
+  end if;
+  return tga_activity_json(a);
+end $$;
+
+-- ── 2) Admin: hapus permanen (batal = tetap tercatat; hapus = hilang dari laporan) ──
+create or replace function tga_admin_delete_activity(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not tga_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  delete from tga_activities where id = p_id;
+  if not found then raise exception 'Pekerjaan tidak ditemukan (mungkin sudah dihapus).'; end if;
+end $$;
+
+-- ── 3) Kode penugasan untuk form publik ──
+create table if not exists tga_assign_config (
+  id           int primary key default 1 check (id = 1),
+  code_hash    text,
+  aktif        boolean not null default false,
+  failed_count int not null default 0,
+  locked_until timestamptz,
+  updated_at   timestamptz,
+  updated_by   text not null default ''
+);
+insert into tga_assign_config (id) values (1) on conflict (id) do nothing;
+alter table tga_assign_config enable row level security;   -- tanpa policy: hanya lewat fungsi
+
+create or replace function tga_admin_assign_config() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare c tga_assign_config%rowtype;
+begin
+  if not tga_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  select * into c from tga_assign_config where id = 1;
+  return jsonb_build_object('aktif', coalesce(c.aktif, false), 'has_code', c.code_hash is not null,
+    'updated_at', c.updated_at, 'updated_by', coalesce(c.updated_by, ''),
+    'locked', c.locked_until is not null and c.locked_until > now(),
+    'today', (select count(*) from tga_activities where sumber = 'tugas' and assigned_by like '%· form' and created_at > now() - interval '1 day'));
+end $$;
+
+/** p_code kosong = kode tidak diganti (hanya aktif/nonaktif). */
+create or replace function tga_admin_set_assign_code(p_code text, p_aktif boolean) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare v_by text;
+begin
+  if not tga_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  if coalesce(p_code, '') <> '' and p_code !~ '^[A-Za-z0-9]{4,20}$' then raise exception 'Kode harus 4–20 huruf/angka tanpa spasi.'; end if;
+  if coalesce(p_aktif, false) and coalesce(p_code, '') = '' and (select code_hash from tga_assign_config where id = 1) is null then
+    raise exception 'Buat kode penugasan dulu.';
+  end if;
+  select coalesce(nullif(trim(full_name), ''), 'Admin GA') into v_by from profiles where id = auth.uid();
+  update tga_assign_config set
+    code_hash = case when coalesce(p_code, '') <> '' then crypt(upper(p_code), gen_salt('bf')) else code_hash end,
+    aktif = coalesce(p_aktif, aktif), failed_count = 0, locked_until = null, updated_at = now(), updated_by = v_by
+   where id = 1;
+end $$;
+
+-- Cek kode TANPA exception supaya hitungan salah kode tetap tersimpan. null = lolos.
+create or replace function tga_assign_check(p_code text) returns text
+language plpgsql security definer set search_path = public, extensions as $$
+declare c tga_assign_config%rowtype;
+begin
+  select * into c from tga_assign_config where id = 1 for update;
+  if not found or not c.aktif or c.code_hash is null then return 'Form penugasan belum diaktifkan admin.'; end if;
+  if c.locked_until is not null and c.locked_until > now() then
+    return 'Terlalu banyak kode salah. Coba lagi ' || greatest(1, ceil(extract(epoch from c.locked_until - now()) / 60))::int || ' menit lagi.';
+  end if;
+  if crypt(upper(coalesce(p_code, '')), c.code_hash) <> c.code_hash then
+    update tga_assign_config set
+           locked_until = case when failed_count + 1 >= 8 then now() + interval '15 minutes' else locked_until end,
+           failed_count = case when failed_count + 1 >= 8 then 0 else failed_count + 1 end
+     where id = 1;
+    return 'Kode penugasan salah.';
+  end if;
+  if c.failed_count > 0 then update tga_assign_config set failed_count = 0 where id = 1; end if;
+  return null;
+end $$;
+
+/** Form publik: cek kode + daftar teknisi aktif & karyawan (untuk pemilih requestor). */
+create or replace function tga_assign_public_info(p_code text) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare v_err text;
+begin
+  v_err := tga_assign_check(p_code);
+  if v_err is not null then return jsonb_build_object('error', v_err); end if;
+  return jsonb_build_object(
+    'technicians', coalesce((select jsonb_agg(jsonb_build_object('id', u.id, 'nama', u.nama,
+        'open', (select count(*) from tga_activities a where a.user_id = u.id and a.status in ('baru', 'proses', 'pending', 'butuh_part'))) order by u.nama)
+      from tga_users u where u.aktif), '[]'::jsonb),
+    'employees', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nama', e.nama, 'dept', coalesce(e.departement, '')) order by e.nama)
+      from employees e
+     where coalesce(trim(e.nama), '') <> '' and coalesce((to_jsonb(e) ->> 'aktif')::boolean, true)), '[]'::jsonb));
+end $$;
+
+/** Form publik: buat tugas TGA (status Baru → HP teknisi berdering). */
+create or replace function tga_assign_public(p_code text, p_user_id uuid, p_data jsonb) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare v_err text; a tga_activities%rowtype; v_by text; v_nama text := ''; v_act text; v_req_id uuid; v_req text; v_dept text; v_recent int;
+begin
+  v_err := tga_assign_check(p_code);
+  if v_err is not null then return jsonb_build_object('error', v_err); end if;
+  v_by := left(trim(coalesce(p_data->>'assigned_by', '')), 60);
+  if length(v_by) < 2 then return jsonb_build_object('error', 'Isi nama Anda (pemberi tugas).'); end if;
+  v_act := trim(coalesce(p_data->>'activity', ''));
+  if length(v_act) < 3 then return jsonb_build_object('error', 'Isi pekerjaan yang harus dikerjakan.'); end if;
+  select count(*) into v_recent from tga_activities where assigned_by like '%· form' and created_at > now() - interval '10 minutes';
+  if v_recent >= 30 then return jsonb_build_object('error', 'Terlalu banyak tugas dalam 10 menit. Coba lagi sebentar.'); end if;
+  if p_user_id is not null then
+    select nama into v_nama from tga_users where id = p_user_id and aktif;
+    if v_nama is null then return jsonb_build_object('error', 'Teknisi tidak ditemukan atau nonaktif.'); end if;
+  end if;
+  v_req := left(trim(coalesce(p_data->>'request_by', '')), 80);
+  v_dept := left(trim(coalesce(p_data->>'departemen', '')), 80);
+  if coalesce(p_data->>'requestor_id', '') ~ '^[0-9a-fA-F-]{36}$' then
+    select e.id, e.nama, coalesce(nullif(trim(e.departement), ''), v_dept) into v_req_id, v_req, v_dept
+      from employees e where e.id = (p_data->>'requestor_id')::uuid;
+  end if;
+  insert into tga_activities (ref_no, user_id, nama_tga, kategori, lokasi, activity, request_by, requestor_id, departemen,
+                              request_phone, status, prioritas, catatan, sumber, assigned_by, assigned_at)
+  values (tga_next_no(), p_user_id, coalesce(v_nama, ''), coalesce(nullif(trim(p_data->>'kategori'), ''), 'Lainnya'),
+          left(trim(coalesce(p_data->>'lokasi', '')), 120), left(v_act, 1000), v_req, v_req_id, v_dept,
+          left(trim(coalesce(p_data->>'request_phone', '')), 30), 'baru',
+          case when p_data->>'prioritas' = 'urgent' then 'urgent' else 'normal' end,
+          left(trim(coalesce(p_data->>'catatan', '')), 500), 'tugas', v_by || ' · form', now())
+  returning * into a;
+  return jsonb_build_object('id', a.id, 'ref_no', a.ref_no, 'nama_tga', a.nama_tga, 'pool', a.user_id is null);
+end $$;
+
+-- ── 4) Hak akses ──
+revoke all on function tga_admin_save_activity(uuid, uuid, jsonb), tga_admin_delete_activity(uuid),
+  tga_admin_assign_config(), tga_admin_set_assign_code(text, boolean) from public, anon;
+grant execute on function tga_admin_save_activity(uuid, uuid, jsonb), tga_admin_delete_activity(uuid),
+  tga_admin_assign_config(), tga_admin_set_assign_code(text, boolean) to authenticated;
+revoke all on function tga_assign_check(text) from public, anon, authenticated;
+revoke all on function tga_assign_public_info(text), tga_assign_public(text, uuid, jsonb) from public;
+grant execute on function tga_assign_public_info(text), tga_assign_public(text, uuid, jsonb) to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- Cek: form penugasan aktif? (aktifkan dari Dashboard → TGA → Form penugasan)
+select 'form penugasan TGA aktif' as cek, coalesce((select aktif::text from tga_assign_config where id = 1), 'false') as hasil;

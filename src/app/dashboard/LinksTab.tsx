@@ -84,7 +84,7 @@ export function LinksTab({ myProfile = null }: { myProfile?: MyProfile | null })
         desc: en ? "Open in Chrome, or install the APK. Bookmark / add to home screen." : "Buka di Chrome atau pasang APK-nya. Bisa ditambahkan ke layar utama.",
         items: [
           { id: "driver", icon: "🚗", title: en ? "Driver app" : "Aplikasi Driver", desc: en ? "Tasks, claims (Self-Claim), notifications" : "Tugas, klaim (Self-Claim), notifikasi", who: en ? "Drivers — email & password from GA admin" : "Driver — email & password dari admin GA", href: "/driver", tab: "tasks" },
-          { id: "tga", icon: "🛠️", title: en ? "TGA app" : "Aplikasi TGA", desc: en ? "GA technicians log work & receive tasks" : "Teknisi GA mencatat kegiatan & menerima tugas", who: en ? "GA technicians — name + PIN" : "Teknisi GA — nama + PIN", href: "/tga", tab: "gafacility" },
+          { id: "tga", icon: "🛠️", title: en ? "TGA app" : "Aplikasi TGA", desc: en ? "GA technicians log work & receive tasks" : "Teknisi GA mencatat kegiatan & menerima tugas", who: en ? "GA technicians — name + PIN" : "Teknisi GA — nama + PIN", href: "/tga", tab: "tga" },
         ],
       },
       {
@@ -92,6 +92,7 @@ export function LinksTab({ myProfile = null }: { myProfile?: MyProfile | null })
         desc: en ? "Safe to share widely or print as a QR code." : "Aman dibagikan ke banyak orang atau dicetak sebagai QR.",
         items: [
           { id: "request", icon: "📨", title: en ? "Employee requests" : "Permintaan karyawan", desc: en ? "Car / driver, printer, GA technician, other requests" : "Minta mobil/driver, printer, teknisi GA, dan lainnya", who: en ? "All employees" : "Semua karyawan", href: "/request" },
+          { id: "tugas-tga", icon: "🛠️", title: en ? "TGA assignment form" : "Form penugasan TGA", desc: en ? "GA staff assign technicians — needs the access code (TGA → Assignment form)" : "Staf GA menugaskan teknisi — perlu kode penugasan (menu TGA → Form penugasan)", who: en ? "All GA staff" : "Semua staf GA", href: "/tugas-tga", tab: "tga" },
           { id: "locker", icon: "🔐", title: "Locker", desc: en ? "Register / release a locker" : "Daftar & lepas locker", who: en ? "Employees" : "Karyawan", href: "/locker", tab: "locker" },
           { id: "gift", icon: "🎁", title: en ? "Gift registration" : "Pendaftaran pembagian", desc: en ? "Employees register themselves (self-register mode)" : "Karyawan mendaftar sendiri (mode Daftar Sendiri)", who: en ? "Employees" : "Karyawan", href: "/gift", tab: "gift" },
           { id: "gift-verify", icon: "🔑", title: en ? "Gift — staff verification" : "Pembagian — verifikasi petugas", desc: en ? "Check passcodes at the handover desk" : "Cek passcode di meja pembagian", who: en ? "Gift desk staff" : "Petugas pembagian", href: "/gift/verify", tab: "gift" },

@@ -202,7 +202,7 @@ function AssignModal({ lang, initial, users, emps, onClose, onSaved }: {
               </button>
             ))}
           </div>
-          {users.length === 0 && <small className={a.mute}>{L("Belum ada akun TGA — buat di kartu Akun aplikasi TGA di bawah.", "No TGA accounts yet — create them below.")}</small>}
+          {users.length === 0 && <small className={a.mute}>{L("Belum ada akun TGA — buat di tab Teknisi.", "No TGA accounts yet — create them in the Technicians tab.")}</small>}
         </div>
 
         <div className={a.field}>

@@ -8,7 +8,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 |---|---|---|
 | `supabase/01_dasar.sql` | Semua migrasi lama (skema inti + bagian 001 … 038): driver, armada, tugas, klaim, kantin, gift, gate, security, kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA | **Sudah berjalan di production** — tidak perlu diulang. Cari `## BAGIAN 0xx` untuk melihat migrasi tertentu |
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
-| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver | **Jalankan sekali, sesudah file 02.** Aman diulang |
+| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik) | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -42,7 +42,7 @@ Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase se
 | **Master Admin** | Semua modul (termasuk Kantin), Log Aktivitas | Beranda | Semua role |
 | **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
 | **Admin GA PRB** | Penugasan, Armada, Master Data (driver, pegawai, pengaturan), Kalender, Report Fleet — **data PRB saja** | Beranda (versi PRB) | Admin GA PRB |
-| **Admin / SPV ISS** | Cleaning & Gardening + TGA, Report Cleaning & Gardening | Cleaning & Gardening | Admin / SPV ISS |
+| **Admin / SPV ISS** | Cleaning & Gardening, TGA, Report Cleaning & Gardening | Cleaning & Gardening | Admin / SPV ISS |
 | **Admin / SPV Security** | Laporan Security, Report Security | Laporan Security | Admin / SPV Security |
 | **Receptionist** | Receptionist, Kalender (agenda & kunjungan, tanpa penugasan driver) | Receptionist | — |
 | **Management** | **Lihat saja**: FM Command Center + tarik laporan semua modul | Command Center | — |
@@ -91,7 +91,7 @@ Driver & TGA tetap memakai aplikasinya sendiri (`/driver`, `/tga`, APK).
 - Role akun sendiri tidak bisa diubah, dan akun sendiri tidak bisa dinonaktifkan.
   Ini mencegah admin terkunci dari sistemnya sendiri.
 - Akun driver tetap dikelola di Master Data → Driver. Akun TGA dikelola di
-  Cleaning & Gardening → TGA (khusus Admin ISS).
+  menu **TGA → Teknisi** (khusus Admin ISS).
 
 
 ---
@@ -449,7 +449,7 @@ An app for TGA technicians to log their work from a phone: what was done, who re
 
 ### 1. Activate it (once)
 1. Supabase → **SQL Editor** → **New query** → paste the **entire** contents of bagian 034 di `supabase/01_dasar.sql` (do not select only part of it) → **Run**.
-2. Open **Dashboard → Cleaning, Gardening & TGA → TGA tab** and scroll down to **Akun aplikasi TGA**.
+2. Open **Dashboard → Fasilitas → TGA → tab Teknisi**.
 3. Click **＋ Akun baru** (or a name chip from the TGA manpower list) → enter the name, phone number and a **PIN of 4–6 digits** → Simpan.
 4. Also run bagian 035 di `supabase/01_dasar.sql` and bagian 037 di `supabase/01_dasar.sql` (after 034), so the requestor is linked to **Data Karyawan**.
 5. Tell each technician their PIN, then send the link (the **Bagikan ke WhatsApp** button).
@@ -480,9 +480,35 @@ The app is called **CIKOPS TGA** (orange wrench icon) and is separate from the d
 - Resetting the PIN or deactivating the account from the dashboard → old sessions on phones are signed out.
 - Technicians can only see and edit **their own** activities.
 
-### 6. Dashboard
-The **TGA** tab merges the data from the app (📱) with the Excel log. Filters: *Semua / Dari aplikasi / Excel / Belum selesai*. Exports (Excel/PDF/CSV) now include category, location, department, status and ref number.
-The app data is stored in the `tga_activities` table, so it is **not overwritten** by the Excel sync.
+### 6. Dashboard — menu TGA (terpisah dari Cleaning & Gardening)
+TGA sekarang punya menu sendiri: **Fasilitas → TGA** (`/dashboard/tga`). Akun lama yang punya
+izin Cleaning & Gardening otomatis juga bisa membuka menu TGA. Isinya:
+
+| Tab | Fungsi |
+|---|---|
+| **Papan tugas** | Tugaskan teknisi / semua TGA, alihkan, batalkan. Alur Baru → Proses → Selesai |
+| **Data pekerjaan** | CRUD semua pekerjaan (aplikasi, papan, form, permintaan karyawan): **Tambah**, **Ubah** (teknisi, status, tanggal, jam, requestor…), **Batalkan** (tetap tercatat), **Hapus permanen**. Bisa pilih banyak baris → batalkan / hapus sekaligus. Ekspor Excel/PDF/CSV |
+| **Teknisi** | Akun aplikasi `/tga`: tambah, ubah, reset PIN, nonaktif, hapus |
+| **Form penugasan** | Atur kode untuk form publik `/tugas-tga` |
+| **Laporan** | Rekap bulanan (aplikasi + log Excel lama), per teknisi, pemohon terbanyak |
+
+Bedanya **Batalkan** vs **Hapus**: batal = status *Dibatalkan*, masih ada di data & laporan
+dengan alasan di catatan; hapus = hilang permanen (untuk data salah input / dobel).
+Data aplikasi tersimpan di tabel `tga_activities`, jadi **tidak tertimpa** sinkron Excel.
+
+### 7. Form penugasan publik `/tugas-tga` (semua staf GA, bagian 045)
+Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.
+1. Jalankan bagian 045 (jalankan ulang `supabase/04_aplikasi_lapangan.sql` utuh — aman diulang).
+2. Dashboard → **TGA → Form penugasan** → isi kode (4–20 huruf/angka, atau tombol **Acak**) →
+   **Simpan & aktifkan**. Catat kodenya — kode disimpan terenkripsi dan tidak bisa dilihat lagi.
+3. Bagikan tautan `https://<domain>/tugas-tga` (tombol Salin / WhatsApp, juga ada di menu **Tautan**),
+   dan berikan kodenya terpisah ke staf GA.
+4. Staf membuka tautan → masukkan kode (diingat di perangkat itu) → isi nama pemberi tugas,
+   teknisi (atau *Semua TGA*), jenis, pekerjaan, lokasi, urgent, requestor → **Kirim**.
+   HP teknisi langsung berdering; tugas tampil di Papan tugas dengan keterangan `Nama · form`.
+- Keamanan: 8x kode salah → form terkunci 15 menit; maks 30 tugas per 10 menit lewat form.
+  Ganti kode bila ada staf yang keluar, atau **Nonaktifkan form** kapan saja.
+- Karyawan non-GA tetap memakai `/request` (permintaan masuk ke *Belum diambil*).
 
 
 ---

@@ -19,6 +19,7 @@ import AccountsTab, { ExecutiveView } from "./AccountsTab";
 import CalendarAgenda from "./CalendarAgenda";
 import AtkTab from "./AtkTab";
 import GaTab from "./GaTab";
+import TgaTab from "./TgaTab";
 import ReceptionistTab from "./receptionist/ReceptionistTab";
 import { useAuth } from "@/lib/auth";
 import Icon from "@/components/Icon";
@@ -77,7 +78,7 @@ export default function DashboardPage() {
         // Akun dengan menu terbatas: buka menu pertamanya, kecuali URL sudah menunjuk menu yang boleh diakses.
         if (p?.allowedTabs && p.allowedTabs.length > 0 && !p.allowedTabs.includes("overview")) {
           const fromUrl = tabFromPath(typeof window !== "undefined" ? window.location.pathname : "");
-          if (!fromUrl || !p.allowedTabs.includes(fromUrl)) setActiveTab(p.allowedTabs[0] as DashboardTab);
+          if (!fromUrl || !canAccessTab(p, fromUrl)) setActiveTab(p.allowedTabs[0] as DashboardTab);
         }
       });
     }
@@ -687,6 +688,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}
           {activeTab === "gafacility" && <GaTab myProfile={myProfile} />}
+          {activeTab === "tga" && <TgaTab myProfile={myProfile} />}
           {activeTab === "receptionist" && <ReceptionistTab myProfile={myProfile} />}
           {activeTab === "security" && <SecurityTab myProfile={myProfile} />}
           {activeTab === "executive" && <ExecutiveView onReports={() => setActiveTab("reports")} />}

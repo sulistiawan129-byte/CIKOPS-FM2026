@@ -1,18 +1,18 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   GA FACILITY — Cleaning Service, Gardening & TGA.
+   GA FACILITY — Cleaning Service & Gardening (TGA punya menu sendiri: TgaTab).
    CIKOPS hanya MENAMPILKAN data hasil sinkron dari Excel "ISS GA System"
    (modSyncGA). Input tetap di Excel oleh SPV.
 ════════════════════════════════════════════════════════════ */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  getGaEvents, getGaImprovements, getGaInventory, getGaJobs, getGaManpower, getGaPlan, getGaSyncStatus, getGaTga, rotateGaSyncKey,
+  getGaEvents, getGaImprovements, getGaInventory, getGaJobs, getGaManpower, getGaPlan, getGaSyncStatus, rotateGaSyncKey,
 } from "@/lib/ga/api";
 import {
   byLowestAch, groupBy, inMonth, monthRange, periodeOf, shiftPeriode, summarize, weekOfMonth,
-  type GaEvent, type GaGroup, type GaImprovement, type GaInventory, type GaJob, type GaManpower, type GaPlan, type GaSummary, type GaSyncStatus, type GaTga,
+  type GaEvent, type GaGroup, type GaImprovement, type GaInventory, type GaJob, type GaManpower, type GaPlan, type GaSummary, type GaSyncStatus,
 } from "@/lib/ga/model";
 import type { MyProfile } from "@/lib/api";
 import { toLocalISODate } from "@/lib/dateUtils";
@@ -21,13 +21,11 @@ import { exportGenericCsv, exportGenericExcel, exportGenericPdf } from "@/lib/re
 import type { ReportColumn, ReportLang } from "@/lib/reportEngine";
 import a from "./atk.module.css";
 import g from "./ga.module.css";
-import TgaAccounts from "./TgaAccounts";
-import TgaTasks from "./TgaTasks";
 import { GaChecklist, GaExcelModeNote, GaLogModal, GaMaster, GaModeCard, type LogField } from "./GaManage";
 import { deleteGaLog, saveGaLog, type GaLogTable } from "@/lib/ga/api";
 
 type Lang = "id" | "en";
-type View = "dashboard" | "checklist" | "matrix" | "master" | "tga" | "event" | "improvement" | "inventory" | "sync";
+type View = "dashboard" | "checklist" | "matrix" | "master" | "event" | "improvement" | "inventory" | "sync";
 type Team = "Semua" | "Cleaning Service" | "Gardener";
 
 const BLN_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
@@ -67,7 +65,6 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
   const [events, setEvents] = useState<GaEvent[]>([]);
   const [imps, setImps] = useState<GaImprovement[]>([]);
   const [inv, setInv] = useState<GaInventory[]>([]);
-  const [tga, setTga] = useState<GaTga[]>([]);
   const [sync, setSync] = useState<GaSyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -82,14 +79,13 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
     finally { setLoading(false); }
   }, [winFrom, winTo]);
   const loadOther = useCallback(async () => {
-    const r = await Promise.allSettled([getGaJobs(), getGaManpower(), getGaEvents(), getGaImprovements(), getGaInventory(), getGaTga(), getGaSyncStatus()]);
+    const r = await Promise.allSettled([getGaJobs(), getGaManpower(), getGaEvents(), getGaImprovements(), getGaInventory(), getGaSyncStatus()]);
     if (r[0].status === "fulfilled") setJobs(r[0].value);
     if (r[1].status === "fulfilled") setManpower(r[1].value);
     if (r[2].status === "fulfilled") setEvents(r[2].value);
     if (r[3].status === "fulfilled") setImps(r[3].value);
     if (r[4].status === "fulfilled") setInv(r[4].value);
-    if (r[5].status === "fulfilled") setTga(r[5].value);
-    if (r[6].status === "fulfilled") setSync(r[6].value);
+    if (r[5].status === "fulfilled") setSync(r[5].value);
     const firstErr = r.find((x) => x.status === "rejected") as PromiseRejectedResult | undefined;
     if (firstErr) setErr(firstErr.reason instanceof Error ? firstErr.reason.message : String(firstErr.reason));
   }, []);
@@ -102,7 +98,6 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
   const prevRows = useMemo(() => teamRows.filter((r) => r.periode === shiftPeriode(periode, -1)), [teamRows, periode]);
   const cur = useMemo(() => summarize(curRows, asOf), [curRows, asOf]);
   const prev = useMemo(() => summarize(prevRows, monthRange(shiftPeriode(periode, -1)).to), [prevRows, periode]);
-  const tgaMonth = useMemo(() => tga.filter((t) => inMonth(t.tanggal, periode)), [tga, periode]);
   const evMonth = useMemo(() => events.filter((t) => inMonth(t.tanggal, periode)), [events, periode]);
   const impMonth = useMemo(() => imps.filter((t) => inMonth(t.tanggal, periode)), [imps, periode]);
 
@@ -140,7 +135,6 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
     { id: "checklist", label: L("Checklist harian", "Daily checklist") },
     { id: "matrix", label: L("Plan vs Actual", "Plan vs Actual") },
     { id: "master", label: L("Master & jadwal", "Master & schedule") },
-    { id: "tga", label: "TGA", badge: tgaMonth.length || undefined },
     { id: "event", label: "Event", badge: evMonth.length || undefined },
     { id: "improvement", label: "Improvement", badge: impMonth.length || undefined },
     { id: "inventory", label: "Inventory" },
@@ -153,10 +147,10 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
       <header className={a.head}>
         <div className={a.headText}>
           <span className={a.kicker}>{L("Fasilitas · ISS General Affairs", "Facility · ISS General Affairs")}</span>
-          <h1>{L("Cleaning, Gardening & TGA", "Cleaning, Gardening & TGA")}</h1>
+          <h1>{L("Cleaning & Gardening", "Cleaning & Gardening")}</h1>
           <p>{editable
             ? L("Master pekerjaan, jadwal, checklist harian, event, improvement dan inventory dikelola langsung di CIKOPS — Excel SPV menarik dan mengikuti.", "Job master, schedule, daily checklist, events, improvements and inventory are managed in CIKOPS — the SPV Excel pulls and follows.")
-            : L("Laporan plan vs actual pekerjaan rutin, aktivitas teknisi GA, event, improvement dan inventory alat — tersinkron dari Excel SPV.", "Routine plan vs actual, GA technician activities, events, improvements and tool inventory — synced from the supervisor's Excel.")}</p>
+            : L("Laporan plan vs actual pekerjaan rutin, event, improvement dan inventory alat — tersinkron dari Excel SPV. Teknisi GA ada di menu TGA.", "Routine plan vs actual, events, improvements and tool inventory — synced from the supervisor's Excel. GA technicians live in the TGA menu.")}</p>
         </div>
         <div className={a.headSide}>
           {editable ? (
@@ -204,7 +198,7 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
         </div>
       )}
 
-      {noData && !["sync", "tga", "master", "checklist", "event", "improvement", "inventory"].includes(view) ? (
+      {noData && !["sync", "master", "checklist", "event", "improvement", "inventory"].includes(view) ? (
         <section className={a.card}>
           <p className={a.empty}>{editable
             ? L("Belum ada jadwal. Buka tab Master & jadwal → tambah pekerjaan → Generate jadwal.", "No schedule yet. Open Master & schedule → add jobs → Generate.")
@@ -215,12 +209,11 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
         <>
           {view === "dashboard" && (
             <Dashboard lang={lang} loading={loading} periode={periode} cur={cur} prev={prev} curRows={curRows} teamRows={teamRows} asOf={asOf}
-              tga={tgaMonth} events={evMonth} imps={impMonth} inv={inv} onGo={setView} />
+              events={evMonth} imps={impMonth} inv={inv} onGo={setView} />
           )}
           {view === "checklist" && <GaChecklist lang={lang} editable={editable} onChanged={loadPlan} />}
           {view === "matrix" && <Matrix lang={lang} rows={curRows} periode={periode} today={today} />}
           {view === "master" && <GaMaster lang={lang} jobs={jobs} manpower={manpower} periode={periode} editable={editable} onChanged={reloadAll} />}
-          {view === "tga" && <TgaView lang={lang} rows={tgaMonth} all={tga} periode={periode} manpower={manpower} />}
           {view === "event" && <SimpleTable lang={lang} title="Event" rows={evMonth} periode={periode}
             onAdd={editable ? () => setLogEdit({ table: "events", id: null, values: { tanggal: today } }) : undefined}
             onEdit={editable ? (r: GaEvent) => setLogEdit({ table: "events", id: r.id, values: { tanggal: r.tanggal ?? "", nama: r.nama, deskripsi: r.deskripsi, waktu: r.waktu, support: r.support, dokumentasi: r.dokumentasi } }) : undefined}
@@ -267,9 +260,9 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
 /* ════════════════════════════════════════════════════════════
    DASHBOARD
 ════════════════════════════════════════════════════════════ */
-function Dashboard({ lang, loading, periode, cur, prev, curRows, teamRows, asOf, tga, events, imps, inv, onGo }: {
+function Dashboard({ lang, loading, periode, cur, prev, curRows, teamRows, asOf, events, imps, inv, onGo }: {
   lang: Lang; loading: boolean; periode: number; cur: GaSummary; prev: GaSummary; curRows: GaPlan[]; teamRows: GaPlan[]; asOf: string;
-  tga: GaTga[]; events: GaEvent[]; imps: GaImprovement[]; inv: GaInventory[]; onGo: (v: View) => void;
+  events: GaEvent[]; imps: GaImprovement[]; inv: GaInventory[]; onGo: (v: View) => void;
 }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const weeks = useMemo(() => groupBy(curRows, (r) => String(weekOfMonth(r.tanggal)), asOf).sort((x, y) => Number(x.key) - Number(y.key)), [curRows, asOf]);
@@ -293,16 +286,6 @@ function Dashboard({ lang, loading, periode, cur, prev, curRows, teamRows, asOf,
     }
     return [...m.entries()].sort((x, y) => y[1].n - x[1].n);
   }, [curRows]);
-  const tgaBy = useMemo(() => {
-    const m = new Map<string, number>();
-    tga.forEach((t) => m.set(t.namaTga || "—", (m.get(t.namaTga || "—") ?? 0) + 1));
-    return [...m.entries()].sort((x, y) => y[1] - x[1]);
-  }, [tga]);
-  const reqBy = useMemo(() => {
-    const m = new Map<string, number>();
-    tga.forEach((t) => m.set(t.requestBy || "—", (m.get(t.requestBy || "—") ?? 0) + 1));
-    return [...m.entries()].sort((x, y) => y[1] - x[1]);
-  }, [tga]);
   const invPerlu = inv.filter((i) => i.nama && i.status.toLowerCase() !== "baik").length;
   const dAch = cur.ach !== null && prev.ach !== null ? (cur.ach - prev.ach) * 100 : null;
 
@@ -382,24 +365,12 @@ function Dashboard({ lang, loading, periode, cur, prev, curRows, teamRows, asOf,
         </section>
 
         <section className={a.card}>
-          <div className={a.cardHead}><div><h2>{L("Kegiatan bulan ini", "Activities this month")}</h2><p>TGA · Event · Improvement · Inventory</p></div></div>
-          <div className={g.miniStats}>
-            <button type="button" onClick={() => onGo("tga")}><b>{tga.length}</b><span>{L("aktivitas TGA", "TGA activities")}</span></button>
+          <div className={a.cardHead}><div><h2>{L("Kegiatan bulan ini", "Activities this month")}</h2><p>Event · Improvement · Inventory</p></div></div>
+          <div className={g.miniStats} style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
             <button type="button" onClick={() => onGo("event")}><b>{events.length}</b><span>Event</span></button>
             <button type="button" onClick={() => onGo("improvement")}><b>{imps.length}</b><span>Improvement</span></button>
             <button type="button" onClick={() => onGo("inventory")} className={invPerlu ? g.statWarn : ""}><b>{invPerlu}</b><span>{L("alat perlu cek", "tools to check")}</span></button>
           </div>
-          {tgaBy.length > 0 && (
-            <>
-              <div className={g.subHead}>{L("TGA per teknisi", "TGA by technician")}</div>
-              <ol className={a.hbars}>
-                {tgaBy.slice(0, 5).map(([n, c]) => (
-                  <li key={n}><div className={a.hbar} style={{ cursor: "default" }}><span className={a.hbarBody}><span className={a.hbarTop}><b>{n}</b><span>{c}</span></span><span className={a.track}><span style={{ width: `${(c / tgaBy[0][1]) * 100}%` }} /></span></span></div></li>
-                ))}
-              </ol>
-              {reqBy[0] && <p className={a.hint}>{L("Pemohon terbanyak", "Top requester")}: <b>{reqBy[0][0]}</b> ({reqBy[0][1]})</p>}
-            </>
-          )}
         </section>
 
         <section className={a.card}>
@@ -592,146 +563,6 @@ function Matrix({ lang, rows, periode, today }: { lang: Lang; rows: GaPlan[]; pe
         </div>
       )}
     </section>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
-   TGA
-════════════════════════════════════════════════════════════ */
-const TGA_ST: Record<string, { id: string; en: string; cls: string }> = {
-  selesai: { id: "Selesai", en: "Done", cls: "tagExcel" },
-  proses: { id: "Proses", en: "In progress", cls: "tagWeb" },
-  pending: { id: "Pending", en: "Pending", cls: "tagPending" },
-  butuh_part: { id: "Butuh part", en: "Needs part", cls: "tagPending" },
-  baru: { id: "Baru (belum diterima)", en: "New (not accepted)", cls: "tagPending" },
-  batal: { id: "Dibatalkan", en: "Cancelled", cls: "tagWeb" },
-};
-const tgaSt = (t: GaTga, lang: Lang) => (t.status ? (lang === "en" ? TGA_ST[t.status]?.en : TGA_ST[t.status]?.id) ?? t.status : "");
-
-function TgaView({ lang, rows, all, periode, manpower }: { lang: Lang; rows: GaTga[]; all: GaTga[]; periode: number; manpower: GaManpower[] }) {
-  const L = (id: string, en: string) => (lang === "en" ? en : id);
-  const [q, setQ] = useState("");
-  const [who, setWho] = useState("");
-  const [src, setSrc] = useState<"" | "app" | "excel" | "open">("");
-  const tech = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((t) => m.set(t.namaTga || "—", (m.get(t.namaTga || "—") ?? 0) + 1));
-    manpower.filter((p) => p.tim.toUpperCase() === "TGA").forEach((p) => { if (!m.has(p.nama)) m.set(p.nama, 0); });
-    return [...m.entries()].sort((x, y) => y[1] - x[1]);
-  }, [rows, manpower]);
-  const req = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((t) => m.set(t.requestBy || "—", (m.get(t.requestBy || "—") ?? 0) + 1));
-    return [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6);
-  }, [rows]);
-  const months = useMemo(() => Array.from({ length: 6 }, (_, i) => {
-    const p = shiftPeriode(periode, i - 5);
-    return { p, label: BLN_S[(p % 100) - 1], n: all.filter((t) => inMonth(t.tanggal, p)).length };
-  }), [all, periode]);
-  // Pekerjaan dari aplikasi yang belum selesai — ditampilkan lintas bulan supaya tidak terlewat.
-  const openAll = useMemo(() => all.filter((t) => t.source === "app" && t.status && t.status !== "selesai"), [all]);
-  const base = src === "open" ? openAll : rows.filter((t) => !src || (t.source ?? "excel") === src);
-  const list = base.filter((t) => (!who || (t.namaTga || "—") === who) &&
-    (!q || [t.activity, t.requestBy, t.namaTga, t.lokasi, t.kategori, t.departemen, t.refNo].join(" ").toLowerCase().includes(q.toLowerCase())));
-  const maxM = Math.max(1, ...months.map((m) => m.n));
-  const appCount = rows.filter((t) => t.source === "app").length;
-
-  function exportRows(fmt: "excel" | "pdf" | "csv") {
-    const cols: ReportColumn<GaTga>[] = [
-      { key: "tgl", labelId: "Tanggal", labelEn: "Date", get: (r) => r.tanggal ?? "" },
-      { key: "jam", labelId: "Jam", labelEn: "Time", get: (r) => r.jam ?? "" },
-      { key: "nama", labelId: "Nama TGA", labelEn: "Technician", get: (r) => r.namaTga },
-      { key: "kat", labelId: "Kategori", labelEn: "Category", get: (r) => r.kategori ?? "" },
-      { key: "act", labelId: "Activity", labelEn: "Activity", get: (r) => r.activity, width: 3 },
-      { key: "lok", labelId: "Lokasi", labelEn: "Location", get: (r) => r.lokasi ?? "" },
-      { key: "req", labelId: "Request By", labelEn: "Requested by", get: (r) => r.requestBy },
-      { key: "dept", labelId: "Departemen", labelEn: "Department", get: (r) => r.departemen ?? "" },
-      { key: "st", labelId: "Status", labelEn: "Status", get: (r) => tgaSt(r, lang) + (r.prioritas === "urgent" ? " (URGENT)" : "") },
-      { key: "ref", labelId: "No. Ref", labelEn: "Ref no.", get: (r) => r.refNo ?? "" },
-      { key: "src", labelId: "Sumber", labelEn: "Source", get: (r) => (r.source === "app" ? "Aplikasi" : "Excel") },
-    ];
-    const run = fmt === "csv" ? exportGenericCsv : fmt === "excel" ? exportGenericExcel : exportGenericPdf;
-    run({ rows: list, columns: cols, lang: lang as ReportLang, titleId: "Aktivitas TGA (Teknisi GA)", titleEn: "GA Technician Activities", periodLabel: perLabel(periode, lang), filename: "Aktivitas_TGA",
-      summaryRows: [
-        { label: L("Total aktivitas", "Total activities"), value: list.length },
-        { label: L("Selesai", "Done"), value: list.filter((t) => !t.status || t.status === "selesai").length },
-        { label: L("Belum selesai", "Open"), value: list.filter((t) => t.status && t.status !== "selesai").length },
-      ] });
-  }
-
-  const SRC: { id: typeof src; label: string; n: number }[] = [
-    { id: "", label: L("Semua", "All"), n: rows.length },
-    { id: "app", label: L("Dari aplikasi", "From app"), n: appCount },
-    { id: "excel", label: "Excel", n: rows.length - appCount },
-    { id: "open", label: L("Belum selesai", "Open"), n: openAll.length },
-  ];
-
-  return (
-    <div className={a.dash}>
-      <TgaTasks lang={lang} />
-      <div className={g.grid3}>
-        <section className={a.card}>
-          <div className={a.cardHead}><div><h2>{L("Aktivitas bulan ini", "Activities this month")}</h2><p>{L("Perbaikan / permintaan yang dikerjakan TGA", "Repairs / requests handled by TGA")}</p></div></div>
-          <div className={g.bigNum}>{rows.length}</div>
-          <p className={a.hint} style={{ margin: "0 0 8px" }}>{appCount} {L("dari aplikasi", "from app")} · {openAll.length} {L("belum selesai", "open")}</p>
-          <div className={g.sparkBars}>{months.map((m) => <div key={m.p} title={`${m.label}: ${m.n}`}><span style={{ height: `${(m.n / maxM) * 100}%` }} className={m.p === periode ? g.sparkOn : ""} /><small>{m.label}</small></div>)}</div>
-        </section>
-        <section className={a.card}>
-          <div className={a.cardHead}><div><h2>{L("Per teknisi", "By technician")}</h2><p>{L("Klik untuk memfilter", "Click to filter")}</p></div></div>
-          {tech.length === 0 ? <p className={a.empty}>—</p> : (
-            <ol className={a.hbars}>
-              {tech.map(([n, c]) => (
-                <li key={n}>
-                  <button type="button" className={`${a.hbar} ${who === n ? a.hbarOn : ""}`} onClick={() => setWho(who === n ? "" : n)} aria-pressed={who === n}>
-                    <span className={a.hbarBody}><span className={a.hbarTop}><b>{n}</b><span>{c}</span></span><span className={a.track}><span style={{ width: `${tech[0][1] ? (c / tech[0][1]) * 100 : 0}%` }} /></span></span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-        <section className={a.card}>
-          <div className={a.cardHead}><div><h2>{L("Pemohon terbanyak", "Top requesters")}</h2><p>Request By</p></div></div>
-          {req.length === 0 ? <p className={a.empty}>—</p> : (
-            <ul className={a.feed}>{req.map(([n, c]) => <li key={n}><div className={a.feedMain}><div className={a.feedTop}><b>{n}</b><span>{c} {L("aktivitas", "activities")}</span></div></div></li>)}</ul>
-          )}
-        </section>
-      </div>
-      <section className={a.card}>
-        <div className={a.toolbar}>
-          <input className={`${a.input} ${a.search}`} placeholder={L("Cari activity, lokasi, pemohon, teknisi…", "Search activity, location, requester, technician…")} value={q} onChange={(e) => setQ(e.target.value)} />
-          <div className={a.seg}>{SRC.map((x) => <button key={x.id || "all"} type="button" className={src === x.id ? a.segOn : ""} onClick={() => setSrc(x.id)} aria-pressed={src === x.id}>{x.label}<small>{x.n}</small></button>)}</div>
-          {who && <button type="button" className={a.focusChip} onClick={() => setWho("")}>{who} ✕</button>}
-          <span className={a.grow} />
-          <div className={a.exportGroup}>{(["excel", "pdf", "csv"] as const).map((f) => <button key={f} type="button" className={a.ghostBtn} onClick={() => exportRows(f)} disabled={!list.length}>{f.toUpperCase()}</button>)}</div>
-        </div>
-        {list.length === 0 ? <p className={a.empty}>{src === "open" ? L("Tidak ada pekerjaan yang belum selesai. 👍", "No open jobs. 👍") : L("Tidak ada aktivitas TGA di bulan ini.", "No TGA activities this month.")}</p> : (
-          <div className={a.tableWrap}>
-            <table className={a.table}>
-              <thead><tr><th>{L("Tanggal", "Date")}</th><th>{L("Nama TGA", "Technician")}</th><th>Activity</th><th>Request By</th><th>Status</th></tr></thead>
-              <tbody>{list.map((t) => (
-                <tr key={`${t.source ?? "excel"}-${t.id}`}>
-                  <td style={{ whiteSpace: "nowrap" }}>{fmtD(t.tanggal, lang)}{t.jam && <><br /><small className={a.mute}>{t.jam}</small></>}</td>
-                  <td><b>{t.namaTga || "—"}</b></td>
-                  <td>
-                    {t.activity}
-                    {(t.kategori || t.lokasi || t.refNo) && <><br /><small className={a.mute}>{[t.kategori, t.lokasi && `📍 ${t.lokasi}`, t.refNo].filter(Boolean).join(" · ")}</small></>}
-                    {t.catatan && <><br /><small className={a.mute}>📝 {t.catatan}</small></>}
-                  </td>
-                  <td>{t.requestBy || "—"}{(t.departemen || (t.source === "app" && t.requestBy)) && <><br /><small className={a.mute}>{[t.departemen, t.source === "app" && t.requestBy ? (t.requestorLinked ? L("✓ data karyawan", "✓ employee") : L("di luar data karyawan", "not in employee data")) : ""].filter(Boolean).join(" · ")}</small></>}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {t.status ? <span className={a[TGA_ST[t.status]?.cls ?? "tagWeb"]}>{tgaSt(t, lang)}</span> : <span className={a.mute}>—</span>}
-                    {t.prioritas === "urgent" && <> <span className={a.tagPending}>URGENT</span></>}
-                    <br /><small className={a.mute}>{t.source === "app" ? L("📱 Aplikasi", "📱 App") : "Excel"}</small>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-      </section>
-      <TgaAccounts lang={lang} manpower={manpower} />
-    </div>
   );
 }
 

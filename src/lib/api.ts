@@ -2067,7 +2067,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_iss: {
     id: "Admin / SPV ISS", en: "ISS Admin / SPV", descId: "Cleaning, Gardening & TGA", descEn: "Cleaning, gardening & TGA",
-    tabs: ["gafacility", "reports", "accounts"], home: false, plant: null, reports: ["ga"], calendarTasks: false,
+    tabs: ["gafacility", "tga", "reports", "accounts"], home: false, plant: null, reports: ["ga"], calendarTasks: false,
   },
   admin_security: {
     id: "Admin / SPV Security", en: "Security Admin / SPV", descId: "Modul Security", descEn: "Security module",
@@ -2140,6 +2140,8 @@ export function canAccessTab(profile: MyProfile | null, tab: string): boolean {
   if (tab === "gate") return has("gate") || has("vehicles");
   // Budget Driver digabung ke halaman Dana Operasional → menu terbuka bila punya salah satu izin
   if (tab === "opfund") return has("opfund") || has("driverbudget");
+  // TGA dipisah dari Cleaning & Gardening → akun lama dengan izin "gafacility" tetap bisa membuka TGA
+  if (tab === "tga") return has("tga") || has("gafacility");
   return has(tab);
 }
 

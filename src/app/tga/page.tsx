@@ -1,7 +1,7 @@
 "use client";
 
 /* /tga — Aplikasi TGA (Teknisi GA): catat kegiatan dari HP.
-   Masuk dengan nama + PIN (diatur admin di Dashboard → GA → TGA → Akun aplikasi).
+   Masuk dengan nama + PIN (diatur admin di Dashboard → TGA → Teknisi).
    Bisa di-install ke layar utama HP (PWA, manifest-tga.json). */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -402,7 +402,7 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
             {(names?.length ?? 0) > 6 && <input className={s.input} placeholder="Cari nama…" value={q} onChange={(e) => setQ(e.target.value)} />}
             {err && <div className={s.errBox}>{err}</div>}
             {names === null && !err && <div className={s.nameGrid}>{[0, 1, 2, 3].map((i) => <div key={i} className={s.skelName} />)}</div>}
-            {names && names.length === 0 && <div className={s.emptyBox}>Belum ada akun TGA. Minta admin membuatkan akun di Dashboard → GA → TGA.</div>}
+            {names && names.length === 0 && <div className={s.emptyBox}>Belum ada akun TGA. Minta admin membuatkan akun di Dashboard → TGA → Teknisi.</div>}
             <div className={s.nameGrid}>
               {list.map((n) => (
                 <button key={n} type="button" className={`${s.nameBtn} ${nama === n ? s.nameOn : ""}`} onClick={() => { setNama(n); setStep("pin"); setPin(""); setErr(null); }}>

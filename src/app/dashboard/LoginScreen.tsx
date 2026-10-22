@@ -17,7 +17,7 @@ const MODULES = [
   { icon: "finance", id: "Finance", en: "Finance", dId: "Klaim & dana operasional", dEn: "Claims & op. fund", hue: 152 },
   { icon: "facility", id: "Fasilitas", en: "Facility", dId: "Kantin, locker, ATK, gift", dEn: "Canteen, lockers, supplies", hue: 32 },
   { icon: "security", id: "Security", en: "Security", dId: "Laporan G4S & pelanggaran", dEn: "G4S reports & violations", hue: 352 },
-  { icon: "gafacility", id: "Cleaning & TGA", en: "Cleaning & TGA", dId: "Kebersihan, taman, teknisi", dEn: "Cleaning, garden, technicians", hue: 188 },
+  { icon: "gafacility", id: "Cleaning & TGA", en: "Cleaning & TGA", dId: "Kebersihan, taman & teknisi GA", dEn: "Cleaning, garden & technicians", hue: 188 },
   { icon: "receptionist", id: "Receptionist", en: "Receptionist", dId: "Wifi tamu, barang, ruangan", dEn: "Guest wifi, parcels, rooms", hue: 268 },
 ] as const;
 
