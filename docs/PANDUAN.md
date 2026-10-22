@@ -565,6 +565,11 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
 
 ## ATK (Excel ↔ CIKOPS)
 
+> **Sesudah `02_peran_keamanan.sql`:** Excel tidak boleh lagi menulis langsung ke tabel.
+> Jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 044) dan ganti modul
+> `modSyncCikops.bas` dengan versi terbaru (unduh dari CIKOPS → Tautan → Modul Excel).
+> Gejalanya bila belum: "Sinkron Permintaan/Restock ada yang gagal … permission denied for table atk_requests".
+
 ### Wajib, urut
 1. **Supabase → SQL Editor** → jalankan bagian 026 di `supabase/01_dasar.sql`.
    - Aman dijalankan ulang, dan data lama tidak berubah.

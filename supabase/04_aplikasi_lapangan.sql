@@ -201,3 +201,62 @@ end $$;
 notify pgrst, 'reload schema';
 
 select 'pengajuan klaim driver menunggu' as cek, count(*)::text as hasil from driver_claim_requests where status = 'menunggu';
+
+
+-- ######################################################################
+-- ## BAGIAN 044 — Excel ATK: kirim permintaan & restock lewat kunci sinkron
+-- ######################################################################
+-- Bagian 040 menutup INSERT langsung ke atk_requests / atk_restocks bagi pengunjung
+-- tanpa login, sehingga "Sinkron ke CIKOPS" dari Excel (anon key) ditolak.
+-- Sekarang Excel (modSyncCikops.bas versi baru) mengirim lewat fungsi di bawah,
+-- yang memeriksa CIKOPS_SYNC_KEY seperti atk_upsert_item. Kiriman ulang baris yang
+-- sama (mis. Excel tertutup sebelum menandai Synced) tidak membuat data dobel.
+
+do $$
+begin
+  if to_regclass('public.atk_requests') is null or to_regclass('public.atk_restocks') is null then
+    raise notice 'Tabel ATK belum ada — bagian 044 dilewati.'; return;
+  end if;
+
+  create or replace function atk_excel_push_request(p_key text, p_row jsonb) returns boolean
+  language plpgsql security definer set search_path = public as $f$
+  declare v_id text := trim(coalesce(p_row ->> 'request_id', '')); v_kode text := trim(coalesce(p_row ->> 'kode_barang', ''));
+          v_jml numeric := coalesce(nullif(p_row ->> 'jumlah', '')::numeric, 0);
+  begin
+    perform atk_check_key(p_key);
+    if v_id = '' then raise exception 'request_id kosong.'; end if;
+    if exists (select 1 from atk_requests where request_id = v_id and kode_barang = v_kode and jumlah = v_jml and source = 'excel') then
+      return false;  -- sudah pernah terkirim
+    end if;
+    insert into atk_requests (request_id, tanggal, nama, nik, departemen, kode_barang, nama_barang, jumlah, satuan, helper, source, created_by)
+    values (v_id, coalesce(nullif(p_row ->> 'tanggal', '')::date, (now() at time zone 'Asia/Jakarta')::date),
+            left(coalesce(p_row ->> 'nama', ''), 200), left(coalesce(p_row ->> 'nik', ''), 60), left(coalesce(p_row ->> 'departemen', ''), 120),
+            v_kode, left(coalesce(p_row ->> 'nama_barang', ''), 200), v_jml, left(coalesce(p_row ->> 'satuan', ''), 40),
+            left(coalesce(p_row ->> 'helper', ''), 120), 'excel', 'Excel');
+    update atk_sync_config set last_push_at = now() where id = 1;
+    return true;
+  end $f$;
+
+  create or replace function atk_excel_push_restock(p_key text, p_row jsonb) returns boolean
+  language plpgsql security definer set search_path = public as $f$
+  declare v_id text := trim(coalesce(p_row ->> 'update_id', '')); v_kode text := trim(coalesce(p_row ->> 'kode_barang', ''));
+          v_jml numeric := coalesce(nullif(p_row ->> 'jumlah', '')::numeric, 0);
+  begin
+    perform atk_check_key(p_key);
+    if v_id = '' then raise exception 'update_id kosong.'; end if;
+    if exists (select 1 from atk_restocks where update_id = v_id and kode_barang = v_kode and jumlah = v_jml and source = 'excel') then
+      return false;
+    end if;
+    insert into atk_restocks (update_id, tanggal, nama, nik, departemen, kode_barang, nama_barang, jumlah, satuan, source, created_by)
+    values (v_id, coalesce(nullif(p_row ->> 'tanggal', '')::date, (now() at time zone 'Asia/Jakarta')::date),
+            left(coalesce(p_row ->> 'nama', ''), 200), left(coalesce(p_row ->> 'nik', ''), 60), left(coalesce(p_row ->> 'departemen', ''), 120),
+            v_kode, left(coalesce(p_row ->> 'nama_barang', ''), 200), v_jml, left(coalesce(p_row ->> 'satuan', ''), 40), 'excel', 'Excel');
+    update atk_sync_config set last_push_at = now() where id = 1;
+    return true;
+  end $f$;
+
+  revoke all on function atk_excel_push_request(text, jsonb), atk_excel_push_restock(text, jsonb) from public;
+  grant execute on function atk_excel_push_request(text, jsonb), atk_excel_push_restock(text, jsonb) to anon, authenticated;
+end $$;
+
+notify pgrst, 'reload schema';

@@ -1,171 +1,182 @@
 "use client";
 
-import { useState } from "react";
-import type { CSSProperties } from "react";
-import styles from "./dashboard.module.css";
+/* Login dashboard — konsep "etalase modul": panel kiri memperlihatkan modul CIKOPS
+   (kartu kaca beranimasi), kartu login di kanan. Ingat email, peringatan Caps Lock,
+   animasi loading saat masuk & menyiapkan dashboard. */
+
+import { useEffect, useState } from "react";
+import l from "./login.module.css";
+import Icon from "@/components/Icon";
 import { useLang, useTheme } from "@/lib/providers";
 import { useAuth } from "@/lib/auth";
-import { useIsMobile } from "./dashboardShared";
+
+const EMAIL_KEY = "cikops_login_email";
+
+const MODULES = [
+  { icon: "fleet", id: "Fleet & Driver", en: "Fleet & Drivers", dId: "Penugasan, armada, gate", dEn: "Tasks, vehicles, gate", hue: 222 },
+  { icon: "finance", id: "Finance", en: "Finance", dId: "Klaim & dana operasional", dEn: "Claims & op. fund", hue: 152 },
+  { icon: "facility", id: "Fasilitas", en: "Facility", dId: "Kantin, locker, ATK, gift", dEn: "Canteen, lockers, supplies", hue: 32 },
+  { icon: "security", id: "Security", en: "Security", dId: "Laporan G4S & pelanggaran", dEn: "G4S reports & violations", hue: 352 },
+  { icon: "gafacility", id: "Cleaning & TGA", en: "Cleaning & TGA", dId: "Kebersihan, taman, teknisi", dEn: "Cleaning, garden, technicians", hue: 188 },
+  { icon: "receptionist", id: "Receptionist", en: "Receptionist", dId: "Wifi tamu, barang, ruangan", dEn: "Guest wifi, parcels, rooms", hue: 268 },
+] as const;
 
 export function LoginScreen() {
   const { t, lang, setLang } = useLang();
   const { theme, toggleTheme } = useTheme();
   const { signIn } = useAuth();
+  const en = lang === "en";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [caps, setCaps] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [entering, setEntering] = useState(false);
   const [error, setError] = useState("");
-  const isMobile = useIsMobile();
+  const [shake, setShake] = useState(false);
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(EMAIL_KEY);
+      if (saved) setEmail(saved);
+      else setRemember(localStorage.getItem(EMAIL_KEY + "_off") !== "1");
+    } catch { /* mode privat */ }
+  }, []);
+
+  // Sorotan berpindah antar modul — etalase terasa hidup
+  useEffect(() => {
+    const iv = setInterval(() => setActive((a) => (a + 1) % MODULES.length), 2600);
+    return () => clearInterval(iv);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setError("");
     setBusy(true);
-    const { error: err } = await signIn(email, password);
-    setBusy(false);
-    if (err) setError(t.loginErrorGeneric);
+    const addr = email.trim();
+    const { error: err } = await signIn(addr, password);
+    if (err) {
+      setBusy(false);
+      setError(/network|fetch/i.test(err) ? (en ? "No connection — check your internet." : "Tidak ada koneksi — periksa internet Anda.") : t.loginErrorGeneric);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+    try {
+      if (remember) { localStorage.setItem(EMAIL_KEY, addr); localStorage.removeItem(EMAIL_KEY + "_off"); }
+      else { localStorage.removeItem(EMAIL_KEY); localStorage.setItem(EMAIL_KEY + "_off", "1"); }
+    } catch { /* mode privat */ }
+    // Berhasil: tampilkan layar "menyiapkan dashboard" sampai dashboard termuat
+    setEntering(true);
   }
 
-  const inputStyle: CSSProperties = { paddingLeft: 40 };
-  const labelStyle: CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.06em" };
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => setCaps(e.getModifierState?.("CapsLock") ?? false);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex" }}>
-      {/* ── Left: decorative brand panel — hidden on mobile ── */}
-      {!isMobile && (
-        <div
-          style={{
-            flex: "0 0 44%",
-            position: "relative",
-            overflow: "hidden",
-            background: "var(--grad-hero)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            padding: "48px 44px",
-          }}
-        >
-          <div style={{ position: "absolute", top: "-15%", right: "-10%", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.14), transparent 70%)" }} />
-          <div style={{ position: "absolute", bottom: "-20%", left: "-15%", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, rgba(23,195,178,0.22), transparent 70%)" }} />
-          <div style={{ position: "absolute", top: "38%", left: "48%", width: 260, height: 260, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.12)" }} />
-          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 12 }}>
-            <img src="/logo.png" alt="CIKOPS" style={{ width: 48, height: 48 }} />
-            <div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>{t.appName}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>Integrated Facility Management</div>
-            </div>
+    <div className={l.root}>
+      {/* ── Panel kiri: etalase modul ── */}
+      <aside className={l.brand}>
+        <div className={l.glow1} /><div className={l.glow2} /><div className={l.gridBg} />
+        <header className={l.brandTop}>
+          <img src="/logo.png" alt="CIKOPS" />
+          <div>
+            <b>{t.appName}</b>
+            <span>Integrated Facility Management</span>
           </div>
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: "#fff", lineHeight: 1.3, marginBottom: 10 }}>
-              {lang === "en" ? "One System," : "Satu Sistem,"}
-              <br />
-              {lang === "en" ? "All Operations in " : "Semua Operasional "}
-              <span style={{ background: "linear-gradient(120deg, #5eead4, #a78bfa)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", color: "transparent" }}>
-                {lang === "en" ? "Harmony" : "Selaras"}
-              </span>
-            </div>
-            <div style={{ width: 40, height: 3, borderRadius: 2, background: "rgba(255,255,255,0.4)", marginBottom: 14 }} />
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", maxWidth: 340 }}>
-              {lang === "en"
-                ? "Fleet, finance, and facility operations — managed in one integrated ecosystem."
-                : "Fleet, finance, dan fasilitas — dikelola dalam satu ekosistem terintegrasi."}
-            </div>
+        </header>
+
+        <div className={l.pitch}>
+          <h1>{en ? <>One system for every<br /><em>facility operation</em></> : <>Satu sistem untuk seluruh<br /><em>operasional FM</em></>}</h1>
+          <p>{en ? "Plant Cikarang & Pasar Rebo — tasks, finance, facilities and security in one place." : "Plant Cikarang & Pasar Rebo — penugasan, keuangan, fasilitas, dan keamanan di satu tempat."}</p>
+        </div>
+
+        <ul className={l.modules}>
+          {MODULES.map((m, i) => (
+            <li key={m.icon} className={`${l.mod} ${i === active ? l.modOn : ""}`} style={{ ["--h" as string]: m.hue, animationDelay: `${150 + i * 90}ms` }}>
+              <span className={l.modIcon}><Icon name={m.icon} size={20} /></span>
+              <b>{en ? m.en : m.id}</b>
+              <small>{en ? m.dEn : m.dId}</small>
+            </li>
+          ))}
+        </ul>
+
+        <footer className={l.brandFoot}>
+          <span className={l.live}><i />{en ? "Live · 6 integrated modules" : "Live · 6 modul terintegrasi"}</span>
+          <span>© {new Date().getFullYear()} {t.appName}</span>
+        </footer>
+      </aside>
+
+      {/* ── Panel kanan: login ── */}
+      <main className={l.side}>
+        <div className={l.tools}>
+          <button type="button" className={l.toolBtn} onClick={() => setLang(lang === "id" ? "en" : "id")}>{lang === "id" ? "EN" : "ID"}</button>
+          <button type="button" className={l.toolBtn} onClick={toggleTheme} aria-label={en ? "Toggle theme" : "Ganti tema"}>
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+          </button>
+        </div>
+
+        <div className={l.center}>
+          {/* Merek ringkas untuk HP (panel kiri disembunyikan) */}
+          <div className={l.mobileBrand}>
+            <img src="/logo.png" alt="" />
+            <div><b>{t.appName}</b><span>Integrated Facility Management</span></div>
           </div>
-          <div style={{ position: "relative", zIndex: 1, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-            © {new Date().getFullYear()} <span style={{ color: "#5eead4", fontWeight: 700 }}>{t.appName}</span>. All rights reserved.
-          </div>
+
+          <form className={`${l.card} ${shake ? l.shake : ""}`} onSubmit={handleSubmit} aria-busy={busy}>
+            {busy && <span className={l.progress} aria-hidden="true" />}
+            <h2>{en ? "Welcome back" : "Selamat datang"} <span aria-hidden="true">👋</span></h2>
+            <p className={l.sub}>{en ? "Sign in to the CIKOPS-FM dashboard" : "Masuk ke dashboard CIKOPS-FM"}</p>
+
+            <label className={l.field}>
+              <span>{t.loginEmail}</span>
+              <div className={l.inputWrap}>
+                <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 6 10-6" /></svg>
+                <input type="email" required autoComplete="username" inputMode="email" autoCapitalize="none" spellCheck={false}
+                  placeholder="nama@perusahaan.com" value={email} onChange={(e) => { setEmail(e.target.value); setError(""); }} disabled={busy} />
+              </div>
+            </label>
+
+            <label className={l.field}>
+              <span>{t.loginPassword}</span>
+              <div className={l.inputWrap}>
+                <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                <input type={showPassword ? "text" : "password"} required autoComplete="current-password" placeholder="••••••••"
+                  value={password} onChange={(e) => { setPassword(e.target.value); setError(""); }} onKeyUp={onKey} onKeyDown={onKey} onBlur={() => setCaps(false)} disabled={busy} />
+                <button type="button" className={l.eye} onClick={() => setShowPassword((p) => !p)} aria-label={showPassword ? (en ? "Hide password" : "Sembunyikan password") : (en ? "Show password" : "Lihat password")} tabIndex={-1}>
+                  <Icon name="eye" size={17} />
+                </button>
+              </div>
+              {caps && <em className={l.caps}>⇪ {en ? "Caps Lock is on" : "Caps Lock sedang aktif"}</em>}
+            </label>
+
+            <label className={l.check}>
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <span>{en ? "Remember my email" : "Ingat email saya"}</span>
+            </label>
+
+            {error && <div className={l.error} role="alert">{error}</div>}
+
+            <button type="submit" className={l.submit} disabled={busy || !email.trim() || !password}>
+              {busy ? <><span className={l.spinner} aria-hidden="true" />{t.loginSigningIn}</> : <>{t.loginButton}<span aria-hidden="true">→</span></>}
+            </button>
+
+            <p className={l.help}>{en ? "Forgot your password? Ask the Master Admin or your team admin." : "Lupa password? Hubungi Master Admin atau admin tim Anda."}</p>
+          </form>
+
+          <a href="/driver" className={l.back}>{t.loginBackToDriver}</a>
+        </div>
+      </main>
+
+      {entering && (
+        <div className={l.entering} role="status">
+          <div className={l.enterLogo}><img src="/logo.png" alt="" /><span /></div>
+          <b>{en ? "Preparing your dashboard…" : "Menyiapkan dashboard…"}</b>
+          <div className={l.dots}><i /><i /><i /></div>
         </div>
       )}
-
-      {/* ── Right: login form panel — floating glass card on dotted bg ── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", background: "var(--bg2)" }}>
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, var(--border2) 1.3px, transparent 1.3px)", backgroundSize: "22px 22px", pointerEvents: "none" }} />
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 20, position: "relative", zIndex: 1 }}>
-          <button
-            onClick={() => setLang(lang === "id" ? "en" : "id")}
-            className="topbarIconBtn"
-            style={{ width: "auto", padding: "0 12px", borderRadius: "var(--pill)", fontWeight: 700, fontSize: 12 }}
-          >
-            {lang === "id" ? "EN" : "ID"}
-          </button>
-          <button onClick={toggleTheme} className="topbarIconBtn">
-            {theme === "dark" ? "☀️" : "🌙"}
-          </button>
-        </div>
-
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, position: "relative", zIndex: 1 }}>
-          <div className="tabContent cardGlass" style={{ width: "100%", maxWidth: 380, padding: "36px 32px" }}>
-            <div style={{ textAlign: "center", marginBottom: 26 }}>
-              <div className="hexBadge blue" style={{ margin: "0 auto 16px" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="11" width="14" height="10" rx="2" />
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                </svg>
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--t1)" }}>{t.loginTitle}</div>
-              <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 4 }}>{t.loginSubtitle}</div>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: 14 }}>
-                <label>{t.loginEmail.toUpperCase()}</label>
-                <div style={{ position: "relative" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={16} height={16} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", pointerEvents: "none" }}>
-                    <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 6 10-6" />
-                  </svg>
-                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={styles.formInput} style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <label>{t.loginPassword.toUpperCase()}</label>
-                <div style={{ position: "relative" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={16} height={16} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", pointerEvents: "none" }}>
-                    <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                  </svg>
-                  <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className={styles.formInput} style={{ ...inputStyle, paddingRight: 40 }} />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((p) => !p)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--t3)", padding: 4, display: "flex" }}
-                  >
-                    {showPassword ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={17} height={17}>
-                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><path d="m2 2 20 20" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={17} height={17}>
-                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" /><circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-              {error && (
-                <div style={{ padding: 10, borderRadius: 10, background: "var(--red-soft)", color: "var(--red)", fontSize: 12.5, marginBottom: 16 }}>
-                  {error}
-                </div>
-              )}
-              <button type="submit" className="neonBtn" disabled={busy} style={{ padding: "12px", fontSize: 14, opacity: busy ? 0.7 : 1 }}>
-                {busy ? t.loginSigningIn : t.loginButton}
-                {!busy && (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" width={16} height={16}>
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                )}
-              </button>
-            </form>
-
-            <div style={{ textAlign: "center", marginTop: 20 }}>
-              <a href="/driver" style={{ fontSize: 12, color: "var(--t3)", textDecoration: "none" }}>
-                {t.loginBackToDriver}
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

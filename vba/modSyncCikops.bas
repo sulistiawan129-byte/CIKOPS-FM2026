@@ -407,7 +407,8 @@ Private Function SyncPermintaan() As Long
                    ",""satuan"":" & JQ(ws.Cells(i, 9).Value) & _
                    ",""helper"":" & JQ(ws.Cells(i, 10).Value) & "}"
             errDetail = ""
-            If PostJson(SUPABASE_URL & "/rest/v1/atk_requests", json, "return=minimal", errDetail) Then
+            ' Lewat fungsi berkunci (SQL 04, bagian 044) - insert langsung ke tabel ditolak sejak SQL 02
+            If PostJson(SUPABASE_URL & "/rest/v1/rpc/atk_excel_push_request", "{""p_key"":" & JQ(CIKOPS_SYNC_KEY) & ",""p_row"":" & json & "}", "return=minimal", errDetail) Then
                 ws.Cells(i, SYNCED_COL).Value = "TRUE"
                 count = count + 1
             ElseIf firstError = "" Then
@@ -457,7 +458,7 @@ Private Function SyncRestock() As Long
                    ",""nik"":" & JQ(ws.Cells(i, 9).Value) & _
                    ",""departemen"":" & JQ(ws.Cells(i, 10).Value) & "}"
             errDetail = ""
-            If PostJson(SUPABASE_URL & "/rest/v1/atk_restocks", json, "return=minimal", errDetail) Then
+            If PostJson(SUPABASE_URL & "/rest/v1/rpc/atk_excel_push_restock", "{""p_key"":" & JQ(CIKOPS_SYNC_KEY) & ",""p_row"":" & json & "}", "return=minimal", errDetail) Then
                 ws.Cells(i, SYNCED_COL).Value = "TRUE"
                 count = count + 1
             ElseIf firstError = "" Then
