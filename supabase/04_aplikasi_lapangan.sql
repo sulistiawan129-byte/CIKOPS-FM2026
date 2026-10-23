@@ -7,6 +7,7 @@
 --   Bagian 045  Modul TGA: admin ubah / hapus pekerjaan + form penugasan publik
 --               (semua staf GA menugaskan TGA dengan kode penugasan)
 --   Bagian 046  Status teknisi TGA Available / Busy (realtime di dashboard)
+--   Bagian 047  Cleaning & Gardening: reset actual / generate ulang jadwal per periode (+ batalkan)
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -522,3 +523,141 @@ notify pgrst, 'reload schema';
 
 -- Cek: teknisi yang sedang busy
 select 'teknisi busy sekarang' as cek, count(distinct user_id)::text as hasil from tga_activities where status = 'proses' and user_id is not null;
+
+
+-- ######################################################################
+-- ## BAGIAN 047 — Cleaning & Gardening: reset per periode + batalkan (undo)
+-- ######################################################################
+-- Dashboard → Cleaning & Gardening → Master & jadwal → "Reset periode":
+--   • mode 'actual' : kosongkan input actual (jadwal tetap) → SPV bisa input ulang
+--   • mode 'plan'   : hapus jadwal + actual lalu generate ulang dari master pekerjaan
+-- Rentang: 1 bulan penuh atau tanggal tertentu dalam bulan itu, semua tim / satu tim.
+-- Setiap reset menyimpan salinan data (ga_plan_resets) sehingga bisa DIBATALKAN.
+-- Hanya saat CIKOPS sumber utama (mode Excel: data akan tertimpa sinkron Excel).
+
+create table if not exists ga_plan_resets (
+  id          bigserial primary key,
+  periode     int not null,
+  mode        text not null check (mode in ('actual', 'plan')),
+  tim         text not null default '',
+  date_from   date not null,
+  date_to     date not null,
+  n_rows      int not null default 0,
+  n_actual    int not null default 0,
+  n_added     int not null default 0,
+  snapshot    jsonb not null default '[]'::jsonb,
+  created_by  text not null default '',
+  created_at  timestamptz not null default now(),
+  undone_at   timestamptz,
+  undone_by   text
+);
+create index if not exists ga_plan_resets_periode_idx on ga_plan_resets (periode, created_at desc);
+alter table ga_plan_resets enable row level security;   -- tanpa policy: hanya lewat fungsi
+
+create or replace function ga_reset_guard() returns text
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not staff_can('iss') then raise exception 'Akses ditolak — khusus Admin ISS / Master.' using errcode = '42501'; end if;
+  if not ga_is_cikops_master() then
+    raise exception 'Reset hanya bisa saat CIKOPS sumber utama (mode Excel: data akan tertimpa sinkron Excel).';
+  end if;
+  return ga_staff_name();
+end $$;
+
+/** p_tim kosong / 'Semua' = semua tim. p_dry_run = hanya hitung (pratinjau). */
+create or replace function ga_reset_period(p_periode int, p_mode text, p_from date default null, p_to date default null,
+                                           p_tim text default '', p_dry_run boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_by text; v_first date; v_last date; v_from date; v_to date; v_tim text; n_rows int; n_act int; n_add int := 0;
+        v_snap jsonb; v_id bigint;
+begin
+  v_by := ga_reset_guard();
+  if p_mode not in ('actual', 'plan') then raise exception 'Mode reset tidak dikenal.'; end if;
+  if p_periode is null or p_periode < 200001 or p_periode % 100 not between 1 and 12 then raise exception 'Periode tidak valid.'; end if;
+  v_first := make_date(p_periode / 100, p_periode % 100, 1);
+  v_last := (v_first + interval '1 month - 1 day')::date;
+  v_from := greatest(v_first, coalesce(p_from, v_first));
+  v_to := least(v_last, coalesce(p_to, v_last));
+  if v_from > v_to then raise exception 'Rentang tanggal tidak valid.'; end if;
+  v_tim := case when coalesce(trim(p_tim), '') in ('', 'Semua') then '' else trim(p_tim) end;
+
+  select count(*), count(*) filter (where actual is not null) into n_rows, n_act
+    from ga_plan where periode = p_periode and tanggal between v_from and v_to and (v_tim = '' or lower(tim) = lower(v_tim));
+  if p_dry_run then
+    return jsonb_build_object('rows', n_rows, 'actual', n_act, 'from', v_from, 'to', v_to,
+      'jobs', (select count(*) from ga_jobs where aktif and (v_tim = '' or lower(tim) = lower(v_tim))));
+  end if;
+
+  -- Salinan untuk batalkan: mode actual cukup baris yang sudah terisi
+  select coalesce(jsonb_agg(to_jsonb(g)), '[]'::jsonb) into v_snap
+    from ga_plan g where g.periode = p_periode and g.tanggal between v_from and v_to and (v_tim = '' or lower(g.tim) = lower(v_tim))
+     and (p_mode = 'plan' or g.actual is not null);
+
+  if p_mode = 'actual' then
+    update ga_plan set actual = null, spv = '', waktu_input = null, sync_id = 'cikops', synced_at = now()
+     where periode = p_periode and tanggal between v_from and v_to and (v_tim = '' or lower(tim) = lower(v_tim)) and actual is not null;
+  else
+    delete from ga_plan where periode = p_periode and tanggal between v_from and v_to and (v_tim = '' or lower(tim) = lower(v_tim));
+    insert into ga_plan (key, periode, tanggal, hari, minggu_ke, job_id, tim, lokasi, tipe, area, frek, petugas, plan, actual, spv, waktu_input, sync_id, synced_at)
+    select j.id || '|' || to_char(d, 'YYYYMMDD'), p_periode, d, ga_day_name(extract(isodow from d)::int), ga_week_of_month(d),
+           j.id, j.tim, j.lokasi, j.tipe, j.area, j.frek, j.petugas, 1, null, '', null, 'cikops', now()
+      from ga_jobs j
+      cross join generate_series(v_from, v_to, interval '1 day') g(dd)
+      cross join lateral (select g.dd::date as d) x
+     where j.aktif and (v_tim = '' or lower(j.tim) = lower(v_tim))
+       and extract(isodow from d)::int in (select ga_day_no(trim(h)) from unnest(string_to_array(j.hari, ',')) h)
+    on conflict (key) do nothing;
+    get diagnostics n_add = row_count;
+  end if;
+
+  insert into ga_plan_resets (periode, mode, tim, date_from, date_to, n_rows, n_actual, n_added, snapshot, created_by)
+  values (p_periode, p_mode, v_tim, v_from, v_to, n_rows, n_act, n_add, v_snap, v_by)
+  returning id into v_id;
+  -- Simpan 30 salinan terakhir saja
+  delete from ga_plan_resets where id not in (select id from ga_plan_resets order by created_at desc limit 30);
+
+  return jsonb_build_object('id', v_id, 'mode', p_mode, 'rows', n_rows, 'actual', n_act, 'added', n_add, 'from', v_from, 'to', v_to);
+end $$;
+
+create or replace function ga_reset_history(p_periode int default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not staff_can('iss') then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'periode', r.periode, 'mode', r.mode, 'tim', r.tim,
+      'from', r.date_from, 'to', r.date_to, 'rows', r.n_rows, 'actual', r.n_actual, 'added', r.n_added,
+      'by', r.created_by, 'at', r.created_at, 'undone_at', r.undone_at, 'undone_by', r.undone_by) order by r.created_at desc)
+    from ga_plan_resets r where p_periode is null or r.periode = p_periode), '[]'::jsonb);
+end $$;
+
+/** Batalkan reset: actual dikembalikan (hanya ke baris yang masih kosong — input baru tidak ditimpa);
+    generate ulang dikembalikan utuh ke jadwal + actual sebelum reset. */
+create or replace function ga_undo_reset(p_id bigint) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_by text; r ga_plan_resets%rowtype; n int := 0;
+begin
+  v_by := ga_reset_guard();
+  select * into r from ga_plan_resets where id = p_id for update;
+  if not found then raise exception 'Riwayat reset tidak ditemukan.'; end if;
+  if r.undone_at is not null then raise exception 'Reset ini sudah dibatalkan.'; end if;
+
+  if r.mode = 'actual' then
+    update ga_plan g set actual = s.actual, spv = s.spv, waktu_input = s.waktu_input, sync_id = 'cikops', synced_at = now()
+      from jsonb_populate_recordset(null::ga_plan, r.snapshot) s
+     where g.key = s.key and g.actual is null;
+    get diagnostics n = row_count;
+  else
+    delete from ga_plan where periode = r.periode and tanggal between r.date_from and r.date_to and (r.tim = '' or lower(tim) = lower(r.tim));
+    insert into ga_plan select * from jsonb_populate_recordset(null::ga_plan, r.snapshot) on conflict (key) do nothing;
+    get diagnostics n = row_count;
+  end if;
+  update ga_plan_resets set undone_at = now(), undone_by = v_by where id = p_id;
+  return jsonb_build_object('restored', n, 'mode', r.mode);
+end $$;
+
+revoke all on function ga_reset_guard() from public, anon, authenticated;
+revoke all on function ga_reset_period(int, text, date, date, text, boolean), ga_reset_history(int), ga_undo_reset(bigint) from public, anon;
+grant execute on function ga_reset_period(int, text, date, date, text, boolean), ga_reset_history(int), ga_undo_reset(bigint) to authenticated;
+
+notify pgrst, 'reload schema';
+
+select 'riwayat reset Cleaning & Gardening' as cek, count(*)::text as hasil from ga_plan_resets;
