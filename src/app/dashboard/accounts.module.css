@@ -47,3 +47,13 @@
 /* Management: Command Center */
 .board { border-radius: 18px; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); background: #0b1220; }
 .board iframe { display: block; width: 100%; height: calc(100vh - 230px); min-height: 560px; border: 0; }
+
+/* Ubah password (ChangePasswordModal) */
+.pwNote { padding: 12px 14px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; color: var(--t1); background: color-mix(in srgb, var(--orange) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--orange) 40%, var(--border2)); }
+.pwMeter { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.pwMeter i { flex: 1; max-width: 48px; height: 5px; border-radius: 99px; background: var(--border2); }
+.pwMeter small { margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--t2); }
+.pwMeter[data-s="1"] i:nth-child(-n+1) { background: var(--red); }
+.pwMeter[data-s="2"] i:nth-child(-n+2) { background: var(--orange); }
+.pwMeter[data-s="3"] i:nth-child(-n+3) { background: var(--green); }
+.pwMeter[data-s="4"] i { background: var(--green); }

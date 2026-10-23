@@ -8,7 +8,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 |---|---|---|
 | `supabase/01_dasar.sql` | Semua migrasi lama (skema inti + bagian 001 … 038): driver, armada, tugas, klaim, kantin, gift, gate, security, kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA | **Sudah berjalan di production** — tidak perlu diulang. Cari `## BAGIAN 0xx` untuk melihat migrasi tertentu |
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
-| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik) | **Jalankan sekali, sesudah file 02.** Aman diulang |
+| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime) | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -85,6 +85,15 @@ Driver & TGA tetap memakai aplikasinya sendiri (`/driver`, `/tga`, APK).
    - **Nonaktifkan**: akun tidak bisa login sampai diaktifkan lagi.
 4. Setiap admin tim (GA CIK, GA PRB, ISS, Security) bisa membuat akun untuk timnya
    sendiri dari menu yang sama.
+
+### Password sementara & ganti password
+- Akun yang **dibuat** atau **direset** dari menu Akun & Role mendapat password sementara.
+  Saat login pertama, pemilik akun langsung diminta membuat password sendiri
+  (isi password sementara → password baru 2x). Tombol **Keluar** tersedia bila belum siap.
+- Kapan saja: menu akun (kartu nama di kiri bawah sidebar) → **Ubah password**.
+  Password baru minimal 8 karakter, berisi huruf dan angka.
+- Butuh Edge Function `manage-staff-account` versi terbaru (deploy ulang) supaya
+  tanda "wajib ganti password" ikut terpasang saat reset.
 
 ### Catatan
 - Email yang terdaftar sebagai **driver** tidak bisa dijadikan akun staf.
@@ -495,6 +504,16 @@ izin Cleaning & Gardening otomatis juga bisa membuka menu TGA. Isinya:
 Bedanya **Batalkan** vs **Hapus**: batal = status *Dibatalkan*, masih ada di data & laporan
 dengan alasan di catatan; hapus = hilang permanen (untuk data salah input / dobel).
 Data aplikasi tersimpan di tabel `tga_activities`, jadi **tidak tertimpa** sinkron Excel.
+
+### 6b. Status teknisi Available / Busy (bagian 046)
+- **Busy** = teknisi punya pekerjaan berstatus **Proses** (begitu menekan *Terima*, otomatis Busy).
+- **Available** = tidak ada pekerjaan Proses — setelah ditandai **Selesai** (atau diubah ke
+  Pending / Butuh part) status kembali Available.
+- Aplikasi TGA: kartu besar di Beranda (hijau AVAILABLE / merah BUSY + tombol *Selesai*) dan chip di header.
+- Dashboard TGA: strip **Status teknisi** (tab Papan tugas & Teknisi), kolom *Kerja* di tabel teknisi,
+  dan status di pemilih teknisi saat menugaskan — berubah **realtime** tanpa muat ulang.
+- Form `/tugas-tga`: status tiap teknisi diperbarui tiap 20 detik.
+- Jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 046 mendaftarkan `tga_activities` ke Realtime).
 
 ### 7. Form penugasan publik `/tugas-tga` (semua staf GA, bagian 045)
 Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.

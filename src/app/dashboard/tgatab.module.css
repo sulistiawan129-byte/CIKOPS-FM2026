@@ -19,6 +19,26 @@
 .kpiBlue::before { background: var(--brand); }
 .kpiGreen::before { background: var(--green); }
 
+.presence { padding: 12px 14px; border-radius: var(--r2); border: 1px solid var(--border2); background: var(--surface); display: grid; gap: 10px; }
+.presHead { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--t2); }
+.presHead b { color: var(--t1); font-size: 14px; margin-right: 4px; }
+.presHead span { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.dotFree, .dotBusy { width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
+.dotBusy { background: var(--red); }
+.liveTag { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--green-text, var(--green)); }
+.liveTag i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: presPulse 1.6s ease-in-out infinite; }
+.presList { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.pres { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--border2); background: var(--surface2); transition: background .3s, border-color .3s; }
+.pres > i { width: 10px; height: 10px; flex: none; border-radius: 50%; }
+.pres > span { display: flex; flex-direction: column; min-width: 0; }
+.pres b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pres small { font-size: 12px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.presFree > i { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.presFree small { color: var(--green-text, var(--green)); font-weight: 700; }
+.presBusy { border-color: color-mix(in srgb, var(--red) 40%, var(--border2)); background: color-mix(in srgb, var(--red) 8%, var(--surface)); }
+.presBusy > i { background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent); animation: presPulse 1.6s ease-in-out infinite; }
+@keyframes presPulse { 50% { opacity: .35; } }
+
 .bulk {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 10px;
   border-radius: 12px; border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--border2)); background: color-mix(in srgb, var(--brand) 8%, var(--surface));

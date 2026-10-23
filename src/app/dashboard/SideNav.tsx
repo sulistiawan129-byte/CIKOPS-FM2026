@@ -13,7 +13,7 @@ export interface SideNavGroup { id: string; icon: string; label: string; short: 
 const COLLAPSE_KEY = "cikops_nav_collapsed";
 
 export default function SideNav({
-  groups, activeTab, onSelect, lang, appName, live, userName, userRole, onSignOut, publicHref, isMobile, open, onClose,
+  groups, activeTab, onSelect, lang, appName, live, userName, userRole, onSignOut, onChangePassword, publicHref, isMobile, open, onClose,
 }: {
   groups: SideNavGroup[];
   activeTab: string;
@@ -23,6 +23,7 @@ export default function SideNav({
   live: boolean;
   userName: string;
   userRole: string;
+  onChangePassword?: () => void;
   onSignOut: () => void;
   publicHref?: string;
   isMobile: boolean;
@@ -67,6 +68,11 @@ export default function SideNav({
       {!isMobile && (
         <button type="button" role="menuitem" onClick={() => { setCollapse(!collapsed); setMenu(false); }}>
           <Icon name={collapsed ? "expand" : "shrink"} size={16} />{collapsed ? L("Tampilkan panel menu", "Show menu panel") : L("Ringkas sidebar", "Compact sidebar")}
+        </button>
+      )}
+      {onChangePassword && (
+        <button type="button" role="menuitem" onClick={() => { setMenu(false); if (isMobile) onClose(); onChangePassword(); }}>
+          <Icon name="key" size={16} />{L("Ubah password", "Change password")}
         </button>
       )}
       <button type="button" role="menuitem" className={s.menuDanger} onClick={() => { setMenu(false); onSignOut(); }}>

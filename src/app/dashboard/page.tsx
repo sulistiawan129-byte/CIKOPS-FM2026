@@ -38,6 +38,7 @@ import { GateTab, VehiclesTab } from "./VehiclesTab";
 import { PrinterTab } from "./PrinterTab";
 import { EmployeeRequestsTab } from "./EmployeeRequestsTab";
 import { MasterDataTab } from "./MasterDataTab";
+import ChangePasswordModal from "./ChangePasswordModal";
 import { GiftMasterPanel } from "./GiftTab";
 
 /** Label pendek grup untuk rail sidebar. */
@@ -60,6 +61,10 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [profileChecked, setProfileChecked] = useState(false);
+  // Ubah password: dibuka dari menu akun, atau wajib bila admin memberi password sementara
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwChanged, setPwChanged] = useState(false);
+  const mustChangePw = user?.user_metadata?.must_change_password === true && !pwChanged;
 
   useEffect(() => {
      if (user?.id) {
@@ -424,11 +429,17 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         userName={myProfile?.fullName || user?.email?.split("@")[0] || "-"}
         userRole={roleLabel(myProfile)}
         onSignOut={() => signOut()}
+        onChangePassword={() => setPwOpen(true)}
         publicHref={!isPrbOnly(myProfile) && !lockedTab ? "/dashboard-viewonly" : undefined}
         isMobile={isMobile}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
+
+      {(pwOpen || mustChangePw) && user?.email && (
+        <ChangePasswordModal lang={lang === "en" ? "en" : "id"} email={user.email} forced={mustChangePw}
+          onClose={() => setPwOpen(false)} onDone={() => { setPwChanged(true); setPwOpen(false); }} onSignOut={() => signOut()} />
+      )}
 
       {/* ── Main content wrapper ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

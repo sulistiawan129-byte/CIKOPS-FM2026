@@ -20,7 +20,7 @@ import { useLang } from "@/lib/providers";
 import { notifyTgaTask } from "@/lib/push";
 import {
   TGA_CATEGORIES, TGA_SOURCE_LABEL, tgaAdminAssignConfig, tgaAdminCancel, tgaAdminDeleteActivity, tgaAdminSaveActivity, tgaAdminSetAssignCode,
-  tgaAdminUsers, tgaAllActivities, tgaCategory, tgaStatusLabel,
+  tgaAdminUsers, tgaAllActivities, tgaCategory, tgaPresence, tgaStatusLabel, subscribeTgaActivities,
   type TgaActivity, type TgaAssignConfig, type TgaStatus, type TgaUserRow,
 } from "@/lib/tga/api";
 import { exportGenericCsv, exportGenericExcel, exportGenericPdf } from "@/lib/reportEngine";
@@ -62,7 +62,7 @@ export default function TgaTab({ myProfile }: { myProfile: MyProfile | null }) {
   const [report, setReport] = useState<GaTga[]>([]);
   const [manpower, setManpower] = useState<GaManpower[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [boardRev, setBoardRev] = useState(0);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
     try { setActs(await tgaAllActivities()); setErr(null); }
@@ -76,11 +76,14 @@ export default function TgaTab({ myProfile }: { myProfile: MyProfile | null }) {
     supabase.from("employees").select("id, nama, departement").order("nama").limit(3000)
       .then(({ data }) => setEmps(((data ?? []) as Emp[]).filter((e) => (e as unknown as { aktif?: boolean }).aktif !== false)));
     const id = setInterval(load, 60000);
-    return () => clearInterval(id);
+    // Realtime: teknisi menerima / menyelesaikan tugas → status Available/Busy & papan langsung berubah
+    const off = subscribeTgaActivities(() => { load(); setTick((n) => n + 1); });
+    return () => { clearInterval(id); off(); };
   }, [load]);
-  const changed = () => { load(); setBoardRev((r) => r + 1); };
+  const changed = () => { load(); setTick((n) => n + 1); };
 
   const list = acts ?? [];
+  const presence = useMemo(() => tgaPresence(list), [list]);
   const kpi = useMemo(() => ({
     pool: list.filter((x) => x.status === "baru" && x.pool).length,
     wait: list.filter((x) => x.status === "baru" && !x.pool).length,
@@ -130,6 +133,8 @@ export default function TgaTab({ myProfile }: { myProfile: MyProfile | null }) {
 
       {err && <div className={a.msgErr}>⚠ {err}</div>}
 
+      {(view === "board" || view === "techs") && <PresenceStrip lang={lang} users={users} presence={presence} />}
+
       {(view === "jobs" || view === "report") && (
         <div className={a.period}>
           <div className={g.monthNav}>
@@ -140,12 +145,46 @@ export default function TgaTab({ myProfile }: { myProfile: MyProfile | null }) {
         </div>
       )}
 
-      {view === "board" && <TgaTasks key={boardRev} lang={lang} onChanged={load} />}
+      {view === "board" && <TgaTasks lang={lang} tick={tick} presence={presence} onChanged={load} />}
       {view === "jobs" && <JobsTable lang={lang} rows={acts} periode={periode} users={users} emps={emps} onChanged={changed} />}
-      {view === "techs" && <TgaAccounts lang={lang} manpower={manpower} />}
+      {view === "techs" && <TgaAccounts lang={lang} manpower={manpower} presence={presence} />}
       {view === "form" && <AssignFormSettings lang={lang} />}
       {view === "report" && <TgaReport lang={lang} rows={reportMonth} all={report} periode={periode} manpower={manpower} />}
     </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   STATUS TEKNISI — Available / Busy (realtime)
+════════════════════════════════════════════════════════════ */
+function PresenceStrip({ lang, users, presence }: { lang: Lang; users: TgaUserRow[]; presence: Map<string, TgaActivity> }) {
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
+  const active = users.filter((u) => u.aktif);
+  if (!active.length) return null;
+  const busy = active.filter((u) => presence.has(u.id)).length;
+  return (
+    <section className={t.presence} aria-live="polite">
+      <div className={t.presHead}>
+        <b>{L("Status teknisi", "Technician status")}</b>
+        <span><i className={t.dotFree} />{active.length - busy} available</span>
+        <span><i className={t.dotBusy} />{busy} busy</span>
+        <small className={t.liveTag}><i />Live</small>
+      </div>
+      <div className={t.presList}>
+        {active.map((u) => {
+          const w = presence.get(u.id);
+          return (
+            <div key={u.id} className={`${t.pres} ${w ? t.presBusy : t.presFree}`} title={w ? `${w.ref_no} · ${w.activity}` : L("Siap menerima tugas", "Ready for tasks")}>
+              <i />
+              <span>
+                <b>{u.nama}</b>
+                <small>{w ? `Busy · ${w.ref_no} · ${w.activity}` : "Available"}</small>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

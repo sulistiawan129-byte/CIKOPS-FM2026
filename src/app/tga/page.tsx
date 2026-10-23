@@ -175,6 +175,8 @@ export default function TgaAppPage() {
 
   const acts = useMemo(() => data?.activities ?? [], [data]);
   const pool = useMemo(() => data?.pool ?? [], [data]);
+  // Busy = ada pekerjaan berstatus Proses (diterima / sedang dikerjakan); selesai semua → Available.
+  const working = useMemo(() => acts.filter((a) => a.status === "proses").sort((x, y) => (y.accepted_at ?? "").localeCompare(x.accepted_at ?? ""))[0] ?? null, [acts]);
   const recentReqIds = useMemo(() => {
     const seen: string[] = [];
     acts.forEach((a) => { if (a.requestor_id && !seen.includes(a.requestor_id)) seen.push(a.requestor_id); });
@@ -257,13 +259,18 @@ export default function TgaAppPage() {
         <p className={s.hello}>{greeting()},</p>
         <h1 className={s.heroName}>{firstName(nama) || "Teknisi"} 👋</h1>
         <p className={s.heroDate}>{fmtLong(today)} · {data?.month_count ?? 0} kegiatan bulan ini</p>
+        {data && (
+          <div className={s.heroChips}>
+            <span className={`${s.heroChip} ${working ? s.heroChipBusy : ""}`}><i />{working ? `BUSY · ${working.ref_no}` : "AVAILABLE"}</span>
+          </div>
+        )}
       </header>
 
       <main className={s.main}>
         {loadErr && <div className={s.errBox}>{loadErr} <button type="button" onClick={load}>Coba lagi</button></div>}
         {!data && !loadErr ? <Skeleton /> : (
           <>
-            {tab === "home" && <Home acts={acts} pool={pool} today={today} onOpen={setDetail} onDone={quickDone} onAccept={accept} onNew={() => setForm({ id: null, draft: emptyDraft(today) })} />}
+            {tab === "home" && <Home acts={acts} pool={pool} working={working} today={today} onOpen={setDetail} onDone={quickDone} onAccept={accept} onNew={() => setForm({ id: null, draft: emptyDraft(today) })} />}
             {tab === "open" && <OpenList acts={acts} pool={pool} today={today} onOpen={setDetail} onDone={quickDone} onAccept={accept} />}
             {tab === "history" && <History acts={acts} today={today} onOpen={setDetail} />}
             {tab === "profile" && (
@@ -482,8 +489,8 @@ function TaskCard({ a, today, onOpen, onAccept }: { a: TgaActivity; today: strin
   );
 }
 
-function Home({ acts, pool, today, onOpen, onDone, onAccept, onNew }: {
-  acts: TgaActivity[]; pool: TgaActivity[]; today: string; onOpen: (a: TgaActivity) => void; onDone: (a: TgaActivity) => void; onAccept: (a: TgaActivity) => void; onNew: () => void;
+function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
+  acts: TgaActivity[]; pool: TgaActivity[]; working: TgaActivity | null; today: string; onOpen: (a: TgaActivity) => void; onDone: (a: TgaActivity) => void; onAccept: (a: TgaActivity) => void; onNew: () => void;
 }) {
   const mine = acts.filter((a) => a.status === "baru");
   const todayActs = acts.filter((a) => a.tanggal === today && a.status !== "baru");
@@ -501,6 +508,14 @@ function Home({ acts, pool, today, onOpen, onDone, onAccept, onNew }: {
   return (
     <div className={s.stack}>
       <NotifNudge />
+      <section className={`${s.duty} ${working ? s.dutyBusy : ""}`} aria-live="polite">
+        <span>{working ? "🔧" : "✓"}</span>
+        <p>
+          <b>{working ? "BUSY" : "AVAILABLE"}</b>
+          <small>{working ? `${working.ref_no} · ${working.activity}` : "Siap menerima tugas baru"}</small>
+        </p>
+        {working && <button type="button" className={s.dutyBtn} onClick={() => onDone(working)}>✓ Selesai</button>}
+      </section>
       <section className={s.statCard}>
         <div className={s.ring} style={{ ["--p" as string]: pct }}>
           <div><b>{todayActs.length}</b><small>hari ini</small></div>
