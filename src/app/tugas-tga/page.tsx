@@ -70,13 +70,18 @@ export default function TugasTgaPage() {
     );
   }
 
-  return <AssignForm info={info} code={code} themeBtn={themeBtn} onLogout={() => { put(CODE_KEY, null); setInfo(null); setCode(""); }} onCodeInvalid={(m) => { put(CODE_KEY, null); setInfo(null); setCodeErr(m); }} />;
+  return <AssignForm info={info} onInfo={setInfo} code={code} themeBtn={themeBtn} onLogout={() => { put(CODE_KEY, null); setInfo(null); setCode(""); }} onCodeInvalid={(m) => { put(CODE_KEY, null); setInfo(null); setCodeErr(m); }} />;
 }
 
-function AssignForm({ info, code, themeBtn, onLogout, onCodeInvalid }: {
-  info: TgaAssignInfo; code: string; themeBtn: React.ReactNode; onLogout: () => void; onCodeInvalid: (msg: string) => void;
+function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
+  info: TgaAssignInfo; onInfo: (i: TgaAssignInfo) => void; code: string; themeBtn: React.ReactNode; onLogout: () => void; onCodeInvalid: (msg: string) => void;
 }) {
   const [d, setD] = useState<Draft>(() => empty(get(NAME_KEY)));
+  // Status Available/Busy teknisi diperbarui tiap 20 detik (form publik tanpa login → tanpa realtime)
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === "visible") tgaAssignPublicInfo(code).then(onInfo).catch(() => {}); }, 20000);
+    return () => clearInterval(id);
+  }, [code, onInfo]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<{ ref: string; to: string } | null>(null);
@@ -135,7 +140,7 @@ function AssignForm({ info, code, themeBtn, onLogout, onCodeInvalid }: {
           <span className={s.headBtns}>{themeBtn}<button type="button" className={s.textBtn} onClick={onLogout} title="Lupakan kode di perangkat ini">Keluar</button></span>
         </div>
         <h1>Tugaskan teknisi</h1>
-        <p>{info.technicians.length} teknisi aktif · HP teknisi berdering saat tugas dikirim</p>
+        <p>{info.technicians.filter((u) => !u.busy).length} available · {info.technicians.filter((u) => u.busy).length} busy · HP teknisi berdering saat tugas dikirim</p>
       </header>
 
       <form className={s.form} onSubmit={submit}>
@@ -153,7 +158,8 @@ function AssignForm({ info, code, themeBtn, onLogout, onCodeInvalid }: {
             {info.technicians.map((u) => (
               <button key={u.id} type="button" className={`${s.tech} ${d.userId === u.id ? s.on : ""}`} onClick={() => set("userId", u.id)}>
                 <span className={s.av} style={{ ["--h" as string]: hueOf(u.nama) }}>{initials(u.nama)}</span><b>{u.nama}</b>
-                <small className={u.open >= 3 ? s.busy : ""}>{u.open ? `${u.open} tugas terbuka` : "kosong"}</small>
+                <small className={u.busy ? s.busy : s.free}>{u.busy ? `● Busy${u.busy_ref ? ` · ${u.busy_ref}` : ""}` : "● Available"}</small>
+                {u.open > 0 && <small>{u.open} tugas terbuka</small>}
               </button>
             ))}
           </div>

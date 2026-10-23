@@ -6,6 +6,7 @@
 --   Bagian 044  Excel ATK: kirim permintaan & restock lewat kunci sinkron
 --   Bagian 045  Modul TGA: admin ubah / hapus pekerjaan + form penugasan publik
 --               (semua staf GA menugaskan TGA dengan kode penugasan)
+--   Bagian 046  Status teknisi TGA Available / Busy (realtime di dashboard)
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -476,3 +477,48 @@ notify pgrst, 'reload schema';
 
 -- Cek: form penugasan aktif? (aktifkan dari Dashboard → TGA → Form penugasan)
 select 'form penugasan TGA aktif' as cek, coalesce((select aktif::text from tga_assign_config where id = 1), 'false') as hasil;
+
+
+-- ######################################################################
+-- ## BAGIAN 046 — Status teknisi TGA: Available / Busy
+-- ######################################################################
+-- Busy  = teknisi punya pekerjaan berstatus Proses (sudah menerima / sedang dikerjakan).
+-- Available = tidak ada pekerjaan Proses (selesai, pending, butuh part, atau belum ada tugas).
+-- Status dihitung dari tga_activities, jadi selalu sesuai data. Dashboard menerima
+-- perubahan secara realtime lewat publikasi supabase_realtime.
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'tga_activities') then
+    alter publication supabase_realtime add table tga_activities;
+  end if;
+end $$;
+
+create index if not exists tga_activities_busy_idx on tga_activities (user_id) where status = 'proses';
+
+/** Form publik: + status busy per teknisi. */
+create or replace function tga_assign_public_info(p_code text) returns jsonb
+language plpgsql volatile security definer set search_path = public as $$
+declare v_err text;
+begin
+  v_err := tga_assign_check(p_code);
+  if v_err is not null then return jsonb_build_object('error', v_err); end if;
+  return jsonb_build_object(
+    'technicians', coalesce((select jsonb_agg(jsonb_build_object('id', u.id, 'nama', u.nama,
+        'open', (select count(*) from tga_activities a where a.user_id = u.id and a.status in ('baru', 'proses', 'pending', 'butuh_part')),
+        'busy', exists (select 1 from tga_activities a where a.user_id = u.id and a.status = 'proses'),
+        'busy_ref', (select a.ref_no from tga_activities a where a.user_id = u.id and a.status = 'proses' order by a.accepted_at desc nulls last limit 1))
+        order by u.nama)
+      from tga_users u where u.aktif), '[]'::jsonb),
+    'employees', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nama', e.nama, 'dept', coalesce(e.departement, '')) order by e.nama)
+      from employees e
+     where coalesce(trim(e.nama), '') <> '' and coalesce((to_jsonb(e) ->> 'aktif')::boolean, true)), '[]'::jsonb));
+end $$;
+revoke all on function tga_assign_public_info(text) from public;
+grant execute on function tga_assign_public_info(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- Cek: teknisi yang sedang busy
+select 'teknisi busy sekarang' as cek, count(distinct user_id)::text as hasil from tga_activities where status = 'proses' and user_id is not null;

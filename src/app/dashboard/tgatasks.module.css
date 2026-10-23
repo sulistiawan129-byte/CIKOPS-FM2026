@@ -41,3 +41,7 @@
 .quick { margin-top: 6px; }
 .quick button { border-style: dashed; padding: 4px 10px; font-size: 12px; }
 .catOn { border-color: var(--brand) !important; color: var(--brand) !important; background: color-mix(in srgb, var(--brand) 12%, var(--surface)) !important; font-weight: 700 !important; }
+
+/* Status teknisi di pemilih teknisi */
+.stFree { color: var(--green-text, var(--green)) !important; font-weight: 700; }
+.stBusy { color: var(--red) !important; font-weight: 700; }

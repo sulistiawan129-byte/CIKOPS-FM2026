@@ -131,11 +131,12 @@ serve(async (req) => {
         if (prof && !manageable.has(prof.role) && !(isMaster && (prof.role === "admin" || prof.role === "ga"))) {
           return json({ ok: false, error: "Email ini sudah dipakai akun lain di luar tim Anda." });
         }
-        const { error } = await admin.auth.admin.updateUserById(existing.id, { password, email_confirm: true, ban_duration: "none" });
+        // must_change_password: password dari admin = sementara → pemilik diminta menggantinya saat login
+        const { error } = await admin.auth.admin.updateUserById(existing.id, { password, email_confirm: true, ban_duration: "none", user_metadata: { must_change_password: true } });
         if (error) return json({ ok: false, error: `Gagal memperbarui akun: ${error.message}` });
         id = existing.id;
       } else {
-        const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName } });
+        const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName, must_change_password: true } });
         if (error || !data.user) return json({ ok: false, error: `Gagal membuat akun: ${error?.message ?? "tanpa data"}` });
         id = data.user.id;
       }
@@ -167,7 +168,8 @@ serve(async (req) => {
       if (password && !strongEnough(password)) return json({ ok: false, error: "Password minimal 8 karakter, berisi huruf dan angka." });
       const generated = !password;
       if (generated) password = tempPassword();
-      const { error } = await admin.auth.admin.updateUserById(t.id, { password });
+      // Reset akun orang lain → password sementara, wajib diganti saat login berikutnya
+      const { error } = await admin.auth.admin.updateUserById(t.id, { password, user_metadata: { must_change_password: t.id !== me.id } });
       return error ? json({ ok: false, error: error.message }) : json({ ok: true, password, generated });
     }
 

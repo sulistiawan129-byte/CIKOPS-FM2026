@@ -275,6 +275,19 @@ export async function sendDriverCredentials(
   };
 }
 
+/** Staf dashboard mengganti password sendiri. Password saat ini (mis. password sementara dari
+ *  admin) dicek dulu dengan login ulang, lalu tanda "wajib ganti password" dihapus. */
+export async function changeMyPassword(email: string, current: string, next: string): Promise<void> {
+  const { error: authErr } = await supabase.auth.signInWithPassword({ email, password: current });
+  if (authErr) throw new Error(/invalid|credentials/i.test(authErr.message) ? "Password saat ini salah." : authErr.message);
+  const { error } = await supabase.auth.updateUser({ password: next, data: { must_change_password: false } });
+  if (error) {
+    if (/same|different from the old/i.test(error.message)) throw new Error("Password baru harus berbeda dari password lama.");
+    if (/weak|least|characters/i.test(error.message)) throw new Error("Password terlalu lemah — pakai minimal 8 karakter dengan huruf dan angka.");
+    throw new Error(error.message);
+  }
+}
+
 /** Changes the logged-in driver's password (Supabase Auth). */
 export async function changeDriverPassword(newPassword: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });

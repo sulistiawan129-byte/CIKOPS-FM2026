@@ -520,6 +520,7 @@
 .heroChip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 99px; background: rgba(255,255,255,.14); color: #fff; font-size: 12px; font-weight: 700; }
 .heroChip i { width: 8px; height: 8px; border-radius: 50%; background: #3ee08f; box-shadow: 0 0 0 3px rgba(62,224,143,.25); }
 .heroChipOff i { background: #ffb03a; box-shadow: 0 0 0 3px rgba(255,176,58,.25); }
+.heroChipBusy i { background: #ff5a5f; box-shadow: 0 0 0 3px rgba(255,90,95,.3); animation: livePulse 1.6s ease-in-out infinite; }
 
 /* Kontrol segmen (tab di dalam halaman) */
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 16px; background: var(--card); box-shadow: 0 10px 30px -22px rgba(15,27,61,.45); }
@@ -575,6 +576,9 @@
 .linkBtn { flex: none; height: 34px; padding: 0 12px; border-radius: 11px; border: 1.5px solid var(--line); background: var(--card); color: var(--navy); font-size: 12.5px; font-weight: 800; }
 .duty { display: flex; gap: 12px; align-items: center; padding: 14px; border-radius: var(--r); color: #fff; background: linear-gradient(135deg, #14a35a, #2ccf7c); box-shadow: 0 14px 30px -20px rgba(20,163,90,.9); }
 .dutyOff { background: linear-gradient(135deg, #5b6585, #7d87a6); box-shadow: none; }
+.dutyBusy { background: linear-gradient(135deg, #e5484d, #ff8a3d); box-shadow: 0 14px 30px -20px rgba(229,72,77,.9); }
+.dutyBusy small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dutyBtn { flex: none; height: 38px; padding: 0 14px; border-radius: 12px; border: 0; background: rgba(255,255,255,.95); color: #c2410c; font: inherit; font-weight: 800; font-size: 13px; cursor: pointer; }
 .duty > span { width: 44px; height: 44px; flex: none; border-radius: 14px; display: grid; place-items: center; background: rgba(255,255,255,.2); font-size: 20px; }
 .duty p { margin: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .duty b { font-size: 15px; letter-spacing: .04em; }

@@ -211,12 +211,12 @@ function AccountModal({ lang, roles, acc, onClose, onSaved }: {
 function SecretModal({ lang, email, password, title, onClose }: { lang: Lang; email: string; password: string; title: string; onClose: () => void }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [copied, setCopied] = useState(false);
-  const text = `Email: ${email}\nPassword: ${password}\nLogin: ${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`;
+  const text = `Email: ${email}\nPassword sementara: ${password}\nLogin: ${typeof window !== "undefined" ? window.location.origin : ""}/dashboard\nSetelah login Anda akan diminta membuat password baru (atau lewat menu akun → Ubah password).`;
   return createPortal(
     <div className={a.overlay} onClick={onClose}>
       <div className={a.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="sec-title" style={{ width: "min(480px, 100%)" }}>
         <div className={a.modalHead}><h2 id="sec-title">🔑 {title}</h2><button type="button" className={a.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
-        <p className={a.mute} style={{ margin: 0 }}>{L("Sampaikan ke pemilik akun. Password ini hanya ditampilkan sekali.", "Share with the account owner. Shown only once.")}</p>
+        <p className={a.mute} style={{ margin: 0 }}>{L("Sampaikan ke pemilik akun. Ini password sementara — saat login pertama pemilik akun langsung diminta membuat password sendiri. Hanya ditampilkan sekali.", "Share with the account owner. This is a temporary password — they must set their own at first sign-in. Shown only once.")}</p>
         <div className={x.secret}><span>Email</span><b>{email}</b><span>Password</span><b className={x.mono}>{password}</b></div>
         <div className={a.modalFoot}>
           <button type="button" className={a.ghostBtn} onClick={() => { navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {}); }}>{copied ? L("✓ Tersalin", "✓ Copied") : L("Salin", "Copy")}</button>

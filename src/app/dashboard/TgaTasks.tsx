@@ -33,7 +33,7 @@ const ago = (iso: string | null | undefined, lang: Lang) => {
   return new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short" });
 };
 
-export default function TgaTasks({ lang, onChanged }: { lang: Lang; onChanged?: () => void }) {
+export default function TgaTasks({ lang, onChanged, tick = 0, presence }: { lang: Lang; onChanged?: () => void; tick?: number; presence?: Map<string, TgaActivity> }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [rows, setRows] = useState<TgaActivity[] | null>(null);
   const [users, setUsers] = useState<TgaUserRow[]>([]);
@@ -57,6 +57,8 @@ export default function TgaTasks({ lang, onChanged }: { lang: Lang; onChanged?: 
     const id = setInterval(load, 30000);
     return () => clearInterval(id);
   }, [load]);
+  // Perubahan realtime dari menu TGA → muat ulang papan
+  useEffect(() => { if (tick) load(); }, [tick, load]);
 
   const today = toLocalISODate(new Date());
   const cols = useMemo(() => {
@@ -140,7 +142,7 @@ export default function TgaTasks({ lang, onChanged }: { lang: Lang; onChanged?: 
       )}
 
       {edit && (
-        <AssignModal lang={lang} initial={edit} users={users} emps={emps} onClose={() => setEdit(null)}
+        <AssignModal lang={lang} initial={edit} users={users} emps={emps} presence={presence} onClose={() => setEdit(null)}
           onSaved={(r, notify) => {
             setEdit(null);
             setMsg(notify ? L(`${r.ref_no} dikirim ke ${r.pool ? "semua TGA" : r.nama_tga} — HP teknisi berdering.`, `${r.ref_no} sent to ${r.pool ? "all TGA" : r.nama_tga}.`) : L(`${r.ref_no} diperbarui.`, `${r.ref_no} updated.`));
@@ -152,8 +154,8 @@ export default function TgaTasks({ lang, onChanged }: { lang: Lang; onChanged?: 
   );
 }
 
-function AssignModal({ lang, initial, users, emps, onClose, onSaved }: {
-  lang: Lang; initial: Draft; users: TgaUserRow[]; emps: Emp[]; onClose: () => void; onSaved: (r: TgaActivity, notify: boolean) => void;
+function AssignModal({ lang, initial, users, emps, presence, onClose, onSaved }: {
+  lang: Lang; initial: Draft; users: TgaUserRow[]; emps: Emp[]; presence?: Map<string, TgaActivity>; onClose: () => void; onSaved: (r: TgaActivity, notify: boolean) => void;
 }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [d, setD] = useState<Draft>(initial);
@@ -198,7 +200,8 @@ function AssignModal({ lang, initial, users, emps, onClose, onSaved }: {
             </button>
             {users.map((u) => (
               <button key={u.id} type="button" className={d.userId === u.id ? b.techOn : ""} onClick={() => set("userId", u.id)}>
-                <i>🧰</i><b>{u.nama}</b><small>{u.month_count} {L("bln ini", "this mo.")}</small>
+                <i>🧰</i><b>{u.nama}</b>
+                <small className={presence ? (presence.has(u.id) ? b.stBusy : b.stFree) : ""}>{presence ? (presence.has(u.id) ? `● Busy · ${presence.get(u.id)!.ref_no}` : "● Available") : `${u.month_count} ${L("bln ini", "this mo.")}`}</small>
               </button>
             ))}
           </div>

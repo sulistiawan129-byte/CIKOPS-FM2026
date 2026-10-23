@@ -5,7 +5,7 @@
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useState } from "react";
-import { tgaAdminDeleteUser, tgaAdminSaveUser, tgaAdminUsers, type TgaUserRow } from "@/lib/tga/api";
+import { tgaAdminDeleteUser, tgaAdminSaveUser, tgaAdminUsers, type TgaActivity, type TgaUserRow } from "@/lib/tga/api";
 import type { GaManpower } from "@/lib/ga/model";
 import a from "./atk.module.css";
 
@@ -15,7 +15,7 @@ type Draft = { id: string | null; nama: string; no_hp: string; pin: string; akti
 const fmtDT = (d: string | null, lang: Lang) =>
   d ? new Date(d).toLocaleString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
-export default function TgaAccounts({ lang, manpower }: { lang: Lang; manpower: GaManpower[] }) {
+export default function TgaAccounts({ lang, manpower, presence }: { lang: Lang; manpower: GaManpower[]; presence?: Map<string, TgaActivity> }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [users, setUsers] = useState<TgaUserRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function TgaAccounts({ lang, manpower }: { lang: Lang; manpower: 
       ) : (
         <div className={a.tableWrap}>
           <table className={a.table}>
-            <thead><tr><th>{L("Nama", "Name")}</th><th>{L("No. HP", "Phone")}</th><th>Status</th><th>{L("Kegiatan bulan ini", "This month")}</th><th>{L("Terakhir masuk", "Last sign-in")}</th><th /></tr></thead>
+            <thead><tr><th>{L("Nama", "Name")}</th><th>{L("No. HP", "Phone")}</th><th>{L("Akun", "Account")}</th><th>{L("Kerja", "Work")}</th><th>{L("Kegiatan bulan ini", "This month")}</th><th>{L("Terakhir masuk", "Last sign-in")}</th><th /></tr></thead>
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
@@ -87,6 +87,11 @@ export default function TgaAccounts({ lang, manpower }: { lang: Lang; manpower: 
                     {!u.aktif ? <span className={a.tagPending}>{L("Nonaktif", "Inactive")}</span>
                       : u.locked ? <span className={a.tagPending}>{L("Terkunci (PIN salah)", "Locked (wrong PIN)")}</span>
                       : <span className={a.tagExcel}>{L("Aktif", "Active")}</span>}
+                  </td>
+                  <td>
+                    {!u.aktif ? <span className={a.mute}>—</span> : presence?.get(u.id)
+                      ? <><span className={a.tagPending}>● Busy</span><br /><small className={a.mute}>{presence.get(u.id)!.ref_no}</small></>
+                      : <span className={a.tagExcel}>● Available</span>}
                   </td>
                   <td>{u.month_count}</td>
                   <td>{fmtDT(u.last_login_at, lang)}</td>

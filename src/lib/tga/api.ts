@@ -34,6 +34,8 @@ export interface TgaActivity {
   request_phone?: string;
   /** Tugas belum diambil siapa pun (siapa cepat) */
   pool?: boolean;
+  /** Teknisi pemilik (tersedia di data dashboard) */
+  user_id?: string | null;
 }
 
 export interface TgaDraft {
@@ -182,7 +184,7 @@ export const tgaAdminDeleteActivity = (id: string) => rpc<null>("tga_admin_delet
 export interface TgaAssignConfig { aktif: boolean; has_code: boolean; updated_at: string | null; updated_by: string; locked: boolean; today: number }
 export const tgaAdminAssignConfig = () => rpc<TgaAssignConfig>("tga_admin_assign_config");
 export const tgaAdminSetAssignCode = (code: string, aktif: boolean) => rpc<null>("tga_admin_set_assign_code", { p_code: code, p_aktif: aktif });
-export interface TgaAssignInfo { technicians: { id: string; nama: string; open: number }[]; employees: { id: string; nama: string; dept: string }[] }
+export interface TgaAssignInfo { technicians: { id: string; nama: string; open: number; busy?: boolean; busy_ref?: string }[]; employees: { id: string; nama: string; dept: string }[] }
 /** Error kode (salah / terkunci / belum aktif) dikembalikan sebagai Error biasa. */
 export async function tgaAssignPublicInfo(code: string): Promise<TgaAssignInfo> {
   const r = await rpc<TgaAssignInfo & { error?: string }>("tga_assign_public_info", { p_code: code });
@@ -200,6 +202,31 @@ export const tgaRequestPublic = (r: { nama: string; dept: string; phone: string;
   rpc<{ id: string; ref_no: string }>("tga_request_public", {
     p_name: r.nama, p_dept: r.dept, p_phone: r.phone, p_kategori: r.kategori, p_lokasi: r.lokasi, p_activity: r.activity, p_prioritas: r.prioritas,
   });
+
+/** Status teknisi: Busy bila ada pekerjaan berstatus Proses (sudah diterima, sedang dikerjakan);
+ *  Available bila tidak ada. Kunci = id akun teknisi. */
+export function tgaPresence(acts: TgaActivity[]): Map<string, TgaActivity> {
+  const m = new Map<string, TgaActivity>();
+  for (const a of acts) {
+    if (a.status !== "proses" || !a.user_id) continue;
+    const cur = m.get(a.user_id);
+    if (!cur || (a.accepted_at ?? "") > (cur.accepted_at ?? "")) m.set(a.user_id, a);
+  }
+  return m;
+}
+
+/** Realtime: panggil onChange (sudah di-debounce) setiap ada perubahan pekerjaan TGA.
+ *  Butuh tga_activities di publikasi supabase_realtime (04, bagian 046). */
+export function subscribeTgaActivities(onChange: () => void): () => void {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  const ch = supabase.channel(`tga-acts-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "tga_activities" }, () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(onChange, 400);
+    })
+    .subscribe();
+  return () => { if (t) clearTimeout(t); supabase.removeChannel(ch); };
+}
 
 /** Semua kegiatan dari aplikasi (untuk dashboard GA; RLS: staf). Kosong bila 034 belum dijalankan. */
 export async function tgaAllActivities(): Promise<TgaActivity[]> {
