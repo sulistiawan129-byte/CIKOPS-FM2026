@@ -1,7 +1,7 @@
 /* FM COMMAND CENTER — akses data (RPC migrasi 028 + ringkasan NC dari G-C). Tanpa login. */
 
 import { supabase } from "../supabaseClient";
-import type { FmSnapshot, NcBoard, RcpBoard } from "./model";
+import type { FmSnapshot, NcBoard, RcpBoard, TgaBoard } from "./model";
 
 function friendly(error: { code?: string; message?: string }): Error {
   if (error.code === "PGRST202" || error.code === "42883" || /Could not find the function|does not exist/i.test(error.message ?? "")) {
@@ -30,4 +30,11 @@ export async function getRcpBoard(): Promise<RcpBoard | null> {
   const { data, error } = await supabase.rpc("rcp_board");
   if (error) return null;
   return data as RcpBoard;
+}
+
+/** Ringkasan TGA (04_aplikasi_lapangan.sql bagian 048) — tanpa data pribadi. Belum dipasang → null. */
+export async function getTgaBoard(): Promise<TgaBoard | null> {
+  const { data, error } = await supabase.rpc("tga_board");
+  if (error) return null;
+  return data as TgaBoard;
 }

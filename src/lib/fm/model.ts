@@ -38,6 +38,17 @@ export interface RcpBoard {
   bookings_week: number;
 }
 
+/** Ringkasan TGA dari tga_board() (04_aplikasi_lapangan.sql bagian 048) — tanpa data pribadi. */
+export interface TgaBoard {
+  today: string;
+  technicians: { nama: string; busy: boolean; ref: string | null; activity: string | null; lokasi: string | null; kategori: string | null; since: string | null; done_today: number; open: number }[];
+  open: { ref: string; kategori: string; activity: string; lokasi: string; dept: string; tga: string; status: string; urgent: boolean; pool: boolean; at: string | null; accepted: string | null }[];
+  done_today: number; in_today: number; month_done: number; month_total: number; month_cancel: number; avg_min: number | null;
+  daily: { d: string; n: number; r: number }[];
+  cats: { k: string; n: number }[];
+  techs_month: { k: string; n: number }[];
+}
+
 export type Status = "baik" | "perhatian" | "kritis" | "na";
 export interface AreaFact { label: string; value: string; tone?: Status }
 export interface AreaCard {
@@ -81,7 +92,7 @@ export const TARGET = {
 };
 
 /* ════════════════════════════════════════════════════════════ */
-export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(), rcp: RcpBoard | null = null) {
+export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(), rcp: RcpBoard | null = null, tga: TgaBoard | null = null) {
   const today = s.today;
   const t = parse(today);
   const monthLabel = `${MONF[t.getMonth()]} ${t.getFullYear()}`;
@@ -297,6 +308,14 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
   }
   if (rcp && rcp.parcels.waiting_old > 0) grp("perhatian", "Resepsionis", "rcp", [`${nf(rcp.parcels.waiting_old)} barang`], () => `${nf(rcp.parcels.waiting_old)} barang menunggu diambil lebih dari 2 hari`, () => "");
   if (rcp && rcp.wifi.expiring7 > 0) grp("info", "Resepsionis", "rcp", [`${nf(rcp.wifi.expiring7)} akun`], () => `${nf(rcp.wifi.expiring7)} akun wifi tamu habis ≤ 7 hari`, () => "");
+  /* TGA (bila bagian 048 sudah jalan): tugas belum diambil / belum diterima terlalu lama */
+  const minsSince = (iso: string | null) => (iso ? Math.max(0, Math.round((nowMs - new Date(iso).getTime()) / 60000)) : 0);
+  const tgaWaiting = (tga?.open ?? []).filter((x) => x.status === "baru" && !x.urgent && minsSince(x.at) >= 30);
+  const tgaUrgent = (tga?.open ?? []).filter((x) => x.urgent && x.status === "baru");
+  grp("kritis", "TGA", "tga", tgaUrgent.map((x) => `${x.ref} · ${x.activity}${x.lokasi ? ` · ${x.lokasi}` : ""}`), (x) => `Tugas TGA urgent belum diterima — ${x}`, (n) => `${n} tugas TGA urgent belum diterima`);
+  grp("perhatian", "TGA", "tga", tgaWaiting.map((x) => `${x.ref} · ${x.activity} — ${fmtMin(minsSince(x.at))}`), (x) => `Tugas TGA menunggu: ${x}`, (n) => `${n} tugas TGA menunggu lebih dari 30 menit`);
+  if (tgaUrgent.length) attention.push({ level: "kritis", area: "TGA", text: `${tgaUrgent.length} tugas urgent belum diterima` });
+  if (tgaWaiting.length) attention.push({ level: "perhatian", area: "TGA", text: `${tgaWaiting.length} tugas menunggu > 30 menit` });
   if (rcp && rcp.wifi.slots > 0 && rcpFree / rcp.wifi.slots < 0.15) attention.push({ level: rcpFree === 0 ? "kritis" : "perhatian", area: "Resepsionis", text: "Slot wifi tamu menipis" });
   if (rcp && rcp.parcels.waiting_old > 0) attention.push({ level: "perhatian", area: "Resepsionis", text: "Barang menunggu > 2 hari" });
   if (rcp && rcp.wifi.expiring7 > 0) attention.push({ level: "info", area: "Resepsionis", text: "Akun wifi akan habis" });
@@ -304,6 +323,8 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
 
   /* ── INDEKS: rata-rata status area (Baik 100 · Perhatian 70 · Kritis 40) ── */
   const scores = areas.map((a) => statusScore[a.status]).filter((x): x is number => x !== null);
+  // TGA ikut indeks (tanpa kartu area): urgent belum diterima = kritis, menunggu lama = perhatian
+  if (tga) scores.push(tgaUrgent.length ? 40 : tgaWaiting.length ? 70 : 100);
   const health = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
   const healthStatus: Status = health === null ? "na" : health >= 85 ? "baik" : health >= 65 ? "perhatian" : "kritis";
   const weakest = areas.filter((a) => a.status === "kritis" || a.status === "perhatian").map((a) => a.name);
@@ -314,16 +335,23 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
   const crit = areas.filter((a) => a.status === "kritis"), warn = areas.filter((a) => a.status === "perhatian");
   const short: Record<string, string> = { fleet: "Fleet", canteen: "Kantin", atk: "ATK", nc: "NC" };
   const joinNames = (xs: AreaCard[]) => xs.map((a) => short[a.key] ?? a.name).join(" & ");
-  const headline = crit.length ? `${crit.length} area butuh tindakan: ${joinNames(crit)}`
-    : warn.length ? `Operasional terkendali — pantau ${joinNames(warn)}`
+  // TGA tidak punya kartu area, tapi tugas urgent / lama menunggu tetap muncul di judul
+  const tgaHook = tgaUrgent.length ? `${tgaUrgent.length} tugas TGA urgent belum diterima` : tgaWaiting.length ? `${tgaWaiting.length} tugas TGA menunggu > 30 menit` : "";
+  const headline = crit.length ? `${crit.length} area butuh tindakan: ${joinNames(crit)}${tgaUrgent.length ? " & TGA" : ""}`
+    : tgaUrgent.length ? "Tugas TGA urgent perlu segera diambil"
+    : warn.length ? `Operasional terkendali — pantau ${joinNames(warn)}${tgaWaiting.length ? " & TGA" : ""}`
+    : tgaWaiting.length ? "Operasional terkendali — pantau TGA"
     : health === null ? "Menunggu data hari ini" : "Semua area berjalan baik";
-  const headlineSub = crit.length ? crit.map((a) => a.hook).join(" · ") : warn.length ? warn.map((a) => a.hook).join(" · ") : "Tidak ada yang perlu ditindaklanjuti saat ini.";
+  const subParts = (crit.length ? crit : warn).map((a) => a.hook);
+  if (tgaHook) subParts.push(tgaHook);
+  const headlineSub = subParts.length ? subParts.join(" · ") : "Tidak ada yang perlu ditindaklanjuti saat ini.";
   const pulse: Pulse[] = [
     { key: "tasks", label: "Tugas driver", value: nf(tasksToday), unit: `${nf(doneToday)} selesai`, tab: "ops" },
     { key: "gate", label: "Gerak gate", value: nf(gateToday), unit: `${nf(open.length)} di luar`, tab: "fleet", tone: longOpen.length ? "perhatian" : undefined },
     { key: "canteen", label: "Kantin", value: cToday ? `${nf(cSnack.orderToday)} · ${nf(cMeal.orderToday)}` : "–", unit: cToday ? "porsi snack · makan" : "belum diinput", tab: "canteen" },
     { key: "atk", label: "ATK keluar", value: nf(atkToday), unit: "unit", tab: "atk" },
     { key: "nc", label: "Pelanggaran", value: nc ? nf(ncToday.length) : "–", unit: nc ? "NC hari ini" : "belum tersambung", tab: "nc", tone: ncToday.length ? ncStatus : undefined },
+    ...(tga ? [{ key: "tga", label: "TGA", value: nf(tga.open.length), unit: `terbuka · ${nf(tga.technicians.filter((x) => !x.busy).length)} teknisi available`, tab: "tga", tone: tgaUrgent.length ? ("kritis" as Status) : tgaWaiting.length ? ("perhatian" as Status) : undefined }] : []),
     ...(rcp ? [{ key: "rcp", label: "Resepsionis", value: nf(rcp.parcels.waiting), unit: `barang menunggu`, tab: "rcp", tone: rcp.parcels.waiting_old ? ("perhatian" as Status) : undefined }] : []),
   ];
 
@@ -331,6 +359,13 @@ export function computeFm(s: FmSnapshot, nc: NcBoard | null, nowMs = Date.now(),
     today, todayLabel, monthLabel, generatedAt: s.generated_at,
     health, healthStatus, summary, summary2, areas, attention, groups, counts, headline, headlineSub, pulse,
     rcp: rcp ? { ...rcp, free: rcpFree } : null,
+    tga: tga ? {
+      ...tga,
+      busy: tga.technicians.filter((x) => x.busy).length,
+      free: tga.technicians.filter((x) => !x.busy).length,
+      waiting: tgaWaiting.length, urgent: tgaUrgent.length,
+      daily: dailyBars((d) => tga.daily.find((r) => r.d === d)?.n ?? 0, (n) => nf(n)),
+    } : null,
     fleet: {
       today: tasksToday, doneToday, month: tasksMonth, sameDayPct, util: util.slice(0, 8), utilAvg, docs: docs.slice(0, 8),
       daily: dailyBars((d) => td.find((r) => r.d === d)?.n ?? 0, (n) => nf(n)),

@@ -8,6 +8,7 @@
 --               (semua staf GA menugaskan TGA dengan kode penugasan)
 --   Bagian 046  Status teknisi TGA Available / Busy (realtime di dashboard)
 --   Bagian 047  Cleaning & Gardening: reset actual / generate ulang jadwal per periode (+ batalkan)
+--   Bagian 048  FM Command Center: ringkasan TGA untuk layar publik (tga_board)
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -661,3 +662,58 @@ grant execute on function ga_reset_period(int, text, date, date, text, boolean),
 notify pgrst, 'reload schema';
 
 select 'riwayat reset Cleaning & Gardening' as cek, count(*)::text as hasil from ga_plan_resets;
+
+
+-- ######################################################################
+-- ## BAGIAN 048 — FM Command Center: ringkasan TGA (tanpa login)
+-- ######################################################################
+-- Dipakai /dashboard-viewonly (tab TGA + Ringkasan). Hanya data operasional:
+-- TANPA no. HP, nama requestor, PIN, atau catatan. Aman untuk layar TV publik.
+
+create or replace function tga_board() returns jsonb
+language sql stable security definer set search_path = public as $$
+  with t as (select (now() at time zone 'Asia/Jakarta')::date as d),
+  m as (select date_trunc('month', d)::date as m0 from t),
+  a as (select x.* from tga_activities x, m where x.tanggal >= m.m0 or x.status in ('baru', 'proses', 'pending', 'butuh_part'))
+  select jsonb_build_object(
+    'today', (select d from t),
+    'technicians', coalesce((select jsonb_agg(jsonb_build_object(
+        'nama', u.nama,
+        'busy', w.ref_no is not null,
+        'ref', w.ref_no, 'activity', w.activity, 'lokasi', w.lokasi, 'kategori', w.kategori, 'since', w.accepted_at,
+        'done_today', (select count(*) from tga_activities x, t where x.user_id = u.id and x.status = 'selesai' and x.tanggal = t.d),
+        'open', (select count(*) from tga_activities x where x.user_id = u.id and x.status in ('baru', 'proses', 'pending', 'butuh_part')))
+        order by (w.ref_no is null), u.nama)
+      from tga_users u
+      left join lateral (select x.ref_no, x.activity, x.lokasi, x.kategori, x.accepted_at from tga_activities x
+                          where x.user_id = u.id and x.status = 'proses' order by x.accepted_at desc nulls last limit 1) w on true
+      where u.aktif), '[]'::jsonb),
+    'open', coalesce((select jsonb_agg(jsonb_build_object(
+        'ref', x.ref_no, 'kategori', x.kategori, 'activity', left(x.activity, 140), 'lokasi', x.lokasi, 'dept', x.departemen,
+        'tga', x.nama_tga, 'status', x.status, 'urgent', x.prioritas = 'urgent', 'pool', x.user_id is null,
+        'at', coalesce(x.assigned_at, x.created_at), 'accepted', x.accepted_at)
+        order by (x.prioritas = 'urgent') desc, coalesce(x.assigned_at, x.created_at))
+      from tga_activities x where x.status in ('baru', 'proses', 'pending', 'butuh_part')), '[]'::jsonb),
+    'done_today', (select count(*) from a, t where a.status = 'selesai' and a.tanggal = t.d),
+    'in_today', (select count(*) from a, t where a.status <> 'batal' and a.tanggal = t.d),
+    'month_done', (select count(*) from a, m where a.status = 'selesai' and a.tanggal >= m.m0),
+    'month_total', (select count(*) from a, m where a.status <> 'batal' and a.tanggal >= m.m0),
+    'month_cancel', (select count(*) from a, m where a.status = 'batal' and a.tanggal >= m.m0),
+    'avg_min', (select round(avg(extract(epoch from (a.selesai_at - a.accepted_at)) / 60))::int from a, m
+                 where a.status = 'selesai' and a.tanggal >= m.m0 and a.accepted_at is not null and a.selesai_at > a.accepted_at
+                   and a.selesai_at - a.accepted_at < interval '3 days'),
+    'daily', coalesce((select jsonb_agg(jsonb_build_object('d', g.d, 'n', (select count(*) from a where a.tanggal = g.d and a.status = 'selesai'),
+                                                           'r', (select count(*) from a where a.tanggal = g.d and a.status <> 'batal')) order by g.d)
+      from m, t, generate_series(m.m0, t.d, interval '1 day') gs(dd), lateral (select gs.dd::date as d) g), '[]'::jsonb),
+    'cats', coalesce((select jsonb_agg(jsonb_build_object('k', k, 'n', n) order by n desc) from (
+        select a.kategori as k, count(*) as n from a, m where a.status <> 'batal' and a.tanggal >= m.m0 group by 1) c), '[]'::jsonb),
+    'techs_month', coalesce((select jsonb_agg(jsonb_build_object('k', k, 'n', n) order by n desc) from (
+        select coalesce(nullif(a.nama_tga, ''), '—') as k, count(*) as n from a, m where a.status = 'selesai' and a.tanggal >= m.m0 group by 1) c), '[]'::jsonb)
+  )
+$$;
+revoke all on function tga_board() from public;
+grant execute on function tga_board() to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+select 'tga_board siap' as cek, (tga_board() ->> 'month_total') as hasil;

@@ -314,6 +314,10 @@ function estimateHeight(dest: string, purpose: string, hasTask: boolean, widthRe
   return 1.35 + 1.55 + linesFor(dest, perLine - 2) * 1.5 + (purpose ? linesFor(purpose, perLine) * 1.45 : 0) + 1.5;
 }
 
+/** Layar sempit (HP): halaman bergulir biasa → tampilkan semua baris, tanpa paginasi. */
+const narrow = () => typeof window !== "undefined" && window.innerWidth <= 900;
+const budgetOf = (h: number) => (narrow() ? 9999 : h);
+
 function pack<T>(items: T[], heightOf: (x: T) => number, budget: number, gap = 0.5): T[][] {
   const pages: T[][] = [];
   let cur: T[] = [];
@@ -391,13 +395,69 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
   );
 }
 
+/** Semua Driver User (status terkunci, tidak ikut penugasan) dalam SATU baris ringkas,
+ *  supaya tidak memakan satu halaman per orang. */
+function UserGroupRow({ users, delay }: { users: Row[]; delay: number }) {
+  const onDuty = users.some((r) => r.state === "duty");
+  return (
+    <div className={`drow ${onDuty ? "s-duty" : "s-off"}`} style={{ animationDelay: `${delay}ms` }}>
+      <div className="av">🔒</div>
+      <div className="d-main">
+        <div className="d-top">
+          <div className="d-name">Driver User · {users.length}</div>
+          <span className="chip">{onDuty ? "On duty" : "Off duty"}</span>
+        </div>
+        <div className="u-list">
+          {users.map((r) => {
+            const du = getUserDutyStatus(r.driver);
+            return <span key={r.driver.id}><b>{shortName(r.driver.nama)}</b>{du.userName ? ` → ${du.userName}` : ""}</span>;
+          })}
+        </div>
+        <div className="d-meta">Otomatis {dutyHoursLabel} WIB · status terkunci</div>
+      </div>
+    </div>
+  );
+}
+/** Driver standby (belum ada tugas) dalam satu baris: nama-nama saja, siap ditugaskan. */
+function IdleGroupRow({ rows, delay }: { rows: Row[]; delay: number }) {
+  return (
+    <div className="drow s-idle" style={{ animationDelay: `${delay}ms` }}>
+      <div className="av">✓</div>
+      <div className="d-main">
+        <div className="d-top">
+          <div className="d-name">Standby · {rows.length} driver</div>
+          <span className="chip">Siap</span>
+        </div>
+        <div className="u-list">
+          {rows.map((r) => <span key={r.driver.id}><b>{shortName(r.driver.nama)}</b>{driverTypeOf(r.driver) === "support" ? " (support)" : ""}</span>)}
+        </div>
+        <div className="d-meta">Belum ada tugas hari ini · siap ditugaskan</div>
+      </div>
+    </div>
+  );
+}
+type ColItem = { kind: "row"; r: Row } | { kind: "users"; users: Row[] } | { kind: "idle"; rows: Row[] };
+
 function PlantColumn({ plant, snapshot }: { plant: Plant; snapshot: Snapshot | null }) {
   const { rows, out, userCount } = useDriverRows(snapshot, plant);
   const boxRef = useRef<HTMLDivElement>(null);
   const box = useBox(boxRef);
+  const items = useMemo<ColItem[]>(() => {
+    const users = rows.filter((r) => r.state === "duty" || r.state === "off");
+    const idle = rows.filter((r) => r.state === "idle");
+    return [
+      ...rows.filter((r) => r.state !== "duty" && r.state !== "off" && r.state !== "idle").map((r) => ({ kind: "row" as const, r })),
+      ...(idle.length ? [{ kind: "idle" as const, rows: idle }] : []),
+      ...(users.length ? [{ kind: "users" as const, users }] : []),
+    ];
+  }, [rows]);
   const pagesArr = useMemo(
-    () => pack(rows, (r) => { const x = rowTexts(r); return estimateHeight(x.dest, x.purpose, !!r.task, box.w); }, box.h - 0.6),
-    [rows, box.w, box.h],
+    () => pack(items, (it) => {
+      if (it.kind === "users") return 4.6 + Math.ceil(it.users.length / 2) * 1.5;
+      if (it.kind === "idle") return 4.6 + Math.ceil(it.rows.length / 3) * 1.5;
+      const x = rowTexts(it.r); return estimateHeight(x.dest, x.purpose, !!it.r.task, box.w);
+    }, budgetOf(box.h - 0.6)),
+    [items, box.w, box.h],
   );
   const { page, jump } = useRotator(pagesArr.length, ROTATE_MS);
   const visible = pagesArr[page] ?? [];
@@ -410,7 +470,10 @@ function PlantColumn({ plant, snapshot }: { plant: Plant; snapshot: Snapshot | n
       <div className="rows" ref={boxRef}>
         <div className="rows-in" key={`${plant}-${page}`}>
           {visible.length === 0 && <div className="none">Belum ada driver aktif di plant ini.</div>}
-          {visible.map((r, i) => <DriverRow key={r.driver.id} r={r} plant={plant} delay={i * 60} />)}
+          {visible.map((it, i) => it.kind === "users"
+            ? <UserGroupRow key="users" users={it.users} delay={i * 60} />
+            : it.kind === "idle" ? <IdleGroupRow key="idle" rows={it.rows} delay={i * 60} />
+            : <DriverRow key={it.r.driver.id} r={it.r} plant={plant} delay={i * 60} />)}
         </div>
       </div>
       <Dots pages={pagesArr.length} page={page} jump={jump} />
@@ -422,7 +485,7 @@ function UpcomingColumn({ upcoming, done }: { upcoming: TaskDetail[]; done: numb
   const boxRef = useRef<HTMLDivElement>(null);
   const box = useBox(boxRef);
   const pagesArr = useMemo(
-    () => pack(upcoming, (t) => estimateHeight(titleCase(t.tujuan) || "—", sentence(t.perihal) || sentence(t.jenis_pekerjaan), true, box.w - 4), box.h - 0.6),
+    () => pack(upcoming, (t) => estimateHeight(titleCase(t.tujuan) || "—", sentence(t.perihal) || sentence(t.jenis_pekerjaan), true, box.w - 4), budgetOf(box.h - 0.6)),
     [upcoming, box.w, box.h],
   );
   const { page, jump } = useRotator(pagesArr.length, ROTATE_MS);
@@ -535,24 +598,29 @@ function GatePanel({ masuk, keluar, ready }: { masuk: ViewOnlyGateLog[]; keluar:
 interface Alert { tone: "red" | "amber" | "blue"; title: string; sub: string }
 
 function AttentionPanel({ alerts }: { alerts: Alert[] }) {
+  // Wadah selalu ada (juga saat "Semua normal") supaya ukurannya terukur sejak awal
+  const boxRef = useRef<HTMLDivElement>(null);
+  const box = useBox(boxRef);
+  const pagesArr = useMemo(() => pack(alerts, () => 3.7, budgetOf(box.h), 0.45), [alerts, box.h]);
+  const { page, jump } = useRotator(pagesArr.length, ROTATE_MS);
+  const visible = alerts.length ? pagesArr[page] ?? [] : [];
   return (
     <section className="panel attn">
       <header className="p-head"><h2>Perlu Perhatian</h2>{alerts.length > 0 && <span className="p-meta warn">{alerts.length} item</span>}</header>
-      {alerts.length === 0 ? (
-        <div className="ok">
-          <span className="ok-ic"><Icon name="check" size={26} strokeWidth={2.6} /></span>
-          <div><b>Semua normal</b><small>Tidak ada yang perlu ditindaklanjuti</small></div>
-        </div>
-      ) : (
-        <div className="alerts">
-          {alerts.slice(0, 3).map((a, i) => (
-            <div className={`alert ${a.tone}`} key={i}>
-              <span className="a-ic"><Icon name="alert" size={18} strokeWidth={2.2} /></span>
-              <div><b>{a.title}</b><small>{a.sub}</small></div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="alerts" ref={boxRef}>
+        {alerts.length === 0 ? (
+          <div className="ok">
+            <span className="ok-ic"><Icon name="check" size={26} strokeWidth={2.6} /></span>
+            <div><b>Semua normal</b><small>Tidak ada yang perlu ditindaklanjuti</small></div>
+          </div>
+        ) : visible.map((a, i) => (
+          <div className={`alert ${a.tone}`} key={`${page}-${i}`} title={`${a.title} — ${a.sub}`}>
+            <span className="a-ic"><Icon name="alert" size={18} strokeWidth={2.2} /></span>
+            <div className="a-txt"><b>{a.title}</b><small>{a.sub}</small></div>
+          </div>
+        ))}
+      </div>
+      <Dots pages={alerts.length ? pagesArr.length : 0} page={page} jump={jump} />
     </section>
   );
 }
@@ -732,7 +800,7 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
         :global(.k-sub) { font-size: .85rem; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* ───── panel umum ───── */
-        .mid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: 1.25rem; }
+        .mid { flex: 1.35 1 0; min-height: 15rem; display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: 1.25rem; }
         :global(.panel) { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 1.2rem 1.4rem; border-radius: 1.25rem; background: var(--card); border: 1px solid var(--line); box-shadow: 0 1.2rem 2.6rem -1.8rem rgba(0,0,0,.8); backdrop-filter: blur(12px); }
         :global(.p-head) { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; margin-bottom: 1rem; flex-shrink: 0; }
         :global(.p-head h2) { margin: 0; font-family: var(--font-jakarta), sans-serif; font-size: 1rem; font-weight: 800; letter-spacing: -.005em; white-space: nowrap; }
@@ -762,6 +830,8 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
         :global(.drow.s-wait) { --tone: var(--amber); } :global(.drow.s-idle) { --tone: var(--green); }
         :global(.drow.s-done) { --tone: var(--t3); } :global(.drow.s-duty) { --tone: var(--purple); } :global(.drow.s-off) { --tone: var(--t3); }
         :global(.u-name) { color: var(--t1); font-weight: 700; }
+        :global(.u-list) { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin-top: .3rem; font-size: .95rem; color: var(--t2); }
+        :global(.u-list b) { color: var(--t1); font-weight: 700; }
         :global(.urow) { --tone: var(--purple); }
         :global(.av) { width: 2.5rem; height: 2.5rem; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-family: var(--font-jakarta), sans-serif; font-size: .9rem; font-weight: 700; color: #04122e; background: linear-gradient(140deg, #6cc4ff, #3a86ff); }
         :global(.av.sm) { width: 2.1rem; height: 2.1rem; font-size: .78rem; }
@@ -787,7 +857,8 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
         :global(.ptag.prb) { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 16%, transparent); }
 
         /* ───── baris bawah ───── */
-        .bottom { flex-shrink: 0; min-height: 13.4rem; display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 1.25rem; }
+        .bottom { flex: 1 1 0; min-height: 12rem; max-height: 19rem; display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 1.25rem; }
+        .bottom > :global(.panel) { overflow: hidden; }
         :global(.prog-body) { flex: 1; min-height: 0; display: flex; align-items: center; gap: 1.6rem; padding: 0 .4rem; }
         :global(.ring) { position: relative; height: 100%; max-height: 8.6rem; aspect-ratio: 1; flex-shrink: 0; }
         :global(.ring-txt) { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -810,7 +881,7 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
         :global(.g-row) { --tone: var(--green); display: flex; align-items: flex-start; gap: .65rem; min-width: 0; }
         :global(.g-row.out) { --tone: var(--amber); }
         :global(.g-row .av) { background: var(--tone); }
-                :global(.g-text) { margin-top: .1rem; font-size: .9rem; line-height: 1.5; color: var(--t2); overflow-wrap: anywhere; }
+                :global(.g-text) { margin-top: .1rem; font-size: .9rem; line-height: 1.5; color: var(--t2); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
                 :global(.g-note) { color: var(--t3); font-style: italic; }
         :global(.plate) { margin-right: .3rem; font-family: var(--font-jetbrains-mono), monospace; font-size: .8rem; font-weight: 700; padding: .05rem .4rem; border-radius: .35rem; background: var(--card2); border: 1px solid var(--line); color: var(--t1); flex-shrink: 0; }
         :global(.g-time) { font-family: var(--font-jetbrains-mono), monospace; font-size: .85rem; color: var(--t2); flex-shrink: 0; }
@@ -825,6 +896,9 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
         :global(.alert .a-ic) { color: var(--tone); display: grid; flex-shrink: 0; }
         :global(.alert b) { font-size: 1rem; }
         :global(.alert small) { font-size: .85rem; margin-top: 0; }
+        :global(.alert) { height: 3.7rem; box-sizing: border-box; flex-shrink: 0; }
+        :global(.alert .a-txt) { min-width: 0; line-height: 1.3; }
+        :global(.alert .a-txt b), :global(.alert .a-txt small) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* ───── GATE ticker ───── */
         .ticker { flex-shrink: 0; display: flex; align-items: stretch; border-radius: 1rem; overflow: hidden; background: var(--card); border: 1px solid var(--line); }
@@ -840,9 +914,9 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
           .page { height: auto; min-height: 100vh; overflow: auto; padding: .8rem; }
           .top { flex-wrap: wrap; }
           .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .mid { grid-template-columns: 1fr; }
+          .mid { grid-template-columns: 1fr; flex: none; min-height: 0; }
           :global(.drow), :global(.urow) { padding: .6rem .8rem; }
-          .bottom { grid-template-columns: 1fr; height: auto; }
+          .bottom { grid-template-columns: 1fr; height: auto; flex: none; max-height: none; }
           :global(.g-cols) { grid-template-columns: 1fr; }
         }
         @media (prefers-reduced-motion: reduce) { .t-roll { animation: none; } :global(.drow), :global(.urow) { animation: none; } }

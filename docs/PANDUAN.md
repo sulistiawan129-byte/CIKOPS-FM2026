@@ -8,7 +8,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 |---|---|---|
 | `supabase/01_dasar.sql` | Semua migrasi lama (skema inti + bagian 001 … 038): driver, armada, tugas, klaim, kantin, gift, gate, security, kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA | **Sudah berjalan di production** — tidak perlu diulang. Cari `## BAGIAN 0xx` untuk melihat migrasi tertentu |
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
-| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime), 047 reset periode Cleaning & Gardening | **Jalankan sekali, sesudah file 02.** Aman diulang |
+| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime), 047 reset periode Cleaning & Gardening, 048 ringkasan TGA di FM Command Center | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -531,6 +531,14 @@ Data aplikasi tersimpan di tabel `tga_activities`, jadi **tidak tertimpa** sinkr
   dan status di pemilih teknisi saat menugaskan — berubah **realtime** tanpa muat ulang.
 - Form `/tugas-tga`: status tiap teknisi diperbarui tiap 20 detik.
 - Jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 046 mendaftarkan `tga_activities` ke Realtime).
+
+### 6c. TGA di FM Command Center (bagian 048)
+`/dashboard-viewonly` sekarang punya tab **TGA**: pekerjaan terbuka, teknisi available/busy,
+selesai hari ini & bulan ini (dengan rata-rata durasi), daftar status teknisi, pekerjaan terbuka,
+jenis pekerjaan & selesai per teknisi, serta grafik selesai per hari.
+Di **Ringkasan hari ini** ada sel **TGA** dan butir **Perlu tindakan** untuk tugas urgent yang belum
+diterima / tugas yang menunggu > 30 menit (ikut memengaruhi indeks FM).
+Data lewat fungsi `tga_board()` — tanpa no. HP, nama requestor, PIN, atau catatan (aman untuk layar publik).
 
 ### 7. Form penugasan publik `/tugas-tga` (semua staf GA, bagian 045)
 Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.
