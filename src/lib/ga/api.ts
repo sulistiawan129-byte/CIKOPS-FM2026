@@ -132,6 +132,31 @@ export const deleteGaManpower = (id: string) => rpc038<null>("ga_delete_manpower
 export const generateGaPlan = (periode: number, from: string | null, rebuild: boolean) =>
   rpc038<{ added: number; removed: number; total: number }>("ga_generate_plan", { p_periode: periode, p_from: from, p_rebuild: rebuild });
 export const setGaActual = (rows: { key: string; actual: 0 | 1 | null }[]) => rpc038<number>("ga_set_actual", { p_rows: rows, p_spv: null });
+
+/* ── Reset per periode (04_aplikasi_lapangan.sql bagian 047) ── */
+export type GaResetMode = "actual" | "plan";
+export interface GaResetPreview { rows: number; actual: number; jobs: number; from: string; to: string }
+export interface GaResetResult { id: number; mode: GaResetMode; rows: number; actual: number; added: number; from: string; to: string }
+export interface GaResetLog { id: number; periode: number; mode: GaResetMode; tim: string; from: string; to: string; rows: number; actual: number; added: number; by: string; at: string; undone_at: string | null; undone_by: string | null }
+async function rpc047<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) {
+    if (error.code === "PGRST202" || /could not find the function/i.test(error.message ?? "")) {
+      throw new Error("Fitur reset belum aktif — jalankan supabase/04_aplikasi_lapangan.sql (bagian 047) di Supabase.");
+    }
+    throw new Error(error.message);
+  }
+  return data as T;
+}
+const resetArgs = (periode: number, mode: GaResetMode, from: string | null, to: string | null, tim: string, dry: boolean) =>
+  ({ p_periode: periode, p_mode: mode, p_from: from || null, p_to: to || null, p_tim: tim, p_dry_run: dry });
+export const previewGaReset = (periode: number, mode: GaResetMode, from: string | null, to: string | null, tim: string) =>
+  rpc047<GaResetPreview>("ga_reset_period", resetArgs(periode, mode, from, to, tim, true));
+export const runGaReset = (periode: number, mode: GaResetMode, from: string | null, to: string | null, tim: string) =>
+  rpc047<GaResetResult>("ga_reset_period", resetArgs(periode, mode, from, to, tim, false));
+export const getGaResetHistory = (periode: number | null) => rpc047<GaResetLog[]>("ga_reset_history", { p_periode: periode }).then((d) => d ?? []);
+export const undoGaReset = (id: number) => rpc047<{ restored: number; mode: GaResetMode }>("ga_undo_reset", { p_id: id });
+
 export type GaLogTable = "events" | "improvements" | "inventory";
 export const saveGaLog = (table: GaLogTable, id: number | null, d: Record<string, unknown>) => rpc038<number>("ga_save_log", { p_table: table, p_id: id, p_data: d });
 export const deleteGaLog = (table: GaLogTable, id: number) => rpc038<null>("ga_delete_log", { p_table: table, p_id: id });

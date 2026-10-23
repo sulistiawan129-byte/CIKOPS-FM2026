@@ -14,6 +14,7 @@ import {
 } from "@/lib/ga/api";
 import { GA_DAYS, GA_DAY_SHORT, jobDays, periodeOf, type GaJob, type GaManpower, type GaPlan, type GaSyncStatus } from "@/lib/ga/model";
 import { toLocalISODate } from "@/lib/dateUtils";
+import GaResetModal from "./GaReset";
 import a from "./atk.module.css";
 import m from "./gamanage.module.css";
 
@@ -53,6 +54,7 @@ export function GaChecklist({ lang, editable, onChanged }: { lang: Lang; editabl
   const [team, setTeam] = useState("Semua");
   const [q, setQ] = useState("");
   const [saving, setSaving] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const wk = mondayOf(date);
 
   const load = useCallback(async () => {
@@ -150,7 +152,9 @@ export function GaChecklist({ lang, editable, onChanged }: { lang: Lang; editabl
         <div className={a.seg} role="group">
           {teams.map((t) => <button key={t} type="button" className={team === t ? a.segOn : ""} onClick={() => setTeam(t)} aria-pressed={team === t}>{t === "Semua" ? L("Semua tim", "All teams") : t}</button>)}
         </div>
+        {editable && <><span className={a.grow} /><button type="button" className={a.ghostBtn} onClick={() => setResetOpen(true)} title={L("Kosongkan actual / generate ulang untuk 1 bulan atau rentang tanggal", "Clear actuals / rebuild for a month or date range")}>⟲ {L("Reset periode", "Reset period")}</button></>}
       </div>
+      {resetOpen && <GaResetModal lang={lang} periode={periodeOf(date)} teams={teams} onClose={() => setResetOpen(false)} onChanged={() => { load(); onChanged(); }} />}
 
       {err && <div className={a.msgErr}>{err}</div>}
       {msg && <div className={a.msgOk}>{msg}</div>}
@@ -224,6 +228,7 @@ export function GaMaster({ lang, jobs, manpower, periode, editable, onChanged }:
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const today = toLocalISODate(new Date());
   const curPeriode = periodeOf(today);
 
@@ -269,6 +274,7 @@ export function GaMaster({ lang, jobs, manpower, periode, editable, onChanged }:
           <>
             <button type="button" className={a.ghostBtn} disabled={busy} onClick={() => genMonth(periode, false)} title={L("Tambah jadwal yang belum ada (tidak mengubah yang sudah ada)", "Add missing schedule entries")}>🗓️ {L("Generate", "Generate")} {perLabel(periode)}</button>
             <button type="button" className={a.ghostBtn} disabled={busy} onClick={() => genMonth(periode, true)} title={L("Terapkan perubahan master ke jadwal yang belum diisi", "Apply master changes to empty entries")}>♻️ {L("Perbarui jadwal", "Refresh schedule")}</button>
+            <button type="button" className={a.ghostBtn} disabled={busy} onClick={() => setResetOpen(true)} title={L("Reset actual atau generate ulang jadwal untuk 1 bulan / rentang tanggal", "Reset actuals or rebuild the schedule for a month / date range")}>⟲ {L("Reset periode", "Reset period")}</button>
             <button type="button" className={a.primary} onClick={() => setJob({ isNew: true, tim: tim !== "Semua" ? tim : "Cleaning Service", lokasi: "", tipe: "", area: "", hari: [], petugas: "", aktif: true, catatan: "" })}>+ {L("Pekerjaan", "Job")}</button>
           </>
         )}
@@ -277,6 +283,7 @@ export function GaMaster({ lang, jobs, manpower, periode, editable, onChanged }:
 
       {err && <div className={a.msgErr}>{err}</div>}
       {msg && <div className={a.msgOk}>{msg}</div>}
+      {resetOpen && <GaResetModal lang={lang} periode={periode} teams={teams} onClose={() => setResetOpen(false)} onChanged={onChanged} />}
 
       {sub === "jobs" ? (
         <>

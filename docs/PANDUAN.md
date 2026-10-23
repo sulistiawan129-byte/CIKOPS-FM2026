@@ -8,7 +8,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 |---|---|---|
 | `supabase/01_dasar.sql` | Semua migrasi lama (skema inti + bagian 001 … 038): driver, armada, tugas, klaim, kantin, gift, gate, security, kalender, ATK, Cleaning & Gardening, Command Center, Receptionist, TGA | **Sudah berjalan di production** — tidak perlu diulang. Cari `## BAGIAN 0xx` untuk melihat migrasi tertentu |
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
-| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime) | **Jalankan sekali, sesudah file 02.** Aman diulang |
+| `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime), 047 reset periode Cleaning & Gardening | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -443,6 +443,23 @@ Dashboard di Excel tetap dibuat oleh `modGA` seperti biasa.
 
 > Perubahan yang diketik langsung di Excel **akan ditimpa** saat tarik
 > berikutnya. Selalu ubah datanya di CIKOPS.
+
+### Reset periode — input ulang actual / generate ulang (bagian 047)
+Tombol **⟲ Reset periode** ada di tab **Master & jadwal** dan **Checklist harian**
+(hanya saat CIKOPS sumber utama, khusus Admin ISS / Master).
+1. Pilih bulan (‹ ›).
+2. Pilih yang direset:
+   - **Reset actual** — semua input ✓ / ✕ dikosongkan, jadwal tetap. SPV mengisi ulang dari Checklist harian.
+   - **Generate ulang jadwal** — jadwal + actual dihapus lalu dibuat ulang dari Master pekerjaan terbaru
+     (pakai ini bila master pekerjaan/hari berubah dan jadwal lama mau diganti total).
+3. Cakupan: **1 bulan penuh** atau **rentang tanggal**, dan **semua tim** / satu tim.
+4. Cek pratinjau jumlah data → ketik `RESET` → jalankan.
+- Setiap reset disalin otomatis. Salah reset? Klik **Batalkan** (di layar hasil atau di **Riwayat reset**).
+  Batalkan reset actual hanya mengisi baris yang masih kosong, jadi input baru tidak tertimpa;
+  batalkan generate ulang mengembalikan jadwal + actual persis seperti sebelum reset.
+- Disimpan 30 riwayat reset terakhir.
+- Bedanya dengan **♻️ Perbarui jadwal**: tombol itu hanya mengganti jadwal yang *belum diisi*;
+  Reset periode juga bisa menghapus yang *sudah diisi*.
 
 ### Kembali ke mode Excel
 
