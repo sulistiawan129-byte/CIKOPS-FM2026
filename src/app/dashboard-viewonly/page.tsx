@@ -3,7 +3,7 @@
 /**
  * /dashboard-viewonly — FM COMMAND CENTER (tanpa login, hanya lihat).
  * Layar TV kantor: data BERJALAN (hari ini + total bulan berjalan), berganti otomatis.
- *   1 Ringkasan  2 Fleet live (papan driver)  3 Fleet & Gate  4 Kantin  5 ATK  6 Pelanggaran / NC  7 Receptionist
+ *   1 Ringkasan  2 Fleet live (papan driver)  3 Fleet & Gate  4 TGA  5 Kantin  6 ATK  7 Pelanggaran / NC  8 Receptionist
  * Tanpa data bernominal (Rp) & tanpa nama driver — aman untuk layar publik.
  * Data: RPC get_fm_snapshot (migrasi 028) + /api/gc-nc?board=1, polling 60 dtk.
  * URL: ?tab=nc (mulai di tab tertentu), ?rotate=0 (tanpa rotasi), ?sec=30 (lama rotasi, detik).
@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
-import { getFmSnapshot, getNcBoard, getRcpBoard } from "@/lib/fm/api";
-import { computeFm, fmtMin, nf, pct, TARGET, type AreaCard, type Bar, type FmSnapshot, type FmView, type NcBoard, type RcpBoard, type Status } from "@/lib/fm/model";
+import { getFmSnapshot, getNcBoard, getRcpBoard, getTgaBoard } from "@/lib/fm/api";
+import { computeFm, fmtMin, nf, pct, TARGET, type AreaCard, type Bar, type FmSnapshot, type FmView, type NcBoard, type RcpBoard, type Status, type TgaBoard } from "@/lib/fm/model";
 import OpsBoard from "./OpsBoard";
 import s from "./fm.module.css";
 
@@ -23,6 +23,7 @@ const TABS = [
   { id: "rapor", label: "Ringkasan hari ini", dot: "#5b8cff" },
   { id: "ops", label: "Fleet live", dot: "#22d3ee" },
   { id: "fleet", label: "Fleet & Gate", dot: "#5b8cff" },
+  { id: "tga", label: "TGA", dot: "#fb923c" },
   { id: "canteen", label: "Kantin", dot: "#34d399" },
   { id: "atk", label: "ATK", dot: "#fbbf24" },
   { id: "nc", label: "Pelanggaran / NC", dot: "#fb7185" },
@@ -39,6 +40,7 @@ export default function CommandCenterPage() {
   const [snap, setSnap] = useState<FmSnapshot | null>(null);
   const [nc, setNc] = useState<NcBoard | null>(null);
   const [rcp, setRcp] = useState<RcpBoard | null>(null);
+  const [tga, setTga] = useState<TgaBoard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [tab, setTab] = useState<TabId>("rapor");
@@ -67,8 +69,9 @@ export default function CommandCenterPage() {
   }, []);
 
   const load = useCallback(async () => {
-    const [a, b, c] = await Promise.allSettled([getFmSnapshot(), getNcBoard(), getRcpBoard()]);
+    const [a, b, c, d] = await Promise.allSettled([getFmSnapshot(), getNcBoard(), getRcpBoard(), getTgaBoard()]);
     if (c.status === "fulfilled") setRcp(c.value);
+    if (d.status === "fulfilled") setTga(d.value);
     if (a.status === "fulfilled") { setSnap(a.value); setError(null); setLoadedAt(Date.now()); }
     else setError(a.reason instanceof Error ? a.reason.message : "Gagal memuat data");
     if (b.status === "fulfilled") setNc(b.value);
@@ -106,7 +109,7 @@ export default function CommandCenterPage() {
   };
 
   const minute = now ? Math.floor(now.getTime() / 60000) : 0;
-  const v: FmView | null = useMemo(() => (snap ? computeFm(snap, nc, Date.now(), rcp) : null), [snap, nc, rcp, minute]); // eslint-disable-line react-hooks/exhaustive-deps
+  const v: FmView | null = useMemo(() => (snap ? computeFm(snap, nc, Date.now(), rcp, tga) : null), [snap, nc, rcp, tga, minute]); // eslint-disable-line react-hooks/exhaustive-deps
   const ago = loadedAt && now ? Math.max(0, Math.round((now.getTime() - loadedAt) / 1000)) : null;
 
   return (
@@ -164,6 +167,7 @@ export default function CommandCenterPage() {
               {tab === "atk" && <Atk v={v} />}
               {tab === "nc" && <Nc v={v} />}
               {tab === "rcp" && <Rcp v={v} />}
+              {tab === "tga" && <Tga v={v} />}
             </>
           )}
         </main>
@@ -259,9 +263,9 @@ function KpiStrip({ items }: { items: { label: string; value: string; sub: strin
     </div>
   );
 }
-function Chart({ title, note, bars }: { title: string; note?: string; bars: Bar[] }) {
+function Chart({ title, note, bars, flex }: { title: string; note?: string; bars: Bar[]; flex?: number }) {
   return (
-    <div className={`${s.card} ${s.chart}`}>
+    <div className={`${s.card} ${s.chart}`} style={flex ? { flex } : undefined}>
       <div className={s.cardHead}><span className={s.title}>{title}</span>{note && <small>{note}</small>}</div>
       <div className={s.chartBody}><Bars bars={bars} height="100%" /></div>
     </div>
@@ -583,6 +587,78 @@ function Rcp({ v }: { v: FmView }) {
           </div>
         </Card>
       </div>
+    </>
+  );
+}
+
+/* ════════════════ 4 · TGA (teknisi GA) ════════════════ */
+const TGA_ST: Record<string, { label: string; st: Status | "info" }> = {
+  baru: { label: "Menunggu", st: "perhatian" }, proses: { label: "Dikerjakan", st: "info" },
+  pending: { label: "Pending", st: "na" }, butuh_part: { label: "Butuh part", st: "kritis" },
+};
+const sinceMin = (iso: string | null) => (iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)) : 0);
+
+function Tga({ v }: { v: FmView }) {
+  const t = v.tga;
+  if (!t) return <div className={s.empty}>Ringkasan TGA belum aktif — jalankan supabase/04_aplikasi_lapangan.sql (bagian 048).</div>;
+  const pool = t.open.filter((x) => x.status === "baru" && x.pool).length;
+  const work = t.open.filter((x) => x.status !== "baru").length;
+  const maxCat = Math.max(1, ...t.cats.map((c) => c.n));
+  const maxTech = Math.max(1, ...t.techs_month.map((c) => c.n));
+  return (
+    <>
+      <KpiStrip items={[
+        { label: "Pekerjaan terbuka", value: nf(t.open.length), sub: `${nf(pool)} belum diambil · ${nf(work)} dikerjakan`, c: t.urgent ? C.bad : t.waiting ? C.warn : C.blue },
+        { label: "Teknisi available", value: `${nf(t.free)} / ${nf(t.technicians.length)}`, sub: `${nf(t.busy)} sedang busy`, c: t.free ? C.ok : C.warn },
+        { label: "Selesai hari ini", value: nf(t.done_today), sub: `${nf(t.in_today)} pekerjaan tercatat hari ini`, c: C.cyan },
+        { label: "Selesai bulan ini", value: nf(t.month_done), sub: `dari ${nf(t.month_total)} · rata-rata ${t.avg_min !== null ? fmtMin(t.avg_min) : "–"} / pekerjaan`, c: C.violet },
+      ]} />
+      <div className={s.grid3}>
+        <Card title="Status teknisi" note={`${nf(t.free)} available · ${nf(t.busy)} busy`}>
+          {t.technicians.length === 0 ? <div className={s.empty}>Belum ada akun teknisi.</div> : (
+            <ul className={s.list}>
+              {t.technicians.map((x) => (
+                <li key={x.nama} className={s.li} style={{ alignItems: "flex-start" }}>
+                  <Pill st={x.busy ? "kritis" : "baik"}>{x.busy ? "Busy" : "Available"}</Pill>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <b>{x.nama}</b>
+                    <span className={s.muted} style={{ display: "block" }}>
+                      {x.busy ? `${x.ref} · ${x.activity ?? ""}${x.lokasi ? ` · ${x.lokasi}` : ""} · ${fmtMin(sinceMin(x.since))}` : `${nf(x.done_today)} selesai hari ini${x.open ? ` · ${nf(x.open)} antre` : ""}`}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card title="Pekerjaan terbuka" note={t.open.length ? `${nf(t.open.length)} pekerjaan` : undefined}>
+          {t.open.length === 0 ? <div className={s.empty}>Tidak ada pekerjaan terbuka. 👍</div> : (
+            <ul className={s.list}>
+              {t.open.map((x) => (
+                <li key={x.ref} className={s.li} style={{ alignItems: "flex-start" }}>
+                  <Pill st={x.urgent && x.status === "baru" ? "kritis" : TGA_ST[x.status]?.st ?? "na"}>{x.urgent ? "Urgent" : TGA_ST[x.status]?.label ?? x.status}</Pill>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <b>{x.activity}</b>
+                    <span className={s.muted} style={{ display: "block" }}>
+                      {[x.ref, x.lokasi, x.dept, x.status === "baru" ? (x.pool ? "belum diambil" : `menunggu ${x.tga || "teknisi"}`) : x.tga].filter(Boolean).join(" · ")} · {fmtMin(sinceMin(x.status === "baru" ? x.at : x.accepted ?? x.at))}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card title={`Jenis pekerjaan · ${v.monthLabel}`}>
+          {t.cats.length === 0 ? <div className={s.empty}>Belum ada pekerjaan bulan ini.</div> : (
+            <div className={s.meters}>
+              {t.cats.map((c) => <Meter key={c.k} name={c.k} value={`${nf(c.n)} pekerjaan`} frac={c.n / maxCat} />)}
+              {t.techs_month.length > 0 && <div className={s.lbl} style={{ marginTop: ".6rem" }}>Selesai per teknisi</div>}
+              {t.techs_month.map((c) => <Meter key={`t-${c.k}`} name={c.k} value={nf(c.n)} frac={c.n / maxTech} color="var(--acc2)" />)}
+            </div>
+          )}
+        </Card>
+      </div>
+      <Chart title={`Pekerjaan TGA selesai per hari · ${v.monthLabel}`} note={`total ${nf(t.month_done)} selesai`} bars={t.daily} flex={0.6} />
     </>
   );
 }
