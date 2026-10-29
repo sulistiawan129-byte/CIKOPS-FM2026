@@ -4,10 +4,12 @@
 import type { Plant } from "./types";
 
 const pick = (v: string | undefined, d: string) => (v && v.trim() ? v.trim() : d);
+/** Deployment MOCKUP (backend tiruan) otomatis memakai identitas perusahaan fiktif. */
+const MOCK = process.env.NEXT_PUBLIC_MOCK_BACKEND === "1";
 
-const company = pick(process.env.NEXT_PUBLIC_COMPANY_NAME, "PT Frisian Flag Indonesia");
-const plantCik = pick(process.env.NEXT_PUBLIC_PLANT_CIK_NAME, "Cikarang");
-const plantPrb = pick(process.env.NEXT_PUBLIC_PLANT_PRB_NAME, "Pasar Rebo");
+const company = pick(process.env.NEXT_PUBLIC_COMPANY_NAME, MOCK ? "PT Nusantara Prima Industri" : "PT Frisian Flag Indonesia");
+const plantCik = pick(process.env.NEXT_PUBLIC_PLANT_CIK_NAME, MOCK ? "Cikupa" : "Cikarang");
+const plantPrb = pick(process.env.NEXT_PUBLIC_PLANT_PRB_NAME, MOCK ? "Parung" : "Pasar Rebo");
 
 export const BRAND = {
   /** "PT Frisian Flag Indonesia" */
@@ -16,12 +18,12 @@ export const BRAND = {
   companyWithSite: `${company.replace(/^PT\.?\s+/i, "PT. ")} - Plant ${plantCik}`,
   plantName: { CIK: plantCik, PRB: plantPrb } as Record<Plant, string>,
   /** Nama admin di bukti permintaan / tanda terima */
-  adminName: pick(process.env.NEXT_PUBLIC_ADMIN_NAME, "Sulistiawan"),
+  adminName: pick(process.env.NEXT_PUBLIC_ADMIN_NAME, MOCK ? "Rina Kusuma" : "Sulistiawan"),
   adminDept: pick(process.env.NEXT_PUBLIC_ADMIN_DEPT, "Facility Management"),
   /** Titik tengah peta pom bensin [lat, lng] */
   mapCenter: (() => {
     const v = (process.env.NEXT_PUBLIC_MAP_CENTER ?? "").split(",").map(Number);
-    return (v.length === 2 && v.every((x) => Number.isFinite(x)) ? v : [-6.2607, 107.1525]) as [number, number];
+    return (v.length === 2 && v.every((x) => Number.isFinite(x)) ? v : MOCK ? [-6.2357, 106.5106] : [-6.2607, 107.1525]) as [number, number];
   })(),
 };
 
@@ -31,7 +33,9 @@ export const plantFull = (p: Plant | string | null | undefined) => `Plant ${BRAN
 export const plantShort = (p: Plant | string | null | undefined) => BRAND.plantName[(p === "PRB" ? "PRB" : "CIK") as Plant];
 
 /** Deployment DEMO: data fiktif, tombol masuk cepat per role, pita "DEMO". */
-export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1" || MOCK;
+/** Backend tiruan di browser — tanpa Supabase, tanpa login. */
+export const MOCK_MODE = MOCK;
 /** Password semua akun demo (lihat supabase/05_data_demo.sql). */
 export const DEMO_PASSWORD = pick(process.env.NEXT_PUBLIC_DEMO_PASSWORD, "Demo2026!");
 

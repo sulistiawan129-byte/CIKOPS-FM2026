@@ -1,9 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createMockClient } from "./mock/client";
+
+/** Deployment MOCKUP: seluruh aplikasi berjalan dengan backend tiruan di browser (tanpa Supabase & tanpa login). */
+export const MOCK_BACKEND = process.env.NEXT_PUBLIC_MOCK_BACKEND === "1";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!MOCK_BACKEND && (!supabaseUrl || !supabaseAnonKey)) {
   // Tidak melempar error keras saat build, tapi beri sinyal jelas di console.
   // eslint-disable-next-line no-console
   console.warn(
@@ -27,7 +31,7 @@ function safeStorage(): Storage | undefined {
   }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase: SupabaseClient = MOCK_BACKEND ? (createMockClient() as SupabaseClient) : createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: safeStorage(),
     persistSession: safeStorage() !== undefined,
