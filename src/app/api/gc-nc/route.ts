@@ -36,7 +36,8 @@ class HttpErr extends Error { constructor(public status: number, msg: string) { 
 
 const env = (k: string) => (process.env[k] || "").trim();
 /** Deployment DEMO: semua data G-C / Security Desk fiktif, tanpa koneksi ke luar. */
-const DEMO = env("NEXT_PUBLIC_DEMO_MODE") === "1";
+const MOCK = env("NEXT_PUBLIC_MOCK_BACKEND") === "1";
+const DEMO = env("NEXT_PUBLIC_DEMO_MODE") === "1" || MOCK;
 
 let gcClient: SupabaseClient | null = null;
 let gcUntil = 0;
@@ -143,7 +144,8 @@ export async function GET(req: Request) {
       try { return json(await boardSummary(await gc(), plant)); }
       catch (e) { console.error("gc-nc board:", e); return json({ ok: false, error: "Data G-C belum tersedia." }, e instanceof HttpErr ? e.status : 500); }
     }
-    await requireDashboardUser(req);
+    // Mockup: tidak ada Supabase untuk memeriksa sesi → data fiktif langsung
+    if (!MOCK) await requireDashboardUser(req);
     if (DEMO) {
       if (u.searchParams.get("ping")) return json({ ok: true, mode: "demo", plant: "DEMO", latest: new Date().toISOString(), total: 120 });
       if (u.searchParams.get("sd")) {

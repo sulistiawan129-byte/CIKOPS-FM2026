@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "@/components/fieldapp/fieldapp.module.css";
 import { BottomNav, NavBtn, PullIndicator, Skeleton, SuccessScreen, SunMoon, haptic, useOnline, usePullRefresh } from "@/components/fieldapp/FieldKit";
 import { useTheme } from "@/lib/providers";
-import { DEMO_MODE, DEMO_TGA_PIN } from "@/lib/brand";
+import { DEMO_MODE, DEMO_TGA_PIN, MOCK_MODE } from "@/lib/brand";
 import { autoEnableNative, createRinger, enablePush, disablePush, pushState, testPush, type PushState } from "@/lib/push";
 import {
   TGA_CATEGORIES, TGA_SOURCE_LABEL, TGA_STATUS, isSessionError, tgaAccept, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
@@ -108,6 +108,7 @@ export default function TgaAppPage() {
   const flash = useCallback((m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); }, []);
 
   const signOut = useCallback(async (msg?: string) => {
+    if (MOCK_MODE) { try { sessionStorage.setItem("cikops_mock_tga_out", "1"); } catch { /* abaikan */ } }
     const tk = token;
     setToken(""); setData(null); setForm(null); setDetail(null); setTab("home"); setScreen("login");
     if (tk) await tgaLogout(tk).catch(() => {});
@@ -363,6 +364,8 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
   useEffect(() => {
     tgaNames().then((n) => {
       setNames(n);
+      // Mockup: langsung masuk sebagai teknisi pertama (tanpa login); keluar untuk ganti teknisi
+      if (MOCK_MODE && n.length && !sessionStorage.getItem("cikops_mock_tga_out")) { tgaLogin(n[0], DEMO_TGA_PIN).then((r) => onDone(r.token)).catch(() => {}); }
       try { const last = localStorage.getItem("cikops_tga_name"); if (last && n.includes(last)) { setNama(last); } } catch {}
     }).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, []);
