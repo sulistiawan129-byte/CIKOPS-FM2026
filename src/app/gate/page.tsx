@@ -13,12 +13,13 @@ import {
 } from "@/lib/api";
 import type { GateDriverOption, GateVehicleOption, Plant, VehicleGateLog } from "@/lib/types";
 import s from "./gate.module.css";
+import { plantFull, plantShort } from "@/lib/brand";
 
 type Mode = "light" | "dark";
 type Tab = "active" | "done" | "all";
 type PlantF = "all" | Plant;
 
-const DEFAULT_TUJUAN = ["Plant Pasar Rebo", "Bank", "Customer", "Bengkel / Servis", "Kantor Pusat"];
+const DEFAULT_TUJUAN = [plantFull("PRB"), "Bank", "Customer", "Bengkel / Servis", "Kantor Pusat"];
 const PAGE = 12;
 
 /* ── util waktu (zona lokal, bukan UTC) ── */
@@ -243,7 +244,7 @@ export default function GatePage() {
       <header className={s.head}>
         <div className={s.brand}>
           <img src="/logo.png" alt="CIKOPS FM" />
-          <div><b>Gate Control</b><small>Pos Security · Plant Cikarang</small></div>
+          <div><b>Gate Control</b><small>Pos Security · {plantFull("CIK")}</small></div>
         </div>
         <span className={s.grow} />
         <div className={s.clock} aria-live="off"><b>{now ? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : "--:--:--"}</b><span>WIB</span></div>
@@ -275,7 +276,7 @@ export default function GatePage() {
             <small>{cikOut > 0 && <span className={s.pulse} />}CIK di luar</small><b>{cikOut}</b><em>kendaraan sedang trip</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "PRB" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-prb)" }} onClick={() => kpiSet("active", "PRB")}>
-            <small>{prbIn > 0 && <span className={s.pulse} />}PRB di dalam</small><b>{prbIn}</b><em>kendaraan Pasar Rebo di CIK</em>
+            <small>{prbIn > 0 && <span className={s.pulse} />}PRB di dalam</small><b>{prbIn}</b><em>kendaraan {plantShort("PRB")} di CIK</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "done" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-green)" }} onClick={() => kpiSet("done", "all")}>
             <small>Selesai</small><b>{done.length}</b><em>trip tuntas {isToday ? "hari ini" : ""}</em>
@@ -330,7 +331,7 @@ export default function GatePage() {
             {selected && (
               <div className={`${s.dir} ${selected.plant === "PRB" ? s.dirPrb : s.dirCik}`}>
                 <i>{selected.plant === "PRB" ? I.in : I.out}</i>
-                <div><b>{selected.plant === "PRB" ? "MASUK CIK" : "KELUAR PLANT"}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · {selected.plant === "PRB" ? "Kendaraan Pasar Rebo" : "Kendaraan Cikarang"}</small></div>
+                <div><b>{selected.plant === "PRB" ? "MASUK CIK" : "KELUAR PLANT"}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · Kendaraan {plantShort(selected.plant)}</small></div>
                 <span className={s.plate} style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)", fontWeight: 800, fontSize: 15, padding: "6px 10px", borderRadius: 8, border: "2px solid currentColor", whiteSpace: "nowrap" }}>{selected.nopol}</span>
               </div>
             )}

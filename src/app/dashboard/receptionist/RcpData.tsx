@@ -15,6 +15,7 @@ import type { RcpEmployee, WifiAccount } from "@/lib/receptionist/model";
 import { Accounts } from "./RcpWifi";
 import { ExportButtons, col, hueOf, initialsOf } from "./shared";
 import r from "./receptionist.module.css";
+import { plantShort } from "@/lib/brand";
 
 type Sub = "employees" | "wifi" | "drivers";
 
@@ -364,7 +365,7 @@ function DriverModal({ d, onClose, onSaved }: { d: Driver | null; onClose: () =>
               <label className={r.field}><span>Jabatan user</span><input className={r.input} value={v.userTitle} onChange={(e) => set("userTitle", e.target.value)} /></label>
             </>
           )}
-          <div className={r.field}><span>Plant</span><div className={r.chips}>{(["CIK", "PRB"] as Plant[]).map((p) => <button key={p} type="button" className={r.chip} aria-pressed={v.plant === p} onClick={() => set("plant", p)}>{p === "CIK" ? "Cikarang" : "Pasar Rebo"}</button>)}</div></div>
+          <div className={r.field}><span>Plant</span><div className={r.chips}>{(["CIK", "PRB"] as Plant[]).map((p) => <button key={p} type="button" className={r.chip} aria-pressed={v.plant === p} onClick={() => set("plant", p)}>{plantShort(p)}</button>)}</div></div>
           <div className={r.field}><span>Status</span><label className={r.check} style={{ height: 40 }}><button type="button" role="switch" aria-checked={v.aktif} className={r.switch} onClick={() => set("aktif", !v.aktif)} /> {v.aktif ? "Aktif" : "Nonaktif"}</label></div>
           <div className={r.section}>Keamanan</div>
           <label className={`${r.field} ${r.full}`}><span>{d ? "PIN baru" : "PIN *"} <em>{d ? "(kosongkan bila tidak diganti)" : "(minimal 4 angka)"}</em></span>

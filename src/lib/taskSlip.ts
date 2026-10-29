@@ -11,6 +11,7 @@
 
 import type { TaskDetail, TaskStatus } from "./types";
 import { plantLocation, isAutoCompleted } from "./types";
+import { BRAND, plantFull } from "./brand";
 
 const esc = (v: unknown) =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
@@ -43,7 +44,7 @@ function fmtStamp(iso: string): string {
 }
 
 function plantName(p: string): string {
-  return p === "PRB" ? "Plant Pasar Rebo" : "Plant Cikarang";
+  return plantFull(p);
 }
 
 function slip(t: TaskDetail, printedAt: string, printedBy: string): string {
@@ -60,7 +61,7 @@ function slip(t: TaskDetail, printedAt: string, printedBy: string): string {
     <header class="head">
       <div class="brand">
         <div>
-          <b>PT FRISIAN FLAG INDONESIA</b>
+          <b>${esc(BRAND.company.toUpperCase())}</b>
           <span>${esc(plantName(t.plant))}</span>
         </div>
       </div>

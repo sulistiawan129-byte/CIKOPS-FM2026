@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import styles from "./claims.module.css";
 import type { Claim } from "@/lib/types";
+import { plantShort } from "@/lib/brand";
 
 /* ───────────────────────── kategori ───────────────────────── */
 
@@ -493,7 +494,7 @@ export function ClaimForm(p: ClaimFormProps) {
           {/* 4 · catatan */}
           <section className={styles.block}>
             <h3>{en ? "Note" : "Catatan"} <em>{en ? "optional" : "opsional"}</em></h3>
-            <input className={styles.search} value={p.note} onChange={(e) => p.setNote(e.target.value)} placeholder={en ? "e.g. trip to Pasar Rebo" : "mis. antar dokumen ke Pasar Rebo"} />
+            <input className={styles.search} value={p.note} onChange={(e) => p.setNote(e.target.value)} placeholder={en ? `e.g. trip to ${plantShort("PRB")}` : `mis. antar dokumen ke ${plantShort("PRB")}`} />
           </section>
         </div>
 

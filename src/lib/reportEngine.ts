@@ -4,6 +4,7 @@
  *  logic CSV/Excel/PDF-nya sama untuk semua, jadi tidak perlu ditulis
  *  ulang tiap modul.
  * ════════════════════════════════════════════════════════════ */
+import { BRAND } from "./brand";
 
 export type ReportLang = "id" | "en";
 
@@ -32,7 +33,7 @@ export interface GenericReportOptions<T> {
   summaryRows?: { label: string; value: string | number }[];
 }
 
-const COMPANY_NAME = "PT. Frisian Flag Indonesia - Plant Cikarang";
+const COMPANY_NAME = BRAND.companyWithSite;
 const SYSTEM_NAME = "CIKOPS Fleet Management";
 
 function colLabel<T>(c: ReportColumn<T>, lang: ReportLang): string {

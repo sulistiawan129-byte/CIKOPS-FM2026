@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppProviders } from "@/lib/providers";
 import { AuthProvider } from "@/lib/auth";
 import GlobalBack from "@/components/GlobalBack";
+import DemoRibbon from "@/components/DemoRibbon";
 
 const spaceMono = Space_Mono({
   subsets: ["latin"],
@@ -86,6 +87,7 @@ export default function RootLayout({
         <AppProviders>
           <AuthProvider>
             <GlobalBack />
+            <DemoRibbon />
             {children}
           </AuthProvider>
         </AppProviders>

@@ -16,6 +16,7 @@ import { getFmSnapshot, getNcBoard, getRcpBoard, getTgaBoard } from "@/lib/fm/ap
 import { computeFm, fmtMin, nf, pct, TARGET, type AreaCard, type Bar, type FmSnapshot, type FmView, type NcBoard, type RcpBoard, type Status, type TgaBoard } from "@/lib/fm/model";
 import OpsBoard from "./OpsBoard";
 import s from "./fm.module.css";
+import { plantFull, plantShort } from "@/lib/brand";
 
 const POLL_MS = 60000;
 const THEME_KEY = "cikops_cc_theme";
@@ -120,7 +121,7 @@ export default function CommandCenterPage() {
           <img className={s.logo} src="/logo.png" alt="CIKOPS FM" />
           <div>
             <div className={s.bName}>FM Command Center</div>
-            <div className={s.bSub}>Facility Management · Plant Cikarang &amp; Pasar Rebo</div>
+            <div className={s.bSub}>Facility Management · {plantFull("CIK")} &amp; {plantShort("PRB")}</div>
           </div>
         </div>
         <span className={s.grow} />

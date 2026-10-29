@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import type { GasStation } from "@/lib/types";
+import { BRAND } from "@/lib/brand";
 
 // Custom gold pin icon (Sky & Gold theme) built as a DivIcon so it doesn't
 // depend on Leaflet's default marker image assets (which don't resolve
@@ -71,7 +72,7 @@ function FlyToStation({
   return null;
 }
 
-const DEFAULT_CENTER: [number, number] = [-6.2607, 107.1525]; // Cikarang area
+const DEFAULT_CENTER: [number, number] = BRAND.mapCenter;
 
 export default function GasStationMap({
   stations,

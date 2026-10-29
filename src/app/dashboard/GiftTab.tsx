@@ -14,6 +14,7 @@ import { useLang } from "@/lib/providers";
 import { toLocalISODate } from "@/lib/dateUtils";
 import of from "./opfund.module.css";
 import { SkeletonRows } from "./TaskModals";
+import { BRAND } from "@/lib/brand";
 
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
@@ -196,7 +197,7 @@ async function exportGiftReportExcel2Sheets(opts: {
   // ── Sheet 1: Ringkasan ──
   const wsSummary = wb.addWorksheet(L("Ringkasan", "Summary"));
   let row = 1;
-  wsSummary.getCell(row, 1).value = "PT. Frisian Flag Indonesia - Plant Cikarang";
+  wsSummary.getCell(row, 1).value = BRAND.companyWithSite;
   wsSummary.getCell(row, 1).font = { bold: true, size: 13 };
   row++;
   wsSummary.getCell(row, 1).value = `${L("Laporan Pembagian", "Distribution Report")} — ${opts.eventName}`;

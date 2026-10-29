@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import type { Claim, Driver, DriverTier, Plant, TaskDetail, Vehicle } from "@/lib/types";
 import o from "./overview.module.css";
+import { plantFull } from "@/lib/brand";
 
 export type OverviewGo = "tasks" | "vehicles" | "claims" | "opfund" | "driverbudget" | "canteen" | "locker" | "gasstations";
 
@@ -181,7 +182,7 @@ export function OverviewBoard({
         <div className={o.headText}>
           <span className={o.eyebrow}>{dateLabel} · diperbarui {timeLabel}</span>
           <h1>Ringkasan operasional</h1>
-          <p>{userName ? `Halo ${userName.split(" ")[0]}, ini` : "Ini"} kondisi armada, keuangan, dan fasilitas {plant === "all" ? "semua plant" : plant === "CIK" ? "Plant Cikarang" : "Plant Pasar Rebo"}.</p>
+          <p>{userName ? `Halo ${userName.split(" ")[0]}, ini` : "Ini"} kondisi armada, keuangan, dan fasilitas {plant === "all" ? "semua plant" : plantFull(plant)}.</p>
         </div>
         <div className={o.filters}>
           {!lockedPlant && (
@@ -285,7 +286,7 @@ export function OverviewBoard({
             const low = f.budget > 0 && f.cash / f.budget < 0.2;
             return (
               <button key={f.plant} type="button" className={o.fund} onClick={() => onGo("opfund")}>
-                <span className={o.fundTop}><b>{f.plant === "CIK" ? "Plant Cikarang" : "Plant Pasar Rebo"}</b><span className={low ? o.inkBad : ""}>{Math.round(p)}% tersisa</span></span>
+                <span className={o.fundTop}><b>{plantFull(f.plant)}</b><span className={low ? o.inkBad : ""}>{Math.round(p)}% tersisa</span></span>
                 <span className={o.bar}><i className={low ? o.barBad : ""} style={{ width: `${p}%` }} /></span>
                 <span className={o.fundFoot}><span>Tersedia <b>{rp(f.cash)}</b></span><span>dari {rp(f.budget)}</span></span>
               </button>

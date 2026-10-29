@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "@/components/fieldapp/fieldapp.module.css";
 import { BottomNav, NavBtn, PullIndicator, Skeleton, SuccessScreen, SunMoon, haptic, useOnline, usePullRefresh } from "@/components/fieldapp/FieldKit";
 import { useTheme } from "@/lib/providers";
+import { DEMO_MODE, DEMO_TGA_PIN } from "@/lib/brand";
 import { autoEnableNative, createRinger, enablePush, disablePush, pushState, testPush, type PushState } from "@/lib/push";
 import {
   TGA_CATEGORIES, TGA_SOURCE_LABEL, TGA_STATUS, isSessionError, tgaAccept, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
@@ -439,7 +440,7 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
                 </button>
               ))}
             </div>
-            <p className={s.hint}>Lupa PIN? Hubungi admin GA untuk reset.</p>
+            <p className={s.hint}>{DEMO_MODE ? <>Demo: PIN semua teknisi <b>{DEMO_TGA_PIN}</b></> : "Lupa PIN? Hubungi admin GA untuk reset."}</p>
           </>
         )}
       </div>

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import s from "./tugas.module.css";
 import { useTheme } from "@/lib/providers";
+import { DEMO_MODE } from "@/lib/brand";
 import { notifyTgaTask } from "@/lib/push";
 import { TGA_CATEGORIES, tgaAssignPublic, tgaAssignPublicInfo, type TgaAssignInfo } from "@/lib/tga/api";
 
@@ -63,6 +64,7 @@ export default function TugasTgaPage() {
               placeholder="••••••" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} autoFocus disabled={checking} />
             {codeErr && <div className={s.err} role="alert">{codeErr}</div>}
             <button type="submit" className={s.primary} disabled={checking || code.trim().length < 4}>{checking ? "Memeriksa…" : "Masuk →"}</button>
+            {DEMO_MODE && <small className={s.muted}>Demo: kode penugasan <b>DEMO2026</b></small>}
             <small className={s.muted}>Kode diberikan oleh admin GA. Karyawan non-GA silakan pakai <a href="/request">form permintaan</a>.</small>
           </form>
         </div>

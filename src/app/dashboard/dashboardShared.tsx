@@ -6,6 +6,7 @@ import type { Employee, Vehicle } from "@/lib/types";
 import { toLocalISODate } from "@/lib/dateUtils";
 import of from "./opfund.module.css";
 import { NavTab } from "./HomeTab";
+import { BRAND } from "@/lib/brand";
 
 export function todayStr() {
   return toLocalISODate(new Date());
@@ -210,10 +211,10 @@ export const PLANT_COLOR: Record<Plant, string> = { CIK: "var(--brand)", PRB: "v
  *  apapun (driver, toner/printer, lainnya) dari Dashboard. */
 /** Identitas dokumen resmi di bukti cetak — samakan dengan yang di
  *  src/app/request/page.tsx kalau ada pergantian administrator. */
-const RECEIPT_COMPANY_NAME = "PT. Frisian Flag Indonesia - Plant Cikarang";
+const RECEIPT_COMPANY_NAME = BRAND.companyWithSite;
 const RECEIPT_SYSTEM_NAME = "CIKOPS Fleet Management";
-const RECEIPT_ADMIN_NAME = "Sulistiawan";
-const RECEIPT_ADMIN_DEPARTMENT = "Facility Management";
+const RECEIPT_ADMIN_NAME = BRAND.adminName;
+const RECEIPT_ADMIN_DEPARTMENT = BRAND.adminDept;
 
 export function printRequestReceipt(params: {
   refId: string;

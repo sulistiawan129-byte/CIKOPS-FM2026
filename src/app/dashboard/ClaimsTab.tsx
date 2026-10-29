@@ -18,6 +18,7 @@ import { todayStr, useIsMobile, useCountUp, formatDateLabel, fmtRp, evalExpr, mo
 import { OpFundTab } from "./OpFundTab";
 import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
+import { plantShort } from "@/lib/brand";
 
 /** Which of the month's 4 work-weeks (1–4) a date falls into — see
  *  monthWeekBoundaries() above for the exact rule. */
@@ -443,7 +444,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     setExportingRecap(true);
     try {
       const label = weekRangeOf(filterDate, lang).label + " " + filterDate.slice(0, 4);
-      exportTandaTerima(filtered, `Week ${weekOfMonth(filterDate)} - ${label}`, "Cikarang", driverUserIds);
+      exportTandaTerima(filtered, `Week ${weekOfMonth(filterDate)} - ${label}`, plantShort("CIK"), driverUserIds);
     } finally {
       setExportingRecap(false);
     }

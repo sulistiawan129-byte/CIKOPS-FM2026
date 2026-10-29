@@ -1,3 +1,4 @@
+import { plantFull } from "./brand";
 export type TaskStatus = "ASSIGNED" | "ON GOING" | "DONE" | "CANCELLED";
 
 export interface Driver {
@@ -384,7 +385,7 @@ export interface TaskDetail {
 
 /** Nama lokasi default sebuah plant — dipakai sebagai "Dari" untuk tugas lama. */
 export function plantLocation(plant: Plant | null | undefined): string {
-  return plant === "PRB" ? "Plant Pasar Rebo" : "Plant Cikarang";
+  return plantFull(plant);
 }
 
 export interface TaskStats {
