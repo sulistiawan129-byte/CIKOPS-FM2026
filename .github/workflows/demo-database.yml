@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   demo:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # dikunci: skrip apt PostgreSQL diuji di 24.04
     env:
       DEMO_DB_URL: ${{ secrets.DEMO_DB_URL }}
       PROD_DB_URL: ${{ secrets.CIKOPS_DB_URL }}
