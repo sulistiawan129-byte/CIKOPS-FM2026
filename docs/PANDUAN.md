@@ -10,6 +10,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
 | `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime), 047 reset periode Cleaning & Gardening, 048 ringkasan TGA di FM Command Center | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
+| `supabase/05_data_demo.sql` | Akun & data **fiktif** untuk deployment DEMO (lihat bab *Deployment DEMO*) | **Hanya di project Supabase DEMO** — berhenti sendiri bila dijalankan di database yang berisi akun asli |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -899,6 +900,73 @@ setiap menu, Security Desk, dan modul Excel. Setiap link punya tombol **Salin**,
 Setiap akun hanya melihat link untuk modul yang boleh dibukanya. **Salin semua link** menyalin
 daftar lengkap sebagai teks. Bagian **Link lainnya** untuk link di luar CIKOPS (mis. APK di
 Google Drive, SOP) — bisa ditambah/diubah oleh Master Admin & Admin GA CIK.
+
+## Deployment DEMO (presentasi ke perusahaan lain)
+Deployment terpisah dengan **database terpisah** dan perusahaan fiktif *PT Nusantara Prima Industri*
+(plant **Cikupa** & **Parung**). Data asli tidak pernah ikut: yang disalin dari produksi hanya **struktur**
+tabel/fungsi, lalu diisi data dummy lengkap untuk semua modul. Tanggal data selalu relatif hari ini
+dan disegarkan otomatis tiap pagi, jadi demo selalu terlihat "hidup".
+
+### 1. Project Supabase demo (sekali)
+1. supabase.com → **New project** → nama mis. `cikops-demo` (paket gratis cukup).
+2. Project demo → **Connect** → *Session pooler* → salin connection string (ganti `[YOUR-PASSWORD]`).
+3. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   `DEMO_DB_URL` = connection string tadi. (`CIKOPS_DB_URL` sudah ada dari Backup.)
+4. GitHub → **Actions → Demo database → Run workflow** → aksi **setup**.
+   Workflow menyalin struktur produksi (tanpa data), menjalankan file 04, lalu mengisi data demo.
+   Peringatan kuning di log = modul yang dilewati / fungsi yang memanggil URL luar — kirim ke saya bila ada.
+5. Project demo → **Authentication → URL Configuration** → *Site URL* = alamat Vercel demo (langkah 2).
+
+### 2. Project Vercel demo (sekali)
+Vercel → **Add New → Project** → impor repo yang sama → nama mis. `cikops-demo` → **Environment Variables**:
+
+| Variable | Nilai |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | dari project Supabase **demo** (Settings → API) |
+| `NEXT_PUBLIC_DEMO_MODE` | `1` |
+| `NEXT_PUBLIC_COMPANY_NAME` | `PT Nusantara Prima Industri` |
+| `NEXT_PUBLIC_PLANT_CIK_NAME` / `NEXT_PUBLIC_PLANT_PRB_NAME` | `Cikupa` / `Parung` |
+| `NEXT_PUBLIC_ADMIN_NAME` | mis. `Rina Kusuma` |
+| `NEXT_PUBLIC_MAP_CENTER` | `-6.2357,106.5106` (peta pom bensin) |
+
+**Jangan** isi `GC_*`, `SUPABASE_SERVICE_ROLE_KEY`, atau secret produksi lain. Di mode demo, data
+Security Desk & pelanggaran G-C dibuat otomatis (fiktif) tanpa koneksi ke luar.
+Deployment produksi tidak berubah: tanpa variable di atas, nama perusahaan & plant tetap seperti biasa.
+
+### 3. Akun demo (password semua: `Demo2026!`)
+Di halaman login demo ada panel **Coba akun demo** — sekali klik langsung masuk.
+
+| Akun | Role |
+|---|---|
+| `master@demo.cikops.id` | Master Admin — semua modul |
+| `ga.cik@demo.cikops.id` | Admin GA Cikupa — fleet, finance, fasilitas |
+| `ga.prb@demo.cikops.id` | Admin GA Parung |
+| `iss@demo.cikops.id` | Admin / SPV ISS — Cleaning, Gardening & TGA |
+| `security@demo.cikops.id` | Admin Security |
+| `resepsionis@demo.cikops.id` | Receptionist |
+| `manajemen@demo.cikops.id` | Management — Command Center & laporan |
+| `driver.andi@demo.cikops.id` | Aplikasi driver `/driver` (tombol *Masuk sebagai driver demo*) |
+
+Aplikasi TGA `/tga`: pilih teknisi mana saja, PIN `1234`. Form penugasan `/tugas-tga`: kode `DEMO2026`.
+Command Center publik: `/dashboard-viewonly`. Semua halaman menampilkan pita **DEMO · DATA FIKTIF**.
+
+### 4. Isi data demo
+- **Fleet:** 17 driver (pool, support, Driver User), 15 kendaraan (beberapa dokumen hampir jatuh tempo),
+  ±1.000 tugas 45 hari terakhir + hari ini + 5 hari ke depan, log gate, klaim mingguan, Self-Claim menunggu
+  verifikasi, dana operasional 4 periode, lembur, pom bensin di peta.
+- **Fasilitas:** 64 karyawan, kantin 60 hari, ATK (stok kritis & habis), 72 locker, printer & permintaan,
+  permintaan karyawan, pembagian bingkisan, pengumuman, kalender.
+- **Receptionist:** wifi tamu, paket masuk/keluar, booking Induction Room.
+- **Cleaning & Gardening:** mode CIKOPS, master pekerjaan, jadwal 2 bulan + actual, event, improvement, inventory.
+- **TGA:** 4 teknisi, ±140 pekerjaan, tugas terbuka (urgent, menunggu, butuh part).
+- **Security & NC:** dibuat otomatis oleh aplikasi (mode demo).
+
+### 5. Sehari-hari
+- Data diisi ulang otomatis tiap pagi 05.45 WIB (aksi *refresh*). Setelah presentasi yang banyak mengubah
+  data, jalankan **Run workflow → refresh** untuk kembali ke kondisi awal.
+- Perubahan kode di `main` otomatis ter-deploy ke produksi **dan** demo (dua project Vercel dari repo yang sama).
+- Fitur yang butuh Edge Function (kirim email, notifikasi HP, kelola akun) tidak aktif di demo kecuali
+  function-nya di-deploy juga ke project demo.
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro

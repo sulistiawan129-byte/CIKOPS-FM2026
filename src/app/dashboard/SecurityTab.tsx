@@ -23,6 +23,7 @@ import { SECDESK_URL, type SdReport } from "@/lib/security/secdesk";
 import { GatePanel, PersonelView } from "./SecDeskViews";
 import { CrudList, SettingsPage } from "@/components/settings/Settings";
 import s from "./security.module.css";
+import { plantFull } from "@/lib/brand";
 
 type Tab = "ringkasan" | "kendaraan" | "transporter" | "pelanggaran" | "kejadian" | "visit" | "patroli" | "personel" | "riwayat" | "pengaturan";
 const TABS: { id: Tab; label: string; check?: boolean }[] = [
@@ -196,7 +197,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
       {/* header */}
       <header className={s.head}>
         <div className={s.headText}>
-          <span className={s.kicker}>Security · Plant Cikarang</span>
+          <span className={s.kicker}>Security · {plantFull("CIK")}</span>
           <h1>Laporan Security Bulanan</h1>
           <p>{sdOn
             ? "Semua angka dibaca otomatis dari Security Desk (diisi tim security) dan pelanggaran transporter dari G-C. Tidak perlu input di sini — angka langsung masuk ke Report → Laporan Manajemen."

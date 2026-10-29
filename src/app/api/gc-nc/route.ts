@@ -27,6 +27,7 @@
 
 import { createHash } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { demoNcBoard, demoNcCases, demoSecDesk } from "@/lib/demo/externalDemo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +35,8 @@ export const dynamic = "force-dynamic";
 class HttpErr extends Error { constructor(public status: number, msg: string) { super(msg); } }
 
 const env = (k: string) => (process.env[k] || "").trim();
+/** Deployment DEMO: semua data G-C / Security Desk fiktif, tanpa koneksi ke luar. */
+const DEMO = env("NEXT_PUBLIC_DEMO_MODE") === "1";
 
 let gcClient: SupabaseClient | null = null;
 let gcUntil = 0;
@@ -134,12 +137,31 @@ export async function GET(req: Request) {
   try {
     const u = new URL(req.url);
     const plant = env("GC_PLANT") || "Cikarang";
+    if (DEMO && u.searchParams.get("board")) return json(demoNcBoard());
     if (u.searchParams.get("board")) {
       // Mode publik (layar TV): pesan error dibuat umum supaya detail internal tidak bocor
       try { return json(await boardSummary(await gc(), plant)); }
       catch (e) { console.error("gc-nc board:", e); return json({ ok: false, error: "Data G-C belum tersedia." }, e instanceof HttpErr ? e.status : 500); }
     }
     await requireDashboardUser(req);
+    if (DEMO) {
+      if (u.searchParams.get("ping")) return json({ ok: true, mode: "demo", plant: "DEMO", latest: new Date().toISOString(), total: 120 });
+      if (u.searchParams.get("sd")) {
+        const fk = u.searchParams.get("from") || "", tk = u.searchParams.get("to") || fk;
+        if (!/^\d{4}-\d{2}$/.test(fk) || !/^\d{4}-\d{2}$/.test(tk) || fk > tk) throw new HttpErr(400, "Parameter from/to tidak valid (YYYY-MM).");
+        const keys: string[] = [];
+        for (let [y, m] = fk.split("-").map(Number); keys.length < 26; m++) {
+          if (m > 12) { m = 1; y++; }
+          const k = `${y}-${String(m).padStart(2, "0")}`;
+          if (k > tk) break;
+          keys.push(k);
+        }
+        return json(demoSecDesk(keys));
+      }
+      const from = u.searchParams.get("from"), to = u.searchParams.get("to");
+      if (!isDate(from) || !isDate(to) || from! > to!) throw new HttpErr(400, "Parameter from/to tidak valid (YYYY-MM-DD).");
+      return json(demoNcCases(from!, to!));
+    }
     const db = await gc();
 
     if (u.searchParams.get("ping")) {

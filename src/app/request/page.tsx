@@ -5,15 +5,16 @@ import type { CSSProperties } from "react";
 import { submitEmployeeRequest, submitPrinterRequestPublic, getPrinterLocationsPublic } from "@/lib/api";
 import { TGA_CATEGORIES, tgaRequestPublic } from "@/lib/tga/api";
 import { notifyTgaTask } from "@/lib/push";
+import { BRAND } from "@/lib/brand";
 
 type FormKind = "DRIVER" | "PRINTER" | "TGA" | "OTHER";
 
 /** Identitas dokumen resmi di bukti cetak — ubah di sini kalau ada
  *  pergantian administrator atau data perusahaan. */
-const COMPANY_NAME = "PT. Frisian Flag Indonesia - Plant Cikarang";
+const COMPANY_NAME = BRAND.companyWithSite;
 const SYSTEM_NAME = "CIKOPS Fleet Management";
-const ADMIN_NAME = "Sulistiawan";
-const ADMIN_DEPARTMENT = "Facility Management";
+const ADMIN_NAME = BRAND.adminName;
+const ADMIN_DEPARTMENT = BRAND.adminDept;
 
 const inputStyle: CSSProperties = {
   width: "100%",

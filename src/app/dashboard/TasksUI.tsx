@@ -16,6 +16,7 @@ import { isUserDriver } from "@/lib/duty";
 import { buildTaskSlipsHtml, taskRefNo } from "@/lib/taskSlip";
 import { plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
 import type { Driver, Employee, JobType, Plant, TaskDetail, TaskStatus, Vehicle } from "@/lib/types";
+import { plantFull } from "@/lib/brand";
 
 /* ───────────────────────── util ───────────────────────── */
 
@@ -455,7 +456,7 @@ export function TaskForm(p: {
                   list="task-places"
                   value={asal}
                   onChange={(e) => { setAsal(clean(e.target.value)); setAsalTouched(true); }}
-                  placeholder="mis. Plant Cikarang, Gudang, rumah requestor"
+                  placeholder={`mis. ${plantFull("CIK")}, Gudang, rumah requestor`}
                   autoComplete="off"
                 />
               </label>

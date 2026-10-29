@@ -16,6 +16,7 @@ import {
   periodLabelOf, prevRange, setGranularity, setReportLang, tr, trendMonths,
   type Granularity, type MgmtReport, type ModuleKey, type ModuleReport, type ReportLang,
 } from "./model";
+import { BRAND, plantFull } from "../brand";
 
 export async function buildMgmtReport(p: {
   modules: ModuleKey[];
@@ -98,12 +99,12 @@ export async function buildMgmtReport(p: {
     lang,
     granularity: p.granularity || "auto",
     title: tr("Laporan Manajemen", "Management Report"),
-    company: "PT Frisian Flag Indonesia",
+    company: BRAND.company,
     periodLabel: periodLabelOf(p.from, p.to),
     prevLabel: periodLabelOf(prev.from, prev.to),
     from: p.from,
     to: p.to,
-    scopeLabel: p.plant === "PRB" ? "Plant Pasar Rebo" : p.plant === "CIK" ? "Plant Cikarang" : tr("Semua plant", "All plants"),
+    scopeLabel: p.plant === "PRB" || p.plant === "CIK" ? plantFull(p.plant) : tr("Semua plant", "All plants"),
     generatedAt: now.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" }) + " " + now.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", hour12: false }).replace(".", ":"),
     generatedBy: p.generatedBy,
     modules: out,

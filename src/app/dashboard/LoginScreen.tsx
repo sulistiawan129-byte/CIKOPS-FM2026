@@ -9,6 +9,7 @@ import l from "./login.module.css";
 import Icon from "@/components/Icon";
 import { useLang, useTheme } from "@/lib/providers";
 import { useAuth } from "@/lib/auth";
+import { DEMO_ACCOUNTS, DEMO_MODE, DEMO_PASSWORD, plantFull, plantShort } from "@/lib/brand";
 
 const EMAIL_KEY = "cikops_login_email";
 
@@ -51,13 +52,14 @@ export function LoginScreen() {
     return () => clearInterval(iv);
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e: React.FormEvent | null, demoEmail?: string) {
+    e?.preventDefault();
     if (busy) return;
     setError("");
     setBusy(true);
-    const addr = email.trim();
-    const { error: err } = await signIn(addr, password);
+    const addr = (demoEmail ?? email).trim();
+    if (demoEmail) { setEmail(demoEmail); setPassword(DEMO_PASSWORD); }
+    const { error: err } = await signIn(addr, demoEmail ? DEMO_PASSWORD : password);
     if (err) {
       setBusy(false);
       setError(/network|fetch/i.test(err) ? (en ? "No connection — check your internet." : "Tidak ada koneksi — periksa internet Anda.") : t.loginErrorGeneric);
@@ -90,7 +92,7 @@ export function LoginScreen() {
 
         <div className={l.pitch}>
           <h1>{en ? <>One system for every<br /><em>facility operation</em></> : <>Satu sistem untuk seluruh<br /><em>operasional FM</em></>}</h1>
-          <p>{en ? "Plant Cikarang & Pasar Rebo — tasks, finance, facilities and security in one place." : "Plant Cikarang & Pasar Rebo — penugasan, keuangan, fasilitas, dan keamanan di satu tempat."}</p>
+          <p>{en ? `${plantFull("CIK")} & ${plantShort("PRB")} — tasks, finance, facilities and security in one place.` : `${plantFull("CIK")} & ${plantShort("PRB")} — penugasan, keuangan, fasilitas, dan keamanan di satu tempat.`}</p>
         </div>
 
         <ul className={l.modules}>
@@ -165,6 +167,24 @@ export function LoginScreen() {
 
             <p className={l.help}>{en ? "Forgot your password? Ask the Master Admin or your team admin." : "Lupa password? Hubungi Master Admin atau admin tim Anda."}</p>
           </form>
+
+          {DEMO_MODE && (
+            <section className={l.demo} aria-label={en ? "Demo accounts" : "Akun demo"}>
+              <div className={l.demoHead}>
+                <b>{en ? "Try a demo account" : "Coba akun demo"}</b>
+                <span>{en ? "One click · all data is fictitious" : "Sekali klik · semua data fiktif"}</span>
+              </div>
+              <div className={l.demoGrid}>
+                {DEMO_ACCOUNTS.map((a) => (
+                  <button key={a.email} type="button" className={l.demoBtn} onClick={() => handleSubmit(null, a.email)} disabled={busy}>
+                    <span className={l.demoIc}><Icon name={a.icon} size={16} /></span>
+                    <span><b>{a.label}</b><small>{a.desc}</small></span>
+                  </button>
+                ))}
+              </div>
+              <p className={l.demoNote}>{en ? "Or sign in manually" : "Atau masuk manual"}: <code>master@demo.cikops.id</code> · <code>{DEMO_PASSWORD}</code></p>
+            </section>
+          )}
 
           <a href="/driver" className={l.back}>{t.loginBackToDriver}</a>
         </div>

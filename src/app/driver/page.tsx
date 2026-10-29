@@ -24,6 +24,7 @@ import { todayLocalISODate, toLocalISODate } from "@/lib/dateUtils";
 import { autoEnableNative, createRinger, disablePush, enablePush, pushState, testPush, type PushState, type PushSubData } from "@/lib/push";
 import { supabase } from "@/lib/supabaseClient";
 import { driverTypeLabel, dutyHoursLabel, getUserDutyStatus, isUserDriver, useNowTick } from "@/lib/duty";
+import { DEMO_DRIVER_EMAIL, DEMO_MODE, DEMO_PASSWORD, plantFull } from "@/lib/brand";
 
 type Screen = "splash" | "login" | "app";
 type Tab = "today" | "history" | "claims" | "profile";
@@ -430,12 +431,13 @@ function LoginScreen({ L, lang, theme, toggleTheme, setLang, onDone }: {
   const [err, setErr] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim() || !password || busy) return;
+  async function submit(e: React.FormEvent | null, demo = false) {
+    e?.preventDefault();
+    if ((!demo && (!email.trim() || !password)) || busy) return;
     setBusy(true); setErr(null);
+    if (demo) { setEmail(DEMO_DRIVER_EMAIL); setPassword(DEMO_PASSWORD); }
     try {
-      onDone(await driverSignIn(email.trim(), password));
+      onDone(await driverSignIn(demo ? DEMO_DRIVER_EMAIL : email.trim(), demo ? DEMO_PASSWORD : password));
     } catch (e2) {
       const m = e2 instanceof Error ? e2.message : "";
       setErr(m === "NOT_A_DRIVER" ? L("Akun ini bukan akun driver.", "This account is not a driver account.")
@@ -473,6 +475,11 @@ function LoginScreen({ L, lang, theme, toggleTheme, setLang, onDone }: {
           <button type="submit" className={s.primaryBtn} disabled={!email.trim() || !password || busy}>{busy ? L("Memeriksa…", "Checking…") : L("Masuk", "Sign in")}</button>
         </div>
         <p className={s.hint}>{L("Lupa password? Hubungi admin GA.", "Forgot your password? Contact the GA admin.")}</p>
+        {DEMO_MODE && (
+          <button type="button" className={s.ghostBtn} onClick={() => submit(null, true)} disabled={busy} style={{ marginTop: 10, width: "100%" }}>
+            🚗 {L("Masuk sebagai driver demo", "Sign in as demo driver")}
+          </button>
+        )}
       </form>
     </div>
   );
@@ -1001,7 +1008,7 @@ function ProfileView({ L, lang, driver, stats, theme, toggleTheme, setLang, regi
       <section className={s.profileCard}>
         <span className={`${s.avatar} ${s.avatarLg}`} style={{ ["--h" as string]: 222, fontSize: 32 }}>{driver.avatar_emoji || "🧑‍✈️"}</span>
         <b>{driver.nama}</b>
-        <small>{driverTypeLabel(driver)} · {driver.plant === "PRB" ? "Plant Pasar Rebo" : "Plant Cikarang"}</small>
+        <small>{driverTypeLabel(driver)} · {plantFull(driver.plant)}</small>
         <div className={s.profileStats}>
           <div><b>{stats.total}</b><span>{L("Tugas hari ini", "Today")}</span></div>
           <div><b>{stats.done}</b><span>{L("Selesai", "Done")}</span></div>

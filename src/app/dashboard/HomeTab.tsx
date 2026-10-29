@@ -15,6 +15,7 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import Icon from "@/components/Icon";
 import of from "./opfund.module.css";
 import { todayStr, DashboardTab, NAV_GROUPS, useCountUp } from "./dashboardShared";
+import { plantShort } from "@/lib/brand";
 
 export interface NavTab { id: DashboardTab; icon: string; labelId: string; labelEn: string; descId?: string; descEn?: string }
 export function daysUntil(dateStr: string | null | undefined): number {
@@ -556,7 +557,7 @@ export function HomeTab({
                       const going = ongoingToday.filter((t) => t.plant === pl).length;
                       return (
                         <div key={pl} className={hm.plantChip}>
-                          <span className={hm.plantName}><i className={pl === "PRB" ? hm.bPrb : hm.bCik} />{pl === "CIK" ? "Cikarang" : "Pasar Rebo"}</span>
+                          <span className={hm.plantName}><i className={pl === "PRB" ? hm.bPrb : hm.bCik} />{plantShort(pl)}</span>
                           <b>{all}<small> tugas</small></b>
                           <span className={hm.sub}>{going} berjalan</span>
                         </div>

@@ -20,6 +20,7 @@
  */
 
 import type { RincianRow } from "./claimRecap";
+import { BRAND } from "./brand";
 
 export interface WeeklyRecapRow {
   weekLabel: string;
@@ -47,7 +48,7 @@ export interface WeeklyRecapSection {
   rincianRows: RincianRow[];
 }
 
-const COMPANY_NAME = "PT. FRISIAN FLAG INDONESIA";
+const COMPANY_NAME = BRAND.company.toUpperCase();
 
 function recapDocTitle(): string {
   return `REKAPITULASI BIAYA OPERASIONAL KENDARAAN ${new Date().getFullYear()}`;

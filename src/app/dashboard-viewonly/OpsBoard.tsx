@@ -41,6 +41,7 @@ import Icon from "@/components/Icon";
 import { getViewOnlySnapshot, type ViewOnlyGateLog } from "@/lib/api";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf } from "@/lib/duty";
 import type { TaskDetail, Driver, Vehicle, Plant } from "@/lib/types";
+import { BRAND } from "@/lib/brand";
 
 const display = Chakra_Petch({
   subsets: ["latin"],
@@ -161,7 +162,7 @@ function agoLabel(d: Date | null, nowTick: number): string {
   return `${Math.round(s / 60)} mnt`;
 }
 
-const PLANT_NAME: Record<Plant, string> = { CIK: "Cikarang", PRB: "Pasar Rebo" };
+const PLANT_NAME: Record<Plant, string> = BRAND.plantName;
 const startOf = (t: TaskDetail) => t.accepted_at ?? t.created_at;
 
 /* ───────────────────────── data ───────────────────────── */
@@ -580,8 +581,8 @@ function GatePanel({ masuk, keluar, ready }: { masuk: ViewOnlyGateLog[]; keluar:
       ) : (
       <div className="g-cols">
         <div className="g-col in">
-          <h4><span className="cnt">{masuk.length}</span>Driver PRB di Cikarang{masuk.length > MAX && <em>+{masuk.length - MAX} lagi</em>}</h4>
-          {masuk.length === 0 && <div className="none sm">Tidak ada driver PRB di Cikarang</div>}
+          <h4><span className="cnt">{masuk.length}</span>Driver PRB di {BRAND.plantName.CIK}{masuk.length > MAX && <em>+{masuk.length - MAX} lagi</em>}</h4>
+          {masuk.length === 0 && <div className="none sm">Tidak ada driver PRB di {BRAND.plantName.CIK}</div>}
           {masuk.slice(0, MAX).map((g) => <GateRow key={g.id} g={g} dir="in" />)}
         </div>
         <div className="g-col out">

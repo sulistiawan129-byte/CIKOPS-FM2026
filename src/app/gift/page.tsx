@@ -7,6 +7,7 @@ import {
 } from "@/lib/api";
 import type { GiftEvent, GiftSelection } from "@/lib/types";
 import { supabase } from "@/lib/supabaseClient";
+import { BRAND } from "@/lib/brand";
 
 type Screen = "list" | "form" | "success";
 
@@ -122,7 +123,7 @@ export default function GiftPage() {
         <div style={{ textAlign: "center", padding: "48px 0 36px" }}>
           <img src="/logo.png" alt="CIKOPS" style={{ width: 70, height: 70, marginBottom: 16, borderRadius: "50%" }} />
           <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
-            PT. FRISIAN FLAG INDONESIA
+            {BRAND.company.toUpperCase()}
           </div>
           <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 800, margin: "0 0 8px", letterSpacing: -0.5 }}>
             Pendaftaran Pengambilan

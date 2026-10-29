@@ -11,6 +11,7 @@ import {
   fmtNum, fmtPct, fmtRp, fmtRpShort, parseISO, iso,
   type ChartSpec, type Kpi, type ModuleReport,
 } from "./model";
+import { plantShort } from "../brand";
 
 const DOW_ID = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const DOW_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -87,7 +88,7 @@ export function computeFleet(p: {
   const plants: Plant[] = ["CIK", "PRB"];
   const trendSeries = p.showPlants
     ? plants.map((pl, i) => ({
-        name: pl === "CIK" ? "Cikarang" : "Pasar Rebo",
+        name: plantShort(pl),
         color: i === 0 ? PALETTE.brand : PALETTE.cyan,
         values: bs.map((b) => valid.filter((t) => t.plant === pl && t.tanggal >= b.from && t.tanggal <= b.to).length),
       }))
@@ -240,7 +241,7 @@ export function computeClaims(p: { from: string; to: string; claims: Claim[]; sh
   const peakIdx = trend.indexOf(Math.max(...trend));
 
   const byPlant = new Map<string, number>();
-  cur.forEach((c) => addTo(byPlant, c.plant === "PRB" ? "Pasar Rebo" : "Cikarang", c.total));
+  cur.forEach((c) => addTo(byPlant, plantShort(c.plant), c.total));
 
   const kpis: Kpi[] = [
     { label: tr("Total klaim", "Total claims"), value: fmtRpShort(total), sub: d.pct === null ? d.text : `${d.text} ${vsPrev()}`, tone: d.pct === null ? "neutral" : d.pct > 10 ? "bad" : d.pct < -2 ? "good" : "neutral" },

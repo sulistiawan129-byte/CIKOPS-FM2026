@@ -1,0 +1,102 @@
+# Database DEMO CIKOPS — project Supabase TERPISAH berisi data fiktif untuk presentasi.
+#
+# Aksi (GitHub → Actions → "Demo database" → Run workflow):
+#   setup    : salin STRUKTUR database produksi (tanpa data sama sekali) ke project demo,
+#              jalankan supabase/04_aplikasi_lapangan.sql, lalu isi data demo (05_data_demo.sql)
+#   refresh  : isi ulang data demo saja (tanggal ikut hari ini) — juga otomatis tiap pagi 05.45 WIB
+#
+# Secret repo (Settings → Secrets and variables → Actions):
+#   DEMO_DB_URL     connection string project Supabase DEMO (Connect → Session pooler, port 5432)  — WAJIB
+#   CIKOPS_DB_URL   connection string produksi (sudah ada untuk backup) — hanya DIBACA strukturnya saat setup
+#
+# Pengaman: workflow berhenti bila DEMO_DB_URL sama dengan CIKOPS_DB_URL, dan 05_data_demo.sql
+# berhenti sendiri bila database berisi akun login yang bukan @demo.cikops.id.
+name: Demo database
+
+on:
+  workflow_dispatch:
+    inputs:
+      aksi:
+        description: "setup = salin struktur + isi data · refresh = isi ulang data demo"
+        type: choice
+        options: [refresh, setup]
+        default: refresh
+  schedule:
+    - cron: "45 22 * * *"   # 22.45 UTC = 05.45 WIB → data demo selalu "hari ini"
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    env:
+      DEMO_DB_URL: ${{ secrets.DEMO_DB_URL }}
+      PROD_DB_URL: ${{ secrets.CIKOPS_DB_URL }}
+      AKSI: ${{ github.event.inputs.aksi || 'refresh' }}
+    steps:
+      - name: Cek secret
+        id: cek
+        run: |
+          if [ -z "$DEMO_DB_URL" ]; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then echo "::notice::DEMO_DB_URL belum diisi — refresh harian dilewati"; echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+            echo "::error::Secret DEMO_DB_URL belum diisi (connection string project Supabase DEMO)"; exit 1
+          fi
+          if [ -n "$PROD_DB_URL" ] && [ "$DEMO_DB_URL" = "$PROD_DB_URL" ]; then
+            echo "::error::DEMO_DB_URL sama dengan CIKOPS_DB_URL — DIBATALKAN supaya database produksi tidak tertimpa"; exit 1
+          fi
+          if [ "$AKSI" = "setup" ] && [ -z "$PROD_DB_URL" ]; then echo "::error::Aksi setup butuh secret CIKOPS_DB_URL (untuk menyalin struktur)"; exit 1; fi
+
+      - uses: actions/checkout@v4
+        if: steps.cek.outputs.skip != '1'
+
+      - name: Pasang psql 17
+        if: steps.cek.outputs.skip != '1'
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 >/dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Pastikan target adalah project demo
+        if: steps.cek.outputs.skip != '1'
+        run: |
+          n=$(psql "$DEMO_DB_URL" -qtAc "select count(*) from auth.users where coalesce(email,'') not ilike '%@demo.cikops.id'")
+          echo "Akun non-demo di database target: $n"
+          if [ "$n" != "0" ]; then echo "::error::Database target berisi $n akun asli — ini BUKAN project demo. Dibatalkan."; exit 1; fi
+
+      - name: Salin struktur produksi (tanpa data)
+        if: steps.cek.outputs.skip != '1' && env.AKSI == 'setup'
+        run: |
+          ada=$(psql "$DEMO_DB_URL" -qtAc "select to_regclass('public.tasks') is not null")
+          if [ "$ada" = "t" ]; then
+            echo "::notice::Struktur sudah ada di project demo — langkah salin dilewati (hapus tabel public dulu bila ingin menyalin ulang)."
+          else
+            pg_dump "$PROD_DB_URL" --schema-only --no-owner -n public -f schema.sql
+            echo "Objek di struktur: $(grep -c '^CREATE' schema.sql)"
+            psql "$DEMO_DB_URL" -qc "create extension if not exists pg_net" || true
+            psql "$DEMO_DB_URL" -v ON_ERROR_STOP=0 -q -f schema.sql 2> restore.err || true
+            grep -v "already exists" restore.err | grep -i "error" | head -40 || true
+            echo "Jumlah error saat salin (selain 'already exists'): $(grep -v 'already exists' restore.err | grep -ci error || true)"
+          fi
+          # Fitur terbaru (bagian 042–048) — idempotent
+          psql "$DEMO_DB_URL" -v ON_ERROR_STOP=0 -q -f supabase/04_aplikasi_lapangan.sql 2> s04.err || true
+          grep -i error s04.err | head -20 || true
+
+      - name: Periksa fungsi yang memanggil layanan luar
+        if: steps.cek.outputs.skip != '1'
+        run: |
+          psql "$DEMO_DB_URL" -qtAc "select p.proname from pg_proc p join pg_namespace s on s.oid = p.pronamespace
+            where s.nspname = 'public' and (p.prosrc ilike '%net.http%' or p.prosrc ilike '%supabase.co%' or p.prosrc ilike '%https://%')" > ext.txt || true
+          if [ -s ext.txt ]; then
+            echo "::warning::Fungsi berikut memanggil URL luar — pastikan tidak mengarah ke project produksi: $(tr '\n' ' ' < ext.txt)"
+          else
+            echo "Tidak ada fungsi yang memanggil URL luar."
+          fi
+
+      - name: Isi data demo
+        if: steps.cek.outputs.skip != '1'
+        run: |
+          set -o pipefail
+          psql "$DEMO_DB_URL" -v ON_ERROR_STOP=1 -f supabase/05_data_demo.sql 2> seed.err | tee seed.out
+          grep -h "WARNING" seed.err | sed 's/^.*WARNING: */::warning::/' || true
+          echo "Selesai: $(TZ=Asia/Jakarta date '+%d %b %Y %H:%M') WIB"
