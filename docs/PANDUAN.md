@@ -968,6 +968,66 @@ Command Center publik: `/dashboard-viewonly`. Semua halaman menampilkan pita **D
 - Fitur yang butuh Edge Function (kirim email, notifikasi HP, kelola akun) tidak aktif di demo kecuali
   function-nya di-deploy juga ke project demo.
 
+## Deployment Mockup (tanpa Supabase, tanpa login)
+Mode **Mockup** menjalankan seluruh aplikasi CIKOPS dengan *backend tiruan di browser* — tanpa database,
+tanpa Supabase, tanpa akun sama sekali. Cocok untuk presentasi kilat di laptop, pameran, atau demonstrasi
+kepada calon klien yang belum dapat akses internet.
+
+### Cara kerja
+Semua data (±1.600 baris / 46 tabel) dibuat ulang di `localStorage` tiap hari baru. Perubahan yang
+dilakukan selama demo — terima tugas, catat pekerjaan, input kantin, dsb. — tersimpan di browser
+yang sama; tombol **↺ Reset** mengembalikan semuanya ke kondisi awal kapan saja.
+
+### 1. Buat project Vercel mockup (sekali)
+1. Vercel → **Add New → Project** → impor repo yang sama → nama mis. `cikops-mockup`.
+2. **Environment Variables** — hanya satu variabel yang perlu diisi:
+
+| Variable | Nilai |
+|---|---|
+| `NEXT_PUBLIC_MOCK_BACKEND` | `1` |
+
+Jangan isi variabel Supabase, GC, atau variabel rahasia lain. Tidak diperlukan.
+
+3. **Deploy**. Selesai — tidak ada setup database, tidak ada workflow.
+
+### 2. Halaman utama
+Landing page otomatis mengarah ke **`/demo`** — pusat demo berisi:
+- **7 kartu role** → klik masuk langsung sebagai role tersebut ke dashboard.
+- **8 kartu aplikasi** → link langsung ke /driver, /tga, /tugas-tga, /request, /gate, /canteen, /locker, /gift.
+- **Tombol Reset** → kembalikan semua data ke kondisi awal.
+
+### 3. Navigasi antar-role
+Di setiap halaman ada tombol **DEMO · DATA FIKTIF** di sudut kiri bawah.
+Klik → panel muncul → pilih role lain → langsung masuk ke dashboard sebagai role itu.
+
+| Role | Deskripsi |
+|---|---|
+| Master Admin | Semua modul, semua plant |
+| Admin GA Cikupa | Fleet, Finance, Fasilitas — plant CIK |
+| Admin GA Parung | Sama, plant PRB |
+| Admin / SPV ISS | Cleaning & Gardening, TGA |
+| Admin Security | Modul Security & NC |
+| Receptionist | Resepsionis |
+| Management | Command Center & laporan saja |
+
+### 4. Aplikasi pendukung (tanpa login)
+| Alamat | Deskripsi |
+|---|---|
+| `/driver` | App driver — otomatis masuk sebagai Andi |
+| `/tga` | App TGA — pilih nama teknisi, PIN: **1234** |
+| `/tugas-tga` | Form penugasan TGA publik — kode: **DEMO2026** |
+| `/request` | Form permintaan karyawan |
+| `/gate` | Input gate security |
+| `/canteen` | Input laporan kantin |
+| `/locker` | Daftar & lepas locker |
+| `/dashboard-viewonly` | FM Command Center (TV publik) |
+
+### 5. Catatan penting
+- Data **hanya ada di browser** yang sedang digunakan. Buka di browser/device lain → data baru.
+- Perubahan kode di `main` otomatis ter-deploy ke project mockup Vercel, sama seperti deployment lain.
+- Mockup tidak memerlukan *edge function*, *service worker*, atau koneksi internet (setelah halaman dimuat).
+- Fitur yang mengirim email/notifikasi HP tetap bisa diklik dan tidak error, tetapi tidak benar-benar mengirim.
+
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
 menyimpan backup harian 7 hari). Karena itu ada workflow GitHub **Backup database**
