@@ -46,6 +46,14 @@ jobs:
             echo "::error::DEMO_DB_URL sama dengan CIKOPS_DB_URL — DIBATALKAN supaya database produksi tidak tertimpa"; exit 1
           fi
           if [ "$AKSI" = "setup" ] && [ -z "$PROD_DB_URL" ]; then echo "::error::Aksi setup butuh secret CIKOPS_DB_URL (untuk menyalin struktur)"; exit 1; fi
+          # GitHub Actions tidak punya IPv6 → "Direct connection" (db.<ref>.supabase.co) tidak bisa dihubungi
+          for v in DEMO_DB_URL PROD_DB_URL; do
+            if printf '%s' "${!v}" | grep -qE '@db\.[a-z0-9]+\.supabase\.co'; then
+              nama=$([ "$v" = "DEMO_DB_URL" ] && echo DEMO_DB_URL || echo CIKOPS_DB_URL)
+              echo "::error::Secret $nama memakai Direct connection (db.xxx.supabase.co) yang tidak bisa dijangkau dari GitHub. Ganti dengan Supabase → Connect → Session pooler (host ...pooler.supabase.com, port 5432, user postgres.<ref>)."
+              exit 1
+            fi
+          done
 
       - uses: actions/checkout@v4
         if: steps.cek.outputs.skip != '1'
