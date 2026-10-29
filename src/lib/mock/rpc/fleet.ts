@@ -104,22 +104,10 @@ export const FLEET: Record<string, RpcHandler> = {
     return taskDetail(ctx.db, t);
   },
 
-  /** Tutup otomatis tugas yang lewat pukul 17.00 WIB (migrasi 020). */
-  auto_complete_tasks(_a, ctx) {
-    const now = Date.now();
-    let n = 0;
-    for (const t of table(ctx.db, "tasks")) {
-      if (t.status !== "ASSIGNED" && t.status !== "ON GOING") continue;
-      if (!t.tanggal) continue;
-      const cut = wibIso(t.tanggal, "17:00");
-      if (Date.parse(cut) > now) continue;
-      const acc = t.accepted_at ? Date.parse(t.accepted_at) : 0;
-      t.status = "DONE";
-      t.completed_at = acc > Date.parse(cut) ? t.accepted_at : cut;
-      t.auto_completed = true;
-      n++;
-    }
-    return n;
+  /** Di produksi menutup tugas lewat 17.00 WIB (migrasi 020). Di mockup sengaja tidak
+      melakukan apa-apa supaya demo tetap "hidup" kapan pun dipresentasikan. */
+  auto_complete_tasks() {
+    return 0;
   },
 
   /* ═════════ TUGAS — dashboard admin ═════════ */
