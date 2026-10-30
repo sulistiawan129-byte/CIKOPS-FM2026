@@ -116,7 +116,7 @@ export default function CanteenPublicPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={labelStyle}>{lang === "en" ? "REPORT DATE" : "TANGGAL LAPORAN"} *</label>
-                    <input className="premiumInput" style={{ ...inputStyle, textAlign: "left" }} type="date" value={reportDate} readOnly aria-readonly="true" title="Laporan publik hanya untuk hari ini" />
+                    <input className="premiumInput" style={{ ...inputStyle, textAlign: "left" }} type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
                   </div>
                   <div>
                     <label style={labelStyle}>{lang === "en" ? "SUBMITTED BY" : "DIINPUT OLEH"}</label>
