@@ -1,7 +1,7 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   REPORT — Laporan Manajemen per modul (Fleet, Klaim, Kantin, ATK).
+   REPORT — Laporan Manajemen per kategori & modul (Fleet/Driver, Klaim, Kantin, ATK, Cleaning & Gardening, TGA, Security).
    Pilih modul + periode → pratinjau ringkas → unduh Excel / PPT / PDF.
 ════════════════════════════════════════════════════════════ */
 
@@ -11,13 +11,13 @@ import { useLang } from "@/lib/providers";
 import { buildMgmtReport, reportFilename } from "@/lib/mgmtReport/build";
 import { renderChartPNG } from "@/lib/mgmtReport/chartImage";
 import {
-  daysBetween, iso, metaOf, parseISO, periodLabelOf, prevRange, resolveGran, withLang,
+  CATEGORIES, daysBetween, iso, metaOf, parseISO, periodLabelOf, prevRange, resolveGran, withLang,
   type Granularity, type MgmtReport, type ModuleKey, type ReportLang,
 } from "@/lib/mgmtReport/model";
 import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
-const ALL_MODULES: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
+const ALL_MODULES: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "security"];
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 /** Rentang periode untuk mode kalender (minggu Senin–Minggu, bulan, kuartal, tahun) yang memuat tanggal anchor. */
@@ -140,17 +140,26 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
           <span className={r.stepNo}>1</span>
           <div className={r.stepBody}>
             <h2>Pilih modul</h2>
-            <div className={r.mods}>
-              {ALL.map((k) => {
-                const on = mods.includes(k);
-                return (
-                  <button key={k} type="button" className={`${r.mod} ${on ? r.modOn : ""}`} style={{ ["--c" as string]: metaOf(k, "id").accent }} onClick={() => toggle(k)} aria-pressed={on}>
-                    <span className={r.modTick}>{on ? Ic.check : null}</span>
-                    <span className={r.modText}><b>{metaOf(k, "id").title}</b><small>{metaOf(k, "id").desc}</small></span>
-                  </button>
-                );
-              })}
-            </div>
+            {CATEGORIES.map((c) => {
+              const ks = c.modules.filter((k) => ALL.includes(k));
+              if (!ks.length) return null;
+              return (
+                <div key={c.key} className={r.catBlock}>
+                  <h4 className={r.catTitle}>{appLang === "en" ? c.en : c.id}</h4>
+                  <div className={r.mods}>
+                    {ks.map((k) => {
+                      const on = mods.includes(k);
+                      return (
+                        <button key={k} type="button" className={`${r.mod} ${on ? r.modOn : ""}`} style={{ ["--c" as string]: metaOf(k, "id").accent }} onClick={() => toggle(k)} aria-pressed={on}>
+                          <span className={r.modTick}>{on ? Ic.check : null}</span>
+                          <span className={r.modText}><b>{metaOf(k, "id").title}</b><small>{metaOf(k, "id").desc}</small></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -286,17 +295,26 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
                 <span className={r.hint}>{report.scopeLabel} · {report.lang === "en" ? "compared with" : "pembanding"} {report.prevLabel}</span>
               </div>
             </div>
-            <div className={r.execGrid}>
-              {report.modules.filter((m) => !m.sub).map((m) => (
-                <a key={m.key} href={`#mr-${m.key}`} className={r.execCard} style={{ ["--c" as string]: m.accent }}>
-                  <b>{m.title}</b>
-                  <p>{m.headline}</p>
-                  <div className={r.execKpis}>
-                    {m.kpis.slice(0, 3).map((k) => (<span key={k.label}><small>{k.label}</small><strong>{k.value}</strong></span>))}
+            {CATEGORIES.map((c) => {
+              const ms = report.modules.filter((m) => !m.sub && c.modules.includes(m.key));
+              if (!ms.length) return null;
+              return (
+                <div key={c.key} className={r.catBlock}>
+                  <h4 className={r.catTitle}>{report.lang === "en" ? c.en : c.id}</h4>
+                  <div className={r.execGrid}>
+                    {ms.map((m) => (
+                      <a key={m.key} href={`#mr-${m.key}`} className={r.execCard} style={{ ["--c" as string]: m.accent }}>
+                        <b>{m.title}</b>
+                        <p>{m.headline}</p>
+                        <div className={r.execKpis}>
+                          {m.kpis.slice(0, 3).map((k) => (<span key={k.label}><small>{k.label}</small><strong>{k.value}</strong></span>))}
+                        </div>
+                      </a>
+                    ))}
                   </div>
-                </a>
-              ))}
-            </div>
+                </div>
+              );
+            })}
             <div className={`${r.attn} ${attention.length ? r.attnOn : ""}`}>
               <b>{report.lang === "en" ? "Management attention required" : "Perlu perhatian manajemen"}</b>
               {attention.length ? <ul>{attention.map((a, i) => <li key={i}>{a}</li>)}</ul> : <span>{report.lang === "en" ? "No critical issues this period." : "Tidak ada isu kritis pada periode ini."}</span>}

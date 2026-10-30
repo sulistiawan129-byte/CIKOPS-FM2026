@@ -43,7 +43,7 @@ Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase se
 | **Master Admin** | Semua modul (termasuk Kantin), Log Aktivitas | Beranda | Semua role |
 | **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
 | **Admin GA PRB** | Penugasan, Armada, Master Data (driver, pegawai, pengaturan), Kalender, Report Fleet — **data PRB saja** | Beranda (versi PRB) | Admin GA PRB |
-| **Admin / SPV ISS** | Cleaning & Gardening, TGA, Report Cleaning & Gardening | Cleaning & Gardening | Admin / SPV ISS |
+| **Admin / SPV ISS** | Cleaning & Gardening, TGA, Report Cleaning & Gardening dan TGA | Cleaning & Gardening | Admin / SPV ISS |
 | **Admin / SPV Security** | Laporan Security, Report Security | Laporan Security | Admin / SPV Security |
 | **Receptionist** | Receptionist, Kalender (agenda & kunjungan, tanpa penugasan driver) | Receptionist | — |
 | **Management** | **Lihat saja**: FM Command Center + tarik laporan semua modul | Command Center | — |
@@ -1027,6 +1027,20 @@ Klik → panel muncul → pilih role lain → langsung masuk ke dashboard sebaga
 - Perubahan kode di `main` otomatis ter-deploy ke project mockup Vercel, sama seperti deployment lain.
 - Mockup tidak memerlukan *edge function*, *service worker*, atau koneksi internet (setelah halaman dimuat).
 - Fitur yang mengirim email/notifikasi HP tetap bisa diklik dan tidak error, tetapi tidak benar-benar mengirim.
+
+## Report — Laporan Manajemen
+Report → Laporan Manajemen menyusun ringkasan umum per modul, dikelompokkan sesuai kategori menu:
+
+| Kategori | Modul laporan |
+|---|---|
+| Fleet & Kendaraan | **Fleet Management** — penugasan driver, utilisasi armada, dokumen jatuh tempo |
+| Finance | **Klaim Driver** — pengeluaran per kategori |
+| Fasilitas | **Kantin**, **ATK**, **Cleaning & Gardening** (achievement plan vs actual), **TGA** (pekerjaan teknisi: selesai, belum selesai, urgent, per teknisi) |
+| Security | **Security** — kendaraan, visitor, transporter, pelanggaran, kejadian, patroli |
+
+Setiap modul berisi 4 angka utama, 2 grafik, temuan, dan rekomendasi; ringkasan eksekutif di atas
+memuat butir "perlu perhatian manajemen". Unduh sebagai Excel, PowerPoint, atau PDF (Indonesia / English).
+Modul yang tampil mengikuti role (mis. Admin ISS hanya Cleaning & Gardening dan TGA).
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
