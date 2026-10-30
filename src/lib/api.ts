@@ -2048,7 +2048,7 @@ export async function getMyProfile(userId: string): Promise<MyProfile | null> {
    Database ikut menjaga hak TULIS per modul; di sini menu & tampilan.
 ════════════════════════════════════════════════════════════ */
 export type StaffRole = "master" | "admin_ga_cik" | "admin_ga_prb" | "admin_iss" | "admin_security" | "receptionist" | "management";
-export type ReportModule = "fleet" | "claims" | "canteen" | "atk" | "ga" | "security";
+export type ReportModule = "fleet" | "claims" | "canteen" | "atk" | "ga" | "tga" | "security";
 
 export interface RoleInfo {
   id: string; en: string; descId: string; descEn: string;
@@ -2063,7 +2063,7 @@ export interface RoleInfo {
   calendarTasks: boolean;
 }
 
-const ALL_REPORTS: ReportModule[] = ["fleet", "claims", "canteen", "atk", "ga", "security"];
+const ALL_REPORTS: ReportModule[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "security"];
 export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   master: {
     id: "Master Admin", en: "Master Admin", descId: "Semua modul, semua akun & log aktivitas", descEn: "All modules, all accounts & activity log",
@@ -2080,7 +2080,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_iss: {
     id: "Admin / SPV ISS", en: "ISS Admin / SPV", descId: "Cleaning, Gardening & TGA", descEn: "Cleaning, gardening & TGA",
-    tabs: ["gafacility", "tga", "reports", "accounts"], home: false, plant: null, reports: ["ga"], calendarTasks: false,
+    tabs: ["gafacility", "tga", "reports", "accounts"], home: false, plant: null, reports: ["ga", "tga"], calendarTasks: false,
   },
   admin_security: {
     id: "Admin / SPV Security", en: "Security Admin / SPV", descId: "Modul Security", descEn: "Security module",

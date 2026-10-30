@@ -25,7 +25,7 @@ const GREEN = "4ADE9A";
 const RED_T = "FF9B9B";
 const TONE: Record<string, string> = { good: GREEN, bad: RED_T, neutral: MUT };
 /** Versi terang warna modul untuk teks/angka di latar gelap. */
-const ACC_LIGHT: Record<ModuleKey, string> = { fleet: "8FB2FF", claims: "4ADE9A", canteen: "F7BE5C", atk: "BBA6FF", ga: "67D8E6", security: "FF9499" };
+const ACC_LIGHT: Record<ModuleKey, string> = { fleet: "8FB2FF", claims: "4ADE9A", canteen: "F7BE5C", atk: "BBA6FF", ga: "67D8E6", tga: "F59BC5", security: "FF9499" };
 const HEAD = "Bahnschrift";
 const BODY = "Segoe UI";
 const W = 13.333;
