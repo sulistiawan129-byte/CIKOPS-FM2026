@@ -343,7 +343,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
             <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this tier?" : "Hapus tier ini?"}</div>
             <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{confirmDelete.name}</strong> akan dihapus permanen.
+              <strong style={{ color: "var(--t1)" }}>{confirmDelete.name}</strong> {L("akan dihapus permanen.", "will be permanently deleted.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
@@ -907,7 +907,7 @@ gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h
       {showEdit && (
         <ModalPortal onOverlayClick={() => setShowEdit(false)} maxWidth={420}>
           <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>Edit Dana Operasional — {viewPlant}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>{L("Edit Dana Operasional", "Edit Operational Fund")} — {viewPlant}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><label>{t.fieldTotalCashOp}</label><input className={styles.formInput} value={eBudget} onChange={(e) => setEBudget(e.target.value)} /></div>
               <div><label>OP DRIVER (A1)</label><input className={styles.formInput} value={eOpDriver} onChange={(e) => setEOpDriver(e.target.value)} /></div>
@@ -929,13 +929,13 @@ gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h
         <ModalPortal onOverlayClick={() => setShowResetConfirm(false)} maxWidth={360}>
           <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔄</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>Reset Periode — {viewPlant}?</div>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{L("Reset Periode", "Reset Period")} — {viewPlant}?</div>
             <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              Claim Diajukan (A5) dan Claim Dibayar (A6) akan direset ke 0 untuk periode baru. Total cash dan alokasi tetap sama. Data periode lama tetap tersimpan.
+              {L("Claim Diajukan (A5) dan Claim Dibayar (A6) akan direset ke 0 untuk periode baru. Total cash dan alokasi tetap sama. Data periode lama tetap tersimpan.", "Claim Submitted (A5) and Claim Paid (A6) will be reset to 0 for the new period. Total cash and allocations stay the same. Old period data is kept.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setShowResetConfirm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button onClick={handleReset} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Ya, Reset</button>
+              <button onClick={handleReset} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{L("Ya, Reset", "Yes, Reset")}</button>
             </div>
           </div>
         </ModalPortal>
