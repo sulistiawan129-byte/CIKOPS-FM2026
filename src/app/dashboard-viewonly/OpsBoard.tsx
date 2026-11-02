@@ -93,7 +93,7 @@ function sentence(input?: string | null): string {
 
 function shortName(name?: string | null): string {
   const t = titleCase(name);
-  if (!t) return "Belum ditentukan";
+  if (!t) return L("Belum ditentukan", "Not set");
   return t.split(" ").slice(0, 2).join(" ");
 }
 
@@ -149,18 +149,18 @@ function elapsedMins(iso: string | null): number {
 }
 
 function fmtDur(mins: number): string {
-  if (mins < 60) return `${mins} mnt`;
+  if (mins < 60) return `${mins} ${L("mnt", "min")}`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  return m ? `${h}j ${m}m` : `${h}j`;
+  return m ? `${h}${L("j", "h")} ${m}m` : `${h}${L("j", "h")}`;
 }
 
 function agoLabel(d: Date | null, nowTick: number): string {
-  if (!d) return "memuat…";
+  if (!d) return L("memuat…", "loading…");
   const s = Math.max(0, Math.round((nowTick - d.getTime()) / 1000));
-  if (s < 5) return "baru saja";
-  if (s < 60) return `${s} dtk`;
-  return `${Math.round(s / 60)} mnt`;
+  if (s < 5) return L("baru saja", "just now");
+  if (s < 60) return `${s} ${L("dtk", "s")}`;
+  return `${Math.round(s / 60)} ${L("mnt", "min")}`;
 }
 
 const PLANT_NAME: Record<Plant, string> = BRAND.plantName;
@@ -263,9 +263,9 @@ function useRotator(pages: number, ms: number) {
 function Dots({ pages, page, jump }: { pages: number; page: number; jump: (i: number) => void }) {
   if (pages <= 1) return null;
   return (
-    <div className="dots" aria-label="Halaman">
+    <div className="dots" aria-label={L("Halaman", "Pages")}>
       {Array.from({ length: pages }).map((_, i) => (
-        <button key={i} className={i === page ? "on" : ""} onClick={() => jump(i)} aria-label={`Halaman ${i + 1}`} />
+        <button key={i} className={i === page ? "on" : ""} onClick={() => jump(i)} aria-label={L(`Halaman ${i + 1}`, `Page ${i + 1}`)} />
       ))}
     </div>
   );
@@ -281,7 +281,10 @@ function Kpi({ tone, label, value, unit, sub }: { tone: string; label: string; v
   );
 }
 
-const CHIP: Record<State, string> = { long: "Perlu dicek", go: "Bertugas", wait: "Menunggu", idle: "Standby", done: "Selesai", duty: "On Duty", off: "Off Duty" };
+const CHIP: Record<State, string> = {
+  get long() { return L("Perlu dicek", "Needs checking"); }, get go() { return L("Bertugas", "On duty"); }, get wait() { return L("Menunggu", "Waiting"); },
+  idle: "Standby", get done() { return L("Selesai", "Done"); }, duty: "On Duty", off: "Off Duty",
+};
 
 /* ── Paginasi berbasis ukuran: tujuan & keperluan SELALU tampil penuh ──
  * Baris tidak dipotong (tanpa "…"); teks panjang dibungkus ke baris baru.
@@ -352,8 +355,8 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
   const t = r.task;
   const { dest, purpose } = rowTexts(r);
   let meta = "";
-  if (!t) meta = "Belum ada tugas hari ini";
-  else if (r.state === "go" || r.state === "long") meta = `${plate(t.kendaraan)} · mulai ${fmtTime(startOf(t))} · ${fmtDur(elapsedMins(startOf(t)))}`;
+  if (!t) meta = L("Belum ada tugas hari ini", "No tasks today");
+  else if (r.state === "go" || r.state === "long") meta = `${plate(t.kendaraan)} · ${L("mulai", "started")} ${fmtTime(startOf(t))} · ${fmtDur(elapsedMins(startOf(t)))}`;
   else if (r.state === "wait") meta = `${plate(t.kendaraan)} · ditugaskan ${fmtTime(t.created_at)}`;
   else meta = `${plate(t.kendaraan)} · selesai ${fmtTime(t.completed_at)}`;
   const chip = r.state === "idle" ? "Standby" : CHIP[r.state];
@@ -390,7 +393,7 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
             <div className="d-meta">{meta}</div>
           </>
         ) : (
-          <div className="d-purpose idle">Tidak ada tugas terjadwal <span className="d-meta inline">· {meta}</span></div>
+          <div className="d-purpose idle">{L("Tidak ada tugas terjadwal", "No scheduled tasks")} <span className="d-meta inline">· {meta}</span></div>
         )}
       </div>
     </div>
@@ -427,13 +430,13 @@ function IdleGroupRow({ rows, delay }: { rows: Row[]; delay: number }) {
       <div className="av">✓</div>
       <div className="d-main">
         <div className="d-top">
-          <div className="d-name">Standby · {rows.length} driver</div>
+          <div className="d-name">Standby · {rows.length} {L("driver", "drivers")}</div>
           <span className="chip">Siap</span>
         </div>
         <div className="u-list">
           {rows.map((r) => <span key={r.driver.id}><b>{shortName(r.driver.nama)}</b>{driverTypeOf(r.driver) === "support" ? " (support)" : ""}</span>)}
         </div>
-        <div className="d-meta">Belum ada tugas hari ini · siap ditugaskan</div>
+        <div className="d-meta">{L("Belum ada tugas hari ini · siap ditugaskan", "No tasks today · ready to be assigned")}</div>
       </div>
     </div>
   );
@@ -471,7 +474,7 @@ function PlantColumn({ plant, snapshot }: { plant: Plant; snapshot: Snapshot | n
       </header>
       <div className="rows" ref={boxRef}>
         <div className="rows-in" key={`${plant}-${page}`}>
-          {visible.length === 0 && <div className="none">Belum ada driver aktif di plant ini.</div>}
+          {visible.length === 0 && <div className="none">{L("Belum ada driver aktif di plant ini.", "No active drivers in this plant yet.")}</div>}
           {visible.map((it, i) => it.kind === "users"
             ? <UserGroupRow key="users" users={it.users} delay={i * 60} />
             : it.kind === "idle" ? <IdleGroupRow key="idle" rows={it.rows} delay={i * 60} />
@@ -500,7 +503,7 @@ function UpcomingColumn({ upcoming, done }: { upcoming: TaskDetail[]; done: numb
       </header>
       <div className="rows" ref={boxRef}>
         <div className="rows-in" key={`up-${page}`}>
-          {visible.length === 0 && <div className="none">Tidak ada tugas tersisa hari ini.</div>}
+          {visible.length === 0 && <div className="none">{L("Tidak ada tugas tersisa hari ini.", "No tasks left today.")}</div>}
           {visible.map((t, i) => (
             <div className="urow" key={t.id} style={{ animationDelay: `${i * 60}ms` }}>
               <div className="u-time">{fmtTime(t.created_at)}</div>
@@ -528,7 +531,7 @@ function ProgressPanel({ done, going, wait }: { done: number; going: number; wai
   const r = 44, c = 2 * Math.PI * r;
   return (
     <section className="panel prog">
-      <header className="p-head"><h2>Progres Tugas Hari Ini</h2></header>
+      <header className="p-head"><h2>{L("Progres Tugas Hari Ini", "Today's Task Progress")}</h2></header>
       <div className="prog-body">
         <div className="ring">
           <svg viewBox="0 0 110 110" width="100%" height="100%">
@@ -547,9 +550,9 @@ function ProgressPanel({ done, going, wait }: { done: number; going: number; wai
           <div className="ring-txt"><b>{done}/{total}</b><small>selesai</small></div>
         </div>
         <ul className="legend">
-          <li><i style={{ background: "var(--green)" }} /><b>{done}</b><span>Selesai</span></li>
-          <li><i style={{ background: "var(--blue)" }} /><b>{going}</b><span>Sedang bertugas</span></li>
-          <li><i style={{ background: "var(--amber)" }} /><b>{wait}</b><span>Belum diterima</span></li>
+          <li><i style={{ background: "var(--green)" }} /><b>{done}</b><span>{L("Selesai", "Done")}</span></li>
+          <li><i style={{ background: "var(--blue)" }} /><b>{going}</b><span>{L("Sedang bertugas", "On duty")}</span></li>
+          <li><i style={{ background: "var(--amber)" }} /><b>{wait}</b><span>{L("Belum diterima", "Not yet accepted")}</span></li>
         </ul>
       </div>
     </section>
@@ -578,17 +581,17 @@ function GatePanel({ masuk, keluar, ready }: { masuk: ViewOnlyGateLog[]; keluar:
         <span className="p-meta live"><i className="pdot" />live</span>
       </header>
       {!ready ? (
-        <div className="none sm">Data gate belum tersedia — jalankan migrasi 016.</div>
+        <div className="none sm">{L("Data gate belum tersedia — jalankan migrasi 016.", "Gate data is not available yet — run migration 016.")}</div>
       ) : (
       <div className="g-cols">
         <div className="g-col in">
-          <h4><span className="cnt">{masuk.length}</span>Driver PRB di {BRAND.plantName.CIK}{masuk.length > MAX && <em>+{masuk.length - MAX} lagi</em>}</h4>
-          {masuk.length === 0 && <div className="none sm">Tidak ada driver PRB di {BRAND.plantName.CIK}</div>}
+          <h4><span className="cnt">{masuk.length}</span>{L("Driver PRB di", "PRB drivers at")} {BRAND.plantName.CIK}{masuk.length > MAX && <em>+{masuk.length - MAX} {L("lagi", "more")}</em>}</h4>
+          {masuk.length === 0 && <div className="none sm">{L("Tidak ada driver PRB di", "No PRB drivers at")} {BRAND.plantName.CIK}</div>}
           {masuk.slice(0, MAX).map((g) => <GateRow key={g.id} g={g} dir="in" />)}
         </div>
         <div className="g-col out">
-          <h4><span className="cnt">{keluar.length}</span>Driver CIK di luar plant{keluar.length > MAX && <em>+{keluar.length - MAX} lagi</em>}</h4>
-          {keluar.length === 0 && <div className="none sm">Semua driver CIK ada di plant</div>}
+          <h4><span className="cnt">{keluar.length}</span>{L("Driver CIK di luar plant", "CIK drivers outside the plant")}{keluar.length > MAX && <em>+{keluar.length - MAX} {L("lagi", "more")}</em>}</h4>
+          {keluar.length === 0 && <div className="none sm">{L("Semua driver CIK ada di plant", "All CIK drivers are at the plant")}</div>}
           {keluar.slice(0, MAX).map((g) => <GateRow key={g.id} g={g} dir="out" />)}
         </div>
       </div>
@@ -613,7 +616,7 @@ function AttentionPanel({ alerts }: { alerts: Alert[] }) {
         {alerts.length === 0 ? (
           <div className="ok">
             <span className="ok-ic"><Icon name="check" size={26} strokeWidth={2.6} /></span>
-            <div><b>Semua normal</b><small>Tidak ada yang perlu ditindaklanjuti</small></div>
+            <div><b>{L("Semua normal", "All normal")}</b><small>{L("Tidak ada yang perlu ditindaklanjuti", "Nothing needs follow-up")}</small></div>
           </div>
         ) : visible.map((a, i) => (
           <div className={`alert ${a.tone}`} key={`${page}-${i}`} title={`${a.title} — ${a.sub}`}>
@@ -695,9 +698,9 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
     const late = going.filter((t) => elapsedMins(startOf(t)) > LATE_MIN);
     const stale = assigned.filter((t) => elapsedMins(t.created_at) > 30);
     const alerts: Alert[] = [
-      ...late.map((t): Alert => ({ tone: "red", title: `${shortName(t.driver_nama)} sudah ${fmtDur(elapsedMins(startOf(t)))} bertugas`, sub: `${plate(t.kendaraan)} · ke ${titleCase(t.tujuan) || "—"}` })),
-      ...stale.map((t): Alert => ({ tone: "amber", title: `${shortName(t.driver_nama)} belum berangkat`, sub: `Ditugaskan ${fmtDur(elapsedMins(t.created_at))} lalu · ${titleCase(t.tujuan) || "—"}` })),
-      ...staleGate.map((g): Alert => ({ tone: "amber", title: `Log gate belum ditutup · ${plate(g.nopol)}`, sub: `${shortName(g.driverName)} · ${g.plant === "PRB" ? "masuk CIK" : "keluar"} ${fmtWhen(gateOpenedAt(g))} — tutup di Dashboard → Armada → Gate Log` })),
+      ...late.map((t): Alert => ({ tone: "red", title: L(`${shortName(t.driver_nama)} sudah ${fmtDur(elapsedMins(startOf(t)))} bertugas`, `${shortName(t.driver_nama)} has been on duty for ${fmtDur(elapsedMins(startOf(t)))}`), sub: `${plate(t.kendaraan)} · ${L("ke", "to")} ${titleCase(t.tujuan) || "—"}` })),
+      ...stale.map((t): Alert => ({ tone: "amber", title: L(`${shortName(t.driver_nama)} belum berangkat`, `${shortName(t.driver_nama)} has not departed`), sub: L(`Ditugaskan ${fmtDur(elapsedMins(t.created_at))} lalu · ${titleCase(t.tujuan) || "—"}`, `Assigned ${fmtDur(elapsedMins(t.created_at))} ago · ${titleCase(t.tujuan) || "—"}`) })),
+      ...staleGate.map((g): Alert => ({ tone: "amber", title: L(`Log gate belum ditutup · ${plate(g.nopol)}`, `Gate log not closed · ${plate(g.nopol)}`), sub: L(`${shortName(g.driverName)} · ${g.plant === "PRB" ? "masuk CIK" : "keluar"} ${fmtWhen(gateOpenedAt(g))} — tutup di Dashboard → Armada → Gate Log`, `${shortName(g.driverName)} · ${g.plant === "PRB" ? "entered CIK" : "left"} ${fmtWhen(gateOpenedAt(g))} — close it in Dashboard → Fleet → Gate Log`) })),
     ];
     const allRows = [...cik.rows, ...prb.rows];
     const opRows = allRows.filter((r) => r.state !== "duty" && r.state !== "off");
@@ -723,16 +726,16 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
     for (const g of m.gate) {
       const who = `${shortName(g.driverName)} (${g.plant}) · ${plate(g.nopol)}`;
       if (g.plant === "CIK") {
-        add(g.timeOut, `↗ KELUAR · ${who} → ${titleCase(g.tujuan) || "—"}${g.keterangan ? ` (${sentence(g.keterangan)})` : ""}`);
+        add(g.timeOut, `↗ ${L("KELUAR", "OUT")} · ${who} → ${titleCase(g.tujuan) || "—"}${g.keterangan ? ` (${sentence(g.keterangan)})` : ""}`);
         add(g.timeIn, `↙ KEMBALI · ${who}`);
       } else {
-        add(g.timeIn, `↙ MASUK CIK · ${who}${g.tujuan ? ` · ${titleCase(g.tujuan)}` : ""}${g.keterangan ? ` (${sentence(g.keterangan)})` : ""}`);
-        add(g.timeOut, `↗ KELUAR CIK · ${who}`);
+        add(g.timeIn, `↙ ${L("MASUK CIK", "IN CIK")} · ${who}${g.tujuan ? ` · ${titleCase(g.tujuan)}` : ""}${g.keterangan ? ` (${sentence(g.keterangan)})` : ""}`);
+        add(g.timeOut, `↗ ${L("KELUAR CIK", "OUT CIK")} · ${who}`);
       }
     }
     ev.sort((a, b) => b.at - a.at);
     const list = ev.slice(0, 14).map((e) => e.text);
-    if (!list.length) list.push(data?.gateReady === false ? "Data gate security belum tersedia" : "Belum ada pergerakan di gate hari ini");
+    if (!list.length) list.push(data?.gateReady === false ? L("Data gate security belum tersedia", "Security gate data is not available yet") : L("Belum ada pergerakan di gate hari ini", "No gate movement today"));
     return list;
   }, [m.gate, data?.gateReady]);
 
@@ -935,12 +938,12 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
             <div className="tools">
               <span className="live"><i className="pdot" />Live<span className="ago">· {agoLabel(loadedAt, nowTick)}</span></span>
               <button type="button" className="tbtn" onClick={toggleFullscreen}>
-                <Icon name={isFullscreen ? "shrink" : "expand"} size={15} />{isFullscreen ? "Keluar penuh" : "Layar penuh"}
+                <Icon name={isFullscreen ? "shrink" : "expand"} size={15} />{isFullscreen ? L("Keluar penuh", "Exit full screen") : L("Layar penuh", "Full screen")}
               </button>
-              <button type="button" className="tbtn" onClick={toggleTheme} aria-label="Ganti tema" title="Ganti tema">
+              <button type="button" className="tbtn" onClick={toggleTheme} aria-label={L("Ganti tema", "Toggle theme")} title={L("Ganti tema", "Toggle theme")}>
                 <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
               </button>
-              <Link href="/dashboard" className="tbtn hide-fs" title="Kembali ke Dashboard">
+              <Link href="/dashboard" className="tbtn hide-fs" title={L("Kembali ke Dashboard", "Back to Dashboard")}>
                 <Icon name="back" size={15} strokeWidth={2.3} />Dashboard
               </Link>
             </div>
@@ -951,15 +954,15 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
           </div>
         </header>
 
-        {error && <div className="err">Gagal memuat data terbaru: {error} — menampilkan data terakhir yang berhasil dimuat.</div>}
+        {error && <div className="err">{L("Gagal memuat data terbaru", "Failed to load the latest data")}: {error} — {L("menampilkan data terakhir yang berhasil dimuat.", "showing the last data that loaded successfully.")}</div>}
 
         <section className="kpis">
-          <Kpi tone="blue" label="Driver aktif" value={m.activeDrivers} sub={`${m.poolRows} pool · ${m.supportRows} support · ${m.userRows} user`} />
-          <Kpi tone="green" label="Standby" value={m.opCount - m.out} sub={`${m.ready} belum ada tugas`} />
-          <Kpi tone="cyan" label="Sedang bertugas" value={m.out} sub="tugas ON GOING" />
-          <Kpi tone="amber" label="Menunggu berangkat" value={m.assigned.length} sub="belum diterima driver" />
-          <Kpi tone="purple" label="Di luar gate" value={m.gateReady ? m.keluar.length : "–"} sub={`kendaraan CIK · ${m.vehiclesActive} unit aktif`} />
-          <Kpi tone="blue" label="Tugas hari ini" value={m.done.length} unit={`/ ${m.total}`} sub={`${m.going.length} sedang berjalan`} />
+          <Kpi tone="blue" label={L("Driver aktif", "Active drivers")} value={m.activeDrivers} sub={`${m.poolRows} pool · ${m.supportRows} support · ${m.userRows} user`} />
+          <Kpi tone="green" label="Standby" value={m.opCount - m.out} sub={L(`${m.ready} belum ada tugas`, `${m.ready} without a task`)} />
+          <Kpi tone="cyan" label={L("Sedang bertugas", "On duty")} value={m.out} sub={L("tugas ON GOING", "ON GOING tasks")} />
+          <Kpi tone="amber" label={L("Menunggu berangkat", "Waiting to depart")} value={m.assigned.length} sub={L("belum diterima driver", "not yet accepted by the driver")} />
+          <Kpi tone="purple" label={L("Di luar gate", "Outside the gate")} value={m.gateReady ? m.keluar.length : "–"} sub={L(`kendaraan CIK · ${m.vehiclesActive} unit aktif`, `CIK vehicles · ${m.vehiclesActive} active units`)} />
+          <Kpi tone="blue" label={L("Tugas hari ini", "Tasks today")} value={m.done.length} unit={`/ ${m.total}`} sub={L(`${m.going.length} sedang berjalan`, `${m.going.length} in progress`)} />
         </section>
 
         <main className="mid">
