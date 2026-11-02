@@ -18,15 +18,19 @@ import GaResetModal from "./GaReset";
 import a from "./atk.module.css";
 import m from "./gamanage.module.css";
 
-import { loc } from "@/lib/i18n";
+import { L, loc } from "@/lib/i18n";
 type Lang = "id" | "en";
-const BLN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const HARI_FULL = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const addDays = (iso: string, n: number) => { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return toLocalISODate(d); };
 const mondayOf = (iso: string) => { const d = new Date(iso + "T00:00:00"); const k = (d.getDay() + 6) % 7; d.setDate(d.getDate() - k); return toLocalISODate(d); };
-const fmtLong = (iso: string) => { const d = new Date(iso + "T00:00:00"); return `${HARI_FULL[d.getDay()]}, ${d.getDate()} ${BLN[d.getMonth()]} ${d.getFullYear()}`; };
-const perLabel = (p: number) => `${BLN[(p % 100) - 1]} ${Math.floor(p / 100)}`;
-const DAY2: Record<string, string> = { Senin: "Sn", Selasa: "Sl", Rabu: "Rb", Kamis: "Km", Jumat: "Jm", Sabtu: "Sb", Minggu: "Mg" };
+const fmtLong = (iso: string) => { const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }); };
+const perLabel = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(loc(), { month: "long", year: "numeric" });
+/** Nama hari Indonesia (nilai di data GA) → label sesuai bahasa aktif. */
+const dayLong = (idName: string) => { const i = HARI_FULL.indexOf(idName); return i < 0 ? idName : new Date(2023, 0, 1 + i).toLocaleDateString(loc(), { weekday: "long" }); };
+const dayShort = (idName: string) => { const i = HARI_FULL.indexOf(idName); return i < 0 ? idName : new Date(2023, 0, 1 + i).toLocaleDateString(loc(), { weekday: "short" }); };
+const DAY2_ID: Record<string, string> = { Senin: "Sn", Selasa: "Sl", Rabu: "Rb", Kamis: "Km", Jumat: "Jm", Sabtu: "Sb", Minggu: "Mg" };
+const DAY2_EN: Record<string, string> = { Senin: "Mo", Selasa: "Tu", Rabu: "We", Kamis: "Th", Jumat: "Fr", Sabtu: "Sa", Minggu: "Su" };
+const day2 = (d: string) => L(DAY2_ID[d], DAY2_EN[d]);
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Banner bila masih mode Excel (input CIKOPS belum aktif). */
@@ -139,7 +143,7 @@ export function GaChecklist({ lang, editable, onChanged }: { lang: Lang; editabl
           const fill = x.total ? x.filled / x.total : 0;
           return (
             <button key={x.d} type="button" className={`${m.weekDay} ${x.d === date ? m.weekOn : ""} ${x.d === today ? m.weekToday : ""}`} onClick={() => go(x.d)}>
-              <small>{GA_DAY_SHORT[HARI_FULL[new Date(x.d + "T00:00:00").getDay()]]}</small>
+              <small>{dayShort(HARI_FULL[new Date(x.d + "T00:00:00").getDay()])}</small>
               <b>{Number(x.d.slice(8))}</b>
               <span className={m.weekBar}><span style={{ width: `${fill * 100}%` }} className={fill >= 1 ? m.barFull : ""} /></span>
               <em>{x.total ? `${x.filled}/${x.total}` : "—"}</em>
@@ -314,7 +318,7 @@ export function GaMaster({ lang, jobs, manpower, periode, editable, onChanged }:
                         <td>{j.tim}</td>
                         <td><b>{j.lokasi || "—"}</b>{j.area && <><br /><small className={a.mute}>{j.area}</small></>}</td>
                         <td>{j.tipe}{j.catatan && <><br /><small className={a.mute}>📝 {j.catatan}</small></>}</td>
-                        <td><span className={m.days}>{GA_DAYS.map((d) => <i key={d} className={ds.includes(d) ? m.dayOn : ""} title={d}>{DAY2[d]}</i>)}</span>{!j.aktif && <small className={a.mute}> {L("nonaktif", "inactive")}</small>}</td>
+                        <td><span className={m.days}>{GA_DAYS.map((d) => <i key={d} className={ds.includes(d) ? m.dayOn : ""} title={dayLong(d)}>{day2(d)}</i>)}</span>{!j.aktif && <small className={a.mute}> {L("nonaktif", "inactive")}</small>}</td>
                         <td>{j.petugas || "—"}</td>
                         <td className={a.rowAct}>{editable && <>
                           <button type="button" className={a.smallBtn} onClick={() => setJob({ isNew: false, id: j.id, tim: j.tim, lokasi: j.lokasi, tipe: j.tipe, area: j.area, hari: ds, petugas: j.petugas, aktif: j.aktif, catatan: j.catatan, frek: j.frek })}>{L("Ubah", "Edit")}</button>{" "}
@@ -337,7 +341,7 @@ export function GaMaster({ lang, jobs, manpower, periode, editable, onChanged }:
                 <div key={p.id} className={`${m.person} ${/nonaktif/i.test(p.status) ? m.rowOff : ""}`}>
                   <span className={m.avatar}>{p.nama.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
                   <div><b>{p.nama}</b><small>{[p.tim, p.jabatan, p.areaTugas].filter(Boolean).join(" · ") || "—"}</small>{p.noHp && <small>📱 {p.noHp}</small>}</div>
-                  <span className={/nonaktif/i.test(p.status) ? a.tagPending : a.tagExcel}>{p.status || "Aktif"}</span>
+                  <span className={/nonaktif/i.test(p.status) ? a.tagPending : a.tagExcel}>{/nonaktif/i.test(p.status) ? L("Nonaktif", "Inactive") : L("Aktif", "Active")}</span>
                   {editable && <span className={m.personAct}>
                     <button type="button" className={a.smallBtn} onClick={() => setPerson({ ...p, isNew: false })}>{L("Ubah", "Edit")}</button>
                     <button type="button" className={a.iconBtn} onClick={() => removePerson(p)} aria-label={L("Hapus", "Delete")}>✕</button>
@@ -402,7 +406,7 @@ function JobModal({ lang, initial, jobs, manpower, onClose, onSaved }: {
           <button type="button" className={a.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
         </div>
         <div className={a.field}>
-          <span>Tim *</span>
+          <span>{L("Tim", "Team")} *</span>
           <div className={a.seg}>
             {Array.from(new Set([...TEAMS, d.tim].filter(Boolean))).map((t) => <button key={t} type="button" className={d.tim === t ? a.segOn : ""} onClick={() => set("tim", t)}>{t}</button>)}
           </div>
@@ -462,7 +466,7 @@ function PersonModal({ lang, initial, onClose, onSaved }: { lang: Lang; initial:
           <button type="button" className={a.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
         </div>
         <label className={a.field}><span>{L("Nama", "Name")} *</span><input className={a.input} value={d.nama} onChange={(e) => setD({ ...d, nama: e.target.value })} required autoFocus /></label>
-        <div className={a.field}><span>Tim</span>
+        <div className={a.field}><span>{L("Tim", "Team")}</span>
           <div className={a.seg}>{[...TEAMS, "TGA"].map((t) => <button key={t} type="button" className={d.tim === t ? a.segOn : ""} onClick={() => setD({ ...d, tim: t })}>{t}</button>)}</div>
         </div>
         <div className={a.fields2}>
@@ -472,7 +476,7 @@ function PersonModal({ lang, initial, onClose, onSaved }: { lang: Lang; initial:
         <div className={a.fields2}>
           <label className={a.field}><span>No HP</span><input className={a.input} inputMode="tel" value={d.noHp ?? ""} onChange={(e) => setD({ ...d, noHp: e.target.value })} /></label>
           <label className={a.field}><span>Status</span>
-            <select className={a.input} value={/nonaktif/i.test(d.status) ? "Nonaktif" : "Aktif"} onChange={(e) => setD({ ...d, status: e.target.value })}><option>Aktif</option><option>Nonaktif</option></select>
+            <select className={a.input} value={/nonaktif/i.test(d.status) ? "Nonaktif" : "Aktif"} onChange={(e) => setD({ ...d, status: e.target.value })}><option value="Aktif">{L("Aktif", "Active")}</option><option value="Nonaktif">{L("Nonaktif", "Inactive")}</option></select>
           </label>
         </div>
         {err && <div className={a.msgErr}>{err}</div>}
