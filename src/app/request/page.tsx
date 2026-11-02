@@ -461,7 +461,7 @@ export default function RequestPage() {
                 <button key={c.id} type="button" onClick={() => setTgaKategori(tgaKategori === c.id ? "" : c.id)}
                   style={{ padding: "8px 12px", borderRadius: 99, fontSize: 13, fontWeight: 700, cursor: "pointer",
                     border: tgaKategori === c.id ? "2px solid #2d5bff" : "1.5px solid #e1e8f5", background: tgaKategori === c.id ? "#eef3ff" : "#fff", color: tgaKategori === c.id ? "#1d44d6" : "#44537a" }}>
-                  {c.icon} {c.id}
+                  {c.icon} {c.label}
                 </button>
               ))}
             </div>

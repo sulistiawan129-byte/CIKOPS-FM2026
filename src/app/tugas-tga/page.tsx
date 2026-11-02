@@ -173,7 +173,7 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
           <div className={s.cats}>
             {TGA_CATEGORIES.map((c) => (
               <button key={c.id} type="button" className={`${s.cat} ${d.kategori === c.id ? s.on : ""}`} style={{ ["--h" as string]: c.hue }} onClick={() => set("kategori", d.kategori === c.id ? "" : c.id)}>
-                <span>{c.icon}</span>{c.id}
+                <span>{c.icon}</span>{c.label}
               </button>
             ))}
           </div>

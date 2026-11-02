@@ -2,7 +2,7 @@
 // Semua lewat RPC SECURITY DEFINER (supabase/01_dasar.sql (bagian 034)) — teknisi tidak butuh akun Supabase.
 import { supabase } from "@/lib/supabaseClient";
 
-import { L } from "@/lib/i18n";
+import { L, currentLang } from "@/lib/i18n";
 export type TgaStatus = "selesai" | "proses" | "pending" | "butuh_part" | "baru" | "batal";
 /** Asal kegiatan: dicatat sendiri, ditugaskan admin, atau permintaan karyawan (/request). */
 export type TgaSource = "mandiri" | "tugas" | "permintaan";
@@ -69,28 +69,31 @@ export interface TgaUserRow {
 }
 
 export const TGA_STATUS: { id: TgaStatus; label: string; short: string; tone: string }[] = [
-  { id: "selesai", label: "Selesai", short: "Selesai", tone: "green" },
-  { id: "proses", label: "Dalam proses", short: "Proses", tone: "blue" },
+  { id: "selesai", get label() { return L("Selesai", "Completed"); }, get short() { return L("Selesai", "Done"); }, tone: "green" },
+  { id: "proses", get label() { return L("Dalam proses", "In progress"); }, get short() { return L("Proses", "Active"); }, tone: "blue" },
   { id: "pending", label: "Pending", short: "Pending", tone: "orange" },
-  { id: "butuh_part", label: "Butuh part", short: "Part", tone: "red" },
+  { id: "butuh_part", get label() { return L("Butuh part", "Needs parts"); }, get short() { return L("Part", "Parts"); }, tone: "red" },
 ];
 /** Status di luar pilihan form: tugas baru (menunggu diterima) & dibatalkan admin. */
 export const TGA_STATUS_EXTRA: { id: TgaStatus; label: string; short: string; tone: string }[] = [
-  { id: "baru", label: "Tugas baru", short: "Baru", tone: "red" },
-  { id: "batal", label: "Dibatalkan", short: "Batal", tone: "gray" },
+  { id: "baru", get label() { return L("Tugas baru", "New task"); }, get short() { return L("Baru", "New"); }, tone: "red" },
+  { id: "batal", get label() { return L("Dibatalkan", "Cancelled"); }, get short() { return L("Batal", "Cancelled"); }, tone: "gray" },
 ];
 export const tgaStatusInfo = (s: string) => [...TGA_STATUS, ...TGA_STATUS_EXTRA].find((x) => x.id === s);
 export const tgaStatusLabel = (s: string) => tgaStatusInfo(s)?.label ?? s;
-export const TGA_SOURCE_LABEL: Record<TgaSource, string> = { mandiri: "Dicatat sendiri", tugas: "Ditugaskan admin", permintaan: "Permintaan karyawan" };
+export const TGA_SOURCE_LABEL: Record<TgaSource, string> = {
+  get mandiri() { return L("Dicatat sendiri", "Self-logged"); }, get tugas() { return L("Ditugaskan admin", "Assigned by admin"); }, get permintaan() { return L("Permintaan karyawan", "Employee request"); },
+};
 
-export const TGA_CATEGORIES: { id: string; icon: string; hue: number; quick: string[] }[] = [
-  { id: "Listrik", icon: "⚡", hue: 45, quick: ["Ganti lampu", "Perbaiki stop kontak", "Cek MCB / panel", "Pasang kabel"] },
-  { id: "AC", icon: "❄️", hue: 195, quick: ["Cuci AC", "AC tidak dingin", "AC bocor air", "Ganti remote / baterai"] },
-  { id: "Plumbing", icon: "🚰", hue: 210, quick: ["Kran bocor", "Saluran mampet", "Perbaiki toilet", "Ganti selang"] },
-  { id: "Furniture", icon: "🪑", hue: 28, quick: ["Perbaiki kursi", "Perbaiki meja", "Pindah furniture", "Pasang rak"] },
-  { id: "Sipil", icon: "🧱", hue: 12, quick: ["Tambal dinding", "Cat ulang", "Perbaiki plafon", "Perbaiki pintu"] },
-  { id: "Lainnya", icon: "🔧", hue: 265, quick: ["Pasang banner", "Angkat barang", "Persiapan acara", "Pengecekan rutin"] },
+export const TGA_CATEGORIES: { id: string; label: string; icon: string; hue: number; quick: string[] }[] = [
+  { id: "Listrik", get label() { return L("Listrik", "Electrical"); }, icon: "⚡", hue: 45, get quick() { return currentLang() === "en" ? ["Replace a light", "Repair a power socket", "Check MCB / panel", "Install cable"] : ["Ganti lampu", "Perbaiki stop kontak", "Cek MCB / panel", "Pasang kabel"]; } },
+  { id: "AC", get label() { return L("AC", "AC"); }, icon: "❄️", hue: 195, get quick() { return currentLang() === "en" ? ["Clean the AC", "AC not cooling", "AC leaking water", "Replace remote / battery"] : ["Cuci AC", "AC tidak dingin", "AC bocor air", "Ganti remote / baterai"]; } },
+  { id: "Plumbing", get label() { return L("Plumbing", "Plumbing"); }, icon: "🚰", hue: 210, get quick() { return currentLang() === "en" ? ["Leaking tap", "Blocked drain", "Repair the toilet", "Replace a hose"] : ["Kran bocor", "Saluran mampet", "Perbaiki toilet", "Ganti selang"]; } },
+  { id: "Furniture", get label() { return L("Furniture", "Furniture"); }, icon: "🪑", hue: 28, get quick() { return currentLang() === "en" ? ["Repair a chair", "Repair a table", "Move furniture", "Install a shelf"] : ["Perbaiki kursi", "Perbaiki meja", "Pindah furniture", "Pasang rak"]; } },
+  { id: "Sipil", get label() { return L("Sipil", "Civil works"); }, icon: "🧱", hue: 12, get quick() { return currentLang() === "en" ? ["Patch a wall", "Repaint", "Repair the ceiling", "Repair a door"] : ["Tambal dinding", "Cat ulang", "Perbaiki plafon", "Perbaiki pintu"]; } },
+  { id: "Lainnya", get label() { return L("Lainnya", "Other"); }, icon: "🔧", hue: 265, get quick() { return currentLang() === "en" ? ["Install a banner", "Lift items", "Event preparation", "Routine check"] : ["Pasang banner", "Angkat barang", "Persiapan acara", "Pengecekan rutin"]; } },
 ];
+export const tgaCatLabel = (id: string) => TGA_CATEGORIES.find((c) => c.id === id)?.label ?? id;
 export const tgaCategory = (id: string) => TGA_CATEGORIES.find((c) => c.id === id) ?? TGA_CATEGORIES[TGA_CATEGORIES.length - 1];
 
 const TOKEN_KEY = "cikops_tga_token";

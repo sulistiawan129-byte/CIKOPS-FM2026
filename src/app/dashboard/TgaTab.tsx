@@ -450,7 +450,7 @@ function JobModal({ lang, initial, users, emps, onClose, onSaved, onDeleted }: {
           <span>{L("Jenis pekerjaan", "Category")}</span>
           <div className={t.catPick}>
             {TGA_CATEGORIES.map((c) => (
-              <button key={c.id} type="button" className={d.kategori === c.id ? t.catOn : ""} onClick={() => set("kategori", d.kategori === c.id ? "" : c.id)}>{c.icon} {c.id}</button>
+              <button key={c.id} type="button" className={d.kategori === c.id ? t.catOn : ""} onClick={() => set("kategori", d.kategori === c.id ? "" : c.id)}>{c.icon} {c.label}</button>
             ))}
           </div>
         </div>
