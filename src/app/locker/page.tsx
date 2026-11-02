@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useLang, useTheme } from "@/lib/providers";
+import { L } from "@/lib/i18n";
 import {
   registerLocker,
   verifyLockerRelease,
@@ -212,7 +213,7 @@ export default function LockerPublicPage() {
       setConfirmData(data);
       goTo("end-confirm");
     } catch (e) {
-      setEndUseError(e instanceof Error ? e.message : "Gagal menghubungi server. Coba lagi.");
+      setEndUseError(e instanceof Error ? e.message : L("Gagal menghubungi server. Coba lagi.", "Could not reach the server. Please try again."));
     } finally {
       setLoading(null);
     }

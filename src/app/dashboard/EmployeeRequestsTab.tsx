@@ -12,17 +12,17 @@ import { ModuleHeader, ModulePage } from "./ModuleShell";
 import { useCountUp, formatDateLabel, printRequestReceipt } from "./dashboardShared";
 import { SkeletonRows } from "./TaskModals";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 const EMPLOYEE_REQUEST_TYPE_LABELS: Record<EmployeeRequestType, { label: string; icon: string }> = {
-  DRIVER: { label: "Request Driver", icon: "🚗" },
-  TONER: { label: "Request Toner", icon: "🖨️" },
-  OTHER: { label: "Lainnya", icon: "📝" },
+  DRIVER: { get label() { return L("Request Driver", "Driver Request"); }, icon: "🚗" },
+  TONER: { get label() { return L("Request Toner", "Toner Request"); }, icon: "🖨️" },
+  OTHER: { get label() { return L("Lainnya", "Other"); }, icon: "📝" },
 };
 const EMPLOYEE_REQUEST_STATUS_LABELS: Record<EmployeeRequestStatus, { label: string; color: string; bg: string }> = {
-  PENDING: { label: "Menunggu", color: "var(--orange)", bg: "var(--orange-soft)" },
-  IN_PROGRESS: { label: "Diproses", color: "var(--brand)", bg: "var(--bg2)" },
-  DONE: { label: "Selesai", color: "var(--green)", bg: "var(--green-soft)" },
-  REJECTED: { label: "Ditolak", color: "var(--red)", bg: "var(--red-soft)" },
+  PENDING: { get label() { return L("Menunggu", "Pending"); }, color: "var(--orange)", bg: "var(--orange-soft)" },
+  IN_PROGRESS: { get label() { return L("Diproses", "In progress"); }, color: "var(--brand)", bg: "var(--bg2)" },
+  DONE: { get label() { return L("Selesai", "Done"); }, color: "var(--green)", bg: "var(--green-soft)" },
+  REJECTED: { get label() { return L("Ditolak", "Rejected"); }, color: "var(--red)", bg: "var(--red-soft)" },
 };
 
 export function EmployeeRequestsTab() {
@@ -42,7 +42,7 @@ export function EmployeeRequestsTab() {
     try {
       setRequests(await getEmployeeRequests());
     } catch (e) {
-      console.warn("Gagal memuat permintaan karyawan:", e);
+      console.warn(L("Gagal memuat permintaan karyawan:", "Failed to load employee requests:"), e);
     } finally {
       setLoading(false);
     }
@@ -76,7 +76,7 @@ export function EmployeeRequestsTab() {
       setDetailRequest(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal mengubah status");
+      alert(e instanceof Error ? e.message : L("Gagal mengubah status", "Failed to change the status"));
     } finally {
       setBusyId(null);
     }
@@ -89,7 +89,7 @@ export function EmployeeRequestsTab() {
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus permintaan");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus permintaan", "Failed to delete the request"));
     }
   }
 
@@ -121,10 +121,10 @@ export function EmployeeRequestsTab() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "16px 18px" }}>
           {([
             ["all", lang === "en" ? "All" : "Semua"],
-            ["PENDING", "Menunggu"],
-            ["IN_PROGRESS", "Diproses"],
-            ["DONE", "Selesai"],
-            ["REJECTED", "Ditolak"],
+            ["PENDING", L("Menunggu", "Pending")],
+            ["IN_PROGRESS", L("Diproses", "In progress")],
+            ["DONE", L("Selesai", "Done")],
+            ["REJECTED", L("Ditolak", "Rejected")],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -136,10 +136,10 @@ export function EmployeeRequestsTab() {
           ))}
           <div style={{ width: 1, background: "var(--border2)", margin: "0 4px" }} />
           {([
-            ["all", "Semua Jenis"],
+            ["all", L("Semua Jenis", "All Types")],
             ["DRIVER", "🚗 Driver"],
             ["TONER", "🖨️ Toner"],
-            ["OTHER", "📝 Lainnya"],
+            ["OTHER", L("📝 Lainnya", "📝 Other")],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -216,11 +216,11 @@ export function EmployeeRequestsTab() {
             {detailRequest.requestType === "DRIVER" && detailRequest.details ? (
               <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
                 {[
-                  ["Tanggal Event/Acara", detailRequest.details.eventDate ? formatDateLabel(detailRequest.details.eventDate) : ""],
-                  ["Tujuan", detailRequest.details.destination ?? ""],
-                  ["Jam Berangkat", detailRequest.details.departureTime ?? ""],
-                  ["Keperluan", detailRequest.details.purpose ?? ""],
-                  ["Catatan Tambahan", detailRequest.details.additionalNotes ?? ""],
+                  [L("Tanggal Event/Acara", "Event Date"), detailRequest.details.eventDate ? formatDateLabel(detailRequest.details.eventDate) : ""],
+                  [L("Tujuan", "Destination"), detailRequest.details.destination ?? ""],
+                  [L("Jam Berangkat", "Departure Time"), detailRequest.details.departureTime ?? ""],
+                  [L("Keperluan", "Purpose"), detailRequest.details.purpose ?? ""],
+                  [L("Catatan Tambahan", "Additional Notes"), detailRequest.details.additionalNotes ?? ""],
                 ].filter(([, v]) => v).map(([label, value]) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                     <span style={{ color: "var(--t3)" }}>{label}</span>
@@ -246,13 +246,13 @@ export function EmployeeRequestsTab() {
                   const typeInfo2 = EMPLOYEE_REQUEST_TYPE_LABELS[detailRequest.requestType] ?? { label: detailRequest.requestType };
                   const lines = detailRequest.requestType === "DRIVER"
                     ? [
-                        { label: "Tanggal Event/Acara", value: detailRequest.details.eventDate ? formatDateLabel(detailRequest.details.eventDate) : "" },
-                        { label: "Tujuan", value: detailRequest.details.destination ?? "" },
-                        { label: "Jam Berangkat", value: detailRequest.details.departureTime ?? "" },
-                        { label: "Keperluan", value: detailRequest.details.purpose ?? "" },
-                        { label: "Catatan Tambahan", value: detailRequest.details.additionalNotes ?? "" },
+                        { label: L("Tanggal Event/Acara", "Event Date"), value: detailRequest.details.eventDate ? formatDateLabel(detailRequest.details.eventDate) : "" },
+                        { label: L("Tujuan", "Destination"), value: detailRequest.details.destination ?? "" },
+                        { label: L("Jam Berangkat", "Departure Time"), value: detailRequest.details.departureTime ?? "" },
+                        { label: L("Keperluan", "Purpose"), value: detailRequest.details.purpose ?? "" },
+                        { label: L("Catatan Tambahan", "Additional Notes"), value: detailRequest.details.additionalNotes ?? "" },
                       ]
-                    : [{ label: "Detail Permintaan", value: detailRequest.description }];
+                    : [{ label: L("Detail Permintaan", "Request Details"), value: detailRequest.description }];
                   printRequestReceipt({ refId: detailRequest.id, createdAt: detailRequest.createdAt, typeLabel: typeInfo2.label, employeeName: detailRequest.employeeName, department: detailRequest.department, lines });
                 }}
                 style={{ flex: 1, minWidth: 110, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--bg2)", color: "var(--t2)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}

@@ -265,7 +265,7 @@ export async function sendDriverCredentials(
     body: { driverEmail, appUrl, lang },
   });
   if (error) {
-    return { ok: false, error: error.message || "Gagal memanggil fungsi email." };
+    return { ok: false, error: error.message || L("Gagal memanggil fungsi email.", "Failed to call the email function.") };
   }
   return (data ?? { ok: false, error: "Respons kosong dari server." }) as {
     ok: boolean;
@@ -2176,7 +2176,7 @@ async function staffFn<T>(body: Record<string, unknown>): Promise<T> {
   if (error) throw new Error(/not found|404|Failed to send/i.test(error.message)
     ? "Edge Function manage-staff-account belum di-deploy (lihat docs/PANDUAN.md, bab Role)."
     : error.message);
-  if (!data?.ok) throw new Error(data?.error || "Gagal memproses akun.");
+  if (!data?.ok) throw new Error(data?.error || L("Gagal memproses akun.", "Failed to process the account."));
   return data as T;
 }
 export const listStaffAccounts = () => staffFn<{ myRole: string; roles: string[]; rows: StaffAccount[] }>({ action: "list" });
@@ -2559,6 +2559,7 @@ export async function deleteCanteenReport(id: string): Promise<void> {
 
 import type { GiftEvent, GiftRegistration, GiftItemDef, GiftSelection } from "./types";
 
+import { L } from "@/lib/i18n";
 // ── Row types ─────────────────────────────────────────────────
 interface GiftEventRow {
   id: string; name: string; description: string | null;

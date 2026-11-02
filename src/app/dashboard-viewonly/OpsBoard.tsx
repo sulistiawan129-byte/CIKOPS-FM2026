@@ -43,7 +43,7 @@ import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverType
 import type { TaskDetail, Driver, Vehicle, Plant } from "@/lib/types";
 import { BRAND } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 const display = Chakra_Petch({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
@@ -181,7 +181,7 @@ function usePlantSnapshot() {
       setError(null);
       setLoadedAt(new Date());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data", "Failed to load data"));
     }
   }, []);
 

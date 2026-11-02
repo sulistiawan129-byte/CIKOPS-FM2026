@@ -2,6 +2,7 @@
 // Semua lewat RPC SECURITY DEFINER (supabase/01_dasar.sql (bagian 034)) — teknisi tidak butuh akun Supabase.
 import { supabase } from "@/lib/supabaseClient";
 
+import { L } from "@/lib/i18n";
 export type TgaStatus = "selesai" | "proses" | "pending" | "butuh_part" | "baru" | "batal";
 /** Asal kegiatan: dicatat sendiri, ditugaskan admin, atau permintaan karyawan (/request). */
 export type TgaSource = "mandiri" | "tugas" | "permintaan";
@@ -136,7 +137,7 @@ export const tgaNames = () => rpc<string[]>("tga_names").then((d) => d ?? []);
 
 export async function tgaLogin(nama: string, pin: string): Promise<{ token: string; nama: string }> {
   const r = await rpc<{ token?: string; nama?: string; error?: string }>("tga_login", { p_nama: nama, p_pin: pin });
-  if (!r?.token) throw new Error(r?.error ?? "Gagal masuk.");
+  if (!r?.token) throw new Error(r?.error ?? L("Gagal masuk.", "Login failed."));
   storeSession(r.token, r.nama ?? nama);
   return { token: r.token, nama: r.nama ?? nama };
 }
@@ -193,7 +194,7 @@ export async function tgaAssignPublicInfo(code: string): Promise<TgaAssignInfo> 
 }
 export async function tgaAssignPublic(code: string, userId: string | null, d: Record<string, unknown>) {
   const r = await rpc<{ id?: string; ref_no?: string; nama_tga?: string; pool?: boolean; error?: string }>("tga_assign_public", { p_code: code, p_user_id: userId, p_data: d });
-  if (!r?.id) throw new Error(r?.error ?? "Gagal mengirim tugas.");
+  if (!r?.id) throw new Error(r?.error ?? L("Gagal mengirim tugas.", "Failed to send the task."));
   return r as { id: string; ref_no: string; nama_tga: string; pool: boolean };
 }
 

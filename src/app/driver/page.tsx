@@ -26,7 +26,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { driverTypeLabel, dutyHoursLabel, getUserDutyStatus, isUserDriver, useNowTick } from "@/lib/duty";
 import { DEMO_DRIVER_EMAIL, DEMO_MODE, DEMO_PASSWORD, plantFull } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 type Screen = "splash" | "login" | "app";
 type Tab = "today" | "history" | "claims" | "profile";
 type Lx = (id: string, en: string) => string;

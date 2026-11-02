@@ -18,7 +18,7 @@ import { useCountUp, fmtRp, evalExpr, monthWeekBoundaries } from "./dashboardSha
 import { SkeletonRows } from "./TaskModals";
 import { weekOfMonth } from "./ClaimsTab";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 interface WeekBucket {
   key: string;   // e.g. "2026-08-W1" — unique across months
   label: string; // e.g. "M1 Agu"
@@ -130,7 +130,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       setTiers(t);
       setDrivers(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data tier");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data tier", "Failed to load tier data"));
     } finally {
       setLoading(false);
     }
@@ -200,7 +200,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       setShowForm(false);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan tier");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan tier", "Failed to save the tier"));
     } finally {
       setSaving(false);
     }
@@ -213,7 +213,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus tier");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus tier", "Failed to delete the tier"));
     }
   }
 
@@ -222,7 +222,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       await setDriverTier(driverId, tierId || null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal assign tier");
+      alert(e instanceof Error ? e.message : L("Gagal assign tier", "Failed to assign the tier"));
     }
   }
 
@@ -545,7 +545,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
         setEUnsubmittedClaim(String(k.unsubmittedClaim));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat Dana Operasional");
+      setError(e instanceof Error ? e.message : L("Gagal memuat Dana Operasional", "Failed to load the Operational Fund"));
     } finally {
       setLoading(false);
     }
@@ -650,7 +650,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
       setInitBudget(""); setInitOpDriver(""); setInitEmergency(""); setInitCash("");
       await load(viewPlant);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal membuat data Dana Operasional");
+      alert(e instanceof Error ? e.message : L("Gagal membuat data Dana Operasional", "Failed to create the Operational Fund data"));
     } finally {
       setCreating(false);
     }
@@ -743,7 +743,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
       setShowEdit(false);
       await load(viewPlant);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan", "Failed to save"));
     } finally {
       setSaving(false);
     }
@@ -758,7 +758,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
       setShowResetConfirm(false);
       await load(viewPlant);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal reset periode");
+      alert(e instanceof Error ? e.message : L("Gagal reset periode", "Failed to reset the period"));
     }
   }
 

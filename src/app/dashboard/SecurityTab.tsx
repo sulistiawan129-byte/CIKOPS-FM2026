@@ -25,7 +25,7 @@ import { CrudList, SettingsPage } from "@/components/settings/Settings";
 import s from "./security.module.css";
 import { plantFull } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 type Tab = "ringkasan" | "kendaraan" | "transporter" | "pelanggaran" | "kejadian" | "visit" | "patroli" | "personel" | "riwayat" | "pengaturan";
 const TABS: { id: Tab; label: string; check?: boolean }[] = [
   { id: "ringkasan", label: "Ringkasan" },
@@ -864,7 +864,7 @@ function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig
           <div className={ping.ok ? s.checkOk : s.checkWarn}>
             {ping.ok
               ? `✓ Tersambung (${ping.mode === "service" ? "service key" : "akun baca-saja"}) · plant ${ping.plant} · ${f(ping.total || 0)} laporan Accept · terbaru ${ping.latest ? dateShort(ping.latest) : "-"}`
-              : `⚠ ${ping.configured ? "Gagal" : "Belum dikonfigurasi"}: ${ping.error || "-"}`}
+              : `⚠ ${ping.configured ? L("Gagal", "Failed") : "Belum dikonfigurasi"}: ${ping.error || "-"}`}
           </div>
         )}
         <p className={s.mute}>Cara menyambungkan: docs/PANDUAN.md, bab Security (environment variable GC_* di Vercel).</p>

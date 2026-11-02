@@ -41,6 +41,7 @@ import { MasterDataTab } from "./MasterDataTab";
 import ChangePasswordModal from "./ChangePasswordModal";
 import { GiftMasterPanel } from "./GiftTab";
 
+import { L } from "@/lib/i18n";
 /** Label pendek grup untuk rail sidebar. */
 const NAV_SHORT_ID: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Fasilitas", security: "Security", system: "Sistem" };
 const NAV_SHORT_EN: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Facility", security: "Security", system: "System" };
@@ -227,7 +228,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       const data = await getTasksByDate(dateFilter, myProfile?.plantScope ?? null);
       setTasks(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data tugas");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data tugas", "Failed to load task data"));
     } finally {
       setLoading(false);
     }
@@ -262,7 +263,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         setJobTypes(j);
       } catch (err) {
         showToast(
-          err instanceof Error ? err.message : "Gagal memuat master data",
+          err instanceof Error ? err.message : L("Gagal memuat master data", "Failed to load master data"),
           true
         );
       }
@@ -297,7 +298,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       showToast(`Status diubah ke ${status}`);
       loadTasks();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal mengubah status", true);
+      showToast(e instanceof Error ? e.message : L("Gagal mengubah status", "Failed to change the status"), true);
     }
   }
 
@@ -314,7 +315,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           showToast(`${count} tugas (seluruh penugasan) dihapus`);
           loadTasks();
         } catch (e) {
-          showToast(e instanceof Error ? e.message : "Gagal menghapus seluruh penugasan", true);
+          showToast(e instanceof Error ? e.message : L("Gagal menghapus seluruh penugasan", "Failed to delete all assignments"), true);
         }
         return;
       }
@@ -329,7 +330,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       showToast("Tugas dihapus");
       loadTasks();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal menghapus tugas", true);
+      showToast(e instanceof Error ? e.message : L("Gagal menghapus tugas", "Failed to delete the task"), true);
     }
   }
 
@@ -346,7 +347,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       showToast("Tugas dibatalkan");
       loadTasks();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal membatalkan tugas", true);
+      showToast(e instanceof Error ? e.message : L("Gagal membatalkan tugas", "Failed to cancel the task"), true);
     }
   }
 

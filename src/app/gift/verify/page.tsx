@@ -3,7 +3,7 @@ import { useState } from "react";
 import { verifyGiftPasscode, claimGift } from "@/lib/api";
 import type { GiftRegistration } from "@/lib/types";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 export default function GiftVerifyPage() {
   const [passcode, setPasscode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ export default function GiftVerifyPage() {
     } catch (e) {
       // tampilkan pesan dari server (mis. batas percobaan passcode), selain itu pesan umum
       const m = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "";
-      setError(m && !/fetch|network/i.test(m) ? m : "Gagal memverifikasi. Periksa koneksi internet.");
+      setError(m && !/fetch|network/i.test(m) ? m : L("Gagal memverifikasi. Periksa koneksi internet.", "Failed to verify. Check your internet connection."));
     } finally {
       setLoading(false);
     }
@@ -41,7 +41,7 @@ export default function GiftVerifyPage() {
       setClaimed(true);
       setReg(prev => prev ? { ...prev, claimed: true } : prev);
     } catch {
-      alert("Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.");
+      alert(L("Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.", "Failed to mark the pickup. It may have been claimed already."));
     } finally {
       setClaiming(false);
     }

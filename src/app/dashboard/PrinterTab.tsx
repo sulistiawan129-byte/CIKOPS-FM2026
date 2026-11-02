@@ -14,10 +14,11 @@ import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
 import { useCountUp, formatDateLabel, printRequestReceipt } from "./dashboardShared";
 import { SkeletonRows } from "./TaskModals";
 
+import { L } from "@/lib/i18n";
 const PRINTER_REQUEST_LABELS: Record<PrinterRequestType, string> = {
-  RESET_KUOTA: "Reset Kuota",
-  TAMBAH_KUOTA: "Tambah Kuota",
-  AMBIL_TONER: "Pengambilan Toner",
+  get RESET_KUOTA() { return L("Reset Kuota", "Quota Reset"); },
+  get TAMBAH_KUOTA() { return L("Tambah Kuota", "Add Quota"); },
+  get AMBIL_TONER() { return L("Pengambilan Toner", "Toner Pickup"); },
 };
 
 export function PrinterTab() {
@@ -46,7 +47,7 @@ export function PrinterTab() {
     try {
       setPrinters(await getPrinters());
     } catch (e) {
-      console.warn("Gagal memuat printer:", e);
+      console.warn(L("Gagal memuat printer:", "Failed to load printers:"), e);
     } finally {
       setLoadingPrinters(false);
     }
@@ -86,7 +87,7 @@ export function PrinterTab() {
       setShowPrinterForm(false);
       await loadPrinters();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan printer");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan printer", "Failed to save the printer"));
     } finally {
       setSavingPrinter(false);
     }
@@ -98,7 +99,7 @@ export function PrinterTab() {
       setConfirmDeletePrinter(null);
       await loadPrinters();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus printer");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus printer", "Failed to delete the printer"));
     }
   }
   function openControlPanel(url: string) {
@@ -133,7 +134,7 @@ export function PrinterTab() {
     try {
       setRequests(await getPrinterRequests({ dateFrom: reqDateFrom, dateTo: reqDateTo }));
     } catch (e) {
-      console.warn("Gagal memuat permintaan printer:", e);
+      console.warn(L("Gagal memuat permintaan printer:", "Failed to load printer requests:"), e);
     } finally {
       setLoadingRequests(false);
     }
@@ -163,7 +164,7 @@ export function PrinterTab() {
       setShowRequestForm(false);
       await loadRequests();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan permintaan");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan permintaan", "Failed to save the request"));
     } finally {
       setSavingRequest(false);
     }
@@ -175,7 +176,7 @@ export function PrinterTab() {
       setConfirmDeleteRequest(null);
       await loadRequests();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus permintaan");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus permintaan", "Failed to delete the request"));
     }
   }
 
@@ -336,7 +337,7 @@ export function PrinterTab() {
                       <td style={{ fontWeight: 700, fontFamily: "var(--mono)" }}>
                         {r.printerId ? r.printerNoEq : (r.requestType === "RESET_KUOTA" ? `📍 ${r.printUserId}` : r.printUserId)}
                         {r.printerId && <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 400, fontFamily: "var(--font)" }}>{r.printerLocation}</div>}
-                        {!r.printerId && r.requestType === "RESET_KUOTA" && <div style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 400, fontFamily: "var(--font)" }}>Area/Lokasi</div>}
+                        {!r.printerId && r.requestType === "RESET_KUOTA" && <div style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 400, fontFamily: "var(--font)" }}>{L("Area/Lokasi", "Area/Location")}</div>}
                       </td>
                       <td>
                         <span style={{ padding: "4px 10px", borderRadius: "var(--pill)", fontSize: 11.5, fontWeight: 700, background: "var(--bg2)", color: "var(--t2)" }}>
@@ -352,9 +353,9 @@ export function PrinterTab() {
                           onClick={() => printRequestReceipt({
                             refId: r.id, createdAt: r.createdAt, typeLabel: PRINTER_REQUEST_LABELS[r.requestType], employeeName: r.employeeName, department: r.department,
                             lines: [
-                              { label: r.printerId ? "Printer" : "User ID Print", value: r.printerId ? `${r.printerNoEq} — ${r.printerLocation}` : r.printUserId },
-                              { label: "Kuota", value: r.quotaAmount != null ? String(r.quotaAmount) : "" },
-                              { label: "Catatan", value: r.notes },
+                              { label: r.printerId ? "Printer" : L("User ID Print", "Print User ID"), value: r.printerId ? `${r.printerNoEq} — ${r.printerLocation}` : r.printUserId },
+                              { label: L("Kuota", "Quota"), value: r.quotaAmount != null ? String(r.quotaAmount) : "" },
+                              { label: L("Catatan", "Notes"), value: r.notes },
                             ],
                           })}
                           style={{ border: "none", background: "var(--bg2)", color: "var(--t2)", borderRadius: 8, cursor: "pointer", padding: "5px 9px", marginRight: 6 }}

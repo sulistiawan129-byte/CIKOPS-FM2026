@@ -26,6 +26,7 @@ import {
 import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
 import lk from "./locker.module.css";
 
+import { L } from "@/lib/i18n";
 /* ════════════════════════════════════════════════════════════
    LOCKER TAB — self-contained styles, shares ModalPortal with the
    rest of the dashboard (see src/components/ModalPortal.tsx) so every
@@ -128,7 +129,7 @@ function LockerOverviewPanel() {
     try {
       setEntries(await getLockerStatusGrid());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data locker");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data locker", "Failed to load locker data"));
     } finally {
       setLoading(false);
     }
@@ -172,7 +173,7 @@ function LockerOverviewPanel() {
     try {
       setReportRows(await getLockerReport());
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal memuat report");
+      showToast(e instanceof Error ? e.message : L("Gagal memuat report", "Failed to load the report"));
     } finally {
       setReportLoading(false);
     }
@@ -184,7 +185,7 @@ function LockerOverviewPanel() {
       const row = await getLockerDetailAdmin(number);
       setDetail(row);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal memuat detail locker");
+      showToast(e instanceof Error ? e.message : L("Gagal memuat detail locker", "Failed to load locker details"));
     } finally {
       setDetailLoading(false);
     }
@@ -211,7 +212,7 @@ function LockerOverviewPanel() {
       setReleaseResult({ number: res.lockerNumber, pin: res.pin });
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal memproses");
+      showToast(e instanceof Error ? e.message : L("Gagal memproses", "Failed to process"));
     } finally {
       setReleasing(false);
     }
@@ -500,7 +501,7 @@ function LockerManagePanel() {
     try {
       setRows(await getAllLockers());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data locker");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data locker", "Failed to load locker data"));
     } finally {
       setLoading(false);
     }
@@ -554,7 +555,7 @@ function LockerManagePanel() {
       await load();
       showToast(editing ? "Locker berhasil diperbarui." : "Locker baru berhasil ditambahkan.");
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal menyimpan data.", true);
+      showToast(e instanceof Error ? e.message : L("Gagal menyimpan data.", "Failed to save the data."), true);
     } finally {
       setSaving(false);
     }
@@ -568,7 +569,7 @@ function LockerManagePanel() {
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal menghapus data.", true);
+      showToast(e instanceof Error ? e.message : L("Gagal menghapus data.", "Failed to delete the data."), true);
     }
   }
 
@@ -578,7 +579,7 @@ function LockerManagePanel() {
     try {
       setBulkCount(await getConfirmationRecipientCount());
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal memeriksa jumlah penerima.", true);
+      showToast(e instanceof Error ? e.message : L("Gagal memeriksa jumlah penerima.", "Failed to check the number of recipients."), true);
       setBulkConfirmOpen(false);
     } finally {
       setBulkLoading(false);
@@ -610,7 +611,7 @@ function LockerManagePanel() {
           : `Email konfirmasi terkirim ke ${recipients.length} orang.`
       );
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal mengirim email.", true);
+      showToast(e instanceof Error ? e.message : L("Gagal mengirim email.", "Failed to send the email."), true);
     } finally {
       setBulkSending(false);
     }

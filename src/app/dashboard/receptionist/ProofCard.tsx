@@ -10,7 +10,7 @@ import { daysBetween, fmtDate, receiptUrl, todayISO, verifyCode, type ReceiptDat
 import p from "./proof.module.css";
 import r from "./receptionist.module.css";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 const KIND_LABEL = { wifi: "Akses Wifi Tamu", in: "Barang / Surat Masuk", out: "Barang / Surat Keluar", booking: "Booking Ruangan" } as const;
 
 function stampOf(d: ReceiptData): { text: string; tone: string } {
@@ -174,7 +174,7 @@ export function ProofModal({ data, token, email, phone, onEmail, onClose }: {
   const waPhone = (phone ?? "").replace(/\D/g, "").replace(/^0/, "62");
   async function copy() {
     try { await navigator.clipboard.writeText(link || data.receipt_no); setMsg({ ok: true, text: link ? "Tautan bukti disalin." : "Nomor disalin." }); }
-    catch { setMsg({ ok: false, text: "Gagal menyalin." }); }
+    catch { setMsg({ ok: false, text: L("Gagal menyalin.", "Failed to copy.") }); }
   }
   async function sendEmail() {
     if (!onEmail) return;

@@ -13,6 +13,7 @@ import of from "./opfund.module.css";
 import { ModuleHeader, ModulePage } from "./ModuleShell";
 import { SkeletonRows } from "./TaskModals";
 
+import { L } from "@/lib/i18n";
 // Leaflet touches `window` directly, so it must never be server-rendered.
 const GasStationMap = dynamic(() => import("./GasStationMap"), {
   ssr: false,
@@ -54,7 +55,7 @@ export function GasStationsTab() {
     try {
       setStations(await getGasStations());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data SPBU");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data SPBU", "Failed to load gas station data"));
     } finally {
       setLoading(false);
     }
@@ -119,7 +120,7 @@ export function GasStationsTab() {
       setShowForm(false);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan SPBU");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan SPBU", "Failed to save the gas station"));
     } finally {
       setSaving(false);
     }
@@ -132,7 +133,7 @@ export function GasStationsTab() {
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus SPBU");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus SPBU", "Failed to delete the gas station"));
     }
   }
 

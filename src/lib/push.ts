@@ -5,6 +5,7 @@
 //  • Browser / PWA: Web Push (Android Chrome; iPhone iOS 16.4+ dan harus dipasang ke Layar Utama).
 import { supabase } from "./supabaseClient";
 
+import { L } from "@/lib/i18n";
 export type PushState = "unsupported" | "ios-install" | "denied" | "on" | "off";
 
 export interface PushSubData { endpoint: string; p256dh: string; auth: string; ua: string }
@@ -133,7 +134,7 @@ export async function testPush(body: Record<string, unknown>): Promise<void> {
   const { data, error } = await supabase.functions.invoke("send-web-push", { body: { event: "test", ...body } });
   const d = data as { ok?: boolean; sent?: number; error?: string; errors?: string[] } | null;
   if (error) throw new Error(error.message);
-  if (!d?.ok) throw new Error(d?.error ?? "Gagal mengirim notifikasi tes.");
+  if (!d?.ok) throw new Error(d?.error ?? L("Gagal mengirim notifikasi tes.", "Failed to send the test notification."));
   if (!d.sent) throw new Error(d.errors?.length ? `Notifikasi tidak terkirim: ${d.errors.join(" · ")}` : "Notifikasi tidak terkirim — coba matikan lalu aktifkan lagi. (Bila tetap gagal, pastikan fungsi send-web-push sudah versi terbaru.)");
 }
 

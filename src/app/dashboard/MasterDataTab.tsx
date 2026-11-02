@@ -15,6 +15,7 @@ import { PLANT_COLOR } from "./dashboardShared";
 import { SkeletonRows } from "./TaskModals";
 import { CrudList, SettingsPage } from "@/components/settings/Settings";
 
+import { L } from "@/lib/i18n";
 const AVATAR_EMOJIS = ["🧑", "👨", "👩", "🧔", "👨‍🦱", "👩‍🦱", "👨‍🦳", "👩‍🦳", "🧑‍✈️", "🕺"];
 
 export function MasterDataTab({
@@ -83,7 +84,7 @@ function SettingsPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       setDriverUserIds((du ?? "").split(",").filter(Boolean));
       setAllDrivers(drv);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat pengaturan");
+      setError(e instanceof Error ? e.message : L("Gagal memuat pengaturan", "Failed to load settings"));
     } finally {
       setLoading(false);
     }
@@ -200,7 +201,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
         setCredResult({ ok: false, msg: errMsg, tempPassword: res.tempPassword });
       }
     } catch (e) {
-      setCredResult({ ok: false, msg: e instanceof Error ? e.message : (lang === "en" ? "Failed." : "Gagal.") });
+      setCredResult({ ok: false, msg: e instanceof Error ? e.message : (lang === "en" ? "Failed." : L("Gagal.", "Failed.")) });
     } finally {
       setCredSending(false);
     }
@@ -214,7 +215,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
       setDrivers(d);
       setTiers(tr);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data driver");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data driver", "Failed to load driver data"));
     } finally {
       setLoading(false);
     }
@@ -248,7 +249,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
       setShowForm(false);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan driver");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan driver", "Failed to save the driver"));
     } finally {
       setSaving(false);
     }
@@ -261,7 +262,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert((e instanceof Error ? e.message : "Gagal menghapus driver") + " — driver ini mungkin masih punya riwayat tugas/klaim/overtime, coba nonaktifkan saja.");
+      alert((e instanceof Error ? e.message : L("Gagal menghapus driver", "Failed to delete the driver")) + " — driver ini mungkin masih punya riwayat tugas/klaim/overtime, coba nonaktifkan saja.");
     }
   }
 

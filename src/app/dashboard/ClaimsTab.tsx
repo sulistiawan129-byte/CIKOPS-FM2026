@@ -20,7 +20,7 @@ import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 import { plantShort } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 /** Which of the month's 4 work-weeks (1–4) a date falls into — see
  *  monthWeekBoundaries() above for the exact rule. */
 export function weekOfMonth(dateStr: string): number {
@@ -171,7 +171,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       const w = await getWreaths(myProfile?.plantScope ?? null);
       setWreaths(w);
     } catch (e) {
-      console.warn("Gagal memuat data karangan bunga:", e);
+      console.warn(L("Gagal memuat data karangan bunga:", "Failed to load wreath data:"), e);
     } finally {
       setLoadingWreaths(false);
     }
@@ -210,7 +210,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       setShowWreathForm(false);
       await loadWreaths();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan data karangan bunga");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan data karangan bunga", "Failed to save the wreath record"));
     } finally {
       setSavingWreath(false);
     }
@@ -223,7 +223,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       await setWreathClaimed(w.id, !w.claimed);
     } catch (e) {
       setWreaths((prev) => prev.map((x) => (x.id === w.id ? { ...x, claimed: w.claimed } : x)));
-      alert(e instanceof Error ? e.message : "Gagal mengubah status klaim");
+      alert(e instanceof Error ? e.message : L("Gagal mengubah status klaim", "Failed to change the claim status"));
     }
   }
 
@@ -234,13 +234,13 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       setConfirmDeleteWreath(null);
       await loadWreaths();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus data karangan bunga");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus data karangan bunga", "Failed to delete the wreath record"));
     }
   }
 
   function handleExportWreaths() {
-    const plantLabel = myProfile?.plantScope ?? "Semua-Plant";
-    exportWreathsToCsv(filteredWreaths, plantLabel);
+    const plantLabel = myProfile?.plantScope ?? L("Semua-Plant", "All-Plants");
+    exportWreathsToCsv(filteredWreaths, plantLabel, L("id", "en") === "en" ? "en" : "id");
   }
 
   const load = useCallback(async () => {
@@ -252,7 +252,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       setDrivers(d);
       setDriverUserIds(du ? du.split(",").filter(Boolean) : []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data klaim");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data klaim", "Failed to load claim data"));
     } finally {
       setLoading(false);
     }
@@ -424,7 +424,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         { type: "claim" }
       ).catch(() => {});
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan klaim");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan klaim", "Failed to save the claim"));
     } finally {
       setSaving(false);
     }
@@ -437,7 +437,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus klaim");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus klaim", "Failed to delete the claim"));
     }
   }
 
@@ -445,7 +445,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     setExportingRecap(true);
     try {
       const label = weekRangeOf(filterDate, lang).label + " " + filterDate.slice(0, 4);
-      exportTandaTerima(filtered, `Week ${weekOfMonth(filterDate)} - ${label}`, plantShort("CIK"), driverUserIds);
+      exportTandaTerima(filtered, `Week ${weekOfMonth(filterDate)} - ${label}`, plantShort("CIK"), driverUserIds, L("id", "en") === "en" ? "en" : "id");
     } finally {
       setExportingRecap(false);
     }
@@ -469,18 +469,18 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
 
       const sections = hasDriverUserSplit
         ? [
-            { ...computeWeeklyRecap(userClaims), title: "TANDA TERIMA — DRIVER USER", rincianRows: buildRincianRows(userClaims) },
-            { ...computeWeeklyRecap(otherClaims), title: "TANDA TERIMA", rincianRows: buildRincianRows(otherClaims) },
+            { ...computeWeeklyRecap(userClaims), title: L("TANDA TERIMA — DRIVER USER", "RECEIPT — DRIVER USER"), rincianRows: buildRincianRows(userClaims) },
+            { ...computeWeeklyRecap(otherClaims), title: L("TANDA TERIMA", "RECEIPT"), rincianRows: buildRincianRows(otherClaims) },
           ]
-        : [{ ...weeklyRecap, title: "TANDA TERIMA", rincianRows: buildRincianRows(filtered) }];
+        : [{ ...weeklyRecap, title: L("TANDA TERIMA", "RECEIPT"), rincianRows: buildRincianRows(filtered) }];
 
       if (format === "excel") {
-        await exportWeeklyRecapToExcel(sections, label);
+        await exportWeeklyRecapToExcel(sections, label, L("id", "en") === "en" ? "en" : "id");
       } else {
-        await exportWeeklyRecapToPdf(sections, label);
+        await exportWeeklyRecapToPdf(sections, label, L("id", "en") === "en" ? "en" : "id");
       }
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal membuat file rekap");
+      alert(e instanceof Error ? e.message : L("Gagal membuat file rekap", "Failed to create the recap file"));
     } finally {
       setExportingWeeklyRecap(null);
     }

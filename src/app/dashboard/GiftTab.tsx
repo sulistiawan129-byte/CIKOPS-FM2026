@@ -16,7 +16,7 @@ import of from "./opfund.module.css";
 import { SkeletonRows } from "./TaskModals";
 import { BRAND } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
 // ════════════════════════════════════════════════════════════════
@@ -69,7 +69,7 @@ function ActualCountCard({
       await onSave(isNaN(parsed as number) ? null : parsed);
       setEditing(false);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan.");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan.", "Failed to save."));
     } finally {
       setSaving(false);
     }
@@ -343,7 +343,7 @@ function StockPerSizeCard({
       await onSave(stock);
       setEditing(false);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan stok.");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan stok.", "Failed to save the stock."));
     } finally {
       setSaving(false);
     }
@@ -687,7 +687,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       setRegs(await getGiftRegistrations(regEvent.id));
       setCsvFile(null);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal mengimpor CSV.");
+      alert(e instanceof Error ? e.message : L("Gagal mengimpor CSV.", "Failed to import the CSV."));
     } finally {
       setImporting(false);
     }
@@ -707,7 +707,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       }
       if (regEvent) setRegs(await getGiftRegistrations(regEvent.id));
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal mengubah status.");
+      alert(e instanceof Error ? e.message : L("Gagal mengubah status.", "Failed to change the status."));
     } finally {
       setTogglingId(null);
     }
@@ -912,13 +912,13 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       if (editTarget) { await updateGiftEvent(editTarget.id, payload); }
       else { await createGiftEvent(payload); }
       await load(); setView("list");
-    } catch (e) { alert(e instanceof Error ? e.message : "Gagal menyimpan."); }
+    } catch (e) { alert(e instanceof Error ? e.message : L("Gagal menyimpan.", "Failed to save.")); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(ev: GiftEvent) {
     try { await deleteGiftEvent(ev.id); await load(); setConfirmDelete(null); }
-    catch (e) { alert(e instanceof Error ? e.message : "Gagal menghapus."); }
+    catch (e) { alert(e instanceof Error ? e.message : L("Gagal menghapus.", "Failed to delete.")); }
   }
 
   async function toggleStatus(ev: GiftEvent) {

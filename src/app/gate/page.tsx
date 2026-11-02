@@ -15,7 +15,7 @@ import type { GateDriverOption, GateVehicleOption, Plant, VehicleGateLog } from 
 import s from "./gate.module.css";
 import { plantFull, plantShort } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 type Mode = "light" | "dark";
 type Tab = "active" | "done" | "all";
 type PlantF = "all" | Plant;
@@ -103,12 +103,12 @@ export default function GatePage() {
     if (!tanggal) return;
     if (!silent) setLoading(true);
     try { setLogs(await getGateLogsPublic(tanggal)); setError(""); }
-    catch (e) { setError(e instanceof Error ? e.message : "Gagal memuat aktivitas gate"); }
+    catch (e) { setError(e instanceof Error ? e.message : L("Gagal memuat aktivitas gate", "Failed to load gate activity")); }
     finally { setLoading(false); }
   }, [tanggal]);
 
   useEffect(() => {
-    getActiveVehiclesForGate().then(setVehicles).catch(() => setError("Gagal memuat daftar kendaraan"));
+    getActiveVehiclesForGate().then(setVehicles).catch(() => setError(L("Gagal memuat daftar kendaraan", "Failed to load the vehicle list")));
     getActiveDriversForGate().then(setDrivers).catch(() => {});
   }, []);
   useEffect(() => {
@@ -216,7 +216,7 @@ export default function GatePage() {
       const nl = fresh.filter((l) => l.vehicleId === vid && l.status !== "DONE")[0];
       if (nl) { setFlashId(nl.id); setTimeout(() => setFlashId(null), 1800); }
       plateRef.current?.focus();
-    } catch (e) { setError(e instanceof Error ? e.message : "Gagal mencatat kendaraan"); }
+    } catch (e) { setError(e instanceof Error ? e.message : L("Gagal mencatat kendaraan", "Failed to record the vehicle")); }
     finally { setSubmitting(false); }
   }
 
@@ -228,7 +228,7 @@ export default function GatePage() {
       const n = new Date();
       setToast({ plate: l.nopol, text: `${l.plant === "PRB" ? "tercatat KELUAR CIK" : "tercatat KEMBALI"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
       await loadLogs(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Gagal mencatat data"); }
+    } catch (e) { setError(e instanceof Error ? e.message : L("Gagal mencatat data", "Failed to record the data")); }
     finally { setBusyId(null); }
   }
 

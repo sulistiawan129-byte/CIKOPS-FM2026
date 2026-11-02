@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { getGiftEvents, findGiftRegistrationByNik, findGiftRegistrationsByName, findGiftRegistrationsBySequenceNo, claimGift } from "@/lib/api";
 import type { GiftEvent, GiftRegistration } from "@/lib/types";
 
+import { L } from "@/lib/i18n";
 const NAVY = "#0F2847";
 const NAVY_LIGHT = "#1F44B8";
 
@@ -127,7 +128,7 @@ export default function GiftLookupPage() {
       if (!result) { setError("NIK tidak ditemukan di program ini."); return; }
       setReg(result);
     } catch {
-      setError("Gagal mencari data. Periksa koneksi internet.");
+      setError(L("Gagal mencari data. Periksa koneksi internet.", "Failed to search the data. Check your internet connection."));
     } finally {
       setLoading(false);
     }
@@ -148,7 +149,7 @@ export default function GiftLookupPage() {
       if (results.length === 1) { setReg(results[0]); return; }
       setNameResults(results); // lebih dari 1 — biarkan operator pilih yang benar
     } catch {
-      setError("Gagal mencari data. Periksa koneksi internet.");
+      setError(L("Gagal mencari data. Periksa koneksi internet.", "Failed to search the data. Check your internet connection."));
     } finally {
       setNameSearching(false);
     }
@@ -169,7 +170,7 @@ export default function GiftLookupPage() {
       if (results.length === 1) { setReg(results[0]); return; }
       setNameResults(results); // jarang terjadi, tapi jaga-jaga kalau No. Urut dobel
     } catch {
-      setError("Gagal mencari data. Periksa koneksi internet.");
+      setError(L("Gagal mencari data. Periksa koneksi internet.", "Failed to search the data. Check your internet connection."));
     } finally {
       setNoSearching(false);
     }
@@ -183,7 +184,7 @@ export default function GiftLookupPage() {
       setClaimed(true);
       setReg((prev) => (prev ? { ...prev, claimed: true, claimedBy: petugas, claimedAt: new Date().toISOString() } : prev));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.");
+      alert(err instanceof Error ? err.message : L("Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.", "Failed to mark the pickup. It may have been claimed already."));
       // Kemungkinan besar operator LAIN sudah lebih dulu klaim NIK yang
       // sama (3 petugas jalan bersamaan) — ambil ulang data terbaru
       // supaya layar langsung menampilkan status SEBENARNYA, bukan

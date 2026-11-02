@@ -18,7 +18,7 @@ import OpsBoard from "./OpsBoard";
 import s from "./fm.module.css";
 import { plantFull, plantShort } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 const POLL_MS = 60000;
 const THEME_KEY = "cikops_cc_theme";
 const TABS = [
@@ -75,7 +75,7 @@ export default function CommandCenterPage() {
     if (c.status === "fulfilled") setRcp(c.value);
     if (d.status === "fulfilled") setTga(d.value);
     if (a.status === "fulfilled") { setSnap(a.value); setError(null); setLoadedAt(Date.now()); }
-    else setError(a.reason instanceof Error ? a.reason.message : "Gagal memuat data");
+    else setError(a.reason instanceof Error ? a.reason.message : L("Gagal memuat data", "Failed to load data"));
     if (b.status === "fulfilled") setNc(b.value);
   }, []);
   useEffect(() => {
