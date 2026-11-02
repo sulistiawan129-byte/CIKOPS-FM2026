@@ -91,7 +91,7 @@ function ActualCountCard({
             style={{ width: 100, padding: "6px 10px" }}
           />
           <button onClick={handleSave} disabled={saving} style={{ background: "var(--brand)", border: "none", borderRadius: 8, padding: "6px 12px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-            {saving ? "..." : "Simpan"}
+            {saving ? "..." : L("Simpan", "Save")}
           </button>
           <button onClick={() => { setEditing(false); setDraft(value != null ? String(value) : ""); }} style={{ background: "none", border: "none", color: "var(--t3)", fontSize: 12, cursor: "pointer" }}>
             Batal
@@ -106,7 +106,7 @@ function ActualCountCard({
           </button>
         </div>
       )}
-      {kurang && !editing && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 6, fontWeight: 700 }}>⚠️ Kurang {kebutuhan - (value ?? 0)} dari kebutuhan</div>}
+      {kurang && !editing && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 6, fontWeight: 700 }}>⚠️ {L("Kurang", "Short by")} {kebutuhan - (value ?? 0)} {L("dari kebutuhan", "from the requirement")}</div>}
     </div>
   );
 }
@@ -363,7 +363,7 @@ function StockPerSizeCard({
               Batal
             </button>
             <button onClick={handleSaveAll} disabled={saving} style={{ background: "var(--brand)", border: "none", borderRadius: 8, padding: "5px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-              {saving ? "Menyimpan..." : "Simpan Semua"}
+              {saving ? L("Menyimpan...", "Saving...") : L("Simpan Semua", "Save All")}
             </button>
           </div>
         )}
@@ -372,7 +372,7 @@ function StockPerSizeCard({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr>
-              {["Ukuran", "Stok Aktual", "Sudah Diambil", "Sisa"].map((h, i) => (
+              {[L("Ukuran", "Size"), L("Stok Aktual", "Actual Stock"), L("Sudah Diambil", "Claimed"), L("Sisa", "Remaining")].map((h, i) => (
                 <th key={h} style={{ textAlign: i === 0 ? "left" : "right", padding: "6px 10px", fontSize: 11, color: "var(--t3)", textTransform: "uppercase", borderBottom: "1px solid var(--border)" }}>{h}</th>
               ))}
             </tr>
@@ -620,7 +620,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     const iStatus = findCol("status", "status kehadiran");
 
     if (iNik === -1 || iNama === -1) {
-      throw new Error("Header CSV wajib punya kolom Nama dan NIK/Global ID (nama kolom lain bebas — semua kolom selain No/Nama/NIK/Departemen/Lokasi/Email/Jumlah Tiket/Anak <2 Tahun otomatis dianggap slot ukuran).");
+      throw new Error(L("Header CSV wajib punya kolom Nama dan NIK/Global ID (nama kolom lain bebas — semua kolom selain No/Nama/NIK/Departemen/Lokasi/Email/Jumlah Tiket/Anak <2 Tahun otomatis dianggap slot ukuran).", "The CSV header must have the Name and NIK/Global ID columns (other column names are free — every column other than No/Name/NIK/Department/Location/Email/Ticket Count/Child <2 Years is treated as a size slot)."));
     }
 
     const knownCols = new Set([iNo, iNama, iNik, iDept, iLokasi, iEmail, iTiket, iAnakBalita, iStatus].filter((i) => i !== -1));
@@ -676,7 +676,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     try {
       const text = await csvFile.text();
       const rows = parseGiftCsv(text);
-      if (rows.length === 0) { alert("Tidak ada data valid di file CSV."); return; }
+      if (rows.length === 0) { alert(L("Tidak ada data valid di file CSV.", "There is no valid data in the CSV file.")); return; }
       if (importMode === "update") {
         const result = await upsertGiftRegistrations(regEvent.id, rows);
         setImportResult(result);
@@ -871,7 +871,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         { key: "lokasi", labelId: "Lokasi", labelEn: "Location", get: (r: GiftRegistration) => r.lokasiPengambilan },
         { key: "kategori", labelId: "Kategori", labelEn: "Category", get: (r: GiftRegistration) => { const c = getGiftCategory(r); return c ? CATEGORY_LABEL[c].id : "-"; } },
         { key: "anak", labelId: "Jumlah Anak", labelEn: "Number of Children", get: (r: GiftRegistration) => countChildren(r), align: "right" as const },
-        { key: "status", labelId: "Status Klaim", labelEn: "Claim Status", get: (r: GiftRegistration) => (r.claimed ? "Sudah Diambil" : "Belum Diambil") },
+        { key: "status", labelId: "Status Klaim", labelEn: "Claim Status", get: (r: GiftRegistration) => (r.claimed ? L("Sudah Diambil", "Claimed") : L("Belum Diambil", "Not Claimed")) },
       ] as ReportColumn<GiftRegistration>[],
     };
     if (format === "csv") exportSummaryCsv(opts);
@@ -903,7 +903,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   }
 
   async function handleSave() {
-    if (!formName.trim()) { alert("Nama event wajib diisi."); return; }
+    if (!formName.trim()) { alert(L("Nama event wajib diisi.", "The event name is required.")); return; }
     const validItems = formItems.filter(i => i.name.trim());
     if (formMode === "self_register" && validItems.length === 0) { alert("Minimal satu item harus diisi."); return; }
     setSaving(true);
@@ -930,7 +930,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   if (view === "registrations" && regEvent) return (
     <div style={{ ...cardStyle, padding: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <button onClick={() => setView("list")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t3)", fontSize: 13 }}>← Kembali</button>
+        <button onClick={() => setView("list")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t3)", fontSize: 13 }}>← {L("Kembali", "Back")}</button>
         <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>
           Peserta: {regEvent.name}
         </div>
@@ -970,7 +970,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       {regEvent.mode === "lookup" && regs.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 20 }}>
           <ActualCountCard
-            label="TOTAL BAJU AKTUAL (Fisik yang Datang)"
+            label={L("TOTAL BAJU AKTUAL (Fisik yang Datang)", "ACTUAL TOTAL SHIRTS (Physically Received)")}
             value={regEvent.actualBajuCount}
             kebutuhan={giftKpis.totalBaju}
             onSave={async (val) => {
@@ -982,7 +982,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             }}
           />
           <ActualCountCard
-            label="TOTAL TIKET AKTUAL (Fisik yang Datang)"
+            label={L("TOTAL TIKET AKTUAL (Fisik yang Datang)", "ACTUAL TOTAL TICKETS (Physically Received)")}
             value={regEvent.actualTiketCount}
             kebutuhan={giftKpis.totalTiket}
             onSave={async (val) => {
@@ -998,14 +998,14 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 
       {regEvent.mode === "lookup" && regEvent.actualTiketCount != null && (
         <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-          🎟️ Sisa Tiket saat ini: <b style={{ color: (regEvent.actualTiketCount - giftKpis.claimedTiket) < 0 ? "var(--red)" : "var(--green)" }}>{regEvent.actualTiketCount - giftKpis.claimedTiket}</b>
+          🎟️ {L("Sisa Tiket saat ini", "Tickets remaining now")}: <b style={{ color: (regEvent.actualTiketCount - giftKpis.claimedTiket) < 0 ? "var(--red)" : "var(--green)" }}>{regEvent.actualTiketCount - giftKpis.claimedTiket}</b>
           <span style={{ color: "var(--t3)" }}>({regEvent.actualTiketCount} aktual − {giftKpis.claimedTiket} sudah diambil)</span>
         </div>
       )}
 
       {regEvent.mode === "lookup" && giftKpis.totalAnakDibawah2 > 0 && (
         <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-          👶 <b>{giftKpis.totalAnakDibawah2}</b> anak di bawah 2 tahun terdaftar. Jumlah Tiket dihitung dari kolom &quot;Jumlah Tiket&quot; di CSV (independen dari jumlah baju).
+          👶 <b>{giftKpis.totalAnakDibawah2}</b> {L("anak di bawah 2 tahun terdaftar. Jumlah Tiket dihitung dari kolom \"Jumlah Tiket\" di CSV (independen dari jumlah baju).", "children under 2 registered. The ticket count is taken from the \"Ticket Count\" column in the CSV (independent of the number of shirts).")}
         </div>
       )}
 
@@ -1047,7 +1047,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
 
       {regEvent.mode === "lookup" && (
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 6 }}>📥 Import Data dari CSV</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 6 }}>📥 {L("Import Data dari CSV", "Import Data from CSV")}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <button
               onClick={() => setImportMode("insert")}
@@ -1073,13 +1073,13 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <div style={{ fontSize: 11.5, color: "var(--t3)", marginBottom: 12 }}>
             {importMode === "update" ? (
               <>
-                Mode <strong>Update</strong>: NIK yang <strong>sudah ada</strong> akan diperbarui (nama, ukuran, dll) dari data CSV terbaru — <strong>status "sudah/belum diambil" TIDAK berubah</strong>. NIK yang belum ada akan ditambahkan sebagai baris baru. Cocok untuk perbaiki data yang salah tanpa kehilangan progres pengambilan.
+                {L("Mode", "Mode")} <strong>Update</strong>: {L("NIK yang", "NIKs that")} <strong>{L("sudah ada", "already exist")}</strong> {L("akan diperbarui (nama, ukuran, dll) dari data CSV terbaru —", "are updated (name, size, etc.) from the latest CSV data —")} <strong>{L("status \"sudah/belum diambil\" TIDAK berubah", "the \"claimed / not claimed\" status does NOT change")}</strong>. {L("NIK yang belum ada akan ditambahkan sebagai baris baru. Cocok untuk perbaiki data yang salah tanpa kehilangan progres pengambilan.", "New NIKs are added as new rows. Good for fixing wrong data without losing collection progress.")}
               </>
             ) : (
               <>
-                Kolom wajib: <code>Nama</code>, <code>NIK/Global ID</code>. Kolom opsional yang dikenali: <code>No, Departemen, Lokasi Pengambilan, Email, Jumlah Tiket, Jumlah Anak &lt; 2 tahun, Status</code>. <strong>Kolom lain apapun namanya</strong> (misal <code>1, 2, 3...9</code>) otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.
+                {L("Kolom wajib", "Required columns")}: <code>Nama</code>, <code>NIK/Global ID</code>. {L("Kolom opsional yang dikenali", "Recognised optional columns")}: <code>No, Departemen, Lokasi Pengambilan, Email, Jumlah Tiket, Jumlah Anak &lt; 2 tahun, Status</code>. <strong>{L("Kolom lain apapun namanya", "Any other column, whatever its name")}</strong> ({L("misal", "e.g.")} <code>1, 2, 3...9</code>) {L("otomatis dianggap slot ukuran — 1 baris = 1 orang, kolom yang kosong dilewati otomatis.", "is treated as a size slot — 1 row = 1 person, empty columns are skipped automatically.")}
                 <br />
-                ⚠️ Baris dengan <strong>NIK kosong</strong> tetap di-import (tidak dilewati) dengan NIK sementara <code>0-1</code>, <code>0-2</code>, dst — mohon cek &amp; perbaiki manual di tabel Peserta setelah import.
+                ⚠️ {L("Baris dengan", "Rows with an")} <strong>{L("NIK kosong", "empty NIK")}</strong> {L("tetap di-import (tidak dilewati) dengan NIK sementara", "are still imported (not skipped) with a temporary NIK")} <code>0-1</code>, <code>0-2</code>, {L("dst — mohon cek & perbaiki manual di tabel Peserta setelah import.", "etc. — please check & fix them manually in the Participants table after the import.")}
               </>
             )}
           </div>
@@ -1102,7 +1102,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   ✅ {importResult.inserted} data berhasil ditambahkan.
                   {importResult.duplicates && importResult.duplicates.length > 0 && (
                     <div style={{ color: "var(--orange-text)", marginTop: 4 }}>
-                      ⚠️ {importResult.duplicates.length} NIK dilewati karena sudah ada di event ini: {importResult.duplicates.join(", ")}
+                      ⚠️ {importResult.duplicates.length} {L("NIK dilewati karena sudah ada di event ini", "NIK(s) skipped because they already exist in this event")}: {importResult.duplicates.join(", ")}
                     </div>
                   )}
                 </>
@@ -1116,7 +1116,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       ) : regs.length === 0 ? (
         <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
           <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-          <div>Belum ada yang mendaftar</div>
+          <div>{L("Belum ada yang mendaftar", "Nobody has registered yet")}</div>
         </div>
       ) : (
         <div>
@@ -1126,7 +1126,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
               <input
                 value={giftSearch}
                 onChange={(e) => setGiftSearch(e.target.value)}
-                placeholder="Cari nama, NIK, atau nomor urut..."
+                placeholder={L("Cari nama, NIK, atau nomor urut...", "Search name, NIK or sequence number...")}
                 className={styles.formInput}
                 style={{ paddingLeft: 36, borderRadius: "var(--pill)" }}
               />
@@ -1135,7 +1135,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           {regEvent.mode === "lookup" && (
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               {([
-                ["all", `Semua (${regs.length})`],
+                ["all", L(`Semua (${regs.length})`, `All (${regs.length})`)],
                 ["single", `👤 Single (${giftKpis.categoryCounts.single})`],
                 ["couple", `💑 Suami Istri (${giftKpis.categoryCounts.couple})`],
                 ["family", `👨‍👩‍👧‍👦 Keluarga (${giftKpis.categoryCounts.family})`],
@@ -1164,7 +1164,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                 className={styles.formSelect}
                 style={{ width: "auto", fontSize: 12.5 }}
               >
-                <option value="all">📏 Semua Ukuran</option>
+                <option value="all">📏 {L("Semua Ukuran", "All Sizes")}</option>
                 {availableSizes.map((size) => (
                   <option key={size} value={size}>Ukuran: {size}</option>
                 ))}
@@ -1175,7 +1175,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                 className={styles.formSelect}
                 style={{ width: "auto", fontSize: 12.5 }}
               >
-                <option value="all">🧒 Semua (Jumlah Anak)</option>
+                <option value="all">🧒 {L("Semua (Jumlah Anak)", "All (Number of Children)")}</option>
                 <option value="0">Tanpa Anak</option>
                 <option value="1">1 Anak</option>
                 <option value="2plus">2+ Anak</option>
@@ -1197,7 +1197,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "var(--bg2)" }}>
-                {["NIK", "Nama", "Departemen", "Email", "Item", "Status", "Terdaftar", "Aksi"].map(h => (
+                {["NIK", L("Nama", "Name"), L("Departemen", "Department"), "Email", "Item", "Status", L("Terdaftar", "Registered"), L("Aksi", "Actions")].map(h => (
                   <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "var(--t3)", fontSize: 11, textTransform: "uppercase", borderBottom: "1px solid var(--border)" }}>{h}</th>
                 ))}
               </tr>
@@ -1221,7 +1221,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   </td>
                   <td style={{ padding: "10px 12px" }}>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: r.claimed ? "rgba(34,197,94,0.12)" : "rgba(234,179,8,0.12)", color: r.claimed ? "var(--green)" : "#eab308" }}>
-                      {r.claimed ? "✅ Diambil" : "⏳ Belum"}
+                      {r.claimed ? L("✅ Diambil", "✅ Collected") : L("⏳ Belum", "⏳ Pending")}
                     </span>
                   </td>
                   <td style={{ padding: "10px 12px", color: "var(--t3)", fontSize: 11 }}>
@@ -1231,7 +1231,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                     <button
                       onClick={() => handleToggleClaim(r)}
                       disabled={togglingId === r.id}
-                      title={r.claimed ? "Batalkan status — kembalikan jadi Belum Diambil" : "Tandai manual sebagai Sudah Diambil"}
+                      title={r.claimed ? L("Batalkan status — kembalikan jadi Belum Diambil", "Undo status — set back to Not Claimed") : L("Tandai manual sebagai Sudah Diambil", "Manually mark as Claimed")}
                       style={{
                         fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--border2)",
                         background: "var(--surface)", color: "var(--t2)", cursor: togglingId === r.id ? "default" : "pointer",
@@ -1258,9 +1258,9 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   if (view === "create" || view === "edit") return (
     <div style={{ ...cardStyle, padding: 24 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-        <button onClick={() => setView("list")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t3)", fontSize: 13 }}>← Batal</button>
+        <button onClick={() => setView("list")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--t3)", fontSize: 13 }}>← {L("Batal", "Cancel")}</button>
         <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)" }}>
-          {view === "create" ? "Buat Event Baru" : `Edit: ${editTarget?.name}`}
+          {view === "create" ? L("Buat Event Baru", "Create New Event") : `${L("Edit", "Edit")}: ${editTarget?.name}`}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
@@ -1270,40 +1270,40 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
         <div style={{ gridColumn: "1/-1" }}>
           <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>DESKRIPSI (opsional)</label>
-          <input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Informasi tambahan untuk karyawan" className={styles.formInput} />
+          <input value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder={L("Informasi tambahan untuk karyawan", "Additional information for employees")} className={styles.formInput} />
         </div>
         <div>
           <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>STATUS</label>
           <select value={formStatus} onChange={e => setFormStatus(e.target.value as "open" | "closed")} className={styles.formSelect} style={{ width: "auto" }}>
-            <option value="open">🟢 Buka (karyawan bisa daftar)</option>
-            <option value="closed">🔴 Tutup</option>
+            <option value="open">{L("🟢 Buka (karyawan bisa daftar)", "🟢 Open (employees can register)")}</option>
+            <option value="closed">{L("🔴 Tutup", "🔴 Closed")}</option>
           </select>
         </div>
         <div>
           <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>MODE PROJECT</label>
           <select value={formMode} onChange={e => setFormMode(e.target.value as "self_register" | "lookup")} className={styles.formSelect} style={{ width: "auto" }}>
-            <option value="self_register">📝 Karyawan Daftar Sendiri</option>
+            <option value="self_register">{L("📝 Karyawan Daftar Sendiri", "📝 Employees Self-Register")}</option>
             <option value="lookup">📥 Import Data (Admin) — cari by NIK</option>
           </select>
           <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 5 }}>
             {formMode === "lookup"
-              ? "Karyawan tidak perlu daftar apapun — cukup kasih NIK ke petugas, semua detail muncul otomatis."
-              : "Karyawan mengisi form pendaftaran sendiri dan memilih item yang diinginkan."}
+              ? L("Karyawan tidak perlu daftar apapun — cukup kasih NIK ke petugas, semua detail muncul otomatis.", "Employees do not need to register — just give their NIK to the officer and all details appear automatically.")
+              : L("Karyawan mengisi form pendaftaran sendiri dan memilih item yang diinginkan.", "Employees fill in the registration form themselves and choose the items they want.")}
           </div>
         </div>
       </div>
 
       {/* Items */}
-      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t2)", marginBottom: 12 }}>Item yang Dibagikan</div>
+      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t2)", marginBottom: 12 }}>{L("Item yang Dibagikan", "Items to Distribute")}</div>
       {formItems.map((item, i) => (
         <div key={i} style={{ background: "var(--bg2)", borderRadius: 14, padding: "16px", marginBottom: 10, border: "1px solid var(--border2)" }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center" }}>
-            <input value={item.name} onChange={e => setItemName(i, e.target.value)} placeholder="Nama item (contoh: Seragam)" className={styles.formInput} style={{ flex: 1 }} />
+            <input value={item.name} onChange={e => setItemName(i, e.target.value)} placeholder={L("Nama item (contoh: Seragam)", "Item name (e.g. Uniform)")} className={styles.formInput} style={{ flex: 1 }} />
             {formItems.length > 1 && (
               <button onClick={() => removeItem(i)} style={{ background: "rgba(239,68,68,0.1)", border: "none", borderRadius: 8, padding: "8px 12px", color: "var(--red)", cursor: "pointer", fontSize: 16 }}>×</button>
             )}
           </div>
-          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 8 }}>Varian/Ukuran (kosongkan jika semua sama):</div>
+          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 8 }}>{L("Varian/Ukuran (kosongkan jika semua sama):", "Variant/Size (leave empty if all are the same):")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
             {item.variants.map((v, vi) => (
               <span key={vi} style={{ fontSize: 12, background: "var(--surface)", border: "1px solid var(--border2)", borderRadius: 8, padding: "4px 10px", display: "flex", alignItems: "center", gap: 6 }}>
@@ -1316,7 +1316,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             <input value={variantInput[i] ?? ""} onChange={e => setVariantInput(p => ({ ...p, [i]: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addVariant(i))}
               placeholder="Ketik ukuran lalu Enter" className={styles.formInput} style={{ flex: 1, padding: "8px 12px" }} />
-            <button onClick={() => addVariant(i)} style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>+ Tambah</button>
+            <button onClick={() => addVariant(i)} style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{L("+ Tambah", "+ Add")}</button>
           </div>
         </div>
       ))}
@@ -1325,7 +1325,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       </button>
 
       <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 800, fontSize: 15, cursor: saving ? "default" : "pointer", opacity: saving ? 0.65 : 1 }}>
-        {saving ? "Menyimpan..." : view === "create" ? "Buat Event" : "Simpan Perubahan"}
+        {saving ? L("Menyimpan...", "Saving...") : view === "create" ? L("Buat Event", "Create Event") : L("Simpan Perubahan", "Save Changes")}
       </button>
     </div>
   );
@@ -1346,9 +1346,9 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       {/* Links */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 20 }}>
         {[
-          { label: "🔗 Link Pendaftaran Karyawan", url: `${baseUrl}/gift`, desc: "Bagikan ke karyawan (mode Daftar Sendiri)" },
-          { label: "🔑 Link Verifikasi Petugas", url: `${baseUrl}/gift/verify`, desc: "Cek passcode — mode Daftar Sendiri" },
-          { label: "🔍 Link Cari by NIK", url: `${baseUrl}/gift/lookup`, desc: "Cek data via NIK — mode Import Data" },
+          { label: L("🔗 Link Pendaftaran Karyawan", "🔗 Employee Registration Link"), url: `${baseUrl}/gift`, desc: L("Bagikan ke karyawan (mode Daftar Sendiri)", "Share with employees (Self-Register mode)") },
+          { label: L("🔑 Link Verifikasi Petugas", "🔑 Officer Verification Link"), url: `${baseUrl}/gift/verify`, desc: L("Cek passcode — mode Daftar Sendiri", "Check the passcode — Self-Register mode") },
+          { label: L("🔍 Link Cari by NIK", "🔍 Search-by-NIK Link"), url: `${baseUrl}/gift/lookup`, desc: L("Cek data via NIK — mode Import Data", "Check data by NIK — Import Data mode") },
         ].map(l => (
           <div key={l.url} style={{ background: "var(--bg2)", borderRadius: 12, padding: "12px 14px", border: "1px solid var(--border2)" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t2)", marginBottom: 6 }}>{l.label}</div>
@@ -1366,8 +1366,8 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       ) : events.length === 0 ? (
         <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🎁</div>
-          <div style={{ fontWeight: 700, color: "var(--t2)", marginBottom: 4 }}>Belum ada event</div>
-          <div style={{ fontSize: 13 }}>Buat event baru untuk mulai pembagian.</div>
+          <div style={{ fontWeight: 700, color: "var(--t2)", marginBottom: 4 }}>{L("Belum ada event", "No events yet")}</div>
+          <div style={{ fontSize: 13 }}>{L("Buat event baru untuk mulai pembagian.", "Create a new event to start the distribution.")}</div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1394,12 +1394,12 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 14 }}>
-                  <button onClick={() => openRegistrations(ev)} title="Lihat peserta" style={{ background: "rgba(61,111,242,0.1)", border: "none", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>👥</button>
-                  <button onClick={() => toggleStatus(ev)} title={ev.status === "open" ? "Tutup pendaftaran" : "Buka pendaftaran"} style={{ background: ev.status === "open" ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)", border: "none", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>
+                  <button onClick={() => openRegistrations(ev)} title={L("Lihat peserta", "View participants")} style={{ background: "rgba(61,111,242,0.1)", border: "none", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>👥</button>
+                  <button onClick={() => toggleStatus(ev)} title={ev.status === "open" ? L("Tutup pendaftaran", "Close registration") : L("Buka pendaftaran", "Open registration")} style={{ background: ev.status === "open" ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)", border: "none", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>
                     {ev.status === "open" ? "🔒" : "🔓"}
                   </button>
                   <button onClick={() => openEdit(ev)} title="Edit" style={{ background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>✏️</button>
-                  <button onClick={() => setConfirmDelete(ev)} title="Hapus" style={{ background: "rgba(239,68,68,0.1)", border: "none", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>🗑️</button>
+                  <button onClick={() => setConfirmDelete(ev)} title={L("Hapus", "Delete")} style={{ background: "rgba(239,68,68,0.1)", border: "none", borderRadius: 8, padding: "7px 11px", cursor: "pointer", fontSize: 14 }}>🗑️</button>
                 </div>
               </div>
             </div>
@@ -1411,13 +1411,13 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>
           <div style={{ background: "var(--surface)", borderRadius: 20, padding: 28, textAlign: "center" }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)", marginBottom: 8 }}>Hapus Event?</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "var(--t1)", marginBottom: 8 }}>{L("Hapus Event?", "Delete Event?")}</div>
             <div style={{ fontSize: 13, color: "var(--t2)", marginBottom: 20 }}>
-              Event "<strong>{confirmDelete.name}</strong>" dan semua data pendaftarannya akan dihapus permanen.
+              {L("Event", "The event")} "<strong>{confirmDelete.name}</strong>" {L("dan semua data pendaftarannya akan dihapus permanen.", "and all its registration data will be permanently deleted.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1px solid var(--border2)", background: "var(--bg2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>Batal</button>
-              <button onClick={() => handleDelete(confirmDelete)} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Hapus</button>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1px solid var(--border2)", background: "var(--bg2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{L("Batal", "Cancel")}</button>
+              <button onClick={() => handleDelete(confirmDelete)} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{L("Hapus", "Delete")}</button>
             </div>
           </div>
         </ModalPortal>
