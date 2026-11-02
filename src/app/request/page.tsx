@@ -7,7 +7,7 @@ import { TGA_CATEGORIES, tgaRequestPublic } from "@/lib/tga/api";
 import { notifyTgaTask } from "@/lib/push";
 import { BRAND } from "@/lib/brand";
 
-import { loc } from "@/lib/i18n";
+import { loc , L} from "@/lib/i18n";
 type FormKind = "DRIVER" | "PRINTER" | "TGA" | "OTHER";
 
 /** Identitas dokumen resmi di bukti cetak — ubah di sini kalau ada
@@ -128,11 +128,11 @@ export default function RequestPage() {
         setReceipt({
           refId: result.id, createdAt: result.createdAt, kind, employeeName: employeeName.trim(), department: department.trim(),
           lines: [
-            { label: "Tanggal Event/Acara", value: new Date(eventDate).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" }) },
-            { label: "Tujuan", value: destination.trim() },
-            { label: "Jam Berangkat", value: departureTime },
+            { label: L("Tanggal Event/Acara", "Event Date"), value: new Date(eventDate).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" }) },
+            { label: L("Tujuan", "Destination"), value: destination.trim() },
+            { label: L("Jam Berangkat", "Departure Time"), value: departureTime },
             { label: "Keperluan", value: purpose.trim() },
-            ...(additionalNotes.trim() ? [{ label: "Catatan Tambahan", value: additionalNotes.trim() }] : []),
+            ...(additionalNotes.trim() ? [{ label: L("Catatan Tambahan", "Additional Notes"), value: additionalNotes.trim() }] : []),
           ],
         });
       } else if (kind === "PRINTER") {
@@ -150,9 +150,9 @@ export default function RequestPage() {
         setReceipt({
           refId: result.id, createdAt: result.createdAt, kind, employeeName: employeeName.trim(), department: department.trim(),
           lines: [
-            { label: "Jenis Permintaan", value: printAction === "RESET_KUOTA" ? "Reset Kuota" : "Tambah Kuota" },
+            { label: L("Jenis Permintaan", "Request Type"), value: printAction === "RESET_KUOTA" ? L("Reset Kuota", "Quota Reset") : L("Tambah Kuota", "Add Quota") },
             ...(printAction === "RESET_KUOTA"
-              ? [{ label: "Area / Lokasi", value: selectedAreas.join(", ") }]
+              ? [{ label: L("Area / Lokasi", "Area / Location"), value: selectedAreas.join(", ") }]
               : [{ label: "User ID Print", value: printUserId.trim() }]),
             ...(printAction === "TAMBAH_KUOTA" ? [{ label: "Alasan / Keperluan", value: printReason.trim() }] : []),
           ],
@@ -167,9 +167,9 @@ export default function RequestPage() {
         setReceipt({
           refId: result.id, refNo: result.ref_no, createdAt: new Date().toISOString(), kind, employeeName: employeeName.trim(), department: department.trim(),
           lines: [
-            { label: "Jenis Pekerjaan", value: kat },
-            { label: "Lokasi", value: tgaLokasi.trim() },
-            { label: "Masalah / Permintaan", value: description.trim() },
+            { label: L("Jenis Pekerjaan", "Job Type"), value: kat },
+            { label: L("Lokasi", "Location"), value: tgaLokasi.trim() },
+            { label: L("Masalah / Permintaan", "Issue / Request"), value: description.trim() },
             { label: "Prioritas", value: tgaUrgent ? "URGENT" : "Normal" },
             { label: "Status", value: "Diteruskan ke teknisi GA (TGA)" },
           ],
@@ -184,7 +184,7 @@ export default function RequestPage() {
         });
         setReceipt({
           refId: result.id, createdAt: result.createdAt, kind, employeeName: employeeName.trim(), department: department.trim(),
-          lines: [{ label: "Detail Permintaan", value: description.trim() }],
+          lines: [{ label: L("Detail Permintaan", "Request Details"), value: description.trim() }],
         });
       }
     } catch (e) {
@@ -194,14 +194,14 @@ export default function RequestPage() {
       if (anyE?.code) parts.push(`Code: ${anyE.code}`);
       if (anyE?.details) parts.push(`Details: ${anyE.details}`);
       if (anyE?.hint) parts.push(`Hint: ${anyE.hint}`);
-      setError(parts.length > 0 ? parts.join(" — ") : `Gagal mengirim permintaan (unknown error): ${JSON.stringify(e)}`);
+      setError(parts.length > 0 ? parts.join(" — ") : L(`Gagal mengirim permintaan (unknown error): ${JSON.stringify(e)}`, `Failed to send the request (unknown error): ${JSON.stringify(e)}`));
     } finally {
       setSubmitting(false);
     }
   }
 
   if (receipt) {
-    const kindLabel = receipt.kind === "DRIVER" ? "Request Driver / Kendaraan" : receipt.kind === "PRINTER" ? "Permintaan Kuota Printer" : receipt.kind === "TGA" ? "Perbaikan / Teknisi GA" : "Permintaan Lainnya";
+    const kindLabel = receipt.kind === "DRIVER" ? L("Request Driver / Kendaraan", "Driver / Vehicle Request") : receipt.kind === "PRINTER" ? L("Permintaan Kuota Printer", "Printer Quota Request") : receipt.kind === "TGA" ? L("Perbaikan / Teknisi GA", "GA Repair / Technician") : L("Permintaan Lainnya", "Other Request");
     const refNo = receipt.refNo || `REQ-${toLocalISODate(new Date(receipt.createdAt)).replace(/-/g, "")}-${receipt.refId.slice(0, 6).toUpperCase()}`;
     return (
       <div style={{ minHeight: "100vh", background: "#eef3fc", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px", fontFamily: "-apple-system,'Segoe UI',sans-serif" }}>
@@ -216,7 +216,7 @@ export default function RequestPage() {
               <div>
                 <div style={{ fontSize: 15.5, fontWeight: 800, color: "#0d1a36", lineHeight: 1.3 }}>{COMPANY_NAME}</div>
                 <div style={{ fontSize: 12.5, color: "#44537a", fontWeight: 600 }}>{SYSTEM_NAME}</div>
-                <div style={{ fontSize: 11, color: "#7886a8" }}>Departemen Facility Management</div>
+                <div style={{ fontSize: 11, color: "#7886a8" }}>{L("Departemen Facility Management", "Facility Management Department")}</div>
               </div>
             </div>
 
@@ -231,19 +231,19 @@ export default function RequestPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 16 }}>
                 <tbody>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7886a8", width: "38%" }}>Tanggal Pengajuan</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8", width: "38%" }}>{L("Tanggal Pengajuan", "Submission Date")}</td>
                     <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {new Date(receipt.createdAt).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" })}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7886a8" }}>Jenis Permintaan</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8" }}>{L("Jenis Permintaan", "Request Type")}</td>
                     <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {kindLabel}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7886a8" }}>Nama Pemohon</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8" }}>{L("Nama Pemohon", "Requester Name")}</td>
                     <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {receipt.employeeName}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "5px 0", color: "#7886a8" }}>Departemen</td>
+                    <td style={{ padding: "5px 0", color: "#7886a8" }}>{L("Departemen", "Department")}</td>
                     <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {receipt.department || "-"}</td>
                   </tr>
                 </tbody>
@@ -271,7 +271,7 @@ export default function RequestPage() {
               {/* ── Blok administrator / penanggung jawab ── */}
               <div style={{ borderTop: "1px dashed #cfd9ee", paddingTop: 16, display: "flex", justifyContent: "flex-end" }}>
                 <div style={{ textAlign: "center", minWidth: 170 }}>
-                  <div style={{ fontSize: 11, color: "#7886a8", marginBottom: 46 }}>Diterima &amp; diproses oleh,</div>
+                  <div style={{ fontSize: 11, color: "#7886a8", marginBottom: 46 }}>{L("Diterima & diproses oleh,", "Received & processed by,")}</div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0d1a36", borderTop: "1px solid #0d1a36", paddingTop: 4 }}>{ADMIN_NAME}</div>
                   <div style={{ fontSize: 11.5, color: "#7886a8" }}>{ADMIN_DEPARTMENT}</div>
                 </div>
@@ -314,7 +314,7 @@ export default function RequestPage() {
           <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#0d1a36", border: "2px solid #2d5bff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", overflow: "hidden" }}>
             <img src="/logo.png" alt="CIKOPS" style={{ width: "78%", height: "78%", objectFit: "contain" }} />
           </div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: "#0d1a36" }}>Form Permintaan Karyawan</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: "#0d1a36" }}>{L("Form Permintaan Karyawan", "Employee Request Form")}</div>
           <div style={{ fontSize: 13, color: "#7886a8", marginTop: 3 }}>CIKOPS FLEET — Facility Management</div>
         </div>
 
@@ -327,10 +327,10 @@ export default function RequestPage() {
           <label style={labelStyle}>JENIS PERMINTAAN *</label>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {([
-              ["DRIVER", "🚗", "Request Driver / Kendaraan"],
-              ["PRINTER", "🖨️", "Reset / Tambah Kuota Printer"],
-              ["TGA", "🔧", "Perbaikan / Teknisi GA (AC, listrik, air, dll.)"],
-              ["OTHER", "📝", "Lainnya"],
+              ["DRIVER", "🚗", L("Request Driver / Kendaraan", "Driver / Vehicle Request")],
+              ["PRINTER", "🖨️", L("Reset / Tambah Kuota Printer", "Printer Quota Reset / Top-up")],
+              ["TGA", "🔧", L("Perbaikan / Teknisi GA (AC, listrik, air, dll.)", "GA Repair / Technician (AC, electrical, water, etc.)")],
+              ["OTHER", "📝", L("Lainnya", "Other")],
             ] as const).map(([val, icon, label]) => (
               <button
                 key={val}
@@ -352,7 +352,7 @@ export default function RequestPage() {
         {/* Data umum */}
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>NAMA LENGKAP *</label>
-          <input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="Nama Anda" style={inputStyle} />
+          <input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder={L("Nama Anda", "Your name")} style={inputStyle} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
           <div>
@@ -388,7 +388,7 @@ export default function RequestPage() {
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>KEPERLUAN *</label>
-              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Contoh: Meeting dengan vendor" style={inputStyle} />
+              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder={L("Contoh: Meeting dengan vendor", "Example: Meeting with a vendor")} style={inputStyle} />
             </div>
             <div style={{ marginBottom: 22 }}>
               <label style={labelStyle}>CATATAN TAMBAHAN</label>
@@ -413,7 +413,7 @@ export default function RequestPage() {
                     onClick={() => setPrintAction(act)}
                     style={{ flex: 1, padding: "12px", borderRadius: 12, fontWeight: 700, fontSize: 13.5, cursor: "pointer", border: printAction === act ? "2px solid #2d5bff" : "1.5px solid #e1e8f5", background: printAction === act ? "#eef3ff" : "#fff", color: printAction === act ? "#1d44d6" : "#0d1a36" }}
                   >
-                    {act === "RESET_KUOTA" ? "Reset Kuota" : "Tambah Kuota"}
+                    {act === "RESET_KUOTA" ? L("Reset Kuota", "Quota Reset") : L("Tambah Kuota", "Add Quota")}
                   </button>
                 ))}
               </div>
@@ -422,7 +422,7 @@ export default function RequestPage() {
               <div style={{ marginBottom: 22 }}>
                 <label style={labelStyle}>PILIH AREA / LOKASI * {selectedAreas.length > 0 ? `(${selectedAreas.length} dipilih)` : ""}</label>
                 {printerLocations.length === 0 ? (
-                  <div style={{ ...inputStyle, color: "#a0aabb", fontSize: 13 }}>Memuat daftar area...</div>
+                  <div style={{ ...inputStyle, color: "#a0aabb", fontSize: 13 }}>{L("Memuat daftar area...", "Loading area list...")}</div>
                 ) : (
                   <div style={{ border: "1.5px solid #e1e8f5", borderRadius: 12, maxHeight: 220, overflowY: "auto" }}>
                     {printerLocations.map((loc) => (
@@ -436,7 +436,7 @@ export default function RequestPage() {
                     ))}
                   </div>
                 )}
-                <div style={{ fontSize: 11.5, color: "#7886a8", marginTop: 6 }}>Bisa pilih lebih dari 1 area — tiap area akan dicatat sebagai permintaan terpisah.</div>
+                <div style={{ fontSize: 11.5, color: "#7886a8", marginTop: 6 }}>{L("Bisa pilih lebih dari 1 area — tiap area akan dicatat sebagai permintaan terpisah.", "You can choose more than one area — each area is recorded as a separate request.")}</div>
               </div>
             ) : (
               <>
@@ -468,13 +468,13 @@ export default function RequestPage() {
             <label style={labelStyle}>LOKASI *</label>
             <input value={tgaLokasi} onChange={(e) => setTgaLokasi(e.target.value)} placeholder="Contoh: Ruang meeting lt. 2, Gedung A" style={{ ...inputStyle, marginBottom: 14 }} />
             <label style={labelStyle}>MASALAH / YANG PERLU DIKERJAKAN *</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Contoh: AC tidak dingin dan menetes air" style={{ ...inputStyle, resize: "vertical", marginBottom: 12 }} />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder={L("Contoh: AC tidak dingin dan menetes air", "Example: The AC is not cold and is dripping water")} style={{ ...inputStyle, resize: "vertical", marginBottom: 12 }} />
             <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, cursor: "pointer",
               border: tgaUrgent ? "2px solid #e5484d" : "1.5px solid #e1e8f5", background: tgaUrgent ? "#fff1f2" : "#fff" }}>
               <input type="checkbox" checked={tgaUrgent} onChange={(e) => setTgaUrgent(e.target.checked)} style={{ width: 18, height: 18 }} />
               <span style={{ fontSize: 13.5, fontWeight: 700, color: tgaUrgent ? "#c42b31" : "#0d1a36" }}>🔥 Mendesak (mengganggu pekerjaan / keselamatan)</span>
             </label>
-            <div style={{ fontSize: 12, color: "#7886a8", marginTop: 10, lineHeight: 1.5 }}>Permintaan langsung masuk ke aplikasi teknisi GA. Isi No. HP supaya teknisi bisa menghubungi Anda.</div>
+            <div style={{ fontSize: 12, color: "#7886a8", marginTop: 10, lineHeight: 1.5 }}>{L("Permintaan langsung masuk ke aplikasi teknisi GA. Isi No. HP supaya teknisi bisa menghubungi Anda.", "The request goes straight to the GA technician app. Enter your phone number so the technician can contact you.")}</div>
           </div>
         )}
 

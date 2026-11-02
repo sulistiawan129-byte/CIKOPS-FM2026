@@ -116,8 +116,8 @@ export default function GiftLookupPage() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!eventId) { setError("Pilih program terlebih dahulu."); return; }
-    if (!nik.trim()) { setError("Masukkan NIK."); return; }
+    if (!eventId) { setError(L("Pilih program terlebih dahulu.", "Select a programme first.")); return; }
+    if (!nik.trim()) { setError(L("Masukkan NIK.", "Enter the NIK.")); return; }
     setLoading(true);
     setError("");
     setReg(null);
@@ -125,7 +125,7 @@ export default function GiftLookupPage() {
     setNameResults(null);
     try {
       const result = await findGiftRegistrationByNik(eventId, nik.trim());
-      if (!result) { setError("NIK tidak ditemukan di program ini."); return; }
+      if (!result) { setError(L("NIK tidak ditemukan di program ini.", "NIK not found in this programme.")); return; }
       setReg(result);
     } catch {
       setError(L("Gagal mencari data. Periksa koneksi internet.", "Failed to search the data. Check your internet connection."));
@@ -136,8 +136,8 @@ export default function GiftLookupPage() {
 
   async function handleSearchByName(e: React.FormEvent) {
     e.preventDefault();
-    if (!eventId) { setError("Pilih program terlebih dahulu."); return; }
-    if (!nameQuery.trim()) { setError("Masukkan nama."); return; }
+    if (!eventId) { setError(L("Pilih program terlebih dahulu.", "Select a programme first.")); return; }
+    if (!nameQuery.trim()) { setError(L("Masukkan nama.", "Enter a name.")); return; }
     setNameSearching(true);
     setError("");
     setReg(null);
@@ -145,7 +145,7 @@ export default function GiftLookupPage() {
     setNameResults(null);
     try {
       const results = await findGiftRegistrationsByName(eventId, nameQuery.trim());
-      if (results.length === 0) { setError("Nama tidak ditemukan di program ini."); return; }
+      if (results.length === 0) { setError(L("Nama tidak ditemukan di program ini.", "Name not found in this programme.")); return; }
       if (results.length === 1) { setReg(results[0]); return; }
       setNameResults(results); // lebih dari 1 — biarkan operator pilih yang benar
     } catch {
@@ -157,8 +157,8 @@ export default function GiftLookupPage() {
 
   async function handleSearchByNo(e: React.FormEvent) {
     e.preventDefault();
-    if (!eventId) { setError("Pilih program terlebih dahulu."); return; }
-    if (!noQuery.trim()) { setError("Masukkan No. Urut."); return; }
+    if (!eventId) { setError(L("Pilih program terlebih dahulu.", "Select a programme first.")); return; }
+    if (!noQuery.trim()) { setError(L("Masukkan No. Urut.", "Enter the sequence no.")); return; }
     setNoSearching(true);
     setError("");
     setReg(null);
@@ -166,7 +166,7 @@ export default function GiftLookupPage() {
     setNameResults(null);
     try {
       const results = await findGiftRegistrationsBySequenceNo(eventId, noQuery.trim());
-      if (results.length === 0) { setError("No. Urut tidak ditemukan di program ini."); return; }
+      if (results.length === 0) { setError(L("No. Urut tidak ditemukan di program ini.", "Sequence no. not found in this programme.")); return; }
       if (results.length === 1) { setReg(results[0]); return; }
       setNameResults(results); // jarang terjadi, tapi jaga-jaga kalau No. Urut dobel
     } catch {
@@ -211,10 +211,10 @@ export default function GiftLookupPage() {
       <div style={{ background: NAVY, padding: "20px 20px 24px", textAlign: "center", position: "relative" }}>
         <img src="/logo.png" alt="CIKOPS" style={{ width: 52, height: 52, marginBottom: 10 }} />
         <div style={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>Pembagian Seragam</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>Masukkan NIK untuk melihat data pengambilan</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>{L("Masukkan NIK untuk melihat data pengambilan", "Enter a NIK to see collection data")}</div>
         {petugas && (
           <div style={{ position: "absolute", top: 16, right: 16, textAlign: "right" }}>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>Petugas</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>{L("Petugas", "Officer")}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{petugas}</div>
             <button
               onClick={() => { setPetugasInput(petugas); setShowPetugasPrompt(true); }}
@@ -230,7 +230,7 @@ export default function GiftLookupPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,40,71,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%", boxShadow: "0 12px 40px rgba(0,0,0,0.25)" }}>
             <div style={{ fontSize: 40, textAlign: "center", marginBottom: 10 }}>👋</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, textAlign: "center", marginBottom: 4 }}>Nama Petugas</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, textAlign: "center", marginBottom: 4 }}>{L("Nama Petugas", "Officer Name")}</div>
             <div style={{ fontSize: 13, color: "#7c8aa0", textAlign: "center", marginBottom: 18 }}>
               Diisi 1x saja untuk perangkat ini — tidak perlu diulang tiap kali proses pengambilan.
             </div>
@@ -239,7 +239,7 @@ export default function GiftLookupPage() {
               value={petugasInput}
               onChange={(e) => setPetugasInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") savePetugasName(); }}
-              placeholder="Nama Anda"
+              placeholder={L("Nama Anda", "Your name")}
               autoFocus
               style={{ width: "100%", padding: "14px 16px", borderRadius: 12, border: "2px solid #dbe4f0", fontSize: 16, color: NAVY, outline: "none", boxSizing: "border-box", marginBottom: 14, textAlign: "center", fontWeight: 700 }}
             />
@@ -273,7 +273,7 @@ export default function GiftLookupPage() {
                 boxShadow: "0 2px 10px rgba(15,40,71,0.06)",
               }}
             >
-              <option value="">— Pilih program —</option>
+              <option value="">{L("— Pilih program —", "— Select programme —")}</option>
               {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
             </select>
           )}
@@ -434,10 +434,10 @@ export default function GiftLookupPage() {
                 <span style={{ fontSize: 30 }}>{reg.claimed ? "✅" : "🎁"}</span>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 18, color: "#fff" }}>
-                    {reg.claimed ? "Sudah Diambil" : "Belum Diambil"}
+                    {reg.claimed ? L("Sudah Diambil", "Collected") : L("Belum Diambil", "Not Collected")}
                   </div>
                   <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
-                    {reg.claimed ? `Diproses oleh ${reg.claimedBy}` : reg.eventName}
+                    {reg.claimed ? L(`Diproses oleh ${reg.claimedBy}`, `Processed by ${reg.claimedBy}`) : reg.eventName}
                   </div>
                 </div>
               </div>
@@ -456,10 +456,10 @@ export default function GiftLookupPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                       <tbody>
                         {[
-                          ["Nama", reg.nama],
+                          [L("Nama", "Name"), reg.nama],
                           ["NIK", reg.nik],
-                          ["Departemen", reg.departemen],
-                          ["Lokasi Pengambilan", reg.lokasiPengambilan],
+                          [L("Departemen", "Department"), reg.departemen],
+                          [L("Lokasi Pengambilan", "Collection Location"), reg.lokasiPengambilan],
                         ].filter(([, v]) => v).map(([k, v]) => (
                           <tr key={k} style={{ borderBottom: "1px solid #eef2f9" }}>
                             <td style={{ padding: "8px 0", color: "#94a3b8", width: "44%" }}>{k}</td>
@@ -539,14 +539,14 @@ export default function GiftLookupPage() {
                             opacity: claiming ? 0.7 : 1,
                           }}
                         >
-                          {claiming ? "Memproses..." : "✅  TANDAI SUDAH DIAMBIL"}
+                          {claiming ? L("Memproses...", "Processing...") : "✅  TANDAI SUDAH DIAMBIL"}
                         </button>
                       </div>
                     ) : (
                       <div style={{ background: "#dcfce7", borderRadius: 14, padding: "16px", textAlign: "center" }}>
                         <div style={{ fontSize: 24, marginBottom: 6 }}>🎉</div>
                         <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>Pengambilan berhasil dicatat!</div>
-                        <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>NIK ini tidak bisa diambil lagi.</div>
+                        <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>{L("NIK ini tidak bisa diambil lagi.", "This NIK can no longer be collected.")}</div>
                       </div>
                     )}
                   </div>
@@ -557,7 +557,7 @@ export default function GiftLookupPage() {
           {!reg && isWide && (
             <div style={{ background: "#fff", borderRadius: 24, minHeight: "calc(100vh - 220px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#a0aabb" }}>
               <div style={{ fontSize: 48, marginBottom: 14 }}>🔍</div>
-              <div style={{ fontSize: 15 }}>Hasil pencarian akan muncul di sini</div>
+              <div style={{ fontSize: 15 }}>{L("Hasil pencarian akan muncul di sini", "Search results will appear here")}</div>
             </div>
           )}
         </div>

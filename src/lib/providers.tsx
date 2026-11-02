@@ -5,6 +5,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -64,15 +65,16 @@ export function AppProviders({ children }: { children: ReactNode }) {
       ? "dark"
       : "light";
   });
-  const [lang, setLangState] = useState<Lang>(() => {
-    if (typeof window === "undefined") return "id";
+  // Mulai dari "id" supaya HTML server & render pertama klien sama (tidak ada hydration mismatch);
+  // bahasa tersimpan dibaca sesudah mount.
+  const [lang, setLangState] = useState<Lang>("id");
+  useEffect(() => {
     try {
-      const saved = localStorage.getItem("cikops_lang") as Lang | null;
-      return saved === "en" ? "en" : "id";
+      if (localStorage.getItem("cikops_lang") === "en") setLangState("en");
     } catch {
-      return "id";
+      /* ignore */
     }
-  });
+  }, []);
 
   // L() di seluruh aplikasi membaca bahasa aktif ini (aman diulang: hanya menyimpan nilai)
   setGlobalLang(lang);
