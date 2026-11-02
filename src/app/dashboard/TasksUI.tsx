@@ -18,15 +18,14 @@ import { plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
 import type { Driver, Employee, JobType, Plant, TaskDetail, TaskStatus, Vehicle } from "@/lib/types";
 import { plantFull } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 /* ───────────────────────── util ───────────────────────── */
 
-const DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 export function dayLabel(iso: string): string {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return iso;
-  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return `${d.toLocaleDateString(loc(), { weekday: "long" })}, ${d.getDate()} ${d.toLocaleDateString(loc(), { month: "short" })} ${d.getFullYear()}`;
 }
 
 function shiftDay(iso: string, delta: number): string {
@@ -46,7 +45,7 @@ function hhmm(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":");
+  return d.toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" }).replace(".", ":");
 }
 
 function initials(name: string) {
@@ -80,10 +79,10 @@ const IcChevL = () => <Svg size={18} sw={2.4}><path d="m15 6-6 6 6 6" /></Svg>;
 const IcChevR = () => <Svg size={18} sw={2.4}><path d="m9 6 6 6-6 6" /></Svg>;
 
 const TONE: Record<TaskStatus, { key: string; label: string; color: string }> = {
-  ASSIGNED: { key: "assigned", label: "Ditugaskan", color: "var(--orange)" },
-  "ON GOING": { key: "ongoing", label: "Berjalan", color: "var(--brand)" },
-  DONE: { key: "done", label: "Selesai", color: "var(--green)" },
-  CANCELLED: { key: "cancelled", label: "Dibatalkan", color: "var(--red)" },
+  ASSIGNED: { key: "assigned", get label() { return L("Ditugaskan", "Assigned"); }, color: "var(--orange)" },
+  "ON GOING": { key: "ongoing", get label() { return L("Berjalan", "In progress"); }, color: "var(--brand)" },
+  DONE: { key: "done", get label() { return L("Selesai", "Done"); }, color: "var(--green)" },
+  CANCELLED: { key: "cancelled", get label() { return L("Dibatalkan", "Cancelled"); }, color: "var(--red)" },
 };
 const ORDER: TaskStatus[] = ["ON GOING", "ASSIGNED", "DONE", "CANCELLED"];
 
@@ -116,31 +115,31 @@ export function TaskBoardBar(p: {
     <section className={s.board}>
       <div className={s.boardTop}>
         <div className={s.dateNav}>
-          <button className={s.navBtn} onClick={() => p.onDate(shiftDay(p.date, -1))} aria-label="Hari sebelumnya"><IcChevL /></button>
+          <button className={s.navBtn} onClick={() => p.onDate(shiftDay(p.date, -1))} aria-label={L("Hari sebelumnya", "Previous day")}><IcChevL /></button>
           <label className={s.dateLabel}>
             <span>{dayLabel(p.date)}</span>
-            <input type="date" value={p.date} onChange={(e) => e.target.value && p.onDate(e.target.value)} aria-label="Pilih tanggal" />
+            <input type="date" value={p.date} onChange={(e) => e.target.value && p.onDate(e.target.value)} aria-label={L("Pilih tanggal", "Select date")} />
           </label>
-          <button className={s.navBtn} onClick={() => p.onDate(shiftDay(p.date, 1))} aria-label="Hari berikutnya"><IcChevR /></button>
-          {p.date !== p.today && <button className={s.todayBtn} onClick={() => p.onDate(p.today)}>Hari ini</button>}
+          <button className={s.navBtn} onClick={() => p.onDate(shiftDay(p.date, 1))} aria-label={L("Hari berikutnya", "Next day")}><IcChevR /></button>
+          {p.date !== p.today && <button className={s.todayBtn} onClick={() => p.onDate(p.today)}>{L("Hari ini", "Today")}</button>}
         </div>
         <div className={s.boardRight}>
           <div className={s.search}>
             <Svg size={16}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></Svg>
-            <input value={p.search} onChange={(e) => p.onSearch(e.target.value)} placeholder="Cari tujuan, driver, plat, requestor" aria-label="Cari tugas" />
+            <input value={p.search} onChange={(e) => p.onSearch(e.target.value)} placeholder={L("Cari tujuan, driver, plat, requestor", "Search destination, driver, plate, requestor")} aria-label={L("Cari tugas", "Search tasks")} />
           </div>
-          <button className={s.ghostBtn} onClick={p.onPrintAll} disabled={p.printCount === 0} title="Cetak bukti semua tugas yang tampil">
-            <IcPrint size={16} />Cetak semua{p.printCount > 0 ? ` (${p.printCount})` : ""}
+          <button className={s.ghostBtn} onClick={p.onPrintAll} disabled={p.printCount === 0} title={L("Cetak bukti semua tugas yang tampil", "Print slips for all listed tasks")}>
+            <IcPrint size={16} />{L("Cetak semua", "Print all")}{p.printCount > 0 ? ` (${p.printCount})` : ""}
           </button>
         </div>
       </div>
 
       <div className={s.pipeline}>
         <div className={s.pipeHead}>
-          <div className={s.pipeTotal}><b>{stats.total}</b><span>tugas</span></div>
-          <div className={s.pipeRate}>{stats.total === 0 ? "Belum ada tugas hari ini" : `${doneRate}% selesai`}</div>
+          <div className={s.pipeTotal}><b>{stats.total}</b><span>{L("tugas", "tasks")}</span></div>
+          <div className={s.pipeRate}>{stats.total === 0 ? L("Belum ada tugas hari ini", "No tasks today") : L(`${doneRate}% selesai`, `${doneRate}% done`)}</div>
         </div>
-        <div className={s.pipeBar} role="img" aria-label="Komposisi status tugas">
+        <div className={s.pipeBar} role="img" aria-label={L("Komposisi status tugas", "Task status composition")}>
           {stats.total === 0 && <span className={s.pipeEmpty} />}
           {segs.filter((g) => g.n > 0).map((g) => (
             <button
@@ -177,20 +176,20 @@ function StatusTimes({ t }: { t: TaskDetail }) {
   if (t.status === "CANCELLED") {
     return (
       <div className={s.cancelNote}>
-        Dibatalkan{t.cancelled_at ? ` ${hhmm(t.cancelled_at)}` : ""}{t.cancelled_by ? ` oleh ${t.cancelled_by === "driver" ? "driver" : "admin"}` : ""}
+        {L("Dibatalkan", "Cancelled")}{t.cancelled_at ? ` ${hhmm(t.cancelled_at)}` : ""}{t.cancelled_by ? ` ${L("oleh", "by")} ${t.cancelled_by === "driver" ? "driver" : "admin"}` : ""}
         {t.cancel_reason ? <> · <i>“{t.cancel_reason}”</i></> : null}
       </div>
     );
   }
-  const parts = [`Ditugaskan ${hhmm(t.created_at)}`];
-  if (t.accepted_at) parts.push(`Berjalan ${hhmm(t.accepted_at)}`);
+  const parts = [`${L("Ditugaskan", "Assigned")} ${hhmm(t.created_at)}`];
+  if (t.accepted_at) parts.push(`${L("Berjalan", "In progress")} ${hhmm(t.accepted_at)}`);
   const auto = isAutoCompleted(t);
-  if (t.completed_at) parts.push(auto ? `Selesai otomatis ${hhmm(t.completed_at)}` : `Selesai ${hhmm(t.completed_at)}`);
-  if (t.status === "ASSIGNED" || t.status === "ON GOING") parts.push(`batas ${String(TASK_CUTOFF_HOUR).padStart(2, "0")}.00`);
+  if (t.completed_at) parts.push(auto ? `${L("Selesai otomatis", "Auto-completed")} ${hhmm(t.completed_at)}` : `${L("Selesai", "Done")} ${hhmm(t.completed_at)}`);
+  if (t.status === "ASSIGNED" || t.status === "ON GOING") parts.push(`${L("batas", "cutoff")} ${String(TASK_CUTOFF_HOUR).padStart(2, "0")}.00`);
   return (
     <div className={s.timesTxt}>
       {parts.join(" · ")}
-      {auto && <span className={s.autoTag} title={`Belum diselesaikan driver, ditutup otomatis oleh sistem pukul ${TASK_CUTOFF_HOUR}.00`}>Auto {TASK_CUTOFF_HOUR}.00</span>}
+      {auto && <span className={s.autoTag} title={L(`Belum diselesaikan driver, ditutup otomatis oleh sistem pukul ${TASK_CUTOFF_HOUR}.00`, `Not completed by the driver, closed automatically by the system at ${TASK_CUTOFF_HOUR}:00`)}>Auto {TASK_CUTOFF_HOUR}.00</span>}
     </div>
   );
 }
@@ -212,7 +211,7 @@ export function TaskCard({
       <header className={s.cardTop}>
         <Avatar name={t.driver_nama || "?"} />
         <div className={s.who}>
-          <div className={s.whoName} title={tidy(t.driver_nama)}>{tidy(t.driver_nama) || "Belum ada driver"}</div>
+          <div className={s.whoName} title={tidy(t.driver_nama)}>{tidy(t.driver_nama) || L("Belum ada driver", "No driver yet")}</div>
           <div className={s.whoSub}>
             <span className={s.plate}>{t.kendaraan || "—"}</span>
             {t.kendaraan_jenis ? <span className={s.dimTxt} title={t.kendaraan_jenis}>{tidy(t.kendaraan_jenis)}</span> : null}
@@ -232,7 +231,7 @@ export function TaskCard({
         </div>
         <div className={s.path} aria-hidden="true"><i /><span><IcCar size={16} /></span><i /></div>
         <div className={`${s.stop} ${s.stopTo}`}>
-          <span className={s.stopLabel}><i className={s.dotTo} />Tujuan</span>
+          <span className={s.stopLabel}><i className={s.dotTo} />{L("Tujuan", "Destination")}</span>
           <b title={t.tujuan}>{tidy(t.tujuan)}</b>
         </div>
       </div>
@@ -240,24 +239,24 @@ export function TaskCard({
       <div className={s.meta}>
         <span className={s.tag} title={t.jenis_pekerjaan}>{t.jenis_pekerjaan}</span>
         <span className={s.tagSoft} title={`Requestor: ${t.requestor}${t.departement ? ` · ${t.departement}` : ""}`}>Req. {t.requestor}{t.departement ? ` · ${t.departement}` : ""}</span>
-        {t.batch_id && t.batch_total_days > 1 ? <span className={s.tagSoft} style={{ flex: "none" }}>Rentang {t.batch_total_days} hari</span> : null}
+        {t.batch_id && t.batch_total_days > 1 ? <span className={s.tagSoft} style={{ flex: "none" }}>{L("Rentang", "Range of")} {t.batch_total_days} {L("hari", "days")}</span> : null}
       </div>
-      <p className={`${s.note} ${t.perihal ? "" : s.noteNone}`} title={t.perihal || undefined}>{t.perihal || "Tidak ada catatan"}</p>
+      <p className={`${s.note} ${t.perihal ? "" : s.noteNone}`} title={t.perihal || undefined}>{t.perihal || L("Tidak ada catatan", "No notes")}</p>
 
       <StatusTimes t={t} />
 
       <footer className={s.actions}>
         {open && (
           <button className={s.advance} onClick={() => onAdvance(t, t.status === "ASSIGNED" ? "ON GOING" : "DONE")}>
-            {t.status === "ASSIGNED" ? "Proses tugas" : "Selesaikan"}
+            {t.status === "ASSIGNED" ? L("Proses tugas", "Start task") : L("Selesaikan", "Complete")}
           </button>
         )}
-        <button className={s.printBtn} onClick={() => onPrint(t)} title="Cetak bukti penugasan">
-          <IcPrint size={15} />Cetak
+        <button className={s.printBtn} onClick={() => onPrint(t)} title={L("Cetak bukti penugasan", "Print assignment slip")}>
+          <IcPrint size={15} />{L("Cetak", "Print")}
         </button>
         <span className={s.spacer} />
         {open && <button className={s.linkBtn} onClick={() => onCancel(t)}>Batalkan</button>}
-        <button className={`${s.linkBtn} ${s.linkDanger}`} onClick={() => onDelete(t)}>Hapus</button>
+        <button className={`${s.linkBtn} ${s.linkDanger}`} onClick={() => onDelete(t)}>{L("Hapus", "Delete")}</button>
       </footer>
     </article>
   );
@@ -267,9 +266,9 @@ export function TaskEmpty({ filtered, onNew, onClear }: { filtered: boolean; onN
   return (
     <div className={s.empty}>
       <span className={s.emptyIc} aria-hidden="true"><IcCar size={30} /></span>
-      <b>{filtered ? "Tidak ada tugas yang cocok" : "Belum ada penugasan di tanggal ini"}</b>
-      <p>{filtered ? "Ubah pencarian atau hapus filter status untuk melihat semua tugas." : "Tugaskan driver untuk memulai. Tiap tugas mencatat dari mana dan ke mana."}</p>
-      {filtered ? <button className={s.ghostBtn} onClick={onClear}>Hapus filter</button> : <button className={s.primary} onClick={onNew}><IcPlus size={16} />Tugaskan driver</button>}
+      <b>{filtered ? L("Tidak ada tugas yang cocok", "No matching tasks") : L("Belum ada penugasan di tanggal ini", "No assignments on this date")}</b>
+      <p>{filtered ? L("Ubah pencarian atau hapus filter status untuk melihat semua tugas.", "Change the search or clear the status filter to see all tasks.") : L("Tugaskan driver untuk memulai. Tiap tugas mencatat dari mana dan ke mana.", "Assign a driver to get started. Each task records where from and where to.")}</p>
+      {filtered ? <button className={s.ghostBtn} onClick={onClear}>{L("Hapus filter", "Clear filter")}</button> : <button className={s.primary} onClick={onNew}><IcPlus size={16} />{L("Tugaskan driver", "Assign driver")}</button>}
     </div>
   );
 }
@@ -279,7 +278,7 @@ export function TaskEmpty({ filtered, onNew, onClear }: { filtered: boolean; onN
 export function TaskSlipModal({ tasks, printedBy, onClose }: { tasks: TaskDetail[]; printedBy: string; onClose: () => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const html = useMemo(
-    () => buildTaskSlipsHtml(tasks, { printedBy, origin: typeof window !== "undefined" ? window.location.origin : "" }),
+    () => buildTaskSlipsHtml(tasks, { lang: L("id", "en") === "en" ? "en" : "id", printedBy, origin: typeof window !== "undefined" ? window.location.origin : "" }),
     [tasks, printedBy]
   );
   const print = () => {
@@ -294,18 +293,18 @@ export function TaskSlipModal({ tasks, printedBy, onClose }: { tasks: TaskDetail
       <div className={s.slipModal}>
         <header className={s.slipHead}>
           <div>
-            <h2>{tasks.length === 1 ? "Bukti penugasan" : `Bukti penugasan · ${tasks.length} tugas`}</h2>
+            <h2>{tasks.length === 1 ? L("Bukti penugasan", "Assignment slip") : L(`Bukti penugasan · ${tasks.length} tugas`, `Assignment slips · ${tasks.length} tasks`)}</h2>
             <p>
-              {tasks.length === 1 ? <>No. Ref <b className={s.mono}>{taskRefNo(tasks[0])}</b> · </> : null}
+              {tasks.length === 1 ? <>{L("No. Ref", "Ref. No.")} <b className={s.mono}>{taskRefNo(tasks[0])}</b> · </> : null}
               Ukuran A4, dua bukti per lembar{pages > 1 ? ` (${pages} lembar)` : ""}. Hitam-putih juga jelas.
             </p>
           </div>
-          <button className={s.x} onClick={onClose} aria-label="Tutup"><IcX size={18} /></button>
+          <button className={s.x} onClick={onClose} aria-label={L("Tutup", "Close")}><IcX size={18} /></button>
         </header>
         <iframe ref={frame} className={s.slipFrame} title="Pratinjau bukti penugasan" srcDoc={html} />
         <footer className={s.slipFoot}>
-          <button className={s.ghostBtn} onClick={onClose}>Tutup</button>
-          <button className={s.primary} onClick={print}><IcPrint size={16} />Cetak</button>
+          <button className={s.ghostBtn} onClick={onClose}>{L("Tutup", "Close")}</button>
+          <button className={s.primary} onClick={print}><IcPrint size={16} />{L("Cetak", "Print")}</button>
         </footer>
       </div>
     </ModalPortal>
@@ -332,12 +331,12 @@ function Ticket({ v, driver, vehicle }: { v: TaskFormValues; driver?: Driver; ve
       <div className={s.tkMain}>
         <div className={s.tkTop}><span>Tiket penugasan</span><span>{v.plant}</span></div>
         <div className={s.tkRoute}>
-          <div className={s.tkStop}><small>Dari</small><b className={v.asal ? "" : s.tkEmpty}>{v.asal || "Belum diisi"}</b></div>
+          <div className={s.tkStop}><small>{L("Dari", "From")}</small><b className={v.asal ? "" : s.tkEmpty}>{v.asal || L("Belum diisi", "Not filled in")}</b></div>
           <div className={s.tkPath} aria-hidden="true"><i /><span><IcCar size={15} /></span><i /></div>
-          <div className={s.tkStop}><small>Ke</small><b className={v.tujuan ? "" : s.tkEmpty}>{v.tujuan || "Belum diisi"}</b></div>
+          <div className={s.tkStop}><small>{L("Ke", "To")}</small><b className={v.tujuan ? "" : s.tkEmpty}>{v.tujuan || L("Belum diisi", "Not filled in")}</b></div>
         </div>
         <div className={s.tkMeta}>
-          {v.jenisPekerjaan ? <span className={s.tag}>{v.jenisPekerjaan}</span> : <span className={s.tagGhost}>Jenis pekerjaan</span>}
+          {v.jenisPekerjaan ? <span className={s.tag}>{v.jenisPekerjaan}</span> : <span className={s.tagGhost}>{L("Jenis pekerjaan", "Job type")}</span>}
           <span className={s.tkReq}>{v.requestor ? `Req. ${v.requestor}` : "Requestor belum dipilih"}</span>
         </div>
         {v.perihal.trim() ? <p className={s.tkNote}>{v.perihal.trim()}</p> : null}
@@ -348,7 +347,7 @@ function Ticket({ v, driver, vehicle }: { v: TaskFormValues; driver?: Driver; ve
           {driver ? <Avatar name={driver.nama} size={34} /> : <span className={s.tkAvatarEmpty} />}
           <div>
             <b>{driver?.nama ?? "Driver belum dipilih"}</b>
-            <span className={s.plate}>{vehicle ? `${vehicle.nopol}${vehicle.jenis ? ` · ${vehicle.jenis}` : ""}` : "Kendaraan belum dipilih"}</span>
+            <span className={s.plate}>{vehicle ? `${vehicle.nopol}${vehicle.jenis ? ` · ${vehicle.jenis}` : ""}` : L("Kendaraan belum dipilih", "No vehicle selected")}</span>
           </div>
         </div>
         <div className={s.tkDate}>{date}</div>
@@ -419,27 +418,27 @@ export function TaskForm(p: {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setLocalErr("");
-    if (!asal.trim()) return setLocalErr("Isi lokasi keberangkatan (Dari mana)");
-    if (!driverId || !vehicleId || !jenisPekerjaan || !tujuan.trim() || !requestor) return setLocalErr("Lengkapi semua isian wajib");
+    if (!asal.trim()) return setLocalErr(L("Isi lokasi keberangkatan (Dari mana)", "Enter the departure location (From where)"));
+    if (!driverId || !vehicleId || !jenisPekerjaan || !tujuan.trim() || !requestor) return setLocalErr(L("Lengkapi semua isian wajib", "Complete all required fields"));
     if (dateMode === "range") {
-      if (tanggalTo < tanggal) return setLocalErr("Tanggal selesai tidak boleh sebelum tanggal mulai");
-      if (!requestorEmail) return setLocalErr("Email requestor wajib diisi untuk penugasan rentang tanggal");
+      if (tanggalTo < tanggal) return setLocalErr(L("Tanggal selesai tidak boleh sebelum tanggal mulai", "The end date cannot be before the start date"));
+      if (!requestorEmail) return setLocalErr(L("Email requestor wajib diisi untuk penugasan rentang tanggal", "Requestor email is required for date-range assignments"));
     }
     p.onSubmit({ plant, dateMode, tanggal, tanggalTo, asal: asal.trim(), tujuan: tujuan.trim(), driverId, vehicleId, jenisPekerjaan, requestor, departement, perihal, requestorEmail });
   }
 
   const values: TaskFormValues = { plant, dateMode, tanggal, tanggalTo, asal: asal.trim(), tujuan: tujuan.trim(), driverId, vehicleId, jenisPekerjaan, requestor, departement, perihal, requestorEmail };
   const err = localErr || p.error;
-  const missing = !asal.trim() ? "Isi lokasi keberangkatan" : !tujuan.trim() ? "Isi tujuan" : !driverId ? "Pilih driver" : !vehicleId ? "Pilih kendaraan" : !jenisPekerjaan ? "Pilih jenis pekerjaan" : !requestor ? "Pilih requestor" : "";
+  const missing = !asal.trim() ? L("Isi lokasi keberangkatan", "Enter the departure location") : !tujuan.trim() ? L("Isi tujuan", "Enter the destination") : !driverId ? L("Pilih driver", "Select a driver") : !vehicleId ? L("Pilih kendaraan", "Select a vehicle") : !jenisPekerjaan ? L("Pilih jenis pekerjaan", "Select a job type") : !requestor ? L("Pilih requestor", "Select a requestor") : "";
 
   return (
     <form className={s.form} onSubmit={submit}>
       <header className={s.formHead}>
         <div>
           <h2>Tugaskan driver</h2>
-          <p>Mulai dari rute: dari mana dan ke mana. Tiket di kanan ikut terisi.</p>
+          <p>{L("Mulai dari rute: dari mana dan ke mana. Tiket di kanan ikut terisi.", "Start with the route: from where and to where. The ticket on the right fills in too.")}</p>
         </div>
-        <button type="button" className={s.x} onClick={p.onClose} aria-label="Tutup"><IcX size={18} /></button>
+        <button type="button" className={s.x} onClick={p.onClose} aria-label={L("Tutup", "Close")}><IcX size={18} /></button>
       </header>
       <div className={s.progress} aria-hidden="true"><i style={{ width: `${(filled / required.length) * 100}%` }} data-ready={ready} /></div>
 
@@ -450,7 +449,7 @@ export function TaskForm(p: {
             <h3>Rute perjalanan</h3>
             <div className={s.routeBox}>
               <label className={s.rField}>
-                <span><i className={s.dotFrom} />Lokasi keberangkatan / penjemputan</span>
+                <span><i className={s.dotFrom} />{L("Lokasi keberangkatan / penjemputan", "Departure / pickup location")}</span>
                 <input
                   className={s.input}
                   list="task-places"
@@ -462,13 +461,13 @@ export function TaskForm(p: {
               </label>
               <div className={s.swapRow}>
                 <span className={s.swapLine} />
-                <button type="button" className={s.swap} onClick={swap} disabled={!asal && !tujuan} title="Tukar dari ↔ ke (untuk perjalanan pulang)">
+                <button type="button" className={s.swap} onClick={swap} disabled={!asal && !tujuan} title={L("Tukar dari ↔ ke (untuk perjalanan pulang)", "Swap from ↔ to (for the return trip)")}>
                   <IcSwap size={15} />Tukar
                 </button>
                 <span className={s.swapLine} />
               </div>
               <label className={s.rField}>
-                <span><i className={s.dotTo} />Tujuan</span>
+                <span><i className={s.dotTo} />{L("Tujuan", "Destination")}</span>
                 <input
                   ref={tujuanRef}
                   className={s.input}
@@ -499,7 +498,7 @@ export function TaskForm(p: {
             </div>
             {recentTujuan.length > 0 && (
               <div className={s.quickRow}>
-                <span className={s.quickLbl}>Tujuan terakhir:</span>
+                <span className={s.quickLbl}>{L("Tujuan terakhir:", "Recent destinations:")}</span>
                 {recentTujuan.map((x) => (
                   <button type="button" key={x} className={`${s.quick} ${tujuan === x ? s.quickOn : ""}`} onClick={() => setTujuan(x)}>{x}</button>
                 ))}
@@ -509,12 +508,12 @@ export function TaskForm(p: {
 
           {/* plant + tanggal */}
           <section className={s.block}>
-            <h3>Plant dan tanggal</h3>
+            <h3>{L("Plant dan tanggal", "Plant and date")}</h3>
             <div className={s.twoCol}>
               <div>
                 <div className={s.lbl}>Plant</div>
                 {p.lockedPlant ? (
-                  <div className={s.locked}><IcLock size={14} />{plantLocation(p.lockedPlant)}<small>khusus plant ini</small></div>
+                  <div className={s.locked}><IcLock size={14} />{plantLocation(p.lockedPlant)}<small>{L("khusus plant ini", "this plant only")}</small></div>
                 ) : (
                   <div className={s.seg} style={{ ["--i" as string]: plant === "CIK" ? 0 : 1, ["--n" as string]: 2 }}>
                     <span className={s.segInk} aria-hidden="true" />
@@ -535,25 +534,25 @@ export function TaskForm(p: {
               </div>
             </div>
             <div className={s.dateRow}>
-              <input type="date" className={s.input} value={tanggal} onChange={(e) => setTanggal(e.target.value)} aria-label="Tanggal tugas" />
+              <input type="date" className={s.input} value={tanggal} onChange={(e) => setTanggal(e.target.value)} aria-label={L("Tanggal tugas", "Task date")} />
               {dateMode === "range" ? (
                 <>
                   <span className={s.to}>s/d</span>
-                  <input type="date" className={s.input} value={tanggalTo} min={tanggal} onChange={(e) => setTanggalTo(e.target.value)} aria-label="Tanggal selesai" />
+                  <input type="date" className={s.input} value={tanggalTo} min={tanggal} onChange={(e) => setTanggalTo(e.target.value)} aria-label={L("Tanggal selesai", "End date")} />
                 </>
               ) : (
                 <>
-                  <button type="button" className={`${s.quick} ${tanggal === today ? s.quickOn : ""}`} onClick={() => setTanggal(today)}>Hari ini</button>
-                  <button type="button" className={`${s.quick} ${tanggal === tomorrow ? s.quickOn : ""}`} onClick={() => setTanggal(tomorrow)}>Besok</button>
+                  <button type="button" className={`${s.quick} ${tanggal === today ? s.quickOn : ""}`} onClick={() => setTanggal(today)}>{L("Hari ini", "Today")}</button>
+                  <button type="button" className={`${s.quick} ${tanggal === tomorrow ? s.quickOn : ""}`} onClick={() => setTanggal(tomorrow)}>{L("Besok", "Tomorrow")}</button>
                 </>
               )}
             </div>
             <p className={s.cutoffNote}>
-              Jam tugas maksimal pukul {TASK_CUTOFF_HOUR}.00. Tugas yang belum diselesaikan driver akan ditutup otomatis pada jam tersebut.
+              {L(`Jam tugas maksimal pukul ${TASK_CUTOFF_HOUR}.00. Tugas yang belum diselesaikan driver akan ditutup otomatis pada jam tersebut.`, `Maximum task hours end at ${TASK_CUTOFF_HOUR}:00. Tasks the driver has not completed are closed automatically at that time.`)}
             </p>
             {dateMode === "range" && (
               <label className={s.field}>
-                <span>Email requestor <em>untuk notifikasi otomatis</em></span>
+                <span>{L("Email requestor", "Requestor email")} <em>{L("untuk notifikasi otomatis", "for automatic notifications")}</em></span>
                 <input type="email" className={s.input} placeholder="nama@perusahaan.com" value={requestorEmail} onChange={(e) => setRequestorEmail(e.target.value)} />
               </label>
             )}
@@ -566,7 +565,7 @@ export function TaskForm(p: {
               <label className={s.field}>
                 <span>Driver</span>
                 <select className={s.input} value={driverId} onChange={(e) => setDriverId(e.target.value)} aria-label="Driver">
-                  <option value="">{drivers.length === 0 ? "Tidak ada driver di plant ini" : "— Pilih driver —"}</option>
+                  <option value="">{drivers.length === 0 ? L("Tidak ada driver di plant ini", "No drivers in this plant") : L("— Pilih driver —", "— Select driver —")}</option>
                   {drivers.map((d) => {
                     const locked = isUserDriver(d);
                     return (
@@ -578,9 +577,9 @@ export function TaskForm(p: {
                 </select>
               </label>
               <label className={s.field}>
-                <span>Kendaraan</span>
+                <span>{L("Kendaraan", "Vehicle")}</span>
                 <select className={s.input} value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} aria-label="Kendaraan">
-                  <option value="">{vehicles.length === 0 ? "Tidak ada kendaraan di plant ini" : "— Pilih kendaraan —"}</option>
+                  <option value="">{vehicles.length === 0 ? L("Tidak ada kendaraan di plant ini", "No vehicles in this plant") : L("— Pilih kendaraan —", "— Select vehicle —")}</option>
                   {vehicles.map((v) => (
                     <option key={v.id} value={v.id}>{v.nopol}{v.jenis ? ` (${v.jenis})` : ""}</option>
                   ))}
@@ -592,8 +591,8 @@ export function TaskForm(p: {
           {/* detail */}
           <section className={s.block}>
             <h3>Detail tugas</h3>
-            <div className={s.lbl}>Jenis pekerjaan</div>
-            <div className={s.chipsWrap} role="radiogroup" aria-label="Jenis pekerjaan">
+            <div className={s.lbl}>{L("Jenis pekerjaan", "Job type")}</div>
+            <div className={s.chipsWrap} role="radiogroup" aria-label={L("Jenis pekerjaan", "Job type")}>
               {p.jobTypes.map((j) => (
                 <button type="button" key={j.id} role="radio" aria-checked={jenisPekerjaan === j.label} className={`${s.cat} ${jenisPekerjaan === j.label ? s.catOn : ""}`} onClick={() => setJenisPekerjaan(j.label)}>{j.label}</button>
               ))}
@@ -602,32 +601,32 @@ export function TaskForm(p: {
               <label className={s.field}>
                 <span>Requestor</span>
                 <select className={s.input} value={requestor} onChange={(e) => pickRequestor(e.target.value)}>
-                  <option value="">Pilih pegawai</option>
+                  <option value="">{L("Pilih pegawai", "Select employee")}</option>
                   {p.employees.map((emp) => <option key={emp.id} value={emp.nama}>{emp.nama}</option>)}
                 </select>
               </label>
               <label className={s.field}>
-                <span>Departemen</span>
-                <input className={s.input} value={departement} onChange={(e) => setDepartement(e.target.value)} placeholder="Terisi otomatis" />
+                <span>{L("Departemen", "Department")}</span>
+                <input className={s.input} value={departement} onChange={(e) => setDepartement(e.target.value)} placeholder={L("Terisi otomatis", "Filled automatically")} />
               </label>
             </div>
             <label className={s.field}>
-              <span>Perihal <em>opsional</em></span>
-              <textarea className={`${s.input} ${s.textarea}`} value={perihal} onChange={(e) => setPerihal(e.target.value)} placeholder="Catatan tambahan untuk driver" />
+              <span>{L("Perihal", "Subject")} <em>{L("opsional", "optional")}</em></span>
+              <textarea className={`${s.input} ${s.textarea}`} value={perihal} onChange={(e) => setPerihal(e.target.value)} placeholder={L("Catatan tambahan untuk driver", "Additional notes for the driver")} />
             </label>
           </section>
         </div>
 
-        <aside className={s.side} aria-label="Pratinjau tiket">
+        <aside className={s.side} aria-label={L("Pratinjau tiket", "Ticket preview")}>
           <div className={s.sideSticky}>
             <Ticket v={values} driver={driver} vehicle={vehicle} />
             <ul className={s.checks}>
               {[
-                ["Lokasi asal", !!asal.trim()],
-                ["Tujuan", !!tujuan.trim()],
+                [L("Lokasi asal", "Origin"), !!asal.trim()],
+                [L("Tujuan", "Destination"), !!tujuan.trim()],
                 ["Driver", !!driverId],
-                ["Kendaraan", !!vehicleId],
-                ["Jenis pekerjaan", !!jenisPekerjaan],
+                [L("Kendaraan", "Vehicle"), !!vehicleId],
+                [L("Jenis pekerjaan", "Job type"), !!jenisPekerjaan],
                 ["Requestor", !!requestor],
               ].map(([label, ok]) => (
                 <li key={label as string} data-ok={ok as boolean}><i />{label as string}</li>
@@ -639,9 +638,9 @@ export function TaskForm(p: {
 
       {err && <div className={s.formErr} role="alert">{err}</div>}
       <footer className={s.formFoot}>
-        <button type="button" className={s.ghostBtn} onClick={p.onClose}>Batal</button>
-        <div className={s.footInfo}>{ready ? <b data-ok="true">Siap ditugaskan</b> : <span>{missing} · {filled} dari {required.length} terisi</span>}</div>
-        <button type="submit" className={s.submit} disabled={p.busy}>{p.busy ? "Menyimpan…" : "Tugaskan driver"}</button>
+        <button type="button" className={s.ghostBtn} onClick={p.onClose}>{L("Batal", "Cancel")}</button>
+        <div className={s.footInfo}>{ready ? <b data-ok="true">{L("Siap ditugaskan", "Ready to assign")}</b> : <span>{missing} · {filled} {L("dari", "of")} {required.length} {L("terisi", "filled")}</span>}</div>
+        <button type="submit" className={s.submit} disabled={p.busy}>{p.busy ? L("Menyimpan…", "Saving…") : L("Tugaskan driver", "Assign driver")}</button>
       </footer>
     </form>
   );
@@ -654,11 +653,11 @@ export function TaskSuccess({ message, onDone, onWhatsapp }: { message: string; 
     <div className={s.success}>
       <div className={s.okIc} aria-hidden="true"><Svg size={26} sw={2.6}><path d="m5 12.5 4.5 4.5L19 7.5" /></Svg></div>
       <h2>Tugas berhasil dibuat</h2>
-      <p>Bagikan detail penugasan ke driver atau grup lewat WhatsApp. Bukti cetak tersedia di tiap kartu tugas.</p>
+      <p>{L("Bagikan detail penugasan ke driver atau grup lewat WhatsApp. Bukti cetak tersedia di tiap kartu tugas.", "Share the assignment details with the driver or group via WhatsApp. A printable slip is available on each task card.")}</p>
       <pre className={s.wa}>{message}</pre>
       <div className={s.successFoot}>
-        <button className={s.ghostBtn} onClick={onDone}>Selesai</button>
-        <a className={s.wabtn} href={onWhatsapp} target="_blank" rel="noopener noreferrer" onClick={onDone}>Kirim via WhatsApp</a>
+        <button className={s.ghostBtn} onClick={onDone}>{L("Selesai", "Done")}</button>
+        <a className={s.wabtn} href={onWhatsapp} target="_blank" rel="noopener noreferrer" onClick={onDone}>{L("Kirim via WhatsApp", "Send via WhatsApp")}</a>
       </div>
     </div>
   );

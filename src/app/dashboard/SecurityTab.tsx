@@ -25,6 +25,7 @@ import { CrudList, SettingsPage } from "@/components/settings/Settings";
 import s from "./security.module.css";
 import { plantFull } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 type Tab = "ringkasan" | "kendaraan" | "transporter" | "pelanggaran" | "kejadian" | "visit" | "patroli" | "personel" | "riwayat" | "pengaturan";
 const TABS: { id: Tab; label: string; check?: boolean }[] = [
   { id: "ringkasan", label: "Ringkasan" },
@@ -40,8 +41,8 @@ const TABS: { id: Tab; label: string; check?: boolean }[] = [
 ];
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const f = (n: number) => Number(n || 0).toLocaleString("id-ID");
-const f1 = (n: number) => Number(n || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 });
+const f = (n: number) => Number(n || 0).toLocaleString(loc());
+const f1 = (n: number) => Number(n || 0).toLocaleString(loc(), { maximumFractionDigits: 1 });
 const pctTxt = (a: number, b: number) => (b ? `${f1((a / b) * 100)}%` : "–");
 const monthLabel = (key: string) => { const [y, m] = key.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
 const monthShortLabel = (key: string) => { const [y, m] = key.split("-").map(Number); return `${MON[m - 1]} ${String(y).slice(2)}`; };
@@ -247,7 +248,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           <b>{sdOn ? "Tersinkron dengan Security Desk" : sd && !sd.ok ? "Security Desk belum tersambung" : "Security Desk belum ada data bulan ini"}</b>
           <span>
             {sdOn
-              ? `Data ${monthLabel(monthKey)}${sd && sd.ok && sd.site ? ` · site ${sd.site}` : ""} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
+              ? `Data ${monthLabel(monthKey)}${sd && sd.ok && sd.site ? ` · site ${sd.site}` : ""} · diperbarui ${new Date(sd && sd.ok ? sd.fetchedAt : Date.now()).toLocaleString(loc(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Ubah data di Security Desk; CIKOPS mengikuti.`
               : sd && !sd.ok ? `${sd.error} — sementara pakai input manual di bawah. Panduan: docs/PANDUAN.md (bab Security).`
               : sd && sd.ok && sd.sites && !sd.sites.length
                 ? "Akun pembaca CIKOPS tidak bisa melihat site mana pun di Security Desk. Beri peran Management ke akun GC_READER_EMAIL (menu Pengguna)."
@@ -546,7 +547,7 @@ function PelanggaranView({ gc, gcLoading, agg, cfg, monthKey, data, onResync, on
         <div className={s.syncOk}>
           <div>
             <b>Tersinkron otomatis dari G-C (Kepatuhan Transporter)</b>
-            <span>Laporan NC berstatus Accept · plant {gcOk.plant} · diperbarui {new Date(gcOk.fetchedAt).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · tidak perlu input</span>
+            <span>Laporan NC berstatus Accept · plant {gcOk.plant} · diperbarui {new Date(gcOk.fetchedAt).toLocaleString(loc(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · tidak perlu input</span>
           </div>
           <div className={s.saveBtns}>
             <button type="button" className={s.ghostBtn} disabled={gcLoading} onClick={onResync}>{gcLoading ? "Menyinkron…" : "Sinkron ulang"}</button>

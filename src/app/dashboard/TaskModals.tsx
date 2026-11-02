@@ -16,6 +16,7 @@ import type { Driver, Employee, JobType, TaskDetail, Vehicle } from "@/lib/types
 import of from "./opfund.module.css";
 import { formatDateLabel } from "./dashboardShared";
 
+import { loc , L} from "@/lib/i18n";
 /** Shimmering placeholder rows shown while a table/list is loading —
  *  replaces plain "Loading..." text everywhere in the dashboard so the
  *  screen doesn't feel frozen while data comes in. */
@@ -65,7 +66,7 @@ export function ReportModal({
       const data = await getTasksByRange(dateFrom, dateTo, myProfile?.plantScope ?? null);
       setReportTasks(data); // ⚠️ sebelumnya data hasil fetch tidak pernah disimpan ke state — makanya preview & export selalu kosong
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Gagal memuat data laporan");
+      onError(e instanceof Error ? e.message : L("Gagal memuat data laporan", "Failed to load report data"));
     } finally {
       setLoadingPreview(false);
     }
@@ -134,7 +135,7 @@ export function ReportModal({
     if (format === "csv") exportSummaryCsv(opts);
     else if (format === "excel") exportSummaryExcel(opts);
     else exportSummaryPdf(opts);
-    onSuccess(`Laporan ${format.toUpperCase()} berhasil diunduh`);
+    onSuccess(L(`Laporan ${format.toUpperCase()} berhasil diunduh`, `${format.toUpperCase()} report downloaded successfully`));
   });
 
   return (
@@ -143,10 +144,10 @@ export function ReportModal({
         <div className={styles.reportTopbar}>
           <div className={styles.reportTitleWrap}>
             <div className={styles.topbarEyebrow}>CIKOPS</div>
-            <div className={styles.topbarTitle}>Laporan & Analytics</div>
+            <div className={styles.topbarTitle}>{L("Laporan & Analytics", "Report & Analytics")}</div>
           </div>
           <button className={styles.modalClose} onClick={onClose}>
-            ✕ Tutup
+            ✕ {L("Tutup", "Close")}
           </button>
         </div>
 
@@ -164,7 +165,7 @@ export function ReportModal({
             <div className={styles.tableWrap}>
               <div className={styles.tableLoading}>
                 <div className={styles.spinner} />
-                <div className={styles.loadingTxt}>Memuat data laporan...</div>
+                <div className={styles.loadingTxt}>{L("Memuat data laporan...", "Loading report data...")}</div>
               </div>
             </div>
           ) : (
@@ -172,31 +173,31 @@ export function ReportModal({
               <div className={styles.statsRow}>
                 <div className={`${styles.statCard} ${styles.statTotal}`}>
                   <div className={styles.statCardNum}>{analytics.totalTask}</div>
-                  <div className={styles.statCardLabel}>Total Task</div>
+                  <div className={styles.statCardLabel}>{L("Total Task", "Total Tasks")}</div>
                 </div>
                 <div className={`${styles.statCard} ${styles.statAssigned}`}>
                   <div className={styles.statCardNum}>{analytics.assigned}</div>
-                  <div className={styles.statCardLabel}>Assigned</div>
+                  <div className={styles.statCardLabel}>{L("Ditugaskan", "Assigned")}</div>
                 </div>
                 <div className={`${styles.statCard} ${styles.statOngoing}`}>
                   <div className={styles.statCardNum}>{analytics.ongoing}</div>
-                  <div className={styles.statCardLabel}>On Going</div>
+                  <div className={styles.statCardLabel}>{L("Berjalan", "On Going")}</div>
                 </div>
                 <div className={`${styles.statCard} ${styles.statDone}`}>
                   <div className={styles.statCardNum}>{analytics.done}</div>
-                  <div className={styles.statCardLabel}>Done</div>
+                  <div className={styles.statCardLabel}>{L("Selesai", "Done")}</div>
                 </div>
                 <div className={`${styles.statCard} ${styles.statDriverAktif}`}>
                   <div className={styles.statCardNum}>
                     {analytics.driverAktif}
                   </div>
-                  <div className={styles.statCardLabel}>Driver Aktif</div>
+                  <div className={styles.statCardLabel}>{L("Driver Aktif", "Active Drivers")}</div>
                 </div>
                 <div className={`${styles.statCard} ${styles.statCompletion}`}>
                   <div className={styles.statCardNum}>
                     {analytics.completionRate.toFixed(0)}%
                   </div>
-                  <div className={styles.statCardLabel}>Completion Rate</div>
+                  <div className={styles.statCardLabel}>{L("Tingkat Penyelesaian", "Completion Rate")}</div>
                 </div>
               </div>
 
@@ -208,38 +209,38 @@ export function ReportModal({
               <div className={styles.insightGrid}>
                 <InsightCard
                   icon="🏆"
-                  title="Top Driver (Task)"
+                  title={L("Top Driver (Task)", "Top Drivers (Tasks)")}
                   entries={analytics.topDriverByTask}
                   color="blue"
                 />
                 <InsightCard
                   icon="⏱️"
-                  title="Rata-rata Durasi Driver"
+                  title={L("Rata-rata Durasi Driver", "Average Driver Duration")}
                   entries={analytics.avgDurationByDriver}
                   color="cyan"
                   valueFormatter={(v) => formatMinutes(v)}
                 />
                 <InsightCard
                   icon="🏢"
-                  title="Top Departemen Requestor"
+                  title={L("Top Departemen Requestor", "Top Requesting Departments")}
                   entries={analytics.topDepartementRequestor}
                   color="purple"
                 />
                 <InsightCard
                   icon="🧰"
-                  title="Jenis Pekerjaan Terbanyak"
+                  title={L("Jenis Pekerjaan Terbanyak", "Most Common Job Types")}
                   entries={analytics.topJenisPekerjaan}
                   color="green"
                 />
                 <InsightCard
                   icon="🚗"
-                  title="Utilisasi Kendaraan"
+                  title={L("Utilisasi Kendaraan", "Vehicle Utilisation")}
                   entries={analytics.utilisasiKendaraan}
                   color="orange"
                 />
                 <InsightCard
                   icon="📅"
-                  title="Aktivitas Harian"
+                  title={L("Aktivitas Harian", "Daily Activity")}
                   entries={analytics.aktivitasHarian.map((e) => ({
                     ...e,
                     label: formatDateLabel(e.label),
@@ -250,7 +251,7 @@ export function ReportModal({
 
               <div className={styles.reportSectionHeader}>
                 <span className={styles.reportSectionIco}>👥</span>
-                Ringkasan Per Driver
+                {L("Ringkasan Per Driver", "Summary Per Driver")}
                 <span className={styles.reportSectionCount}>
                   {analytics.driverSummaries.length} driver
                 </span>
@@ -260,7 +261,7 @@ export function ReportModal({
                 {analytics.driverSummaries.length === 0 ? (
                   <div className={styles.tableEmpty}>
                     <div className={styles.tableEmptyTitle}>
-                      Tidak ada data driver pada periode ini
+                      {L("Tidak ada data driver pada periode ini", "No driver data for this period")}
                     </div>
                   </div>
                 ) : (
@@ -270,30 +271,30 @@ export function ReportModal({
                         <span>🏅</span> {s.driverNama}
                       </div>
                       <div className={styles.driverSummaryPeriod}>
-                        {formatDateLabel(dateFrom)} s/d {formatDateLabel(dateTo)}
+                        {formatDateLabel(dateFrom)} {L("s/d", "to")} {formatDateLabel(dateTo)}
                       </div>
                       <div className={styles.driverSummaryRow}>
-                        <span>Total Task</span>
+                        <span>{L("Total Task", "Total Tasks")}</span>
                         <strong>{s.totalTask}</strong>
                       </div>
                       <div className={styles.driverSummaryRow}>
-                        <span>Selesai</span>
+                        <span>{L("Selesai", "Completed")}</span>
                         <strong>{s.selesai}</strong>
                       </div>
                       <div className={styles.driverSummaryRow}>
-                        <span>Completion Rate</span>
+                        <span>{L("Tingkat Penyelesaian", "Completion Rate")}</span>
                         <strong className={styles.driverSummaryAccent}>
                           {s.completionRate.toFixed(0)}%
                         </strong>
                       </div>
                       <div className={styles.driverSummaryRow}>
-                        <span>Total Jam Kerja</span>
+                        <span>{L("Total Jam Kerja", "Total Working Hours")}</span>
                         <strong className={styles.driverSummaryAccentBlue}>
                           {formatMinutes(s.totalJamKerjaMinutes)}
                         </strong>
                       </div>
                       <div className={styles.driverSummaryRow}>
-                        <span>Avg Durasi/Task</span>
+                        <span>{L("Rata-rata Durasi/Task", "Avg Duration/Task")}</span>
                         <strong className={styles.driverSummaryAccentBlue}>
                           {s.avgDurationMinutes !== null
                             ? formatMinutes(s.avgDurationMinutes)
@@ -343,7 +344,7 @@ function InsightCard({
         <span>{icon}</span> {title}
       </div>
       {entries.length === 0 ? (
-        <div className={styles.insightEmpty}>Tidak ada data</div>
+        <div className={styles.insightEmpty}>{L("Tidak ada data", "No data")}</div>
       ) : (
         <div className={styles.insightList}>
           {entries.slice(0, 5).map((e) => (
@@ -387,20 +388,20 @@ function buildTaskWhatsAppMessage(params: {
   perihal: string;
 }): string {
   const hour = new Date().getHours();
-  const greeting = hour < 11 ? "Selamat Pagi" : hour < 15 ? "Selamat Siang" : hour < 18 ? "Selamat Sore" : "Selamat Malam";
+  const greeting = hour < 11 ? L("Selamat Pagi", "Good morning") : hour < 15 ? L("Selamat Siang", "Good afternoon") : hour < 18 ? L("Selamat Sore", "Good evening") : L("Selamat Malam", "Good night");
 
   // params.tanggal bisa berupa single date "YYYY-MM-DD"
   // atau range "YYYY-MM-DD s/d YYYY-MM-DD" — handle keduanya
   function fmtWaDate(d: string): string {
     const parsed = new Date(d + "T00:00:00");
     if (isNaN(parsed.getTime())) return d;
-    return parsed.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return parsed.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   }
 
   let tanggalFormatted: string;
   if (params.tanggal.includes(" s/d ")) {
     const [from, to] = params.tanggal.split(" s/d ");
-    tanggalFormatted = `${fmtWaDate(from.trim())} s/d ${fmtWaDate(to.trim())}`;
+    tanggalFormatted = `${fmtWaDate(from.trim())} ${L("s/d", "to")} ${fmtWaDate(to.trim())}`;
   } else {
     tanggalFormatted = fmtWaDate(params.tanggal);
   }
@@ -408,20 +409,20 @@ function buildTaskWhatsAppMessage(params: {
   const lines = [
     `${greeting},`,
     "",
-    "Berikut informasi penugasan driver:",
+    L("Berikut informasi penugasan driver:", "Here are the driver assignment details:"),
     "",
-    `📅 *Tanggal* : ${tanggalFormatted}`,
+    `📅 *${L("Tanggal", "Date")}* : ${tanggalFormatted}`,
     `🧑‍✈️ *Driver* : ${params.driverName}`,
-    `🚗 *Kendaraan* : ${params.vehicleLabel}`,
-    `🧰 *Jenis Pekerjaan* : ${params.jenisPekerjaan}`,
-    `🚩 *Dari* : ${params.asal}`,
-    `📍 *Tujuan* : ${params.tujuan}`,
+    `🚗 *${L("Kendaraan", "Vehicle")}* : ${params.vehicleLabel}`,
+    `🧰 *${L("Jenis Pekerjaan", "Job Type")}* : ${params.jenisPekerjaan}`,
+    `🚩 *${L("Dari", "From")}* : ${params.asal}`,
+    `📍 *${L("Tujuan", "Destination")}* : ${params.tujuan}`,
     `👤 *Requestor* : ${params.requestor}${params.departement ? ` (${params.departement})` : ""}`,
   ];
   if (params.perihal.trim()) {
-    lines.push(`📝 *Perihal* : ${params.perihal.trim()}`);
+    lines.push(`📝 *${L("Perihal", "Subject")}* : ${params.perihal.trim()}`);
   }
-  lines.push("", "Mohon dapat ditindaklanjuti. Terima kasih 🙏", "", "_Pesan otomatis — CIKOPS Fleet Ops_");
+  lines.push("", L("Mohon dapat ditindaklanjuti. Terima kasih 🙏", "Please follow up. Thank you 🙏"), "", L("_Pesan otomatis — CIKOPS Fleet Ops_", "_Automated message — CIKOPS Fleet Ops_"));
 
   return lines.join("\n");
 }
@@ -494,7 +495,7 @@ export function CreateTaskModal({
         })
       );
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Gagal membuat tugas");
+      onError(err instanceof Error ? err.message : L("Gagal membuat tugas", "Failed to create the task"));
     } finally {
       setBusy(false);
     }

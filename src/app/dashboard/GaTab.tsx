@@ -24,6 +24,7 @@ import g from "./ga.module.css";
 import { GaChecklist, GaExcelModeNote, GaLogModal, GaMaster, GaModeCard, type LogField } from "./GaManage";
 import { deleteGaLog, saveGaLog, type GaLogTable } from "@/lib/ga/api";
 
+import { loc } from "@/lib/i18n";
 type Lang = "id" | "en";
 type View = "dashboard" | "checklist" | "matrix" | "master" | "event" | "improvement" | "inventory" | "sync";
 type Team = "Semua" | "Cleaning Service" | "Gardener";
@@ -34,7 +35,7 @@ const BLN_S = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "O
 const HARI = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
 const pct = (v: number | null, d = 1) => (v === null ? "—" : `${(v * 100).toFixed(d).replace(".", ",")}%`);
-const nf = (n: number) => n.toLocaleString("id-ID");
+const nf = (n: number) => n.toLocaleString(loc());
 const perLabel = (p: number, lang: Lang) => `${(lang === "en" ? BLN_EN : BLN_ID)[(p % 100) - 1]} ${Math.floor(p / 100)}`;
 const fmtD = (d: string | null, lang: Lang) => (d ? new Date(d + "T00:00:00").toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const fmtDT = (d: string | null, lang: Lang) => (d ? new Date(d).toLocaleString(lang === "en" ? "en-GB" : "id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");

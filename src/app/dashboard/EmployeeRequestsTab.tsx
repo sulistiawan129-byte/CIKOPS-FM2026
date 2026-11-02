@@ -12,6 +12,7 @@ import { ModuleHeader, ModulePage } from "./ModuleShell";
 import { useCountUp, formatDateLabel, printRequestReceipt } from "./dashboardShared";
 import { SkeletonRows } from "./TaskModals";
 
+import { loc } from "@/lib/i18n";
 const EMPLOYEE_REQUEST_TYPE_LABELS: Record<EmployeeRequestType, { label: string; icon: string }> = {
   DRIVER: { label: "Request Driver", icon: "🚗" },
   TONER: { label: "Request Toner", icon: "🖨️" },
@@ -205,7 +206,7 @@ export function EmployeeRequestsTab() {
               <span style={{ fontSize: 22 }}>{(EMPLOYEE_REQUEST_TYPE_LABELS[detailRequest.requestType] ?? { icon: "❔" }).icon}</span>
               <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)" }}>{(EMPLOYEE_REQUEST_TYPE_LABELS[detailRequest.requestType] ?? { label: detailRequest.requestType }).label}</div>
             </div>
-            <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 18 }}>{formatDateLabel(detailRequest.createdAt.slice(0, 10))} · {new Date(detailRequest.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</div>
+            <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 18 }}>{formatDateLabel(detailRequest.createdAt.slice(0, 10))} · {new Date(detailRequest.createdAt).toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" })}</div>
 
             <div style={{ background: "var(--bg2)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", marginBottom: 2 }}>{detailRequest.employeeName}</div>

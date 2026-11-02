@@ -18,6 +18,7 @@ import GaResetModal from "./GaReset";
 import a from "./atk.module.css";
 import m from "./gamanage.module.css";
 
+import { loc } from "@/lib/i18n";
 type Lang = "id" | "en";
 const BLN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const HARI_FULL = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -557,7 +558,7 @@ export function GaModeCard({ lang, sync, onChanged }: { lang: Lang; sync: GaSync
         isC ? <button type="button" className={a.ghostBtn} disabled={busy} onClick={() => switchTo("excel")}>{L("Kembali ke mode Excel", "Back to Excel mode")}</button>
           : <button type="button" className={a.primary} disabled={busy} onClick={() => switchTo("cikops")}>🟦 {L("Jadikan CIKOPS sumber utama", "Make CIKOPS the master")}</button>
       ) : <p className={a.hint}>{L("Hanya admin yang bisa mengganti sumber data.", "Only admins can change the data source.")}</p>}
-      {isC && sync?.masterSince && <p className={a.hint}>{L("Aktif sejak", "Active since")} {new Date(sync.masterSince).toLocaleString("id-ID")}{sync.lastPullAt ? ` · ${L("Excel terakhir menarik", "Excel last pulled")} ${new Date(sync.lastPullAt).toLocaleString("id-ID")}${sync.lastPullComputer ? ` (${sync.lastPullComputer})` : ""}` : ` · ${L("Excel belum pernah menarik", "Excel hasn't pulled yet")}`}</p>}
+      {isC && sync?.masterSince && <p className={a.hint}>{L("Aktif sejak", "Active since")} {new Date(sync.masterSince).toLocaleString(loc())}{sync.lastPullAt ? ` · ${L("Excel terakhir menarik", "Excel last pulled")} ${new Date(sync.lastPullAt).toLocaleString(loc())}${sync.lastPullComputer ? ` (${sync.lastPullComputer})` : ""}` : ` · ${L("Excel belum pernah menarik", "Excel hasn't pulled yet")}`}</p>}
       {err && <div className={a.msgErr}>{err}</div>}
     </section>
   );

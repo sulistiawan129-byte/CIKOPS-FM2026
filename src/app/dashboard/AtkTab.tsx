@@ -22,6 +22,7 @@ import { exportGenericCsv, exportGenericExcel, exportGenericPdf } from "@/lib/re
 import type { ReportColumn, ReportLang } from "@/lib/reportEngine";
 import s from "./atk.module.css";
 
+import { loc } from "@/lib/i18n";
 type Lang = "id" | "en";
 type View = "dashboard" | "request" | "restock" | "stock" | "history" | "sync";
 type Preset = "thisMonth" | "lastMonth" | "d30" | "m3" | "year" | "custom";
@@ -185,7 +186,7 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
         </div>
         <div className={s.headSide}>
           <SyncPill sync={sync} err={syncErr} lang={lang} onClick={() => setView("sync")} />
-          <button type="button" className={s.ghostBtn} onClick={() => load()} disabled={loading} title={updatedAt ? `${L("Diperbarui", "Updated")} ${updatedAt.toLocaleTimeString("id-ID")}` : undefined}>
+          <button type="button" className={s.ghostBtn} onClick={() => load()} disabled={loading} title={updatedAt ? `${L("Diperbarui", "Updated")} ${updatedAt.toLocaleTimeString(loc())}` : undefined}>
             {loading ? "…" : "↻"} {L("Muat ulang", "Refresh")}
           </button>
         </div>

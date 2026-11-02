@@ -43,6 +43,7 @@ import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverType
 import type { TaskDetail, Driver, Vehicle, Plant } from "@/lib/types";
 import { BRAND } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 const display = Chakra_Petch({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
@@ -111,7 +112,7 @@ function initials(name?: string | null): string {
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Tanggal WIB (YYYY-MM-DD) dari ISO; null bila kosong. */
@@ -126,7 +127,7 @@ const todayWIB = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/
 function fmtWhen(iso: string | null): string {
   if (!iso) return "—";
   if (wibDate(iso) === todayWIB()) return fmtTime(iso);
-  return `${new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} ${fmtTime(iso)}`;
+  return `${new Date(iso).toLocaleDateString(loc(), { day: "numeric", month: "short" })} ${fmtTime(iso)}`;
 }
 
 /** Waktu log gate mulai "terbuka": PRB = masuk CIK (time_in), CIK = keluar (time_out). */
@@ -657,7 +658,7 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
     const tick = () => {
       const d = new Date();
       setClock(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`);
-      setClockDate(d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "short", year: "numeric" }));
+      setClockDate(d.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "short", year: "numeric" }));
       setNowTick(Date.now());
     };
     tick();

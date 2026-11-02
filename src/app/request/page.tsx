@@ -7,6 +7,7 @@ import { TGA_CATEGORIES, tgaRequestPublic } from "@/lib/tga/api";
 import { notifyTgaTask } from "@/lib/push";
 import { BRAND } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 type FormKind = "DRIVER" | "PRINTER" | "TGA" | "OTHER";
 
 /** Identitas dokumen resmi di bukti cetak — ubah di sini kalau ada
@@ -30,7 +31,7 @@ const inputStyle: CSSProperties = {
 const labelStyle: CSSProperties = { fontSize: 12, fontWeight: 800, color: "#44537a", marginBottom: 6, display: "block", letterSpacing: "0.02em" };
 
 function todayLabel(): string {
-  return new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+  return new Date().toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" });
 }
 function todayISO(): string {
   return toLocalISODate(new Date());
@@ -127,7 +128,7 @@ export default function RequestPage() {
         setReceipt({
           refId: result.id, createdAt: result.createdAt, kind, employeeName: employeeName.trim(), department: department.trim(),
           lines: [
-            { label: "Tanggal Event/Acara", value: new Date(eventDate).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }) },
+            { label: "Tanggal Event/Acara", value: new Date(eventDate).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" }) },
             { label: "Tujuan", value: destination.trim() },
             { label: "Jam Berangkat", value: departureTime },
             { label: "Keperluan", value: purpose.trim() },
@@ -231,7 +232,7 @@ export default function RequestPage() {
                 <tbody>
                   <tr>
                     <td style={{ padding: "5px 0", color: "#7886a8", width: "38%" }}>Tanggal Pengajuan</td>
-                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {new Date(receipt.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td>
+                    <td style={{ padding: "5px 0", fontWeight: 700, color: "#0d1a36" }}>: {new Date(receipt.createdAt).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" })}</td>
                   </tr>
                   <tr>
                     <td style={{ padding: "5px 0", color: "#7886a8" }}>Jenis Permintaan</td>

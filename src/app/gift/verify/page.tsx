@@ -3,6 +3,7 @@ import { useState } from "react";
 import { verifyGiftPasscode, claimGift } from "@/lib/api";
 import type { GiftRegistration } from "@/lib/types";
 
+import { loc } from "@/lib/i18n";
 export default function GiftVerifyPage() {
   const [passcode, setPasscode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -117,7 +118,7 @@ export default function GiftVerifyPage() {
                     ["Departemen", reg.departemen],
                     ["Email", reg.email],
                     ["Program", reg.eventName],
-                    ["Terdaftar", new Date(reg.registeredAt).toLocaleString("id-ID")],
+                    ["Terdaftar", new Date(reg.registeredAt).toLocaleString(loc())],
                   ].map(([k, v]) => (
                     <tr key={k} style={{ borderBottom: "1px solid #edf0f7" }}>
                       <td style={{ padding: "9px 0", fontSize: 13, color: "#7a86aa", width: "40%" }}>{k}</td>

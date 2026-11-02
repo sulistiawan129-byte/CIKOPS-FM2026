@@ -16,6 +16,7 @@ import of from "./opfund.module.css";
 import { SkeletonRows } from "./TaskModals";
 import { BRAND } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 // ════════════════════════════════════════════════════════════════
 //  GIFT DISTRIBUTION MASTER PANEL
 // ════════════════════════════════════════════════════════════════
@@ -479,7 +480,7 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
   w.document.write(`
     <html>
       <head>
-        <title>Label Pembagian — ${new Date().toLocaleDateString("id-ID")}</title>
+        <title>Label Pembagian — ${new Date().toLocaleDateString(loc())}</title>
         <style>
           @page { size: A4 portrait; margin: 8mm; }
           * { box-sizing: border-box; }
@@ -1224,7 +1225,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                     </span>
                   </td>
                   <td style={{ padding: "10px 12px", color: "var(--t3)", fontSize: 11 }}>
-                    {new Date(r.registeredAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                    {new Date(r.registeredAt).toLocaleDateString(loc(), { day: "numeric", month: "short", year: "numeric" })}
                   </td>
                   <td style={{ padding: "10px 12px" }}>
                     <button

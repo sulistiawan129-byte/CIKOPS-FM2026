@@ -9,10 +9,11 @@ import type { GiftEvent, GiftSelection } from "@/lib/types";
 import { supabase } from "@/lib/supabaseClient";
 import { BRAND } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 type Screen = "list" | "form" | "success";
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  return new Date(d).toLocaleDateString(loc(), { day: "numeric", month: "long", year: "numeric" });
 }
 
 export default function GiftPage() {

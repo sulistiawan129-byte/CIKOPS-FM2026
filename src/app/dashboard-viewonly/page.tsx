@@ -18,6 +18,7 @@ import OpsBoard from "./OpsBoard";
 import s from "./fm.module.css";
 import { plantFull, plantShort } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 const POLL_MS = 60000;
 const THEME_KEY = "cikops_cc_theme";
 const TABS = [
@@ -139,7 +140,7 @@ export default function CommandCenterPage() {
           {!fs && <Link href="/dashboard" className={`${s.iconBtn} ${s.hideSm}`} title="Kembali ke dashboard"><Icon name="back" size={16} /></Link>}
           <div className={s.clock}>
             <b>{now ? `${pad(now.getHours())}:${pad(now.getMinutes())}` : "--:--"}</b>
-            <small>{now ? now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }) : ""}</small>
+            <small>{now ? now.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long" }) : ""}</small>
           </div>
         </div>
       </header>
@@ -479,7 +480,7 @@ function effNote(bars: Bar[]) {
 function Canteen({ v }: { v: FmView }) {
   const c = v.canteen;
   const effC = (e: number | null) => (e === null ? "var(--na)" : e >= TARGET.canteenOk ? C.ok : e >= TARGET.canteenWarn ? C.warn : C.bad);
-  const lastLbl = c.lastDate ? new Date(c.lastDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "";
+  const lastLbl = c.lastDate ? new Date(c.lastDate + "T00:00:00").toLocaleDateString(loc(), { day: "numeric", month: "short" }) : "";
   const sub = (order: number, left: number, eff: number | null) => (order ? `sisa ${nf(left)} · efisiensi ${pct(eff, 1)}` : "belum ada order");
   return (
     <>
@@ -683,7 +684,7 @@ function Nc({ v }: { v: FmView }) {
             <ul className={s.list}>
               {n.recent.map((x, i) => (
                 <li key={i} className={s.li}>
-                  <span className={s.liTime}>{x.d === v.today ? (x.jam ?? "Hari ini") : new Date(x.d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+                  <span className={s.liTime}>{x.d === v.today ? (x.jam ?? "Hari ini") : new Date(x.d + "T00:00:00").toLocaleDateString(loc(), { day: "numeric", month: "short" })}</span>
                   <span><b>{x.transporter}</b><br /><span className={s.muted}>{x.jenis.join(", ") || "—"}</span></span>
                 </li>
               ))}

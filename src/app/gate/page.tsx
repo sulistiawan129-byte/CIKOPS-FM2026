@@ -15,6 +15,7 @@ import type { GateDriverOption, GateVehicleOption, Plant, VehicleGateLog } from 
 import s from "./gate.module.css";
 import { plantFull, plantShort } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 type Mode = "light" | "dark";
 type Tab = "active" | "done" | "all";
 type PlantF = "all" | Plant;
@@ -250,8 +251,8 @@ export default function GatePage() {
         <div className={s.clock} aria-live="off"><b>{now ? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : "--:--:--"}</b><span>WIB</span></div>
         {now && (
           <div className={s.dateChip}>
-            <b>{now.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</b>
-            <small>{now.toLocaleDateString("id-ID", { weekday: "long" })}</small>
+            <b>{now.toLocaleDateString(loc(), { day: "2-digit", month: "short", year: "numeric" })}</b>
+            <small>{now.toLocaleDateString(loc(), { weekday: "long" })}</small>
           </div>
         )}
         <button type="button" className={s.iconBtn} onClick={toggleMode} aria-label={mode === "light" ? "Mode gelap" : "Mode terang"} title={mode === "light" ? "Mode gelap" : "Mode terang"}>{mode === "light" ? I.moon : I.sun}</button>
@@ -264,7 +265,7 @@ export default function GatePage() {
       <main className={s.main}>
         {tanggal && !isToday && (
           <div className={s.banner}>
-            Melihat & mencatat untuk tanggal {tglObj?.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            Melihat & mencatat untuk tanggal {tglObj?.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             <button type="button" onClick={() => setTanggal(today)}>Kembali ke hari ini</button>
           </div>
         )}
@@ -379,7 +380,7 @@ export default function GatePage() {
             {/* ── GRAFIK PER JAM ── */}
             <section className={`${s.card} ${s.chart}`}>
               <div className={s.chartHead}>
-                <div><b>Pergerakan per jam</b> <small>· {tglObj?.toLocaleDateString("id-ID", { day: "numeric", month: "long" })}</small></div>
+                <div><b>Pergerakan per jam</b> <small>· {tglObj?.toLocaleDateString(loc(), { day: "numeric", month: "long" })}</small></div>
                 <div className={s.legend}><span><i style={{ background: "var(--g-cik)" }} />Keluar</span><span><i style={{ background: "var(--g-green)" }} />Masuk / kembali</span></div>
               </div>
               <div className={s.bars}>

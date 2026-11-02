@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -9,6 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { DICT, type Lang, type Dict } from "./dictionary";
+import { setGlobalLang } from "./i18n";
 
 /* ════════════════════════════════════════════════════════════
    THEME — same localStorage key ("cikops_theme") and same
@@ -72,6 +74,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
     }
   });
 
+  // L() di seluruh aplikasi membaca bahasa aktif ini (aman diulang: hanya menyimpan nilai)
+  setGlobalLang(lang);
+
   const toggleTheme = useCallback(() => {
     setTheme((prev) => {
       const next: Theme = prev === "dark" ? "light" : "dark";
@@ -106,7 +111,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <LangContext.Provider value={langValue}>{children}</LangContext.Provider>
+      {/* key={lang}: ganti bahasa me-render ulang seluruh tampilan, jadi semua teks L() ikut berubah */}
+      <LangContext.Provider value={langValue}><Fragment key={lang}>{children}</Fragment></LangContext.Provider>
     </ThemeContext.Provider>
   );
 }

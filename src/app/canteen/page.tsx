@@ -6,6 +6,7 @@ import { useLang, useTheme } from "@/lib/providers";
 import { saveCanteenReport } from "@/lib/api";
 import { toLocalISODate } from "@/lib/dateUtils";
 
+import { loc } from "@/lib/i18n";
 const SHIFT_LABELS = ["Shift 1", "Shift 2", "Shift 3"];
 
 function todayStr() {
@@ -75,7 +76,7 @@ export default function CanteenPublicPage() {
     }
   }
 
-  const fmtRp = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+  const fmtRp = (n: number) => new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 
   return (
     <div style={outerWrap}>

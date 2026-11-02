@@ -15,6 +15,7 @@ import styles from "./claims.module.css";
 import type { Claim } from "@/lib/types";
 import { plantShort } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 /* ───────────────────────── kategori ───────────────────────── */
 
 export const CLAIM_CATS = ["Gasoline", "Toll", "Parking", "Service", "Maintenance", "Other"] as const;
@@ -64,7 +65,7 @@ export function CatIcon({ type, size = 16 }: { type: string; size?: number }) {
 
 /* ───────────────────────── helper ───────────────────────── */
 
-const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n));
+const fmt = (n: number) => new Intl.NumberFormat(loc()).format(Math.round(n));
 
 function isoLocal(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

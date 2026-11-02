@@ -20,6 +20,7 @@ import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 import { plantShort } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 /** Which of the month's 4 work-weeks (1–4) a date falls into — see
  *  monthWeekBoundaries() above for the exact rule. */
 export function weekOfMonth(dateStr: string): number {
@@ -366,7 +367,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         await approveClaimRequest(reviewing.id, { driverId: formDriverId, submissionDate, periodDate, items, note });
         const changed = Math.round(grandTotal) !== Math.round(reviewing.total);
         sendPushToDriver([formDriverId], lang === "en" ? "Claim verified ✅" : "Klaim diverifikasi ✅",
-          `Rp ${new Intl.NumberFormat("id-ID").format(grandTotal)}${changed ? (lang === "en" ? " (corrected by admin)" : " (dikoreksi admin)") : ""}`, { type: "claim" }).catch(() => {});
+          `Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}${changed ? (lang === "en" ? " (corrected by admin)" : " (dikoreksi admin)") : ""}`, { type: "claim" }).catch(() => {});
         setShowForm(false);
         setReviewing(null);
         setNotice({ name: drivers.find((d) => d.id === formDriverId)?.nama || reviewing.driverName || "-", total: grandTotal });
@@ -418,8 +419,8 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         [formDriverId],
         lang === "en" ? "New Claim Submitted 💰" : "Ada Klaim Baru 💰",
         lang === "en"
-          ? `Period: ${periodDate} · Total: Rp ${new Intl.NumberFormat("id-ID").format(grandTotal)}`
-          : `Periode: ${periodDate} · Total: Rp ${new Intl.NumberFormat("id-ID").format(grandTotal)}`,
+          ? `Period: ${periodDate} · Total: Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}`
+          : `Periode: ${periodDate} · Total: Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}`,
         { type: "claim" }
       ).catch(() => {});
     } catch (e) {

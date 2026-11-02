@@ -1,4 +1,5 @@
-/* ════════════════════════════════════════════════════════════
+
+import { loc } from "@/lib/i18n";/* ════════════════════════════════════════════════════════════
    FM COMMAND CENTER — olah data berjalan menjadi "cerita" layar TV.
    Cakupan: HARI INI + TOTAL BULAN BERJALAN (tanpa tren tahunan).
    Area: Fleet (tugas + gate), Kantin, ATK, Pelanggaran/NC security.
@@ -72,7 +73,7 @@ export interface Bar { label: string; value: number; display: string; highlight?
 const MONF = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const DOW = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const pad = (n: number) => String(n).padStart(2, "0");
-export const nf = (n: number, d = 0) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: d, minimumFractionDigits: d }).format(Number.isFinite(n) ? n : 0);
+export const nf = (n: number, d = 0) => new Intl.NumberFormat(loc(), { maximumFractionDigits: d, minimumFractionDigits: d }).format(Number.isFinite(n) ? n : 0);
 export const pct = (v: number | null, d = 1) => (v === null || !Number.isFinite(v) ? "–" : `${nf(v, d)}%`);
 export const fmtMin = (m: number | null) => (m === null || !Number.isFinite(m) ? "–" : m >= 60 ? `${Math.floor(m / 60)}j ${pad(Math.round(m % 60))}m` : `${Math.round(m)}m`);
 const parse = (iso: string) => { const [y, m, d] = iso.slice(0, 10).split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };

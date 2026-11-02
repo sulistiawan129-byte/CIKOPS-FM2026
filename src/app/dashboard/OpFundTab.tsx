@@ -18,6 +18,7 @@ import { useCountUp, fmtRp, evalExpr, monthWeekBoundaries } from "./dashboardSha
 import { SkeletonRows } from "./TaskModals";
 import { weekOfMonth } from "./ClaimsTab";
 
+import { loc } from "@/lib/i18n";
 interface WeekBucket {
   key: string;   // e.g. "2026-08-W1" — unique across months
   label: string; // e.g. "M1 Agu"
@@ -51,7 +52,7 @@ function generateWeekBucketSequence(monthsBack: number): WeekBucket[] {
       if (endDate >= rangeStart && endDate <= today) {
         buckets.push({
           key: `${year}-${String(month + 1).padStart(2, "0")}-W${i + 1}`,
-          label: `M${i + 1} ${cursor.toLocaleDateString("id-ID", { month: "short" })}`,
+          label: `M${i + 1} ${cursor.toLocaleDateString(loc(), { month: "short" })}`,
           endDate,
         });
       }
@@ -160,8 +161,8 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       filename: "Laporan_Driver_Budget",
       summaryRows: [
         { label: "Total Driver Aktif / Total Active Drivers", value: totalDrivers },
-        { label: "Total Budget per Bulan / Total Monthly Budget (Rp)", value: totalBudget.toLocaleString("id-ID") },
-        { label: "Total Budget per Tahun / Total Yearly Budget (Rp)", value: (totalBudget * 12).toLocaleString("id-ID") },
+        { label: "Total Budget per Bulan / Total Monthly Budget (Rp)", value: totalBudget.toLocaleString(loc()) },
+        { label: "Total Budget per Tahun / Total Yearly Budget (Rp)", value: (totalBudget * 12).toLocaleString(loc()) },
       ],
     };
     if (format === "csv") exportGenericCsv(opts);

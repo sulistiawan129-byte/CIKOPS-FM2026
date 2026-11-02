@@ -10,6 +10,7 @@ import { daysBetween, fmtDate, receiptUrl, todayISO, verifyCode, type ReceiptDat
 import p from "./proof.module.css";
 import r from "./receptionist.module.css";
 
+import { loc } from "@/lib/i18n";
 const KIND_LABEL = { wifi: "Akses Wifi Tamu", in: "Barang / Surat Masuk", out: "Barang / Surat Keluar", booking: "Booking Ruangan" } as const;
 
 function stampOf(d: ReceiptData): { text: string; tone: string } {
@@ -17,7 +18,7 @@ function stampOf(d: ReceiptData): { text: string; tone: string } {
   if (d.kind === "parcel") return d.status === "handed" ? { text: d.direction === "out" ? "Terkirim" : "Diserahkan", tone: p.s_ok } : { text: "Menunggu", tone: p.s_wait };
   return d.status === "done" ? { text: "Selesai", tone: p.s_off } : { text: "Terkonfirmasi", tone: p.s_ok };
 }
-const dt = (ts?: string | null) => (ts ? new Date(ts).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(".", ":") : "–");
+const dt = (ts?: string | null) => (ts ? new Date(ts).toLocaleString(loc(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(".", ":") : "–");
 const longDate = (iso?: string) => fmtDate(iso, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
 function Barcode({ text }: { text: string }) {
@@ -120,7 +121,7 @@ function BookingBody({ d }: { d: ReceiptData }) {
     <>
       <p className={p.hello}>Booking <b>{d.room}</b> untuk <b>{d.pic || "Anda"}</b> sudah tercatat dan otomatis masuk Kalender &amp; Agenda.</p>
       <div className={p.when}>
-        <div className={p.cal}><small>{day.toLocaleDateString("id-ID", { month: "short" })}</small><b>{day.getDate()}</b><span>{day.toLocaleDateString("id-ID", { weekday: "long" })}</span></div>
+        <div className={p.cal}><small>{day.toLocaleDateString(loc(), { month: "short" })}</small><b>{day.getDate()}</b><span>{day.toLocaleDateString(loc(), { weekday: "long" })}</span></div>
         <div><div className={p.time}>{d.start} – {d.end}</div><div className={p.room}>{d.room} · {longDate(d.date)}</div></div>
       </div>
       <div className={p.grid}>

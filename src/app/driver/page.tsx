@@ -26,11 +26,12 @@ import { supabase } from "@/lib/supabaseClient";
 import { driverTypeLabel, dutyHoursLabel, getUserDutyStatus, isUserDriver, useNowTick } from "@/lib/duty";
 import { DEMO_DRIVER_EMAIL, DEMO_MODE, DEMO_PASSWORD, plantFull } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 type Screen = "splash" | "login" | "app";
 type Tab = "today" | "history" | "claims" | "profile";
 type Lx = (id: string, en: string) => string;
 
-const fmtRp = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+const fmtRp = (n: number) => new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 const firstName = (n: string) => n.split(/\s+/)[0] ?? n;
 const DAYS = { id: ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"], en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] };
 const MONTHS = { id: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"], en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] };

@@ -17,6 +17,7 @@ import of from "./opfund.module.css";
 import { todayStr, DashboardTab, NAV_GROUPS, useCountUp } from "./dashboardShared";
 import { plantShort } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 export interface NavTab { id: DashboardTab; icon: string; labelId: string; labelEn: string; descId?: string; descEn?: string }
 export function daysUntil(dateStr: string | null | undefined): number {
   if (!dateStr) return 999;
@@ -125,10 +126,15 @@ function initialsOf(name: string): string {
 
 function fmtClock(iso: string | null): string {
   if (!iso) return "-";
-  return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" });
 }
 
 function fmtRpShort(n: number): string {
+  if (L("id", "en") === "en") {
+    if (n >= 1_000_000) return `IDR ${(n / 1_000_000).toFixed(1).replace(".0", "")}M`;
+    if (n >= 1_000) return `IDR ${Math.round(n / 1_000)}K`;
+    return `IDR ${Math.round(n || 0)}`;
+  }
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")} jt`;
   if (n >= 1_000) return `Rp ${Math.round(n / 1_000)} rb`;
   return `Rp ${Math.round(n || 0)}`;
@@ -173,7 +179,7 @@ export function HomeTab({
     try {
       setAnnouncements(await getAnnouncements());
     } catch (e) {
-      console.warn("Gagal memuat widget dashboard:", e);
+      console.warn("Failed to load dashboard widget:", e);
     }
   }, []);
 
@@ -192,7 +198,7 @@ export function HomeTab({
         from.setDate(from.getDate() - 6);
         setWeekTasks(await withOrigins(await getTasksByRange(toLocalISODate(from), todayStr(), myProfile?.plantScope ?? null)));
       } catch (e) {
-        console.warn("Gagal memuat tugas 7 hari:", e);
+        console.warn("Failed to load 7-day tasks:", e);
       }
     })();
   }, [myProfile?.plantScope]);
@@ -206,7 +212,7 @@ export function HomeTab({
         const logs = await getVehicleGateLogs({ plant: myProfile?.plantScope ?? null, dateFrom: d, dateTo: d });
         if (alive) { setGateLogs(logs); setGateLoadedAt(Date.now()); }
       } catch (e) {
-        console.warn("Gagal memuat aktivitas gate:", e);
+        console.warn("Failed to load gate activity:", e);
       }
     }
     if (prbOnly) return;
@@ -269,7 +275,7 @@ export function HomeTab({
           driversActive: drivers.filter((d) => d.aktif).length,
         });
       } catch (e) {
-        console.warn("Gagal memuat KPI Home:", e);
+        console.warn("Failed to load Home KPIs:", e);
       }
     })();
   }, [prbOnly]);
@@ -279,7 +285,7 @@ export function HomeTab({
       await addAnnouncement({ ...a, createdBy: myProfile?.fullName ?? "" });
       loadWidgets();
     } catch (err) {
-      alert(`Gagal menerbitkan pengumuman: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`${L("Gagal menerbitkan pengumuman", "Failed to publish the announcement")}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -353,21 +359,21 @@ export function HomeTab({
             <section className={hm.hero}>
               <div className={hm.heroTop}>
                 <span className={hm.eyebrow}><i className={hm.liveDot} />{dateLabel}</span>
-                <div className={hm.clock} aria-label="Waktu sekarang">
-                  {new Date(nowTick).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":")}
+                <div className={hm.clock} aria-label={L("Waktu sekarang", "Current time")}>
+                  {new Date(nowTick).toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" }).replace(".", ":")}
                   <span>WIB</span>
                 </div>
               </div>
               <h1>{greet}, {firstName}.</h1>
               <p className={hm.heroSub}>
                 {ongoingToday.length > 0
-                  ? `${ongoingToday.length} tugas sedang berjalan${lateOngoing.length > 0 ? `, ${lateOngoing.length} perlu dicek.` : ", semua sesuai jadwal."}`
-                  : todayTasks.length > 0 ? "Belum ada tugas yang berjalan saat ini." : "Belum ada penugasan hari ini."}
+                  ? L(`${ongoingToday.length} tugas sedang berjalan${lateOngoing.length > 0 ? `, ${lateOngoing.length} perlu dicek.` : ", semua sesuai jadwal."}`, `${ongoingToday.length} task${ongoingToday.length === 1 ? "" : "s"} in progress${lateOngoing.length > 0 ? `, ${lateOngoing.length} need checking.` : ", all on schedule."}`)
+                  : todayTasks.length > 0 ? L("Belum ada tugas yang berjalan saat ini.", "No tasks in progress right now.") : L("Belum ada penugasan hari ini.", "No assignments today.")}
               </p>
               <div className={hm.heroBottom}>
                 <div className={hm.heroActions}>
                   <button type="button" className={hm.heroPrimary} onClick={() => setActiveTab("tasks")}>
-                    <Icon name="plus" size={16} strokeWidth={2.4} />Tugaskan driver
+                    <Icon name="plus" size={16} strokeWidth={2.4} />{L("Tugaskan driver", "Assign a driver")}
                   </button>
                   {!prbOnly && (
                     <>
@@ -377,24 +383,24 @@ export function HomeTab({
                       <button
                         type="button"
                         className={hm.heroGhost}
-                        title="Salin link Dashboard-ViewOnly"
+                        title={L("Salin link Dashboard-ViewOnly", "Copy the Dashboard-ViewOnly link")}
                         onClick={() => {
                           const url = `${window.location.origin}/dashboard-viewonly`;
                           navigator.clipboard?.writeText(url).then(
                             () => { setViewLinkCopied(true); setTimeout(() => setViewLinkCopied(false), 2000); },
-                            () => window.prompt("Salin link ini:", url),
+                            () => window.prompt(L("Salin link ini:", "Copy this link:"), url),
                           );
                         }}
                       >
-                        <Icon name={viewLinkCopied ? "check" : "copy"} size={15} />{viewLinkCopied ? "Tersalin" : "Salin link"}
+                        <Icon name={viewLinkCopied ? "check" : "copy"} size={15} />{viewLinkCopied ? L("Tersalin", "Copied") : L("Salin link", "Copy link")}
                       </button>
                     </>
                   )}
                 </div>
                 <div className={hm.heroStats}>
-                  <button type="button" onClick={() => setActiveTab("tasks")}><b>{heroCount.today}</b><span>Tugas hari ini</span></button>
-                  <button type="button" onClick={() => setActiveTab("tasks")}><b>{heroCount.going}</b><span>Sedang jalan</span></button>
-                  <button type="button" onClick={() => setActiveTab("vehicles")}><b>{heroCount.out}</b><span>Kendaraan keluar</span></button>
+                  <button type="button" onClick={() => setActiveTab("tasks")}><b>{heroCount.today}</b><span>{L("Tugas hari ini", "Tasks today")}</span></button>
+                  <button type="button" onClick={() => setActiveTab("tasks")}><b>{heroCount.going}</b><span>{L("Sedang jalan", "In progress")}</span></button>
+                  <button type="button" onClick={() => setActiveTab("vehicles")}><b>{heroCount.out}</b><span>{L("Kendaraan keluar", "Vehicles out")}</span></button>
                 </div>
               </div>
             </section>
@@ -403,41 +409,41 @@ export function HomeTab({
               <button type="button" className={hm.alert} onClick={() => setActiveTab("tasks")}>
                 <span className={hm.alertIc}><Icon name="alert" size={18} /></span>
                 <span className={hm.alertText}>
-                  <b>{lateOngoing.length} tugas berjalan lebih dari 2 jam</b>
-                  <span>{lateOngoing.slice(0, 2).map((t) => `${t.driver_nama ?? "-"} ke ${t.tujuan}`).join(" · ")}</span>
+                  <b>{L(`${lateOngoing.length} tugas berjalan lebih dari 2 jam`, `${lateOngoing.length} task${lateOngoing.length === 1 ? "" : "s"} running for over 2 hours`)}</b>
+                  <span>{lateOngoing.slice(0, 2).map((t) => `${t.driver_nama ?? "-"} ${L("ke", "to")} ${t.tujuan}`).join(" · ")}</span>
                 </span>
-                <span className={hm.alertGo}>Cek tugas</span>
+                <span className={hm.alertGo}>{L("Cek tugas", "Check tasks")}</span>
               </button>
             )}
 
             {/* ── KPI band ── */}
             {kpi && (
-              <section className={hm.kpiBand} aria-label="Indikator" style={{ ["--n" as string]: prbOnly ? 2 : 5 }}>
+              <section className={hm.kpiBand} aria-label={L("Indikator", "Indicators")} style={{ ["--n" as string]: prbOnly ? 2 : 5 }}>
                 <button type="button" className={hm.kpi} onClick={() => setActiveTab("tasks")}>
                   <span className={hm.kpiIc}><Icon name="tasks" size={18} /></span>
-                  <span className={hm.kpiLabel}>Tugas hari ini</span>
-                  <b className={hm.kpiVal}>{kpi.tasksToday.toLocaleString("id-ID")}</b>
+                  <span className={hm.kpiLabel}>{L("Tugas hari ini", "Tasks today")}</span>
+                  <b className={hm.kpiVal}>{kpi.tasksToday.toLocaleString(loc())}</b>
                 </button>
                 <button type="button" className={hm.kpi} onClick={() => setActiveTab("vehicles")}>
                   <span className={hm.kpiIc}><Icon name="vehicles" size={18} /></span>
-                  <span className={hm.kpiLabel}>Kendaraan aktif</span>
+                  <span className={hm.kpiLabel}>{L("Kendaraan aktif", "Active vehicles")}</span>
                   <b className={hm.kpiVal}>{kpi.vehiclesActive}<small> · {kpi.driversActive} driver</small></b>
                 </button>
                 {!prbOnly && (
                   <>
                     <button type="button" className={hm.kpi} onClick={() => setActiveTab("claims")}>
                       <span className={hm.kpiIc}><Icon name="claims" size={18} /></span>
-                      <span className={hm.kpiLabel}>Klaim minggu ini</span>
+                      <span className={hm.kpiLabel}>{L("Klaim minggu ini", "Claims this week")}</span>
                       <b className={hm.kpiVal}>{fmtRpShort(kpi.claimWeekTotal)}</b>
                     </button>
                     <button type="button" className={hm.kpi} onClick={() => setActiveTab("canteen")}>
                       <span className={hm.kpiIc}><Icon name="canteen" size={18} /></span>
-                      <span className={hm.kpiLabel}>Kantin hari ini</span>
-                      <b className={hm.kpiVal}>{kpi.canteenTodaySnack.toLocaleString("id-ID")}<small> snack · </small>{kpi.canteenTodayMeal.toLocaleString("id-ID")}<small> makan</small></b>
+                      <span className={hm.kpiLabel}>{L("Kantin hari ini", "Canteen today")}</span>
+                      <b className={hm.kpiVal}>{kpi.canteenTodaySnack.toLocaleString(loc())}<small> snack · </small>{kpi.canteenTodayMeal.toLocaleString(loc())}<small> makan</small></b>
                     </button>
                     <button type="button" className={hm.kpi} onClick={() => setActiveTab("opfund")}>
                       <span className={hm.kpiIc}><Icon name="opfund" size={18} /></span>
-                      <span className={hm.kpiLabel}>Dana tersedia</span>
+                      <span className={hm.kpiLabel}>{L("Dana tersedia", "Funds available")}</span>
                       <b className={hm.kpiVal}>{fmtRpShort(kpi.opBudgetAvailable)}</b>
                     </button>
                   </>
@@ -451,11 +457,11 @@ export function HomeTab({
               <section className={`${hm.card} ${hm.aTasks}`}>
                 <div className={hm.cardHead}>
                   <div>
-                    <h2>Tugas hari ini</h2>
-                    <span className={hm.sub}>{todayTasks.length} tugas · {todayTasks.filter((t) => t.status === "DONE").length} selesai</span>
+                    <h2>{L("Tugas hari ini", "Tasks today")}</h2>
+                    <span className={hm.sub}>{todayTasks.length} {L("tugas", "tasks")} · {todayTasks.filter((t) => t.status === "DONE").length} {L("selesai", "done")}</span>
                   </div>
-                  <div className={hm.seg} role="group" aria-label="Filter status tugas">
-                    {([["all", "Semua", todayTasks.length], ["ON GOING", "Berjalan", todayTasks.filter((t) => t.status === "ON GOING").length], ["ASSIGNED", "Menunggu", todayTasks.filter((t) => t.status === "ASSIGNED").length], ["DONE", "Selesai", todayTasks.filter((t) => t.status === "DONE").length]] as const).map(([k, l, n]) => (
+                  <div className={hm.seg} role="group" aria-label={L("Filter status tugas", "Task status filter")}>
+                    {([["all", L("Semua", "All"), todayTasks.length], ["ON GOING", L("Berjalan", "In progress"), todayTasks.filter((t) => t.status === "ON GOING").length], ["ASSIGNED", L("Menunggu", "Waiting"), todayTasks.filter((t) => t.status === "ASSIGNED").length], ["DONE", L("Selesai", "Done"), todayTasks.filter((t) => t.status === "DONE").length]] as const).map(([k, l, n]) => (
                       <button key={k} type="button" aria-pressed={taskFilter === k} className={taskFilter === k ? hm.segOn : ""} onClick={() => setTaskFilter(k)}>
                         {l}<span>{n}</span>
                       </button>
@@ -470,21 +476,21 @@ export function HomeTab({
                   if (list.length === 0) {
                     return (
                       <div className={hm.emptyBox}>
-                        <b>{todayTasks.length === 0 ? "Belum ada penugasan hari ini" : "Tidak ada tugas dengan status ini"}</b>
-                        {todayTasks.length === 0 && <button type="button" className={hm.cardLink} onClick={() => setActiveTab("tasks")}><Icon name="plus" size={14} />Tugaskan driver</button>}
+                        <b>{todayTasks.length === 0 ? L("Belum ada penugasan hari ini", "No assignments today") : L("Tidak ada tugas dengan status ini", "No tasks with this status")}</b>
+                        {todayTasks.length === 0 && <button type="button" className={hm.cardLink} onClick={() => setActiveTab("tasks")}><Icon name="plus" size={14} />{L("Tugaskan driver", "Assign a driver")}</button>}
                       </div>
                     );
                   }
                   return (
                     <div className={hm.taskList}>
                       {list.slice(0, 6).map((t) => {
-                        const st = t.status === "ON GOING" ? { l: "Berjalan", c: hm.sGo } : t.status === "DONE" ? { l: "Selesai", c: hm.sDone } : { l: "Menunggu", c: hm.sWait };
+                        const st = t.status === "ON GOING" ? { l: L("Berjalan", "In progress"), c: hm.sGo } : t.status === "DONE" ? { l: L("Selesai", "Done"), c: hm.sDone } : { l: L("Menunggu", "Waiting"), c: hm.sWait };
                         const at = t.status === "DONE" ? t.completed_at : t.status === "ON GOING" ? t.accepted_at : t.created_at;
                         return (
                           <button key={t.id} type="button" className={hm.taskRow} onClick={() => setActiveTab("tasks")}>
                             <span className={`${hm.av} ${t.plant === "PRB" ? hm.avPrb : ""}`}>{initialsOf(t.driver_nama ?? "-")}</span>
                             <span className={hm.taskMain}>
-                              <b>{t.driver_nama ?? "Belum ada driver"}</b>
+                              <b>{t.driver_nama ?? L("Belum ada driver", "No driver yet")}</b>
                               <span className={hm.route}>
                                 <span>{t.lokasi_asal || plantLocation(t.plant)}</span>
                                 <Icon name="arrow" size={13} />
@@ -501,7 +507,7 @@ export function HomeTab({
                     </div>
                   );
                 })()}
-                <button type="button" className={hm.cardLink} onClick={() => setActiveTab("tasks")}>Buka Penugasan<Icon name="arrow" size={14} /></button>
+                <button type="button" className={hm.cardLink} onClick={() => setActiveTab("tasks")}>{L("Buka Penugasan", "Open Tasks")}<Icon name="arrow" size={14} /></button>
               </section>
 
               {!prbOnly && (
@@ -509,15 +515,15 @@ export function HomeTab({
                   <div className={hm.cardHead}>
                     <div>
                       <h2>Aktivitas gate</h2>
-                      <span className={hm.sub}>{gateAgo === null ? "Memuat…" : gateAgo < 5 ? "Diperbarui baru saja" : `Diperbarui ${gateAgo} dtk lalu`}</span>
+                      <span className={hm.sub}>{gateAgo === null ? L("Memuat…", "Loading…") : gateAgo < 5 ? L("Diperbarui baru saja", "Updated just now") : L(`Diperbarui ${gateAgo} dtk lalu`, `Updated ${gateAgo}s ago`)}</span>
                     </div>
                     <span className={hm.livePill}><i className={hm.liveDot} />Live</span>
                   </div>
                   <div className={hm.feed}>
-                    {gateLogs.length === 0 && <div className={hm.empty}>Belum ada pergerakan gate hari ini.</div>}
+                    {gateLogs.length === 0 && <div className={hm.empty}>{L("Belum ada pergerakan gate hari ini.", "No gate movement today.")}</div>}
                     {gateLogs.slice(0, 6).map((g) => {
                       const out = g.status === "OUT";
-                      const tag = out ? "Keluar" : g.status === "IN" ? "Masuk" : "Selesai";
+                      const tag = out ? L("Keluar", "Out") : g.status === "IN" ? L("Masuk", "In") : L("Selesai", "Done");
                       return (
                         <div key={g.id} className={hm.feedRow}>
                           <span className={`${hm.av} ${g.plant === "PRB" ? hm.avPrb : ""}`}>{initialsOf(g.driverName)}</span>
@@ -531,23 +537,23 @@ export function HomeTab({
                       );
                     })}
                   </div>
-                  <button type="button" className={hm.cardLink} onClick={() => setActiveTab("vehicles")}>Buka Gate Log<Icon name="arrow" size={14} /></button>
+                  <button type="button" className={hm.cardLink} onClick={() => setActiveTab("vehicles")}>{L("Buka Gate Log", "Open Gate Log")}<Icon name="arrow" size={14} /></button>
                 </section>
               )}
 
               <section className={`${hm.card} ${hm.aFleet}`}>
-                <div className={hm.cardHead}><h2>Armada</h2><span className={hm.sub}>{vehiclesTotal} unit aktif</span></div>
+                <div className={hm.cardHead}><h2>{L("Armada", "Fleet")}</h2><span className={hm.sub}>{vehiclesTotal} {L("unit aktif", "active units")}</span></div>
                 <div className={hm.donutWrap}>
-                  <svg viewBox="0 0 120 120" width="112" height="112" role="img" aria-label={`${readyPct}% armada siap pakai`}>
+                  <svg viewBox="0 0 120 120" width="112" height="112" role="img" aria-label={L(`${readyPct}% armada siap pakai`, `${readyPct}% of the fleet ready`)}>
                     <circle cx="60" cy="60" r={donutR} className={hm.donutBg} />
                     {vehiclesOut > 0 && <circle cx="60" cy="60" r={donutR} className={hm.donutOut} strokeDasharray={`${Math.max(0, outLen - 4)} ${donutC - outLen + 4}`} transform="rotate(-90 60 60)" />}
                     {vehiclesFree > 0 && <circle cx="60" cy="60" r={donutR} className={hm.donutFree} strokeDasharray={`${Math.max(0, freeLen - 4)} ${donutC - freeLen + 4}`} strokeDashoffset={-outLen} transform="rotate(-90 60 60)" />}
                     <text x="60" y="58" textAnchor="middle" className={hm.donutVal}>{readyPct}%</text>
-                    <text x="60" y="74" textAnchor="middle" className={hm.donutSub}>siap pakai</text>
+                    <text x="60" y="74" textAnchor="middle" className={hm.donutSub}>{L("siap pakai", "ready")}</text>
                   </svg>
                   <div className={hm.donutLegend}>
-                    <span><i className={hm.dOut} />Bertugas<b>{vehiclesOut}</b></span>
-                    <span><i className={hm.dFree} />Tersedia<b>{vehiclesFree}</b></span>
+                    <span><i className={hm.dOut} />{L("Bertugas", "On duty")}<b>{vehiclesOut}</b></span>
+                    <span><i className={hm.dFree} />{L("Tersedia", "Available")}<b>{vehiclesFree}</b></span>
                   </div>
                 </div>
                 {!prbOnly && (
@@ -558,8 +564,8 @@ export function HomeTab({
                       return (
                         <div key={pl} className={hm.plantChip}>
                           <span className={hm.plantName}><i className={pl === "PRB" ? hm.bPrb : hm.bCik} />{plantShort(pl)}</span>
-                          <b>{all}<small> tugas</small></b>
-                          <span className={hm.sub}>{going} berjalan</span>
+                          <b>{all}<small> {L("tugas", "tasks")}</small></b>
+                          <span className={hm.sub}>{going} {L("berjalan", "in progress")}</span>
                         </div>
                       );
                     })}
@@ -568,10 +574,10 @@ export function HomeTab({
               </section>
 
               <section className={`${hm.card} ${hm.aAttn}`}>
-                <div className={hm.cardHead}><h2>Perlu perhatian</h2><span className={`${hm.count} ${lateOngoing.length ? hm.countWarn : ""}`}>{lateOngoing.length}</span></div>
+                <div className={hm.cardHead}><h2>{L("Perlu perhatian", "Needs attention")}</h2><span className={`${hm.count} ${lateOngoing.length ? hm.countWarn : ""}`}>{lateOngoing.length}</span></div>
                 <div className={hm.feed}>
                   {lateOngoing.length === 0 && (
-                    <div className={hm.allGood}><span><Icon name="check" size={18} /></span>Tidak ada yang perlu dicek saat ini.</div>
+                    <div className={hm.allGood}><span><Icon name="check" size={18} /></span>{L("Tidak ada yang perlu dicek saat ini.", "Nothing needs checking right now.")}</div>
                   )}
                   {lateOngoing.slice(0, 4).map((t) => (
                     <div className={hm.feedRow} key={t.id}>
@@ -580,7 +586,7 @@ export function HomeTab({
                         <b>{t.driver_nama ?? "-"}</b>
                         <span>{t.tujuan}</span>
                       </span>
-                      <span className={`${hm.tag} ${hm.tagOut}`}>{Math.round((nowTick - new Date(t.accepted_at ?? t.created_at).getTime()) / 3600000)} jam</span>
+                      <span className={`${hm.tag} ${hm.tagOut}`}>{Math.round((nowTick - new Date(t.accepted_at ?? t.created_at).getTime()) / 3600000)} {L("jam", "h")}</span>
                     </div>
                   ))}
                 </div>

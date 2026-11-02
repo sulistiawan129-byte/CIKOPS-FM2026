@@ -8,6 +8,7 @@ import of from "./opfund.module.css";
 import { NavTab } from "./HomeTab";
 import { BRAND } from "@/lib/brand";
 
+import { loc } from "@/lib/i18n";
 export function todayStr() {
   return toLocalISODate(new Date());
 }
@@ -156,7 +157,7 @@ export function formatDateLabel(isoDate: string): string {
 }
 
 export function fmtRp(n: number): string {
-  return new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+  return new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 }
 
 /** Hitung nominal dari isian seperti "50000+30000" — dipakai bersama aplikasi driver. */
@@ -264,7 +265,7 @@ export function printRequestReceipt(params: {
 
           <div style="padding:20px 28px;">
             <table style="margin-bottom:16px;font-size:13px;">
-              <tr><td style="padding:5px 0;color:#7886a8;width:38%;">Tanggal Pengajuan</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;width:38%;">Tanggal Pengajuan</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
               <tr><td style="padding:5px 0;color:#7886a8;">Jenis Permintaan</td><td style="padding:5px 0;font-weight:700;">: ${params.typeLabel}</td></tr>
               <tr><td style="padding:5px 0;color:#7886a8;">Nama Pemohon</td><td style="padding:5px 0;font-weight:700;">: ${params.employeeName}</td></tr>
               <tr><td style="padding:5px 0;color:#7886a8;">Departemen</td><td style="padding:5px 0;font-weight:700;">: ${params.department || "-"}</td></tr>

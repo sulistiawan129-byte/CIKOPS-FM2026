@@ -6,11 +6,12 @@
 import { SD_KPI_OBJ, SECDESK_URL, type SdReport } from "@/lib/security/secdesk";
 import s from "./security.module.css";
 
+import { loc } from "@/lib/i18n";
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const f = (n: number) => Number(n || 0).toLocaleString("id-ID");
-const f1 = (n: number) => Number(n || 0).toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const f2 = (n: number) => Number(n || 0).toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const f = (n: number) => Number(n || 0).toLocaleString(loc());
+const f1 = (n: number) => Number(n || 0).toLocaleString(loc(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const f2 = (n: number) => Number(n || 0).toLocaleString(loc(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pctTxt = (a: number, b: number) => (b ? `${f1((a / b) * 100)}%` : "–");
 const monthLabel = (key: string) => { const [y, m] = key.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
 const monthShort = (key: string) => { const [y, m] = key.split("-").map(Number); return `${MON[m - 1]} ${String(y).slice(2)}`; };

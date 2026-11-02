@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { reportModulesOf, type MyProfile } from "@/lib/api";
 import { useLang } from "@/lib/providers";
-import { useL } from "@/lib/i18n";
+import { L } from "@/lib/i18n";
 import { buildMgmtReport, reportFilename } from "@/lib/mgmtReport/build";
 import { renderChartPNG } from "@/lib/mgmtReport/chartImage";
 import {
@@ -53,7 +53,6 @@ const Ic = {
 
 export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | null }) {
   const { lang: appLang } = useLang();
-  const L = useL();
   const MONTHS = appLang === "en" ? MONTHS_EN : MONTHS_ID;
   // modul yang boleh ditarik role ini (mis. Admin ISS hanya Cleaning & Gardening)
   const ALL = useMemo(() => { const ok = reportModulesOf(myProfile); return ALL_MODULES.filter((k) => ok.includes(k)); }, [myProfile]);
