@@ -162,7 +162,7 @@ export default function GiftVerifyPage() {
               ) : (
                 <div style={{ background: "#dcfce7", borderRadius: 14, padding: "16px 18px", textAlign: "center" }}>
                   <div style={{ fontSize: 22, marginBottom: 6 }}>🎉</div>
-                  <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>Pengambilan berhasil dicatat!</div>
+                  <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>{L("Pengambilan berhasil dicatat!", "Collection recorded successfully!")}</div>
                   <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>{L("Passcode ini tidak dapat digunakan lagi.", "This passcode can no longer be used.")}</div>
                 </div>
               )}
@@ -175,7 +175,7 @@ export default function GiftVerifyPage() {
         )}
 
         <div style={{ textAlign: "center", marginTop: 32, fontSize: 11, color: "#a0aac0" }}>
-          CIKOPS-FM SYSTEM — Hanya untuk petugas yang berwenang
+          {L("CIKOPS-FM SYSTEM — Hanya untuk petugas yang berwenang", "CIKOPS-FM SYSTEM — Authorised officers only")}
         </div>
       </div>
     </div>

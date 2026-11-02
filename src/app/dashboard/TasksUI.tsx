@@ -301,7 +301,7 @@ export function TaskSlipModal({ tasks, printedBy, onClose }: { tasks: TaskDetail
           </div>
           <button className={s.x} onClick={onClose} aria-label={L("Tutup", "Close")}><IcX size={18} /></button>
         </header>
-        <iframe ref={frame} className={s.slipFrame} title="Pratinjau bukti penugasan" srcDoc={html} />
+        <iframe ref={frame} className={s.slipFrame} title={L("Pratinjau bukti penugasan", "Assignment slip preview")} srcDoc={html} />
         <footer className={s.slipFoot}>
           <button className={s.ghostBtn} onClick={onClose}>{L("Tutup", "Close")}</button>
           <button className={s.primary} onClick={print}><IcPrint size={16} />{L("Cetak", "Print")}</button>
@@ -329,7 +329,7 @@ function Ticket({ v, driver, vehicle }: { v: TaskFormValues; driver?: Driver; ve
   return (
     <div className={s.ticket}>
       <div className={s.tkMain}>
-        <div className={s.tkTop}><span>Tiket penugasan</span><span>{v.plant}</span></div>
+        <div className={s.tkTop}><span>{L("Tiket penugasan", "Assignment ticket")}</span><span>{v.plant}</span></div>
         <div className={s.tkRoute}>
           <div className={s.tkStop}><small>{L("Dari", "From")}</small><b className={v.asal ? "" : s.tkEmpty}>{v.asal || L("Belum diisi", "Not filled in")}</b></div>
           <div className={s.tkPath} aria-hidden="true"><i /><span><IcCar size={15} /></span><i /></div>
@@ -337,7 +337,7 @@ function Ticket({ v, driver, vehicle }: { v: TaskFormValues; driver?: Driver; ve
         </div>
         <div className={s.tkMeta}>
           {v.jenisPekerjaan ? <span className={s.tag}>{v.jenisPekerjaan}</span> : <span className={s.tagGhost}>{L("Jenis pekerjaan", "Job type")}</span>}
-          <span className={s.tkReq}>{v.requestor ? `Req. ${v.requestor}` : "Requestor belum dipilih"}</span>
+          <span className={s.tkReq}>{v.requestor ? `Req. ${v.requestor}` : L("Requestor belum dipilih", "No requestor selected")}</span>
         </div>
         {v.perihal.trim() ? <p className={s.tkNote}>{v.perihal.trim()}</p> : null}
       </div>
@@ -346,7 +346,7 @@ function Ticket({ v, driver, vehicle }: { v: TaskFormValues; driver?: Driver; ve
         <div className={s.tkWho}>
           {driver ? <Avatar name={driver.nama} size={34} /> : <span className={s.tkAvatarEmpty} />}
           <div>
-            <b>{driver?.nama ?? "Driver belum dipilih"}</b>
+            <b>{driver?.nama ?? L("Driver belum dipilih", "No driver selected")}</b>
             <span className={s.plate}>{vehicle ? `${vehicle.nopol}${vehicle.jenis ? ` · ${vehicle.jenis}` : ""}` : L("Kendaraan belum dipilih", "No vehicle selected")}</span>
           </div>
         </div>
@@ -524,11 +524,11 @@ export function TaskForm(p: {
                 )}
               </div>
               <div>
-                <div className={s.lbl}>Lama tugas</div>
+                <div className={s.lbl}>{L("Lama tugas", "Task duration")}</div>
                 <div className={s.seg} style={{ ["--i" as string]: dateMode === "single" ? 0 : 1, ["--n" as string]: 2 }}>
                   <span className={s.segInk} aria-hidden="true" />
                   {(["single", "range"] as const).map((m) => (
-                    <button type="button" key={m} className={`${s.segBtn} ${dateMode === m ? s.segOn : ""}`} aria-pressed={dateMode === m} onClick={() => setDateMode(m)}>{m === "single" ? "1 hari" : "Rentang"}</button>
+                    <button type="button" key={m} className={`${s.segBtn} ${dateMode === m ? s.segOn : ""}`} aria-pressed={dateMode === m} onClick={() => setDateMode(m)}>{m === "single" ? L("1 hari", "1 day") : L("Rentang", "Range")}</button>
                   ))}
                 </div>
               </div>
@@ -560,7 +560,7 @@ export function TaskForm(p: {
 
           {/* driver */}
           <section className={s.block}>
-            <h3>Driver &amp; kendaraan</h3>
+            <h3>{L("Driver & kendaraan", "Driver & vehicle")}</h3>
             <div className={s.twoCol}>
               <label className={s.field}>
                 <span>Driver</span>
@@ -590,7 +590,7 @@ export function TaskForm(p: {
 
           {/* detail */}
           <section className={s.block}>
-            <h3>Detail tugas</h3>
+            <h3>{L("Detail tugas", "Task details")}</h3>
             <div className={s.lbl}>{L("Jenis pekerjaan", "Job type")}</div>
             <div className={s.chipsWrap} role="radiogroup" aria-label={L("Jenis pekerjaan", "Job type")}>
               {p.jobTypes.map((j) => (
@@ -652,7 +652,7 @@ export function TaskSuccess({ message, onDone, onWhatsapp }: { message: string; 
   return (
     <div className={s.success}>
       <div className={s.okIc} aria-hidden="true"><Svg size={26} sw={2.6}><path d="m5 12.5 4.5 4.5L19 7.5" /></Svg></div>
-      <h2>Tugas berhasil dibuat</h2>
+      <h2>{L("Tugas berhasil dibuat", "Task created successfully")}</h2>
       <p>{L("Bagikan detail penugasan ke driver atau grup lewat WhatsApp. Bukti cetak tersedia di tiap kartu tugas.", "Share the assignment details with the driver or group via WhatsApp. A printable slip is available on each task card.")}</p>
       <pre className={s.wa}>{message}</pre>
       <div className={s.successFoot}>

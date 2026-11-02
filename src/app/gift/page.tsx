@@ -130,7 +130,7 @@ export default function GiftPage() {
             Pendaftaran Pengambilan
           </h1>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, margin: 0 }}>
-            Pilih program di bawah ini untuk mendaftar
+            {L("Pilih program di bawah ini untuk mendaftar", "Choose a programme below to register")}
           </p>
         </div>
 
@@ -161,7 +161,7 @@ export default function GiftPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>{ev.name}</div>
                   <span style={{ fontSize: 11, fontWeight: 700, background: "#22c55e", color: "#fff", padding: "3px 10px", borderRadius: 999, flexShrink: 0, marginLeft: 10 }}>
-                    BUKA
+                    {L("BUKA", "OPEN")}
                   </span>
                 </div>
                 {ev.description && (

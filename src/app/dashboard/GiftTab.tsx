@@ -352,7 +352,7 @@ function StockPerSizeCard({
   return (
     <div style={{ background: "var(--bg2)", borderRadius: 14, padding: 16, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)" }}>STOK BAJU PER UKURAN (SISA SETELAH PEMBAGIAN)</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)" }}>{L("STOK BAJU PER UKURAN (SISA SETELAH PEMBAGIAN)", "SHIRT STOCK PER SIZE (REMAINING AFTER DISTRIBUTION)")}</div>
         {!editing ? (
           <button onClick={startEdit} style={{ background: "none", border: "none", color: "var(--brand)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
             ✏️ Isi/Edit Stok Aktual
@@ -905,7 +905,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   async function handleSave() {
     if (!formName.trim()) { alert(L("Nama event wajib diisi.", "The event name is required.")); return; }
     const validItems = formItems.filter(i => i.name.trim());
-    if (formMode === "self_register" && validItems.length === 0) { alert("Minimal satu item harus diisi."); return; }
+    if (formMode === "self_register" && validItems.length === 0) { alert(L("Minimal satu item harus diisi.", "At least one item must be filled in.")); return; }
     setSaving(true);
     try {
       const payload = { name: formName.trim(), description: formDesc.trim(), items: validItems, status: formStatus, mode: formMode };
@@ -962,7 +962,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
             onClick={() => setCategoryFilter("single")} active={categoryFilter === "single"} />
           <GiftKpiCard icon="💑" label="BERKELUARGA, BELUM PUNYA ANAK (1-2)" value={giftKpis.categoryCounts.couple} color="#ec4899" bg="rgba(236,72,153,0.08)"
             onClick={() => setCategoryFilter("couple")} active={categoryFilter === "couple"} />
-          <GiftKpiCard icon="👨‍👩‍👧‍👦" label="KELUARGA, SUDAH PUNYA ANAK (1-9)" value={giftKpis.categoryCounts.family} color="#10b981" bg="rgba(16,185,129,0.08)"
+          <GiftKpiCard icon="👨‍👩‍👧‍👦" label={L("KELUARGA, SUDAH PUNYA ANAK (1-9)", "FAMILY, WITH CHILDREN (1-9)")} value={giftKpis.categoryCounts.family} color="#10b981" bg="rgba(16,185,129,0.08)"
             onClick={() => setCategoryFilter("family")} active={categoryFilter === "family"} />
         </div>
       )}
@@ -1265,7 +1265,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
         <div style={{ gridColumn: "1/-1" }}>
-          <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>NAMA EVENT</label>
+          <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>{L("NAMA EVENT", "EVENT NAME")}</label>
           <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Contoh: Pembagian Seragam 2026" className={styles.formInput} />
         </div>
         <div style={{ gridColumn: "1/-1" }}>
@@ -1283,7 +1283,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <label className="fLabel" style={{ fontSize: 12, fontWeight: 700, color: "var(--t3)", display: "block", marginBottom: 6 }}>MODE PROJECT</label>
           <select value={formMode} onChange={e => setFormMode(e.target.value as "self_register" | "lookup")} className={styles.formSelect} style={{ width: "auto" }}>
             <option value="self_register">{L("📝 Karyawan Daftar Sendiri", "📝 Employees Self-Register")}</option>
-            <option value="lookup">📥 Import Data (Admin) — cari by NIK</option>
+            <option value="lookup">{L("📥 Import Data (Admin) — cari by NIK", "📥 Import Data (Admin) — search by NIK")}</option>
           </select>
           <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 5 }}>
             {formMode === "lookup"
@@ -1315,7 +1315,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <div style={{ display: "flex", gap: 8 }}>
             <input value={variantInput[i] ?? ""} onChange={e => setVariantInput(p => ({ ...p, [i]: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addVariant(i))}
-              placeholder="Ketik ukuran lalu Enter" className={styles.formInput} style={{ flex: 1, padding: "8px 12px" }} />
+              placeholder={L("Ketik ukuran lalu Enter", "Type a size then press Enter")} className={styles.formInput} style={{ flex: 1, padding: "8px 12px" }} />
             <button onClick={() => addVariant(i)} style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{L("+ Tambah", "+ Add")}</button>
           </div>
         </div>
@@ -1339,7 +1339,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
           <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 2 }}>{lang === "en" ? "Links to share and the list of programs" : "Link untuk dibagikan dan daftar program"}</div>
         </div>
         <button onClick={openCreate} style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "9px 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-          + Event Baru
+          {L("+ Event Baru", "+ New Event")}
         </button>
       </div>
 
@@ -1378,7 +1378,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                     <span style={{ fontWeight: 800, fontSize: 15, color: "var(--t1)" }}>{ev.name}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 999, background: ev.status === "open" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)", color: ev.status === "open" ? "var(--green)" : "var(--red)" }}>
-                      {ev.status === "open" ? "BUKA" : "TUTUP"}
+                      {ev.status === "open" ? L("BUKA", "OPEN") : L("TUTUP", "CLOSED")}
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 999, background: "var(--bg2)", color: "var(--t3)" }}>
                       {ev.mode === "lookup" ? "📥 Import Data" : "📝 Daftar Sendiri"}

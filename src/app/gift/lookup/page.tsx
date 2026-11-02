@@ -232,7 +232,7 @@ export default function GiftLookupPage() {
             <div style={{ fontSize: 40, textAlign: "center", marginBottom: 10 }}>👋</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: NAVY, textAlign: "center", marginBottom: 4 }}>{L("Nama Petugas", "Officer Name")}</div>
             <div style={{ fontSize: 13, color: "#7c8aa0", textAlign: "center", marginBottom: 18 }}>
-              Diisi 1x saja untuk perangkat ini — tidak perlu diulang tiap kali proses pengambilan.
+              {L("Diisi 1x saja untuk perangkat ini — tidak perlu diulang tiap kali proses pengambilan.", "Enter this once on this device — no need to repeat it for every pickup.")}
             </div>
             <input
               type="text"
@@ -279,13 +279,13 @@ export default function GiftLookupPage() {
           )}
           {events.length === 0 && (
             <div style={{ background: "#fff", borderRadius: 16, padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 14, marginBottom: 16 }}>
-              Belum ada program aktif dengan mode Import Data.
+              {L("Belum ada program aktif dengan mode Import Data.", "No active programme with Import Data mode yet.")}
             </div>
           )}
 
           <form onSubmit={handleSearch} style={{ background: "#fff", borderRadius: 24, padding: "28px 24px", boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 14 }}>
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.06em", textAlign: "center", marginBottom: 14 }}>
-              NIK KARYAWAN
+              {L("NIK KARYAWAN", "EMPLOYEE NIK")}
             </label>
             <input
               ref={nikInputRef}
@@ -314,25 +314,25 @@ export default function GiftLookupPage() {
                 boxShadow: nik.trim() && eventId ? "0 6px 20px rgba(15,40,71,0.3)" : "none",
               }}
             >
-              {loading ? "Mencari..." : "🔍  CARI"}
+              {loading ? "Mencari..." : L("🔍  CARI", "🔍  SEARCH")}
             </button>
           </form>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 14px" }}>
             <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#a0aac0" }}>ATAU CARI BY NAMA</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#a0aac0" }}>{L("ATAU CARI BY NAMA", "OR SEARCH BY NAME")}</span>
             <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
           </div>
 
           <form onSubmit={handleSearchByName} style={{ background: "#fff", borderRadius: 24, padding: "28px 24px", boxShadow: "0 8px 30px rgba(15,40,71,0.1)", marginBottom: 20 }}>
             <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c8aa0", letterSpacing: "0.06em", textAlign: "center", marginBottom: 14 }}>
-              NAMA KARYAWAN
+              {L("NAMA KARYAWAN", "EMPLOYEE NAME")}
             </label>
             <input
               type="text"
               value={nameQuery}
               onChange={(e) => { setNameQuery(e.target.value); setError(""); setReg(null); setNameResults(null); }}
-              placeholder="Ketik nama..."
+              placeholder={L("Ketik nama...", "Type a name...")}
               disabled={nameSearching}
               style={{
                 width: "100%", padding: "26px 16px", borderRadius: 20, border: `3px solid ${nameQuery ? NAVY : "#dbe4f0"}`,
@@ -352,13 +352,13 @@ export default function GiftLookupPage() {
                 boxShadow: nameQuery.trim() && eventId ? "0 6px 20px rgba(15,40,71,0.3)" : "none",
               }}
             >
-              {nameSearching ? "Mencari..." : "🔍  CARI"}
+              {nameSearching ? "Mencari..." : L("🔍  CARI", "🔍  SEARCH")}
             </button>
           </form>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 14px" }}>
             <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#a0aac0" }}>ATAU CARI BY NO. URUT</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#a0aac0" }}>{L("ATAU CARI BY NO. URUT", "OR SEARCH BY SEQUENCE NO.")}</span>
             <div style={{ flex: 1, height: 1, background: "#dbe4f0" }} />
           </div>
 
@@ -391,7 +391,7 @@ export default function GiftLookupPage() {
                 boxShadow: noQuery.trim() && eventId ? "0 6px 20px rgba(15,40,71,0.3)" : "none",
               }}
             >
-              {noSearching ? "Mencari..." : "🔍  CARI"}
+              {noSearching ? "Mencari..." : L("🔍  CARI", "🔍  SEARCH")}
             </button>
           </form>
 
@@ -469,14 +469,14 @@ export default function GiftLookupPage() {
                       </tbody>
                     </table>
                     <button onClick={reset} style={{ width: "100%", marginTop: 16, padding: 13, borderRadius: 12, border: "2px solid #dbe4f0", background: "#f6f8fc", color: "#7c8aa0", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
-                      Cari NIK Lain
+                      {L("Cari NIK Lain", "Search Another NIK")}
                     </button>
                   </div>
 
                   {/* ── Sub-kolom KANAN: detail hadiah + aksi ── */}
                   <div style={{ flex: "1.3 1 300px", minWidth: 260 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em" }}>UKURAN YANG DITERIMA</div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em" }}>{L("UKURAN YANG DITERIMA", "SIZE RECEIVED")}</div>
                       {reg.statusKehadiran && (
                         <span style={{ fontSize: 10.5, fontWeight: 800, color: NAVY, background: "#eef2fb", padding: "3px 10px", borderRadius: 999, letterSpacing: "0.02em" }}>
                           {reg.statusKehadiran}
@@ -539,13 +539,13 @@ export default function GiftLookupPage() {
                             opacity: claiming ? 0.7 : 1,
                           }}
                         >
-                          {claiming ? L("Memproses...", "Processing...") : "✅  TANDAI SUDAH DIAMBIL"}
+                          {claiming ? L("Memproses...", "Processing...") : L("✅  TANDAI SUDAH DIAMBIL", "✅  MARK AS COLLECTED")}
                         </button>
                       </div>
                     ) : (
                       <div style={{ background: "#dcfce7", borderRadius: 14, padding: "16px", textAlign: "center" }}>
                         <div style={{ fontSize: 24, marginBottom: 6 }}>🎉</div>
-                        <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>Pengambilan berhasil dicatat!</div>
+                        <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>{L("Pengambilan berhasil dicatat!", "Collection recorded successfully!")}</div>
                         <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>{L("NIK ini tidak bisa diambil lagi.", "This NIK can no longer be collected.")}</div>
                       </div>
                     )}
@@ -565,7 +565,7 @@ export default function GiftLookupPage() {
       </div>
 
       <div style={{ textAlign: "center", padding: "16px 0", fontSize: 11, color: "#a0aabb" }}>
-        CIKOPS-FM SYSTEM — Hanya untuk petugas yang berwenang
+        {L("CIKOPS-FM SYSTEM — Hanya untuk petugas yang berwenang", "CIKOPS-FM SYSTEM — Authorised officers only")}
       </div>
     </div>
   );

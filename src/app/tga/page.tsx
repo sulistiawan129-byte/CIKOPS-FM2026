@@ -134,7 +134,7 @@ export default function TgaAppPage() {
       }
       knownNew.current = new Set(fresh.map((a) => a.id));
     } catch (e) {
-      if (isSessionError(e)) { signOut("Sesi berakhir — silakan masuk lagi."); return; }
+      if (isSessionError(e)) { signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again.")); return; }
       setLoadErr(e instanceof Error ? e.message : String(e));
     } finally { setRefreshing(false); }
   }, [token, signOut]);
@@ -201,10 +201,10 @@ export default function TgaAppPage() {
   async function quickDone(a: TgaActivity) {
     try {
       const r = await tgaSave(token, a.id, { ...draftOf(a), status: "selesai", jam_selesai: a.jam_selesai || nowHM() });
-      upsertLocal(r); setDetail(null); flash(`✓ ${r.ref_no} ditandai selesai`);
+      upsertLocal(r); setDetail(null); flash(L(`✓ ${r.ref_no} ditandai selesai`, `✓ ${r.ref_no} marked as done`));
       haptic(30);
     } catch (e) {
-      if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
+      if (isSessionError(e)) return signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again."));
       flash(e instanceof Error ? e.message : String(e));
     }
   }
@@ -214,10 +214,10 @@ export default function TgaAppPage() {
       const r = await tgaAccept(token, a.id);
       upsertLocal(r);
       setData((d) => d && ({ ...d, pool: (d.pool ?? []).filter((x) => x.id !== a.id) }));
-      setDetail(null); flash(`👍 ${r.ref_no} diterima — selamat bekerja!`);
+      setDetail(null); flash(L(`👍 ${r.ref_no} diterima — selamat bekerja!`, `👍 ${r.ref_no} accepted — good luck!`));
       haptic(40);
     } catch (e) {
-      if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
+      if (isSessionError(e)) return signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again."));
       flash(e instanceof Error ? e.message : String(e));
       load();
     }
@@ -227,7 +227,7 @@ export default function TgaAppPage() {
     try {
       await tgaDelete(token, a.id);
       setData((d) => d && ({ ...d, activities: d.activities.filter((x) => x.id !== a.id), month_count: Math.max(0, d.month_count - (a.tanggal.slice(0, 7) === today.slice(0, 7) ? 1 : 0)) }));
-      setDetail(null); flash("Kegiatan dihapus");
+      setDetail(null); flash(L("Kegiatan dihapus", "Activity deleted"));
     } catch (e) { flash(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -291,7 +291,7 @@ export default function TgaAppPage() {
           <NavBtn on={tab === "home"} icon="⌂" label="Beranda" onClick={() => setTab("home")} />
           <NavBtn on={tab === "history"} icon="☰" label="Riwayat" onClick={() => setTab("history")} />
         </>}
-        fab={{ label: "Catat kegiatan baru", onClick: () => setForm({ id: null, draft: emptyDraft(today) }) }}
+        fab={{ label: L("Catat kegiatan baru", "Log a new activity"), onClick: () => setForm({ id: null, draft: emptyDraft(today) }) }}
         right={<>
           <NavBtn on={tab === "open"} icon="◷" label="Terbuka" badge={acts.filter((a) => a.status !== "selesai").length + pool.length} onClick={() => setTab("open")} />
           <NavBtn on={tab === "profile"} icon="◉" label="Profil" onClick={() => setTab("profile")} />
@@ -312,7 +312,7 @@ export default function TgaAppPage() {
             if (form.id === null) setData((d) => d && ({ ...d, month_count: d.month_count + (r.tanggal.slice(0, 7) === today.slice(0, 7) ? 1 : 0) }));
             setSaved({ a: r, isNew: form.id === null }); setForm(null);
           }}
-          onSessionLost={() => signOut("Sesi berakhir — silakan masuk lagi.")} />
+          onSessionLost={() => signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again."))} />
       )}
 
       {saved && (
@@ -403,7 +403,7 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
         <div className={s.blob1} /><div className={s.blob2} />
         <div className={s.loginLogo}><ToolGlyph /></div>
         <h1>CIKOPS <span>TGA</span></h1>
-        <p>Catat setiap pekerjaan teknisi GA — cepat, rapi, langsung masuk laporan.</p>
+        <p>{L("Catat setiap pekerjaan teknisi GA — cepat, rapi, langsung masuk laporan.", "Log every GA technician job — fast, tidy, straight into the report.")}</p>
       </div>
 
       <div className={s.loginCard}>
@@ -517,7 +517,7 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
         <span>{working ? "🔧" : "✓"}</span>
         <p>
           <b>{working ? "BUSY" : "AVAILABLE"}</b>
-          <small>{working ? `${working.ref_no} · ${working.activity}` : "Siap menerima tugas baru"}</small>
+          <small>{working ? `${working.ref_no} · ${working.activity}` : L("Siap menerima tugas baru", "Ready for a new task")}</small>
         </p>
         {working && <button type="button" className={s.dutyBtn} onClick={() => onDone(working)}>{L("✓ Selesai", "✓ Done")}</button>}
       </section>
@@ -534,7 +534,7 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
 
       {(mine.length > 0 || pool.length > 0) && (
         <section>
-          <div className={s.secHead}><h3>🔔 Tugas masuk</h3><span className={`${s.badge} ${s.badgeRed}`}>{mine.length + pool.length}</span></div>
+          <div className={s.secHead}><h3>{L("🔔 Tugas masuk", "🔔 Incoming tasks")}</h3><span className={`${s.badge} ${s.badgeRed}`}>{mine.length + pool.length}</span></div>
           <div className={s.list}>
             {mine.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}
             {pool.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}
@@ -543,7 +543,7 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
       )}
 
       <section className={s.card}>
-        <div className={s.cardHead}><h3>7 hari terakhir</h3><span>{week.reduce((x, w) => x + w.n, 0)} kegiatan</span></div>
+        <div className={s.cardHead}><h3>{L("7 hari terakhir", "Last 7 days")}</h3><span>{week.reduce((x, w) => x + w.n, 0)} {L("kegiatan", "activities")}</span></div>
         <div className={s.week}>
           {week.map((w) => (
             <div key={w.iso} className={w.iso === today ? s.weekOn : ""}>
@@ -601,7 +601,7 @@ function ActRow({ a, today, onOpen, onDone, showDate }: { a: TgaActivity; today:
       {a.status === "baru" ? (
         <span className={`${s.pill} ${s.t_red}`}>{L("Baru", "New")}</span>
       ) : a.status !== "selesai" && onDone ? (
-        <button type="button" className={s.doneBtn} onClick={(e) => { e.stopPropagation(); onDone(a); }} aria-label="Tandai selesai" title="Tandai selesai">✓</button>
+        <button type="button" className={s.doneBtn} onClick={(e) => { e.stopPropagation(); onDone(a); }} aria-label={L("Tandai selesai", "Mark as done")} title={L("Tandai selesai", "Mark as done")}>✓</button>
       ) : (
         <span className={`${s.pill} ${s["t_" + (st?.tone ?? "green")]}`}>{st?.short ?? a.status}</span>
       )}
@@ -722,7 +722,7 @@ function Profile({ nama, acts, monthCount, today, token, installEvt, installed, 
 
       <section className={s.card}>
         <div className={s.cardHead}><h3>📲 Pasang di HP</h3></div>
-        {installed ? <p className={s.muted}>Aplikasi sudah terpasang di layar utama. 👍</p>
+        {installed ? <p className={s.muted}>{L("Aplikasi sudah terpasang di layar utama. 👍", "The app is already installed on your home screen. 👍")}</p>
           : installEvt ? (
             <>
               <p className={s.muted}>{L("Pasang aplikasi TGA supaya bisa dibuka langsung dari layar utama, seperti aplikasi biasa.", "Install the TGA app so it opens straight from your home screen, like a regular app.")}</p>
@@ -777,8 +777,8 @@ function NotifCard({ token }: { token: string }) {
           <button type="button" className={`${s.ghostBtn} ${s.danger}`} disabled={busy} onClick={() => run(disablePush, L("Notifikasi dimatikan untuk HP ini.", "Notifications turned off for this phone."))}>{L("Matikan", "Turn off")}</button>
         </div>
       ) : st === "off" || st === "denied" ? (
-        <button type="button" className={s.primaryBtn} disabled={busy} onClick={() => run(() => enablePush((sub) => tgaPushSubscribe(token, sub)), "Notifikasi aktif! 🎉")}>
-          {busy ? "Mengaktifkan…" : "🔔 Aktifkan notifikasi"}
+        <button type="button" className={s.primaryBtn} disabled={busy} onClick={() => run(() => enablePush((sub) => tgaPushSubscribe(token, sub)), L("Notifikasi aktif! 🎉", "Notifications are on! 🎉"))}>
+          {busy ? L("Mengaktifkan…", "Turning on…") : L("🔔 Aktifkan notifikasi", "🔔 Turn on notifications")}
         </button>
       ) : null}
       {msg && <p className={msg.ok ? s.okText : s.errText}>{msg.text}</p>}
@@ -812,7 +812,7 @@ function Detail({ a, today, onClose, onDone, onAccept, onEdit, onDelete }: {
           <div><dt>{L("Tanggal", "Date")}</dt><dd>{fmtDay(a.tanggal, today)}</dd></div>
           <div><dt>{L("Jam", "Time")}</dt><dd>{a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? ` – ${a.jam_selesai}` : ""}` : "—"}</dd></div>
           <div><dt>{L("Lokasi", "Location")}</dt><dd>{a.lokasi || "—"}</dd></div>
-          <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}{a.request_by && !a.requestor_id ? <small> (di luar data karyawan)</small> : null}</dd></div>
+          <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}{a.request_by && !a.requestor_id ? <small> {L("(di luar data karyawan)", "(not in the employee data)")}</small> : null}</dd></div>
           {fromOthers && <div><dt>Sumber</dt><dd>{a.pool ? "Siapa cepat" : TGA_SOURCE_LABEL[a.sumber ?? "tugas"]}{a.assigned_by && a.sumber === "tugas" ? <small> · {a.assigned_by}</small> : null}</dd></div>}
           {a.request_phone && <div><dt>Kontak</dt><dd><a className={s.callLink} href={`tel:${a.request_phone.replace(/[^\d+]/g, "")}`}>📞 {a.request_phone}</a></dd></div>}
           {a.catatan && <div className={s.dlWide}><dt>{L("Catatan", "Notes")}</dt><dd>{a.catatan}</dd></div>}
@@ -822,7 +822,7 @@ function Detail({ a, today, onClose, onDone, onAccept, onEdit, onDelete }: {
             <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? L("✋ Ambil tugas ini", "✋ Take this task") : L("✓ Terima & kerjakan", "✓ Accept & start")}</button>
           ) : (
             <>
-              {a.status !== "selesai" && <button type="button" className={s.primaryBtn} onClick={onDone}>✓ Tandai selesai</button>}
+              {a.status !== "selesai" && <button type="button" className={s.primaryBtn} onClick={onDone}>{L("✓ Tandai selesai", "✓ Mark as done")}</button>}
               <div className={fromOthers ? undefined : s.btnRow}>
                 <button type="button" className={s.ghostBtn} onClick={onEdit}>✎ {fromOthers ? L("Ubah status / catatan", "Edit status / notes") : L("Ubah", "Edit")}</button>
                 {!fromOthers && <button type="button" className={`${s.ghostBtn} ${s.danger}`} onClick={onDelete}>🗑 {L("Hapus", "Delete")}</button>}
@@ -921,7 +921,7 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
               <div className={s.reqInfo}>
                 <b>{d.request_by}</b>
                 <input className={s.inputSm} placeholder={L("Perusahaan / departemen", "Company / department")} value={d.departemen} onChange={(e) => set("departemen", e.target.value)} />
-                <em className={s.reqOut}>Di luar data karyawan</em>
+                <em className={s.reqOut}>{L("Di luar data karyawan", "Not in the employee data")}</em>
               </div>
               <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>{L("Ganti", "Change")}</button>
             </div>
@@ -1081,7 +1081,7 @@ function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClo
 function Success({ a, isNew, onClose, onAnother }: { a: TgaActivity; isNew: boolean; onClose: () => void; onAnother: () => void }) {
   const c = tgaCategory(a.kategori);
   return (
-    <SuccessScreen title={isNew ? "Tercatat!" : "Tersimpan!"} text={isNew ? "Kegiatan masuk ke laporan GA." : "Perubahan sudah disimpan."}
+    <SuccessScreen title={isNew ? L("Tercatat!", "Logged!") : L("Tersimpan!", "Saved!")} text={isNew ? L("Kegiatan masuk ke laporan GA.", "The activity is now in the GA report.") : L("Perubahan sudah disimpan.", "The changes have been saved.")}
       primary={{ label: L("＋ Catat lagi", "＋ Log another"), onClick: onAnother }} secondary={{ label: L("Kembali ke beranda", "Back to home"), onClick: onClose }}>
       <div className={s.ticket}>
         <div className={s.ticketTop}><span>{c.icon} {c.label}</span><b>{a.ref_no}</b></div>

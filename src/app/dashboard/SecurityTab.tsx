@@ -134,7 +134,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
       const d = { ...data, ...(extra || {}) };
       await saveSecurityMonth(monthKey, d);
       setData(d); setDirty(false);
-      setMsg({ t: "ok", text: `Tersimpan — ${monthLabel(monthKey)}` });
+      setMsg({ t: "ok", text: L(`Tersimpan — ${monthLabel(monthKey)}`, `Saved — ${monthLabel(monthKey)}`) });
     } catch (e) {
       setMsg({ t: "err", text: `${L("Gagal menyimpan", "Failed to save")}: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -226,7 +226,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           </div>
           <div className={`${s.chipBox} ${doneCount === 6 ? s.chipOk : s.chipWarn}`}>
             <span>Kelengkapan</span>
-            <b>{doneCount} / 6 laporan{data.status === "ready" ? " · siap" : ""}</b>
+            <b>{doneCount} / 6 {L("laporan", "reports")}{data.status === "ready" ? L(" · siap", " · ready") : ""}</b>
           </div>
         </div>
       </header>
@@ -291,7 +291,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           <div className={s.readyBar}>
             <span>{L("Setelah semua lengkap, buka", "Once everything is complete, open")} <b>Report → {L("Laporan Manajemen", "Management Report")}</b>, {L("centang", "tick")} <b>Security</b>, {L("pilih periode", "choose the period")} {monthLabel(monthKey)}, {L("lalu unduh Excel / PowerPoint / PDF.", "then download Excel / PowerPoint / PDF.")}</span>
             <button type="button" className={s.primary} disabled={saving} onClick={() => save({ status: data.status === "ready" ? "draft" : "ready" })}>
-              {data.status === "ready" ? "Batalkan status siap" : "Tandai siap dilaporkan"}
+              {data.status === "ready" ? L("Batalkan status siap", "Undo ready status") : L("Tandai siap dilaporkan", "Mark as ready to report")}
             </button>
           </div>
         </section>
@@ -319,8 +319,8 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
                     <tr key={i}>
                       <th scope="row"><b>{L("Minggu", "Week")} {i + 1}</b><small>{w.label} {mname(mm, "short")}</small></th>
                       {VEH_CATS.map((c) => [
-                        <td key={`${c.k}w`}><NumIn label={`${c.id} minggu ${i + 1} hari kerja`} value={data.veh?.[c.k]?.wd[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.wd[i] = v; })} /></td>,
-                        <td key={`${c.k}e`}><NumIn label={`${c.id} minggu ${i + 1} akhir pekan`} value={data.veh?.[c.k]?.we[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.we[i] = v; })} /></td>,
+                        <td key={`${c.k}w`}><NumIn label={L(`${c.id} minggu ${i + 1} hari kerja`, `${c.id} week ${i + 1} workdays`)} value={data.veh?.[c.k]?.wd[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.wd[i] = v; })} /></td>,
+                        <td key={`${c.k}e`}><NumIn label={L(`${c.id} minggu ${i + 1} akhir pekan`, `${c.id} week ${i + 1} weekend`)} value={data.veh?.[c.k]?.we[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.we[i] = v; })} /></td>,
                       ])}
                     </tr>
                   ))}
@@ -370,7 +370,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
             </div>
           </div>
           <div className={s.panel}>
-            <div className={s.panelHead}><div><h2>Biomas — PT Becis</h2><p>Total suplai sekam & buang abu sebulan, lalu sebaran kendaraan per minggu.</p></div></div>
+            <div className={s.panelHead}><div><h2>{L("Biomas — PT Becis", "Biomass — PT Becis")}</h2><p>{L("Total suplai sekam & buang abu sebulan, lalu sebaran kendaraan per minggu.", "Monthly total of husk supply & ash disposal, then the vehicle spread per week.")}</p></div></div>
             <div className={s.fields2}>
               <label className={s.field}><span>Suplai sekam (unit)</span><NumIn wide label="Suplai sekam" value={data.bio?.sekam} onChange={(v) => upd((d) => { d.bio!.sekam = v; })} /></label>
               <label className={s.field}><span>Buang abu (unit)</span><NumIn wide label="Buang abu" value={data.bio?.abu} onChange={(v) => upd((d) => { d.bio!.abu = v; })} /></label>
@@ -415,7 +415,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
           <div className={s.panel}>
             <div className={s.panelHead}>
               <div><h2>{L("Laporan Kejadian — jumlah per jenis", "Incident Report — count per type")}</h2><p>{L("Dua jenis bertanda", "Two types marked")} <b className={s.autoTxt}>{L("otomatis", "automatic")}</b> {L("terisi dari form lain dan tidak perlu diketik.", "are filled from other forms and need not be typed.")}</p></div>
-              <div className={s.bigStat}><small>Total kejadian</small><strong>{f(kejTotal)}</strong></div>
+              <div className={s.bigStat}><small>{L("Total kejadian", "Total incidents")}</small><strong>{f(kejTotal)}</strong></div>
             </div>
             <div className={s.kejGrid}>
               {KEJ_CATS.map((c) => (
@@ -604,7 +604,7 @@ function PelanggaranView({ gc, gcLoading, agg, cfg, monthKey, data, onResync, on
           <div className={`${s.panel} ${s.panelKhusus}`}>
             <div className={s.panelHead}><div><h2>{L("Khusus", "Special:")} {kNames}</h2><p>{L("Nama perusahaan khusus diatur di tab Pengaturan (harus persis sama dengan master supplier G-C).", "Special company names are set in the Settings tab (they must match the G-C supplier master exactly).")}</p></div></div>
             <div className={s.fields2}>
-              <div className={s.miniList}><small>Per perusahaan</small>{agg.khusus.byCo.map((c) => <div key={c.name}><span>{c.name}</span><b>{f(c.n)}</b></div>)}</div>
+              <div className={s.miniList}><small>{L("Per perusahaan", "Per company")}</small>{agg.khusus.byCo.map((c) => <div key={c.name}><span>{c.name}</span><b>{f(c.n)}</b></div>)}</div>
               <div className={s.miniList}><small>{L("Jenis", "Type")}</small>{agg.khusus.jenis.length ? agg.khusus.jenis.map((j) => <div key={j.name}><span>{j.name}</span><b>{f(j.n)}</b></div>) : <span className={s.mute}>{L("Nihil", "None")}</span>}</div>
             </div>
             <div className={s.miniList}>
@@ -669,7 +669,7 @@ function ManualPel({ value, khusus, onChange }: { value: PelManual | undefined; 
       <div className={s.panelHead}><div><h2>{L("Input manual (cadangan)", "Manual input (backup)")}</h2><p>{L(`Dipakai di report hanya bila G-C tidak tersambung. Totalnya: ${f(coTotal)} kasus, ${f(jTotal)} temuan.`, `Used in the report only when G-C is not connected. Total: ${f(coTotal)} cases, ${f(jTotal)} findings.`)}</p></div></div>
       <div className={s.grid2}>
         <div className={s.stack}>
-          <small className={s.kicker}>Rekap per perusahaan</small>
+          <small className={s.kicker}>{L("Rekap per perusahaan", "Recap per company")}</small>
           {v.companies.map((c, i) => (
             <div key={i} className={s.manualRow}>
               <span>{c.name}{khusus.map(normCo).includes(normCo(c.name)) && <span className={s.tagKhusus}>KHUSUS</span>}</span>
@@ -684,7 +684,7 @@ function ManualPel({ value, khusus, onChange }: { value: PelManual | undefined; 
           </div>
         </div>
         <div className={s.stack}>
-          <small className={s.kicker}>Rekap per jenis (semua perusahaan)</small>
+          <small className={s.kicker}>{L("Rekap per jenis (semua perusahaan)", "Recap per type (all companies)")}</small>
           {NC_JENIS.map((j) => (
             <label key={j} className={s.manualRow}><span>{j}</span><NumIn label={j} value={v.jenis[j]} onChange={(x) => set((p) => { p.jenis[j] = x; })} /></label>
           ))}
@@ -745,7 +745,7 @@ function IssuesPanel({ monthKey, issues, onChange }: { monthKey: string; issues:
       <div className={s.issueForm}>
         <input type="date" className={s.text} aria-label={L("Tanggal kejadian", "Incident date")} value={tgl} min={monthStart(monthKey)} max={monthEnd(monthKey)} onChange={(e) => setTgl(e.target.value)} />
         <select className={s.select} aria-label={L("Jenis kejadian", "Incident type")} value={kat} onChange={(e) => setKat(e.target.value)}>{KEJ_CATS.map((c) => <option key={c.id}>{c.id}</option>)}</select>
-        <input className={s.text} placeholder="Deskripsi singkat kejadian…" aria-label="Deskripsi kejadian" value={desc} onChange={(e) => setDesc(e.target.value)} />
+        <input className={s.text} placeholder={L("Deskripsi singkat kejadian…", "Short description of the incident…")} aria-label={L("Deskripsi kejadian", "Incident description")} value={desc} onChange={(e) => setDesc(e.target.value)} />
         <select className={s.select} aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}><option>Open</option><option>Close</option></select>
         <button type="button" className={s.primary} onClick={() => { if (!desc.trim()) return; onChange([...issues, { tgl, kat, desc: desc.trim(), status }]); setDesc(""); }}>{L("+ Tambah", "+ Add")}</button>
       </div>
@@ -798,7 +798,7 @@ function HistoryPanel({ monthKey, onSaved, onError }: { monthKey: string; onSave
       }
       setRows(await getSecurityMonths(keys[0], keys[keys.length - 1]));
       setEdits({});
-      onSaved("Riwayat tersimpan.");
+      onSaved(L("Riwayat tersimpan.", "History saved."));
     } catch (e) {
       onError(`${L("Gagal menyimpan riwayat", "Failed to save history")}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -830,7 +830,7 @@ function HistoryPanel({ monthKey, onSaved, onError }: { monthKey: string; onSave
                     return (
                       <td key={c.k}>
                         {auto
-                          ? <span className={s.autoVal} title="Dari input mingguan">{f(c.from(tt) || 0)}</span>
+                          ? <span className={s.autoVal} title={L("Dari input mingguan", "From weekly input")}>{f(c.from(tt) || 0)}</span>
                           : <NumIn label={`${c.l} ${monthLabel(k)}`} value={v ?? undefined} onChange={(x) => setEdits((e) => ({ ...e, [k]: { ...(e[k] || {}), [c.k]: x } }))} />}
                       </td>
                     );
@@ -863,15 +863,15 @@ function SettingsPanel({ cfg, onSaveKhusus, onSaveNames }: { cfg: SecurityConfig
         {ping && (
           <div className={ping.ok ? s.checkOk : s.checkWarn}>
             {ping.ok
-              ? `✓ Tersambung (${ping.mode === "service" ? "service key" : "akun baca-saja"}) · plant ${ping.plant} · ${f(ping.total || 0)} laporan Accept · terbaru ${ping.latest ? dateShort(ping.latest) : "-"}`
-              : `⚠ ${ping.configured ? L("Gagal", "Failed") : "Belum dikonfigurasi"}: ${ping.error || "-"}`}
+              ? L(`✓ Tersambung (${ping.mode === "service" ? "service key" : "akun baca-saja"}) · plant ${ping.plant} · ${f(ping.total || 0)} laporan Accept · terbaru ${ping.latest ? dateShort(ping.latest) : "-"}`, `✓ Connected (${ping.mode === "service" ? "service key" : "read-only account"}) · plant ${ping.plant} · ${f(ping.total || 0)} Accept reports · latest ${ping.latest ? dateShort(ping.latest) : "-"}`)
+              : `⚠ ${ping.configured ? L("Gagal", "Failed") : L("Belum dikonfigurasi", "Not configured")}: ${ping.error || "-"}`}
           </div>
         )}
         <p className={s.mute}>Cara menyambungkan: docs/PANDUAN.md, bab Security (environment variable GC_* di Vercel).</p>
       </section>
       <CrudList<KhususRow>
         icon="🏢" title={L("Perusahaan khusus", "Special companies")} itemName={L("perusahaan", "company")}
-        desc={<>Pelanggarannya dipisah di laporan (mis. Becis & JMM). Tulis nama <b>persis</b> seperti di master supplier G-C.</>}
+        desc={<>{L("Pelanggarannya dipisah di laporan (mis. Becis & JMM). Tulis nama", "Their violations are shown separately in the report (e.g. Becis & JMM). Write the name")} <b>{L("persis", "exactly")}</b> {L("seperti di master supplier G-C.", "as in the G-C supplier master.")}</>}
         rows={khusus} rowKey={(r) => r.name}
         columns={[{ label: L("Nama perusahaan", "Company name"), render: (r) => <b>{r.name}</b> }]}
         fields={[{ key: "name", label: L("Nama perusahaan", "Company name"), required: true, placeholder: L("PT. NAMA PERUSAHAAN", "PT. COMPANY NAME") }]}

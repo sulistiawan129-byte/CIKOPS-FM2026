@@ -60,12 +60,12 @@ export default function TugasTgaPage() {
             <p>{L("Khusus staf GA — tugaskan TGA langsung dari HP. HP teknisi akan berdering begitu tugas dikirim.", "For GA staff only — assign a TGA straight from your phone. The technician's phone rings as soon as the task is sent.")}</p>
           </div>
           <form className={`${s.gateCard} ${shake ? s.shake : ""}`} onSubmit={(e) => { e.preventDefault(); if (code.trim().length >= 4) enter(code); }}>
-            <label htmlFor="kode">Kode penugasan</label>
+            <label htmlFor="kode">{L("Kode penugasan", "Assignment code")}</label>
             <input id="kode" className={s.codeInput} value={code} onChange={(e) => { setCode(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()); setCodeErr(null); }}
               placeholder="••••••" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} autoFocus disabled={checking} />
             {codeErr && <div className={s.err} role="alert">{codeErr}</div>}
             <button type="submit" className={s.primary} disabled={checking || code.trim().length < 4}>{checking ? L("Memeriksa…", "Checking…") : L("Masuk →", "Enter →")}</button>
-            {DEMO_MODE && <small className={s.muted}>Demo: kode penugasan <b>DEMO2026</b></small>}
+            {DEMO_MODE && <small className={s.muted}>{L("Demo: kode penugasan", "Demo: assignment code")} <b>DEMO2026</b></small>}
             <small className={s.muted}>{L("Kode diberikan oleh admin GA. Karyawan non-GA silakan pakai", "The code is given by the GA admin. Non-GA employees please use the")} <a href="/request">{L("form permintaan", "request form")}</a>.</small>
           </form>
         </div>
@@ -110,7 +110,7 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
       });
       put(NAME_KEY, d.by.trim());
       notifyTgaTask(r.id);
-      setDone({ ref: r.ref_no, to: r.pool ? "semua TGA (siapa cepat)" : r.nama_tga });
+      setDone({ ref: r.ref_no, to: r.pool ? L("semua TGA (siapa cepat)", "all TGAs (first come)") : r.nama_tga });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e2) {
       const m = e2 instanceof Error ? e2.message : String(e2);
@@ -123,11 +123,11 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
       <div className={s.page}>
         <div className={s.done}>
           <div className={s.doneIcon}>✓</div>
-          <h1>Tugas terkirim</h1>
+          <h1>{L("Tugas terkirim", "Task sent")}</h1>
           <p className={s.ref}>{done.ref}</p>
           <p>{L("Dikirim ke", "Sent to")} <b>{done.to}</b>. {L("HP teknisi berdering — pantau statusnya di dashboard TGA.", "The technician's phone is ringing — track the status on the TGA dashboard.")}</p>
           <div className={s.doneBtns}>
-            <button type="button" className={s.primary} onClick={() => { setDone(null); setD(empty(d.by)); }}>＋ Tugaskan lagi</button>
+            <button type="button" className={s.primary} onClick={() => { setDone(null); setD(empty(d.by)); }}>{L("＋ Tugaskan lagi", "＋ Assign another")}</button>
             <button type="button" className={s.ghost} onClick={() => { setDone(null); setD((x) => ({ ...empty(x.by), userId: x.userId })); }}>{L("Teknisi yang sama", "Same technician")}</button>
           </div>
         </div>
@@ -142,7 +142,7 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
           <span className={s.brand}><Glyph /> {L("Penugasan TGA", "TGA Assignment")}</span>
           <span className={s.headBtns}>{themeBtn}<button type="button" className={s.textBtn} onClick={onLogout} title={L("Lupakan kode di perangkat ini", "Forget the code on this device")}>{L("Keluar", "Log out")}</button></span>
         </div>
-        <h1>Tugaskan teknisi</h1>
+        <h1>{L("Tugaskan teknisi", "Assign a technician")}</h1>
         <p>{info.technicians.filter((u) => !u.busy).length} available · {info.technicians.filter((u) => u.busy).length} busy · HP teknisi berdering saat tugas dikirim</p>
       </header>
 
@@ -182,7 +182,7 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
         <section className={s.sec}>
           <label className={s.label} htmlFor="act"><i>4</i> {L("Pekerjaan", "Work")} <em>*</em></label>
           {cat && <div className={s.quick}>{cat.quick.map((q) => <button key={q} type="button" onClick={() => set("activity", q)}>{q}</button>)}</div>}
-          <textarea id="act" className={s.input} rows={3} value={d.activity} onChange={(e) => set("activity", e.target.value)} placeholder="mis. AC ruang meeting lt. 2 tidak dingin" />
+          <textarea id="act" className={s.input} rows={3} value={d.activity} onChange={(e) => set("activity", e.target.value)} placeholder={L("mis. AC ruang meeting lt. 2 tidak dingin", "e.g. The AC in the 2nd-floor meeting room is not cold")} />
           <div className={s.row2}>
             <input className={s.input} value={d.lokasi} onChange={(e) => set("lokasi", e.target.value)} placeholder={L("📍 Lokasi", "📍 Location")} aria-label={L("Lokasi", "Location")} />
             <button type="button" className={`${s.urgent} ${d.urgent ? s.urgentOn : ""}`} onClick={() => set("urgent", !d.urgent)} aria-pressed={d.urgent}>
@@ -195,7 +195,7 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
           <span className={s.label}><i>5</i> Requestor <span>{L("opsional · dari Data Karyawan", "optional · from Employee Data")}</span></span>
           <div className={s.reqWrap}>
             <input className={s.input} value={d.reqName} onChange={(e) => setD((x) => ({ ...x, reqName: e.target.value, reqId: "" }))} placeholder="Ketik nama karyawan…" aria-label="Requestor" />
-            {d.reqId && <span className={s.linked}>✓ data karyawan</span>}
+            {d.reqId && <span className={s.linked}>{L("✓ data karyawan", "✓ employee data")}</span>}
             {reqMatches.length > 0 && (
               <ul className={s.sugg}>
                 {reqMatches.map((e) => (

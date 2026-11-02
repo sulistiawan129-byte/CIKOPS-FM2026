@@ -207,7 +207,7 @@ export default function GatePage() {
         vehicleId: selected.id, driverId: manual ? null : driverId, driverNameManual: manual ? driverManual.trim() : null,
         tujuan: tujuan.trim(), keterangan: ket.trim(), timestamp: ts,
       });
-      setToast({ plate: selected.nopol, text: `${selected.plant === "PRB" ? "tercatat MASUK CIK" : "tercatat KELUAR"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
+      setToast({ plate: selected.nopol, text: `${selected.plant === "PRB" ? L("tercatat MASUK CIK", "logged ENTRY to CIK") : L("tercatat KELUAR", "logged EXIT")} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
       const vid = selected.id;
       setVehicleId(""); setPlateQ(""); setDriverId(""); setManual(false); setDriverManual(""); setTujuan(""); setKet(""); setAutoDriver("");
       setTab("active");
@@ -226,7 +226,7 @@ export default function GatePage() {
     try {
       await closeGateCheckpoint(l.vehicleId);
       const n = new Date();
-      setToast({ plate: l.nopol, text: `${l.plant === "PRB" ? "tercatat KELUAR CIK" : "tercatat KEMBALI"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
+      setToast({ plate: l.nopol, text: `${l.plant === "PRB" ? L("tercatat KELUAR CIK", "logged EXIT from CIK") : L("tercatat KEMBALI", "logged RETURN")} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
       await loadLogs(true);
     } catch (e) { setError(e instanceof Error ? e.message : L("Gagal mencatat data", "Failed to record the data")); }
     finally { setBusyId(null); }
@@ -274,7 +274,7 @@ export default function GatePage() {
         {/* ── KPI ── */}
         <section className={s.kpis}>
           <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "CIK" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-cik)" }} onClick={() => kpiSet("active", "CIK")}>
-            <small>{cikOut > 0 && <span className={s.pulse} />}CIK di luar</small><b>{cikOut}</b><em>kendaraan sedang trip</em>
+            <small>{cikOut > 0 && <span className={s.pulse} />}{L("CIK di luar", "CIK outside")}</small><b>{cikOut}</b><em>{L("kendaraan sedang trip", "vehicles on a trip")}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "PRB" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-prb)" }} onClick={() => kpiSet("active", "PRB")}>
             <small>{prbIn > 0 && <span className={s.pulse} />}PRB di dalam</small><b>{prbIn}</b><em>kendaraan {plantShort("PRB")} di CIK</em>
@@ -283,7 +283,7 @@ export default function GatePage() {
             <small>{L("Selesai", "Completed")}</small><b>{done.length}</b><em>{L("trip tuntas", "trips completed")} {isToday ? L("hari ini", "today") : ""}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "all" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-brand)" }} onClick={() => kpiSet("all", "all")}>
-            <small>Total tercatat</small><b>{logs.length}</b><em>{vehicles.length} kendaraan terdaftar</em>
+            <small>{L("Total tercatat", "Total logged")}</small><b>{logs.length}</b><em>{vehicles.length} {L("kendaraan terdaftar", "registered vehicles")}</em>
           </button>
           <div className={`${s.kpi} ${s.kpiStatic}`} style={{ ["--k" as string]: "#8b6cff" }}>
             <small>{L("Rata-rata durasi", "Average duration")}</small><b>{avgDur === null ? "–" : fmtDur(avgDur)}</b><em>{L("dari trip yang selesai", "from completed trips")}</em>
@@ -292,7 +292,7 @@ export default function GatePage() {
 
         <div className={s.grid}>
           {/* ── FORM ── */}
-          <section className={`${s.card} ${s.form} ${selected ? (selected.plant === "PRB" ? s.formPrb : s.formCik) : ""}`} aria-label="Catat kendaraan">
+          <section className={`${s.card} ${s.form} ${selected ? (selected.plant === "PRB" ? s.formPrb : s.formCik) : ""}`} aria-label={L("Catat kendaraan", "Log a vehicle")}>
             <div className={s.cardHead}>
               <i>{I.car}</i>
               <div className={s.grow}><b>{L("Catat Kendaraan", "Log a Vehicle")}</b><small>{L("Pilih kendaraan, driver, lalu simpan.", "Select the vehicle, the driver, then save.")}</small></div>
@@ -307,8 +307,8 @@ export default function GatePage() {
                   value={plateQ}
                   onChange={(e) => { setPlateQ(e.target.value.toUpperCase()); setVehicleId(""); setAutoDriver(""); }}
                   onKeyDown={(e) => { if (e.key === "Enter") { const f = vList.find((v) => !busyVehicle.has(v.id)); if (f && !selected) { e.preventDefault(); pick(f); } } }}
-                  placeholder="Ketik / pilih plat nomor"
-                  aria-label="Plat nomor"
+                  placeholder={L("Ketik / pilih plat nomor", "Type / pick a plate number")}
+                  aria-label={L("Plat nomor", "Plate number")}
                   autoComplete="off"
                 />
                 {plateQ && <button type="button" className={s.plateClear} onClick={clearVehicle} aria-label={L("Hapus", "Clear")}>×</button>}
@@ -361,8 +361,8 @@ export default function GatePage() {
             </div>
 
             <div className={s.step}>
-              <div className={s.label}><span><em>4</em>Keperluan / catatan</span><span style={{ letterSpacing: 0, textTransform: "none", fontWeight: 600 }}>opsional</span></div>
-              <textarea className={s.textarea} rows={2} value={ket} onChange={(e) => setKet(e.target.value)} placeholder="Keperluan perjalanan, barang bawaan, dll." />
+              <div className={s.label}><span><em>4</em>{L("Keperluan / catatan", "Purpose / notes")}</span><span style={{ letterSpacing: 0, textTransform: "none", fontWeight: 600 }}>{L("opsional", "optional")}</span></div>
+              <textarea className={s.textarea} rows={2} value={ket} onChange={(e) => setKet(e.target.value)} placeholder={L("Keperluan perjalanan, barang bawaan, dll.", "Purpose of the trip, cargo, etc.")} />
             </div>
 
             <div className={s.step} style={{ marginBottom: 20 }}>
@@ -380,7 +380,7 @@ export default function GatePage() {
             {/* ── GRAFIK PER JAM ── */}
             <section className={`${s.card} ${s.chart}`}>
               <div className={s.chartHead}>
-                <div><b>Pergerakan per jam</b> <small>· {tglObj?.toLocaleDateString(loc(), { day: "numeric", month: "long" })}</small></div>
+                <div><b>{L("Pergerakan per jam", "Movements per hour")}</b> <small>· {tglObj?.toLocaleDateString(loc(), { day: "numeric", month: "long" })}</small></div>
                 <div className={s.legend}><span><i style={{ background: "var(--g-cik)" }} />{L("Keluar", "Out")}</span><span><i style={{ background: "var(--g-green)" }} />{L("Masuk / kembali", "In / returned")}</span></div>
               </div>
               <div className={s.bars}>
@@ -404,7 +404,7 @@ export default function GatePage() {
             {/* ── DAFTAR AKTIVITAS ── */}
             <section className={`${s.card} ${s.list}`}>
               <div className={s.listHead}>
-                <div><b>Aktivitas Gate</b><small>Diperbarui otomatis tiap 15 detik</small></div>
+                <div><b>{L("Aktivitas Gate", "Gate Activity")}</b><small>{L("Diperbarui otomatis tiap 15 detik", "Updated automatically every 15 seconds")}</small></div>
                 <span className={s.grow} />
                 <label className={s.search}>
                   {I.search}

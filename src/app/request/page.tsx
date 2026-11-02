@@ -171,7 +171,7 @@ export default function RequestPage() {
             { label: L("Lokasi", "Location"), value: tgaLokasi.trim() },
             { label: L("Masalah / Permintaan", "Issue / Request"), value: description.trim() },
             { label: "Prioritas", value: tgaUrgent ? "URGENT" : "Normal" },
-            { label: "Status", value: "Diteruskan ke teknisi GA (TGA)" },
+            { label: "Status", value: L("Diteruskan ke teknisi GA (TGA)", "Forwarded to the GA technician (TGA)") },
           ],
         });
       } else {
@@ -222,7 +222,7 @@ export default function RequestPage() {
 
             {/* ── Judul dokumen ── */}
             <div style={{ padding: "18px 28px 14px", textAlign: "center", background: "#f6f9ff" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#0d1a36", letterSpacing: "0.04em" }}>BUKTI PERMINTAAN</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#0d1a36", letterSpacing: "0.04em" }}>{L("BUKTI PERMINTAAN", "REQUEST RECEIPT")}</div>
               <div style={{ fontSize: 11.5, color: "#7886a8", fontFamily: "monospace", marginTop: 3 }}>No. {refNo}</div>
             </div>
 
@@ -251,7 +251,7 @@ export default function RequestPage() {
 
               {/* ── Detail permintaan ── */}
               <div style={{ fontSize: 11, fontWeight: 800, color: "#7886a8", letterSpacing: "0.06em", marginBottom: 8, borderTop: "1px solid #eef3fc", paddingTop: 14 }}>
-                DETAIL PERMINTAAN
+                {L("DETAIL PERMINTAAN", "REQUEST DETAILS")}
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 18 }}>
                 <tbody>
@@ -265,7 +265,7 @@ export default function RequestPage() {
               </table>
 
               <div style={{ textAlign: "center", padding: "10px 0", background: "#fdf1d6", borderRadius: 8, fontSize: 12, fontWeight: 700, color: "#a35f00", letterSpacing: "0.03em", marginBottom: 22 }}>
-                STATUS: MENUNGGU DIPROSES
+                {L("STATUS: MENUNGGU DIPROSES", "STATUS: WAITING TO BE PROCESSED")}
               </div>
 
               {/* ── Blok administrator / penanggung jawab ── */}
@@ -285,7 +285,7 @@ export default function RequestPage() {
 
           <div className="no-print" style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button onClick={resetAll} style={{ flex: 1, padding: 14, borderRadius: 14, border: "1.5px solid #cfd9ee", background: "#fff", color: "#44537a", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-              Kirim Permintaan Lain
+              {L("Kirim Permintaan Lain", "Send Another Request")}
             </button>
             <button onClick={() => window.print()} style={{ flex: 1, padding: 14, borderRadius: 14, border: "none", background: "linear-gradient(135deg,#2d5bff,#1d44d6)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
               🖨️ Cetak Bukti
@@ -324,7 +324,7 @@ export default function RequestPage() {
 
         {/* Jenis Permintaan */}
         <div style={{ marginBottom: 18 }}>
-          <label style={labelStyle}>JENIS PERMINTAAN *</label>
+          <label style={labelStyle}>{L("JENIS PERMINTAAN *", "REQUEST TYPE *")}</label>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {([
               ["DRIVER", "🚗", L("Request Driver / Kendaraan", "Driver / Vehicle Request")],
@@ -351,12 +351,12 @@ export default function RequestPage() {
 
         {/* Data umum */}
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>NAMA LENGKAP *</label>
+          <label style={labelStyle}>{L("NAMA LENGKAP *", "FULL NAME *")}</label>
           <input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder={L("Nama Anda", "Your name")} style={inputStyle} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
           <div>
-            <label style={labelStyle}>DEPARTEMEN</label>
+            <label style={labelStyle}>{L("DEPARTEMEN", "DEPARTMENT")}</label>
             <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Contoh: Finance" style={inputStyle} />
           </div>
           <div>
@@ -371,19 +371,19 @@ export default function RequestPage() {
         {kind === "DRIVER" && (
           <>
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>TANGGAL PENGAJUAN</label>
+              <label style={labelStyle}>{L("TANGGAL PENGAJUAN", "SUBMISSION DATE")}</label>
               <div style={{ ...inputStyle, color: "#7886a8", background: "#eef1f7" }}>{todayLabel()} (Otomatis)</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>TANGGAL EVENT / ACARA *</label>
+              <label style={labelStyle}>{L("TANGGAL EVENT / ACARA *", "EVENT DATE *")}</label>
               <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={inputStyle} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>TUJUAN *</label>
+              <label style={labelStyle}>{L("TUJUAN *", "DESTINATION *")}</label>
               <input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Contoh: Kantor PRB" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>JAM BERANGKAT *</label>
+              <label style={labelStyle}>{L("JAM BERANGKAT *", "DEPARTURE TIME *")}</label>
               <input type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} style={inputStyle} />
             </div>
             <div style={{ marginBottom: 14 }}>
@@ -391,7 +391,7 @@ export default function RequestPage() {
               <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder={L("Contoh: Meeting dengan vendor", "Example: Meeting with a vendor")} style={inputStyle} />
             </div>
             <div style={{ marginBottom: 22 }}>
-              <label style={labelStyle}>CATATAN TAMBAHAN</label>
+              <label style={labelStyle}>{L("CATATAN TAMBAHAN", "ADDITIONAL NOTES")}</label>
               <textarea value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)} rows={2} placeholder="Opsional..." style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
             </div>
           </>
@@ -400,11 +400,11 @@ export default function RequestPage() {
         {kind === "PRINTER" && (
           <>
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>TANGGAL PENGAJUAN</label>
+              <label style={labelStyle}>{L("TANGGAL PENGAJUAN", "SUBMISSION DATE")}</label>
               <div style={{ ...inputStyle, color: "#7886a8", background: "#eef1f7" }}>{todayLabel()} (Otomatis)</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>PILIHAN *</label>
+              <label style={labelStyle}>{L("PILIHAN *", "CHOICE *")}</label>
               <div style={{ display: "flex", gap: 8 }}>
                 {(["RESET_KUOTA", "TAMBAH_KUOTA"] as const).map((act) => (
                   <button
@@ -441,12 +441,12 @@ export default function RequestPage() {
             ) : (
               <>
                 <div style={{ marginBottom: 14 }}>
-                  <label style={labelStyle}>USER ID PRINT *</label>
-                  <input value={printUserId} onChange={(e) => setPrintUserId(e.target.value)} placeholder="Contoh: budi.santoso" style={inputStyle} />
+                  <label style={labelStyle}>{L("USER ID PRINT *", "PRINT USER ID *")}</label>
+                  <input value={printUserId} onChange={(e) => setPrintUserId(e.target.value)} placeholder={L("Contoh: budi.santoso", "Example: budi.santoso")} style={inputStyle} />
                 </div>
                 <div style={{ marginBottom: 22 }}>
-                  <label style={labelStyle}>ALASAN / KEPERLUAN *</label>
-                  <textarea value={printReason} onChange={(e) => setPrintReason(e.target.value)} rows={2} placeholder="Contoh: Kuota habis, butuh cetak laporan bulanan" style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
+                  <label style={labelStyle}>{L("ALASAN / KEPERLUAN *", "REASON / PURPOSE *")}</label>
+                  <textarea value={printReason} onChange={(e) => setPrintReason(e.target.value)} rows={2} placeholder={L("Contoh: Kuota habis, butuh cetak laporan bulanan", "Example: Quota used up, need to print the monthly report")} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
                 </div>
               </>
             )}
@@ -455,7 +455,7 @@ export default function RequestPage() {
 
         {kind === "TGA" && (
           <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>JENIS PEKERJAAN</label>
+            <label style={labelStyle}>{L("JENIS PEKERJAAN", "JOB TYPE")}</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               {TGA_CATEGORIES.map((c) => (
                 <button key={c.id} type="button" onClick={() => setTgaKategori(tgaKategori === c.id ? "" : c.id)}
@@ -465,14 +465,14 @@ export default function RequestPage() {
                 </button>
               ))}
             </div>
-            <label style={labelStyle}>LOKASI *</label>
+            <label style={labelStyle}>{L("LOKASI *", "LOCATION *")}</label>
             <input value={tgaLokasi} onChange={(e) => setTgaLokasi(e.target.value)} placeholder="Contoh: Ruang meeting lt. 2, Gedung A" style={{ ...inputStyle, marginBottom: 14 }} />
-            <label style={labelStyle}>MASALAH / YANG PERLU DIKERJAKAN *</label>
+            <label style={labelStyle}>{L("MASALAH / YANG PERLU DIKERJAKAN *", "ISSUE / WORK NEEDED *")}</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder={L("Contoh: AC tidak dingin dan menetes air", "Example: The AC is not cold and is dripping water")} style={{ ...inputStyle, resize: "vertical", marginBottom: 12 }} />
             <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, cursor: "pointer",
               border: tgaUrgent ? "2px solid #e5484d" : "1.5px solid #e1e8f5", background: tgaUrgent ? "#fff1f2" : "#fff" }}>
               <input type="checkbox" checked={tgaUrgent} onChange={(e) => setTgaUrgent(e.target.checked)} style={{ width: 18, height: 18 }} />
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: tgaUrgent ? "#c42b31" : "#0d1a36" }}>🔥 Mendesak (mengganggu pekerjaan / keselamatan)</span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: tgaUrgent ? "#c42b31" : "#0d1a36" }}>{L("🔥 Mendesak (mengganggu pekerjaan / keselamatan)", "🔥 Urgent (disrupting work / safety)")}</span>
             </label>
             <div style={{ fontSize: 12, color: "#7886a8", marginTop: 10, lineHeight: 1.5 }}>{L("Permintaan langsung masuk ke aplikasi teknisi GA. Isi No. HP supaya teknisi bisa menghubungi Anda.", "The request goes straight to the GA technician app. Enter your phone number so the technician can contact you.")}</div>
           </div>
@@ -480,7 +480,7 @@ export default function RequestPage() {
 
         {kind === "OTHER" && (
           <div style={{ marginBottom: 22 }}>
-            <label style={labelStyle}>DETAIL PERMINTAAN *</label>
+            <label style={labelStyle}>{L("DETAIL PERMINTAAN *", "REQUEST DETAILS *")}</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Jelaskan kebutuhan Anda..." style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
           </div>
         )}
@@ -496,7 +496,7 @@ export default function RequestPage() {
             boxShadow: canSubmit ? "0 10px 24px rgba(47,95,224,0.3)" : "none",
           }}
         >
-          {submitting ? "MENGIRIM..." : "KIRIM PERMINTAAN"}
+          {submitting ? L("MENGIRIM...", "SENDING...") : L("KIRIM PERMINTAAN", "SEND REQUEST")}
         </button>
       </div>
     </div>
