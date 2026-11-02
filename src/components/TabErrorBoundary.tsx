@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 
+import { L } from "@/lib/i18n";
 interface Props {
   children: React.ReactNode;
   label?: string;
@@ -34,13 +35,13 @@ export class TabErrorBoundary extends React.Component<Props, State> {
             Terjadi kesalahan di tab {this.props.label ?? "ini"}
           </div>
           <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 20, maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}>
-            {this.state.message || "Terjadi error tak terduga. Coba muat ulang halaman, atau hubungi tim IT kalau masalah berlanjut."}
+            {this.state.message || L("Terjadi error tak terduga. Coba muat ulang halaman, atau hubungi tim IT kalau masalah berlanjut.", "An unexpected error occurred. Try reloading the page, or contact the IT team if the problem continues.")}
           </div>
           <button
             onClick={() => this.setState({ hasError: false, message: "" })}
             style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 700, cursor: "pointer" }}
           >
-            Coba Lagi
+            {L("Coba Lagi", "Try Again")}
           </button>
         </div>
       );

@@ -158,7 +158,7 @@ export default function LockerPublicPage() {
       setResultPeriode(res.periode);
       goTo("result");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Terjadi kesalahan.");
+      alert(e instanceof Error ? e.message : L("Terjadi kesalahan.", "An error occurred."));
     } finally {
       setLoading(null);
     }
@@ -195,7 +195,7 @@ export default function LockerPublicPage() {
       setResultPeriode(res.periode);
       goTo("result");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Terjadi kesalahan.");
+      alert(e instanceof Error ? e.message : L("Terjadi kesalahan.", "An error occurred."));
     } finally {
       setLoading(null);
     }
@@ -237,7 +237,7 @@ export default function LockerPublicPage() {
       if (lastLocker?.number === res.lockerNumber) forgetLocker();
       goTo("end-result");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Terjadi kesalahan.");
+      alert(e instanceof Error ? e.message : L("Terjadi kesalahan.", "An error occurred."));
     } finally {
       setLoading(null);
     }

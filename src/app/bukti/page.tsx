@@ -8,6 +8,7 @@ import { getReceipt } from "@/lib/receptionist/api";
 import type { ReceiptData } from "@/lib/receptionist/model";
 import { ProofCard } from "../dashboard/receptionist/ProofCard";
 
+import { L } from "@/lib/i18n";
 export default function BuktiPage() {
   const [token, setToken] = useState("");
   const [data, setData] = useState<ReceiptData | null>(null);
@@ -34,17 +35,17 @@ export default function BuktiPage() {
         .buktiNote { font-size: 12px; color: #5b6b8c; text-align: center; max-width: 420px; }
         @media print { .buktiPage { background: #fff !important; padding: 0; } .buktiBar, .buktiNote { display: none !important; } }
       `}</style>
-      {state === "loading" && <div className="buktiMsg"><p>Memuat bukti…</p></div>}
-      {state === "missing" && <div className="buktiMsg"><h1>Bukti tidak ditemukan</h1><p>Tautan tidak valid atau sudah dihapus. Hubungi resepsionis untuk mendapatkan bukti yang baru.</p></div>}
-      {state === "error" && <div className="buktiMsg"><h1>Gagal memuat</h1><p>Periksa koneksi lalu muat ulang halaman ini.</p></div>}
+      {state === "loading" && <div className="buktiMsg"><p>{L("Memuat bukti…", "Loading receipt…")}</p></div>}
+      {state === "missing" && <div className="buktiMsg"><h1>{L("Bukti tidak ditemukan", "Receipt not found")}</h1><p>{L("Tautan tidak valid atau sudah dihapus. Hubungi resepsionis untuk mendapatkan bukti yang baru.", "The link is invalid or has been removed. Contact the receptionist for a new receipt.")}</p></div>}
+      {state === "error" && <div className="buktiMsg"><h1>{L("Gagal memuat", "Failed to load")}</h1><p>{L("Periksa koneksi lalu muat ulang halaman ini.", "Check your connection and reload this page.")}</p></div>}
       {state === "ok" && data && (
         <>
           <div style={{ width: "100%", ["--hole" as string]: "#eef2f9" }}><ProofCard data={data} token={token} /></div>
           <div className="buktiBar">
-            <button type="button" className="buktiPrimary" onClick={() => window.print()}>🖨 Cetak / simpan PDF</button>
-            <button type="button" className="buktiGhost" onClick={() => navigator.clipboard?.writeText(window.location.href)}>🔗 Salin tautan</button>
+            <button type="button" className="buktiPrimary" onClick={() => window.print()}>{L("🖨 Cetak / simpan PDF", "🖨 Print / save as PDF")}</button>
+            <button type="button" className="buktiGhost" onClick={() => navigator.clipboard?.writeText(window.location.href)}>{L("🔗 Salin tautan", "🔗 Copy link")}</button>
           </div>
-          <p className="buktiNote">Simpan tautan ini. Data sensitif (password wifi) otomatis disembunyikan setelah masa akses berakhir.</p>
+          <p className="buktiNote">{L("Simpan tautan ini. Data sensitif (password wifi) otomatis disembunyikan setelah masa akses berakhir.", "Keep this link. Sensitive data (wifi password) is hidden automatically once the access period ends.")}</p>
         </>
       )}
     </main>

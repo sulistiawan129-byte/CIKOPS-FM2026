@@ -5,6 +5,7 @@ import { AppProviders } from "@/lib/providers";
 import { AuthProvider } from "@/lib/auth";
 import GlobalBack from "@/components/GlobalBack";
 import DemoRibbon from "@/components/DemoRibbon";
+import LangSwitch from "@/components/LangSwitch";
 
 const spaceMono = Space_Mono({
   subsets: ["latin"],
@@ -88,6 +89,7 @@ export default function RootLayout({
           <AuthProvider>
             <GlobalBack />
             <DemoRibbon />
+            <LangSwitch />
             {children}
           </AuthProvider>
         </AppProviders>
