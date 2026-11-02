@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient";
 
 /** Update yang ditolak RLS tidak memberi error — 0 baris berubah. Jangan tampilkan "tersimpan". */
 function noChangeError(): Error {
-  return new Error("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.");
+  return new Error(L("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.", "Changes were not saved: the data was not found or this account lacks permission to change it."));
 }
 
 /** Batas hari kalender WIB untuk filter kolom timestamp (created_at disimpan dalam UTC). */
@@ -267,7 +267,7 @@ export async function sendDriverCredentials(
   if (error) {
     return { ok: false, error: error.message || L("Gagal memanggil fungsi email.", "Failed to call the email function.") };
   }
-  return (data ?? { ok: false, error: "Respons kosong dari server." }) as {
+  return (data ?? { ok: false, error: L("Respons kosong dari server.", "Empty response from the server.") }) as {
     ok: boolean;
     error?: string;
     tempPassword?: string;
@@ -279,11 +279,11 @@ export async function sendDriverCredentials(
  *  admin) dicek dulu dengan login ulang, lalu tanda "wajib ganti password" dihapus. */
 export async function changeMyPassword(email: string, current: string, next: string): Promise<void> {
   const { error: authErr } = await supabase.auth.signInWithPassword({ email, password: current });
-  if (authErr) throw new Error(/invalid|credentials/i.test(authErr.message) ? "Password saat ini salah." : authErr.message);
+  if (authErr) throw new Error(/invalid|credentials/i.test(authErr.message) ? L("Password saat ini salah.", "The current password is wrong.") : authErr.message);
   const { error } = await supabase.auth.updateUser({ password: next, data: { must_change_password: false } });
   if (error) {
-    if (/same|different from the old/i.test(error.message)) throw new Error("Password baru harus berbeda dari password lama.");
-    if (/weak|least|characters/i.test(error.message)) throw new Error("Password terlalu lemah — pakai minimal 8 karakter dengan huruf dan angka.");
+    if (/same|different from the old/i.test(error.message)) throw new Error(L("Password baru harus berbeda dari password lama.", "The new password must be different from the old one."));
+    if (/weak|least|characters/i.test(error.message)) throw new Error(L("Password terlalu lemah — pakai minimal 8 karakter dengan huruf dan angka.", "Password is too weak — use at least 8 characters with letters and numbers."));
     throw new Error(error.message);
   }
 }
@@ -613,7 +613,7 @@ export async function updateTaskStatus(
   // Hanya dua transisi yang valid didorong dari sisi admin:
   // ASSIGNED -> ON GOING, dan ON GOING -> DONE.
   if (status !== "ON GOING" && status !== "DONE") {
-    throw new Error(`Transisi status tidak didukung dari dashboard: ${status}`);
+    throw new Error(L(`Transisi status tidak didukung dari dashboard: ${status}`, `This status transition is not supported from the dashboard: ${status}`));
   }
   const { error } = await supabase.rpc("admin_update_task_status", {
     p_task_id: taskId,
@@ -711,7 +711,7 @@ export async function deleteVehicle(id: string): Promise<void> {
   if (error) throw error;
   if (!data || data.length === 0) {
     throw new Error(
-      "Penghapusan tidak diizinkan — akun Anda mungkin tidak memiliki hak akses admin untuk menghapus kendaraan."
+      L("Penghapusan tidak diizinkan — akun Anda mungkin tidak memiliki hak akses admin untuk menghapus kendaraan.", "Deletion is not allowed — your account may not have admin rights to delete vehicles.")
     );
   }
 }
@@ -850,7 +850,7 @@ export async function updateClaim(id: string, input: AddClaimInput): Promise<voi
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) {
-    throw new Error("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/01_dasar.sql (bagian 019) di Supabase SQL Editor.");
+    throw new Error(L("Perubahan klaim belum bisa disimpan: izin edit belum aktif di database. Jalankan supabase/01_dasar.sql (bagian 019) di Supabase SQL Editor.", "Claim changes cannot be saved yet: edit permission is not active in the database. Run supabase/01_dasar.sql (section 019) in the Supabase SQL Editor."));
   }
 }
 
@@ -1296,7 +1296,7 @@ export async function submitPrinterRequestPublic(input: SubmitPrinterRequestPubl
 
   if (input.requestType === "RESET_KUOTA") {
     const areas = (input.locations ?? []).filter((a) => a.trim() !== "");
-    if (areas.length === 0) throw new Error("Pilih minimal 1 area.");
+    if (areas.length === 0) throw new Error(L("Pilih minimal 1 area.", "Select at least 1 area."));
     const firstId = crypto.randomUUID();
     const rows = areas.map((area, i) => ({
       id: i === 0 ? firstId : crypto.randomUUID(),
@@ -1504,7 +1504,7 @@ export async function getAtkRestocks(params?: { dateFrom?: string; dateTo?: stri
 /** Pesan error RPC yang ramah (termasuk bila migrasi 026 belum dijalankan). */
 function atkRpcError(error: { code?: string; message?: string }): Error {
   if (error.code === "PGRST202" || /Could not find the function/i.test(error.message ?? "")) {
-    return new Error("Fitur input ATK belum aktif — jalankan supabase/01_dasar.sql (bagian 026) di Supabase.");
+    return new Error(L("Fitur input ATK belum aktif — jalankan supabase/01_dasar.sql (bagian 026) di Supabase.", "The ATK input feature is not active yet — run supabase/01_dasar.sql (section 026) in Supabase."));
   }
   return new Error(error.message ?? String(error));
 }
@@ -1617,7 +1617,7 @@ export async function updateAgendaEvent(id: string, input: Partial<AgendaEventIn
     ({ data, error } = await supabase.from("agenda_events").update(agendaRow(input, false)).eq("id", id).select("id"));
   }
   if (error) throw error;
-  if (!data || data.length === 0) throw new Error("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/01_dasar.sql (bagian 025)).");
+  if (!data || data.length === 0) throw new Error(L("Agenda tidak dapat diubah (tidak ditemukan atau belum ada izin UPDATE — jalankan supabase/01_dasar.sql (bagian 025)).", "The agenda item cannot be changed (not found or no UPDATE permission yet — run supabase/01_dasar.sql (section 025))."));
 }
 export async function deleteAgendaEvent(id: string): Promise<void> {
   const { error } = await supabase.from("agenda_events").delete().eq("id", id);
@@ -2174,7 +2174,7 @@ export interface StaffAccount {
 async function staffFn<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("manage-staff-account", { body });
   if (error) throw new Error(/not found|404|Failed to send/i.test(error.message)
-    ? "Edge Function manage-staff-account belum di-deploy (lihat docs/PANDUAN.md, bab Role)."
+    ? L("Edge Function manage-staff-account belum di-deploy (lihat docs/PANDUAN.md, bab Role).", "The manage-staff-account Edge Function is not deployed yet (see docs/PANDUAN.md, Roles chapter).")
     : error.message);
   if (!data?.ok) throw new Error(data?.error || L("Gagal memproses akun.", "Failed to process the account."));
   return data as T;
@@ -2252,8 +2252,8 @@ export interface DriverInput {
   assigned_user_title?: string | null;
 }
 
-const MIGRATION_014_MSG = "Kolom tipe driver belum ada di database — jalankan supabase/01_dasar.sql (bagian 014) di Supabase SQL Editor dulu.";
-const MIGRATION_030_MSG = "Tipe Driver Support belum diizinkan database — jalankan supabase/01_dasar.sql (bagian 030) di Supabase SQL Editor dulu.";
+const MIGRATION_014_MSG = () => L("Kolom tipe driver belum ada di database — jalankan supabase/01_dasar.sql (bagian 014) di Supabase SQL Editor dulu.", "The driver type column does not exist in the database yet — run supabase/01_dasar.sql (section 014) in the Supabase SQL Editor first.");
+const MIGRATION_030_MSG = () => L("Tipe Driver Support belum diizinkan database — jalankan supabase/01_dasar.sql (bagian 030) di Supabase SQL Editor dulu.", "The Driver Support type is not allowed by the database yet — run supabase/01_dasar.sql (section 030) in the Supabase SQL Editor first.");
 /** Constraint lama (014) menolak 'support'. */
 function isDriverTypeCheckViolation(error: { message?: string; code?: string } | null): boolean {
   return !!error && (error.code === "23514" || /drivers_driver_type_check/i.test(error.message || ""));
@@ -2261,8 +2261,8 @@ function isDriverTypeCheckViolation(error: { message?: string; code?: string } |
 
 export async function addDriver(input: DriverInput, initialPin?: string): Promise<Driver> {
   const { data, error } = await supabase.from("drivers").insert(input).select().single();
-  if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG);
-  if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
+  if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG());
+  if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG());
   if (error) throw error;
   if (initialPin) {
     await supabase.rpc("admin_set_driver_pin", { p_driver_id: data.id, p_new_pin: initialPin });
@@ -2273,8 +2273,8 @@ export async function addDriver(input: DriverInput, initialPin?: string): Promis
 export async function updateDriver(id: string, input: DriverInput): Promise<void> {
   const { data: updated, error } = await supabase.from("drivers").update(input).eq("id", id).select("id");
   if (!error && !updated?.length) throw noChangeError();
-  if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG);
-  if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG);
+  if (isDriverTypeCheckViolation(error)) throw new Error(MIGRATION_030_MSG());
+  if (isMissingDriverTypeColumn(error)) throw new Error(MIGRATION_014_MSG());
   if (error) throw error;
 }
 
@@ -2311,7 +2311,7 @@ export async function deleteDriver(id: string): Promise<void> {
   if (error) throw error;
   if (!data || data.length === 0) {
     throw new Error(
-      "Penghapusan tidak diizinkan — akun Anda mungkin tidak memiliki hak akses admin untuk menghapus driver."
+      L("Penghapusan tidak diizinkan — akun Anda mungkin tidak memiliki hak akses admin untuk menghapus driver.", "Deletion is not allowed — your account may not have admin rights to delete drivers.")
     );
   }
 }
@@ -2759,7 +2759,7 @@ export async function findGiftRegistrationsBySequenceNo(eventId: string, no: str
 export async function claimGift(registrationId: string, claimedBy: string): Promise<void> {
   const { data, error } = await supabase.rpc("claim_gift_registration", { p_id: registrationId, p_claimed_by: claimedBy });
   if (error) throw error;
-  if (!data) throw new Error("Sudah diklaim sebelumnya oleh pihak lain.");
+  if (!data) throw new Error(L("Sudah diklaim sebelumnya oleh pihak lain.", "Already claimed by someone else."));
 }
 
 /** Batalkan status "sudah diambil" — jaga-jaga kalau petugas salah
