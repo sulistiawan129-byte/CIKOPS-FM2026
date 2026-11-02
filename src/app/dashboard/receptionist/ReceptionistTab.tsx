@@ -13,8 +13,7 @@ import type { MyProfile } from "@/lib/api";
 import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
 import {
   DEFAULT_SETTINGS, addDays, addMonths, fmtDate, fmtDateTime, grantActive, monthLabel, toMin, todayISO, usageByDeptMonth,
-  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant,
-} from "@/lib/receptionist/model";
+  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant, itemTypeLabel } from "@/lib/receptionist/model";
 import RcpWifi from "./RcpWifi";
 import RcpParcels from "./RcpParcels";
 import RcpRoom from "./RcpRoom";
@@ -65,7 +64,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
 
   const waiting = parcels.filter((p) => p.status === "waiting").length;
   const reloadEmployees = useCallback(async () => { setEmployees(await getRcpEmployees()); }, []);
-  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", "Pengaturan"]];
+  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", L("Pengaturan", "Settings")]];
 
   return (
     <div className={r.wrap}>
@@ -122,35 +121,35 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
     <>
       <div className={r.kpis}>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: pctFree < 15 ? "var(--red)" : pctFree < 35 ? "var(--orange)" : "var(--green)" }} onClick={() => go("wifi")}>
-          <small>Slot wifi tersedia</small>
+          <small>{L("Slot wifi tersedia", "Wifi slots available")}</small>
           <b>{freeSlots} <em>{L("dari", "of")} {totalSlots}</em></b>
           <span className={r.meter}><i style={{ width: `${pctFree}%` }} /></span>
           <span>{activeGuests.length} {L("tamu aktif", "active guests")} · {usable.length} {L("akun berlaku", "valid accounts")}</span>
         </button>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: expiring.length ? "var(--orange)" : "var(--green)" }} onClick={() => go("wifi")}>
           <small>{L("Akun habis ≤ 7 hari", "Accounts expiring ≤ 7 days")}</small><b>{expiring.length}</b>
-          <span>{expiring[0] ? `terdekat ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}` : "tidak ada"}</span>
+          <span>{expiring[0] ? L(`terdekat ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}`, `nearest ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}`) : L("tidak ada", "none")}</span>
         </button>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: waiting.some((p) => ageDays(p) >= 2) ? "var(--orange)" : "var(--brand)" }} onClick={() => go("parcels")}>
           <small>{L("Barang menunggu", "Items waiting")}</small><b>{waiting.length}</b>
-          <span>{waitIn} masuk · {waiting.length - waitIn} keluar{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} > 2 hari` : ""}</span>
+          <span>{waitIn} {L("masuk", "incoming")} · {waiting.length - waitIn} {L("keluar", "outgoing")}{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} ${L("> 2 hari", "> 2 days")}` : ""}</span>
         </button>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: "var(--green)" }} onClick={() => go("room")}>
           <small>{L("Booking", "Bookings for")} {settings.roomName} {L("hari ini", "today")}</small><b>{today.length}</b>
-          <span>{nextBk ? `berikutnya ${nextBk.start} · ${nextBk.title}` : today.length ? "semua sudah selesai" : "ruangan kosong"}</span>
+          <span>{nextBk ? L(`berikutnya ${nextBk.start} · ${nextBk.title}`, `next ${nextBk.start} · ${nextBk.title}`) : today.length ? L("semua sudah selesai", "all finished") : L("ruangan kosong", "room is free")}</span>
         </button>
       </div>
 
       <div className={r.grid3}>
         <section className={r.card}>
-          <div className={r.cardHead}><h2>Barang menunggu diambil</h2><button type="button" className={r.link} onClick={() => go("parcels")}>{L("Kelola →", "Manage →")}</button></div>
+          <div className={r.cardHead}><h2>{L("Barang menunggu diambil", "Items waiting to be collected")}</h2><button type="button" className={r.link} onClick={() => go("parcels")}>{L("Kelola →", "Manage →")}</button></div>
           {waiting.length === 0 ? <p className={r.empty}>{L("Tidak ada barang yang menunggu.", "No items waiting.")}</p> : (
             <div className={r.list}>
               {waiting.slice(0, 6).map((p) => (
                 <div key={p.id} className={r.item}>
                   <div><b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
-                    <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{p.itemType}</span><span>{fmtDateTime(p.createdAt)}</span></div></div>
-                  {ageDays(p) >= 2 ? <span className={`${r.pill} ${r.pOrange}`}>{ageDays(p)} hari</span> : <span className={`${r.pill} ${r.pBlue}`}>baru</span>}
+                    <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}</span><span>{fmtDateTime(p.createdAt)}</span></div></div>
+                  {ageDays(p) >= 2 ? <span className={`${r.pill} ${r.pOrange}`}>{ageDays(p)} {L("hari", "days")}</span> : <span className={`${r.pill} ${r.pBlue}`}>{L("baru", "new")}</span>}
                 </div>
               ))}
               {waiting.length > 6 && <span className={r.mute}>+{waiting.length - 6} lainnya</span>}

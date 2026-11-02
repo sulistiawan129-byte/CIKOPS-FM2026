@@ -417,7 +417,7 @@ export default function CanteenTab() {
       <section className={c.card}>
         <div className={c.cardHead}>
           <h2>{L("Laporan harian", "Daily reports")}</h2>
-          <span className={c.hint}>{filteredRows.length} laporan</span>
+          <span className={c.hint}>{filteredRows.length} {L("laporan", "reports")}</span>
         </div>
         {filteredRows.length === 0 ? (
           <div className={c.empty}>{t.actionNoDataYet}</div>

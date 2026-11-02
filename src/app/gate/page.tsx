@@ -277,7 +277,7 @@ export default function GatePage() {
             <small>{cikOut > 0 && <span className={s.pulse} />}{L("CIK di luar", "CIK outside")}</small><b>{cikOut}</b><em>{L("kendaraan sedang trip", "vehicles on a trip")}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "PRB" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-prb)" }} onClick={() => kpiSet("active", "PRB")}>
-            <small>{prbIn > 0 && <span className={s.pulse} />}PRB di dalam</small><b>{prbIn}</b><em>kendaraan {plantShort("PRB")} di CIK</em>
+            <small>{prbIn > 0 && <span className={s.pulse} />}{L("PRB di dalam", "PRB inside")}</small><b>{prbIn}</b><em>{L("kendaraan", "vehicles from")} {plantShort("PRB")} {L("di CIK", "at CIK")}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "done" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-green)" }} onClick={() => kpiSet("done", "all")}>
             <small>{L("Selesai", "Completed")}</small><b>{done.length}</b><em>{L("trip tuntas", "trips completed")} {isToday ? L("hari ini", "today") : ""}</em>

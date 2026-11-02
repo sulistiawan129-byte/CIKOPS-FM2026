@@ -221,8 +221,8 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
             <button type="button" className={s.navBtn} aria-label={L("Bulan berikutnya", "Next month")} onClick={() => changeMonth(addMonthsKey(monthKey, 1))}>›</button>
           </div>
           <div className={s.chipBox}>
-            <span>Jadwal</span>
-            <b>Input {deadline.input} · kirim ke manajemen {deadline.report}</b>
+            <span>{L("Jadwal", "Schedule")}</span>
+            <b>Input {deadline.input} · {L("kirim ke manajemen", "send to management")} {deadline.report}</b>
           </div>
           <div className={`${s.chipBox} ${doneCount === 6 ? s.chipOk : s.chipWarn}`}>
             <span>Kelengkapan</span>

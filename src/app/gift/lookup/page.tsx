@@ -253,7 +253,7 @@ export default function GiftLookupPage() {
                 fontWeight: 800, fontSize: 15, cursor: petugasInput.trim() ? "pointer" : "default",
               }}
             >
-              Mulai
+              {L("Mulai", "Start")}
             </button>
           </div>
         </div>

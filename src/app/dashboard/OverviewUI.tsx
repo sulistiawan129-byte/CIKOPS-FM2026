@@ -50,20 +50,20 @@ function ranges(period: Period, now: Date) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   if (period === "today") {
     const y = new Date(today); y.setDate(y.getDate() - 1);
-    return { from: iso(today), to: iso(today), pFrom: iso(y), pTo: iso(y), label: "kemarin" };
+    return { from: iso(today), to: iso(today), pFrom: iso(y), pTo: iso(y), get label() { return L("kemarin", "yesterday"); } };
   }
   if (period === "week") {
     const dow = (today.getDay() + 6) % 7;
     const mon = new Date(today); mon.setDate(today.getDate() - dow);
     const pMon = new Date(mon); pMon.setDate(mon.getDate() - 7);
     const pTo = new Date(today); pTo.setDate(today.getDate() - 7);
-    return { from: iso(mon), to: iso(today), pFrom: iso(pMon), pTo: iso(pTo), label: "minggu lalu" };
+    return { from: iso(mon), to: iso(today), pFrom: iso(pMon), pTo: iso(pTo), get label() { return L("minggu lalu", "last week"); } };
   }
   const first = new Date(today.getFullYear(), today.getMonth(), 1);
   const pFirst = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const pLast = new Date(today.getFullYear(), today.getMonth(), 0);
   const pTo = new Date(pFirst.getFullYear(), pFirst.getMonth(), Math.min(today.getDate(), pLast.getDate()));
-  return { from: iso(first), to: iso(today), pFrom: iso(pFirst), pTo: iso(pTo), label: "bulan lalu" };
+  return { from: iso(first), to: iso(today), pFrom: iso(pFirst), pTo: iso(pTo), get label() { return L("bulan lalu", "last month"); } };
 }
 
 function paths(vals: number[]) {
@@ -230,8 +230,8 @@ export function OverviewBoard({
       <div className={o.split}>
         <section className={`${o.card} ${o.trend}`}>
           <div className={o.cardHead}>
-            <h2>Aktivitas 30 hari</h2>
-            <span>Tiap baris memakai skalanya sendiri</span>
+            <h2>{L("Aktivitas 30 hari", "30-day activity")}</h2>
+            <span>{L("Tiap baris memakai skalanya sendiri", "Each row uses its own scale")}</span>
           </div>
           {v.series.map((s) => (
             <div key={s.key} className={o.sRow}>
@@ -240,7 +240,7 @@ export function OverviewBoard({
                 <b>{s.total}</b>
                 <span>{s.note}</span>
               </div>
-              <svg viewBox="0 0 600 72" preserveAspectRatio="none" className={`${o.spark} ${s.cls}`} role="img" aria-label={`Tren ${s.label.toLowerCase()} 30 hari`}>
+              <svg viewBox="0 0 600 72" preserveAspectRatio="none" className={`${o.spark} ${s.cls}`} role="img" aria-label={L(`Tren ${s.label.toLowerCase()} 30 hari`, `${s.label} trend, 30 days`)}>
                 <polyline points={s.area} className={o.sArea} />
                 <polyline points={s.line} className={o.sLine} vectorEffect="non-scaling-stroke" />
               </svg>
@@ -254,7 +254,7 @@ export function OverviewBoard({
             <h2>{L("Armada", "Fleet")}</h2>
             <button type="button" className={o.link} onClick={() => onGo("vehicles")}>{L("Buka Armada", "Open Fleet")}</button>
           </div>
-          <div className={o.stack} aria-label={`${v.vActive} aktif, ${fleetMaint} tidak aktif`}>
+          <div className={o.stack} aria-label={L(`${v.vActive} aktif, ${fleetMaint} tidak aktif`, `${v.vActive} active, ${fleetMaint} inactive`)}>
             <span className={o.stackA} style={{ width: `${pct(v.vActive, v.vehicles.length)}%` }} />
             <span className={o.stackB} style={{ width: `${pct(fleetMaint, v.vehicles.length)}%` }} />
           </div>
@@ -279,7 +279,7 @@ export function OverviewBoard({
         <section className={o.card}>
           <div className={o.cardHead}>
             <h2>{L("Dana operasional", "Operational fund")}</h2>
-            <span>Per plant, tidak dijumlah</span>
+            <span>{L("Per plant, tidak dijumlah", "Per plant, not summed")}</span>
           </div>
           {v.funds.length === 0 && <div className={o.empty}>{L("Belum ada periode dana operasional.", "No operational fund period yet.")}</div>}
           {v.funds.map((f) => {
@@ -297,10 +297,10 @@ export function OverviewBoard({
 
         <section className={o.card}>
           <div className={o.cardHead}>
-            <h2>Budget driver</h2>
+            <h2>{L("Budget driver", "Driver budget")}</h2>
             <button type="button" className={o.link} onClick={() => onGo("driverbudget")}>{L("Buka", "Open")}</button>
           </div>
-          <div className={o.big}><b>{rpShort(budget.total)}</b><span>per bulan · {num(budget.drivers)} driver</span></div>
+          <div className={o.big}><b>{rpShort(budget.total)}</b><span>{L("per bulan", "per month")} · {num(budget.drivers)} {L("driver", "drivers")}</span></div>
           {data.tiers.length === 0 && <div className={o.empty}>{L("Belum ada tier budget driver.", "No driver budget tiers yet.")}</div>}
           {data.tiers.map((t) => (
             <div key={t.id} className={o.otRow}>

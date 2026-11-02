@@ -226,7 +226,7 @@ export function TaskCard({
 
       <div className={s.route}>
         <div className={s.stop}>
-          <span className={s.stopLabel}><i className={s.dotFrom} />Dari</span>
+          <span className={s.stopLabel}><i className={s.dotFrom} />{L("Dari", "From")}</span>
           <b title={asal}>{tidy(asal)}</b>
         </div>
         <div className={s.path} aria-hidden="true"><i /><span><IcCar size={16} /></span><i /></div>

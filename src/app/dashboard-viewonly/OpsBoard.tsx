@@ -358,7 +358,7 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
   if (!t) meta = L("Belum ada tugas hari ini", "No tasks today");
   else if (r.state === "go" || r.state === "long") meta = `${plate(t.kendaraan)} · ${L("mulai", "started")} ${fmtTime(startOf(t))} · ${fmtDur(elapsedMins(startOf(t)))}`;
   else if (r.state === "wait") meta = `${plate(t.kendaraan)} · ditugaskan ${fmtTime(t.created_at)}`;
-  else meta = `${plate(t.kendaraan)} · selesai ${fmtTime(t.completed_at)}`;
+  else meta = `${plate(t.kendaraan)} · ${L("selesai", "done")} ${fmtTime(t.completed_at)}`;
   const chip = r.state === "idle" ? "Standby" : CHIP[r.state];
   if (r.state === "duty" || r.state === "off") {
     const du = getUserDutyStatus(r.driver);
@@ -499,7 +499,7 @@ function UpcomingColumn({ upcoming, done }: { upcoming: TaskDetail[]; done: numb
     <section className="panel col up">
       <header className="p-head">
         <h2>Tugas Berikutnya</h2>
-        <span className="p-meta">{upcoming.length} tersisa · {done} selesai</span>
+        <span className="p-meta">{upcoming.length} {L("tersisa", "left")} · {done} {L("selesai", "done")}</span>
       </header>
       <div className="rows" ref={boxRef}>
         <div className="rows-in" key={`up-${page}`}>
@@ -547,7 +547,7 @@ function ProgressPanel({ done, going, wait }: { done: number; going: number; wai
               style={{ transition: "stroke-dashoffset .9s ease" }}
             />
           </svg>
-          <div className="ring-txt"><b>{done}/{total}</b><small>selesai</small></div>
+          <div className="ring-txt"><b>{done}/{total}</b><small>{L("selesai", "done")}</small></div>
         </div>
         <ul className="legend">
           <li><i style={{ background: "var(--green)" }} /><b>{done}</b><span>{L("Selesai", "Done")}</span></li>

@@ -159,7 +159,7 @@ export function GateLogPanel(p: {
       ) : (
         groups.map(([key, rows]) => (
           <section key={key} className={g.day}>
-            <h3>{dayTitle(key)} <em>{rows.length} catatan</em></h3>
+            <h3>{dayTitle(key)} <em>{rows.length} {L("catatan", "records")}</em></h3>
             <div className={g.list}>
               {rows.map((l) => {
                 const done = l.status === "DONE";

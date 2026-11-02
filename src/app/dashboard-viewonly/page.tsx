@@ -530,7 +530,7 @@ function Atk({ v }: { v: FmView }) {
           {a.critical.length === 0 ? <div className={s.empty}>{L("Semua item aman.", "All items are safe.")}</div> : (
             <table className={s.tbl}>
               <thead><tr><th>Item</th><th>{L("Stok", "Stock")}</th><th>{L("Cukup", "Cover")}</th></tr></thead>
-              <tbody>{a.critical.map((r, i) => <tr key={i}><td>{r.nama}</td><td>{nf(Number(r.stok))} {r.satuan}</td><td><Pill st={Number(r.stok) <= 0 ? "kritis" : "perhatian"}>{Number(r.stok) <= 0 ? L("habis", "out") : r.cover === null ? "–" : `${nf(Number(r.cover), 0)} hari`}</Pill></td></tr>)}</tbody>
+              <tbody>{a.critical.map((r, i) => <tr key={i}><td>{r.nama}</td><td>{nf(Number(r.stok))} {r.satuan}</td><td><Pill st={Number(r.stok) <= 0 ? "kritis" : "perhatian"}>{Number(r.stok) <= 0 ? L("habis", "out") : r.cover === null ? "–" : L(`${nf(Number(r.cover), 0)} hari`, `${nf(Number(r.cover), 0)} days`)}</Pill></td></tr>)}</tbody>
             </table>
           )}
         </Card>
