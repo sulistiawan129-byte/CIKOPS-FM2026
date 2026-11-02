@@ -9,6 +9,7 @@
 --   Bagian 046  Status teknisi TGA Available / Busy (realtime di dashboard)
 --   Bagian 047  Cleaning & Gardening: reset actual / generate ulang jadwal per periode (+ batalkan)
 --   Bagian 048  FM Command Center: ringkasan TGA untuk layar publik (tga_board)
+--   Bagian 049  Form kantin publik: boleh mengisi / memperbarui laporan TANGGAL MANA PUN (backdate)
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -717,3 +718,32 @@ grant execute on function tga_board() to anon, authenticated;
 notify pgrst, 'reload schema';
 
 select 'tga_board siap' as cek, (tga_board() ->> 'month_total') as hasil;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 049 — Form kantin publik (/canteen): tanggal bebas (backdate)
+-- 02_peran_keamanan membatasi tamu (tanpa login) ke laporan HARI INI saja, sehingga memilih
+-- tanggal lain gagal dengan "new row violates row-level security policy for table canteen_reports".
+-- Di sini dilonggarkan: tamu boleh membaca / mengisi / memperbarui laporan tanggal berapa pun
+-- (hapus tetap hanya untuk staf login). Isinya hanya angka porsi snack & makan.
+-- ═══════════════════════════════════════════════════════════════
+do $$
+begin
+  if to_regclass('public.canteen_reports') is not null then
+    grant select, insert, update on canteen_reports to anon;
+    drop policy if exists public_today_read on canteen_reports;
+    drop policy if exists public_today_ins on canteen_reports;
+    drop policy if exists public_today_upd on canteen_reports;
+    drop policy if exists public_any_read on canteen_reports;
+    drop policy if exists public_any_ins on canteen_reports;
+    drop policy if exists public_any_upd on canteen_reports;
+    create policy public_any_read on canteen_reports for select to anon using (true);
+    create policy public_any_ins on canteen_reports for insert to anon with check (true);
+    create policy public_any_upd on canteen_reports for update to anon using (true) with check (true);
+  end if;
+end $$;
+
+notify pgrst, 'reload schema';
+
+select 'kantin: tanggal bebas' as cek, count(*) filter (where policyname like 'public_any_%') as policy_aktif
+  from pg_policies where tablename = 'canteen_reports';

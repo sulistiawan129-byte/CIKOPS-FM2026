@@ -287,7 +287,7 @@ notify pgrst, 'reload schema';
 --     tier driver, pom bensin, karangan bunga, pengaturan, gift, kantin, locker,
 --     printer, permintaan karyawan, gate log, pengumuman, ATK):
 --       • TANPA LOGIN: tidak bisa membaca/mengubah apa pun, kecuali:
---           - kantin: isi laporan HARI INI (halaman /canteen)
+--           - kantin: isi laporan (halaman /canteen; tanggal bebas sejak 04 bagian 049)
 --           - permintaan karyawan & printer: hanya MENGIRIM (halaman /request)
 --           - daftar event gift yang sedang buka (halaman /gift)
 --       • DRIVER (login aplikasi driver): hanya tugas & data dirinya sendiri.
@@ -431,7 +431,7 @@ begin
     create policy public_open_events on gift_events for select to anon using (status = 'open');
   end if;
 
-  -- /canteen: isi & perbarui laporan HARI INI saja (tanpa login)
+  -- /canteen: isi & perbarui laporan (tanpa login). Awalnya hari ini saja; 04 bagian 049 melonggarkan ke tanggal bebas
   if to_regclass('public.canteen_reports') is not null then
     grant select, insert, update on canteen_reports to anon;
     create policy public_today_read on canteen_reports for select to anon
