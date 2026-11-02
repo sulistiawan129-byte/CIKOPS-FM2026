@@ -107,7 +107,7 @@ function SettingsPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   if (loading) return <SkeletonRows />;
   const driverRows: DriverUserRow[] = driverUserIds.map((id) => {
     const d = allDrivers.find((x) => x.id === id);
-    return { id, nama: d ? `${d.avatar_emoji || "🧑"} ${d.nama}` : "(driver sudah dihapus)", plant: d?.plant ?? "-" };
+    return { id, nama: d ? `${d.avatar_emoji || "🧑"} ${d.nama}` : L("(driver sudah dihapus)", "(driver deleted)"), plant: d?.plant ?? "-" };
   });
   const driverOptions = allDrivers.filter((d) => !driverUserIds.includes(d.id)).map((d) => ({ value: d.id, label: `${d.nama} · ${d.plant}` }));
 
@@ -115,34 +115,34 @@ function SettingsPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     <SettingsPage>
       {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
       <CrudList<ManagerContact>
-        icon="📧" title="Penerima email manajer" itemName="penerima"
-        desc="Mendapat salinan setiap klaim yang diajukan dan pengingat dokumen kendaraan (KIR, servis, STNK)."
-        empty="Belum ada penerima — salinan klaim & pengingat dokumen tidak terkirim."
+        icon="📧" title={L("Penerima email manajer", "Manager email recipients")} itemName={L("penerima", "recipient")}
+        desc={L("Mendapat salinan setiap klaim yang diajukan dan pengingat dokumen kendaraan (KIR, servis, STNK).", "Receives a copy of every submitted claim and the vehicle document reminders (KIR, service, STNK).")}
+        empty={L("Belum ada penerima — salinan klaim & pengingat dokumen tidak terkirim.", "No recipients yet — claim copies & document reminders are not sent.")}
         rows={contacts} rowKey={(r) => r.email}
         columns={[
           { label: "Email", render: (r) => <b>{r.email}</b> },
-          { label: "Nama / jabatan", render: (r) => r.nama || <span style={{ color: "var(--t3)" }}>—</span> },
+          { label: L("Nama / jabatan", "Name / title"), render: (r) => r.nama || <span style={{ color: "var(--t3)" }}>—</span> },
         ]}
         fields={[
           { key: "email", label: "Email", type: "email", required: true, placeholder: "manager@perusahaan.com" },
-          { key: "nama", label: "Nama / jabatan", placeholder: "mis. GA Manager" },
+          { key: "nama", label: L("Nama / jabatan", "Name / title"), placeholder: L("mis. GA Manager", "e.g. GA Manager") },
         ]}
         onCreate={async (v) => {
           const email = String(v.email ?? "").trim();
-          if (dup(email)) throw new Error("Email ini sudah ada di daftar.");
+          if (dup(email)) throw new Error(L("Email ini sudah ada di daftar.", "This email is already in the list."));
           await saveContacts([...contacts, { email, nama: String(v.nama ?? "").trim() }]);
         }}
         onUpdate={async (row, v) => {
           const email = String(v.email ?? "").trim();
-          if (dup(email, row.email)) throw new Error("Email ini sudah ada di daftar.");
+          if (dup(email, row.email)) throw new Error(L("Email ini sudah ada di daftar.", "This email is already in the list."));
           await saveContacts(contacts.map((c) => (c.email === row.email ? { email, nama: String(v.nama ?? "").trim() } : c)));
         }}
         onDelete={async (row) => { await saveContacts(contacts.filter((c) => c.email !== row.email)); }}
       />
       <CrudList<DriverUserRow>
-        icon="🧾" title="Driver user — Tanda Terima terpisah" itemName="driver"
-        desc="Driver di daftar ini mendapat file rekap Tanda Terima sendiri (budget berbeda) saat export per minggu. Driver lain masuk file gabungan."
-        empty="Belum ada driver user — semua driver masuk file gabungan."
+        icon="🧾" title={L("Driver user — Tanda Terima terpisah", "Driver users — separate Receipt file")} itemName="driver"
+        desc={L("Driver di daftar ini mendapat file rekap Tanda Terima sendiri (budget berbeda) saat export per minggu. Driver lain masuk file gabungan.", "Drivers in this list get their own Receipt recap file (different budget) in the weekly export. Other drivers go into the combined file.")}
+        empty={L("Belum ada driver user — semua driver masuk file gabungan.", "No driver users yet — all drivers go into the combined file.")}
         rows={driverRows} rowKey={(r) => r.id}
         columns={[{ label: "Driver", render: (r) => <b>{r.nama}</b> }, { label: "Plant", render: (r) => r.plant }]}
         fields={[{ key: "id", label: "Driver", type: "select", required: true, options: driverOptions }]}
@@ -582,13 +582,13 @@ function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
       <div style={{ gridColumn: "1 / -1" }}>
         <CrudList<EmployeeRow>
-          icon="👤" title="Pegawai" itemName="pegawai"
-          desc={`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan. ${depts.length} departemen.`}
+          icon="👤" title={L("Pegawai", "Employees")} itemName={L("pegawai", "employee")}
+          desc={L(`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan. ${depts.length} departemen.`, `Employee data for TGA requestors, Receptionist and employee requests. ${depts.length} department(s).`)}
           rows={rows} rowKey={(r) => r.id}
-          columns={[{ label: "Nama", render: (r) => <b>{r.nama}</b> }, { label: "Departemen", render: (r) => r.departement || "—" }]}
+          columns={[{ label: L("Nama", "Name"), render: (r) => <b>{r.nama}</b> }, { label: L("Departemen", "Department"), render: (r) => r.departement || "—" }]}
           fields={[
-            { key: "nama", label: "Nama", required: true },
-            { key: "departement", label: "Departemen", placeholder: depts.slice(0, 3).join(" / ") || "mis. GA" },
+            { key: "nama", label: L("Nama", "Name"), required: true },
+            { key: "departement", label: L("Departemen", "Department"), placeholder: depts.slice(0, 3).join(" / ") || L("mis. GA", "e.g. GA") },
           ]}
           onCreate={async (v) => { await addEmployee(input(v)); await load(); }}
           onUpdate={async (row, v) => { await updateEmployee(row.id, input(v)); await load(); }}
@@ -615,13 +615,13 @@ function JobTypesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     <SettingsPage>
       {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
       <CrudList<JobTypeRow>
-        icon="🧰" title="Jenis pekerjaan" itemName="jenis pekerjaan"
-        desc="Pilihan jenis pekerjaan saat menugaskan driver (mis. Antar tamu, Ambil dokumen)."
+        icon="🧰" title={L("Jenis pekerjaan", "Job types")} itemName={L("jenis pekerjaan", "job type")}
+        desc={L("Pilihan jenis pekerjaan saat menugaskan driver (mis. Antar tamu, Ambil dokumen).", "Job type options when assigning a driver (e.g. Guest transfer, Document pickup).")}
         rows={rows} rowKey={(r) => r.id}
-        columns={[{ label: "Jenis pekerjaan", render: (r) => <b>{r.label}</b> }]}
-        fields={[{ key: "label", label: "Jenis pekerjaan", required: true }]}
-        onCreate={async (v) => { const l = String(v.label).trim(); if (dup(l)) throw new Error("Jenis pekerjaan ini sudah ada."); await addJobType(l); await load(); }}
-        onUpdate={async (row, v) => { const l = String(v.label).trim(); if (dup(l, row.id)) throw new Error("Jenis pekerjaan ini sudah ada."); await updateJobType(row.id, l); await load(); }}
+        columns={[{ label: L("Jenis pekerjaan", "Job type"), render: (r) => <b>{r.label}</b> }]}
+        fields={[{ key: "label", label: L("Jenis pekerjaan", "Job type"), required: true }]}
+        onCreate={async (v) => { const l = String(v.label).trim(); if (dup(l)) throw new Error(L("Jenis pekerjaan ini sudah ada.", "This job type already exists.")); await addJobType(l); await load(); }}
+        onUpdate={async (row, v) => { const l = String(v.label).trim(); if (dup(l, row.id)) throw new Error(L("Jenis pekerjaan ini sudah ada.", "This job type already exists.")); await updateJobType(row.id, l); await load(); }}
         onDelete={async (row) => { await deleteJobType(row.id); await load(); }}
       />
     </SettingsPage>

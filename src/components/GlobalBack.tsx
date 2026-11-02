@@ -1,4 +1,5 @@
 "use client";
+import { L } from "@/lib/i18n";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -31,14 +32,14 @@ export default function GlobalBack() {
   const homeHref = pathname.startsWith("/gate") ? "/dashboard" : "/";
 
   return (
-    <div className="globalBack" role="navigation" aria-label="Navigasi kembali">
+    <div className="globalBack" role="navigation" aria-label={L("Navigasi kembali", "Back navigation")}>
       {canGoBack && (
-        <button type="button" onClick={() => router.back()} className="gbBtn" title="Kembali ke halaman sebelumnya">
+        <button type="button" onClick={() => router.back()} className="gbBtn" title={L("Kembali ke halaman sebelumnya", "Back to the previous page")}>
           <Icon name="back" size={15} strokeWidth={2.3} />
-          Kembali
+          {L("Kembali", "Back")}
         </button>
       )}
-      <Link href={homeHref} className="gbBtn gbHome" title="Kembali ke Home">
+      <Link href={homeHref} className="gbBtn gbHome" title={L("Kembali ke Home", "Back to Home")}>
         <Icon name="home" size={15} strokeWidth={2.3} />
         Home
       </Link>
