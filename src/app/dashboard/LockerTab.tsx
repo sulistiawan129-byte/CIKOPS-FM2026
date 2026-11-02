@@ -332,15 +332,15 @@ function LockerOverviewPanel() {
                   🔐 Locker {detail.number}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-                  <DetailRow label="Status" value={detail.status} accent={detail.status === "Terisi" ? "var(--red)" : "var(--green)"} />
-                  <DetailRow label="PIN Saat Ini" value={detail.pin} />
-                  {detail.prevPin && <DetailRow label="PIN Sebelumnya" value={detail.prevPin} muted />}
+                  <DetailRow label="Status" value={detail.status === "Terisi" ? L("Terisi", "Occupied") : L("Tersedia", "Available")} accent={detail.status === "Terisi" ? "var(--red)" : "var(--green)"} />
+                  <DetailRow label={L("PIN Saat Ini", "Current PIN")} value={detail.pin} />
+                  {detail.prevPin && <DetailRow label={L("PIN Sebelumnya", "Previous PIN")} value={detail.prevPin} muted />}
                   {detail.status === "Terisi" && (
                     <>
-                      <DetailRow label="Nama" value={detail.nama || "-"} />
-                      <DetailRow label={detail.periode === "Employee" ? "Department" : "University"} value={detail.extra || "-"} />
-                      {detail.periode !== "Employee" && <DetailRow label="Periode" value={detail.periode || "-"} />}
-                      {detail.endDate && <DetailRow label="Selesai Pada" value={detail.endDate} />}
+                      <DetailRow label={L("Nama", "Name")} value={detail.nama || "-"} />
+                      <DetailRow label={detail.periode === "Employee" ? L("Departemen", "Department") : L("Universitas", "University")} value={detail.extra || "-"} />
+                      {detail.periode !== "Employee" && <DetailRow label={L("Periode", "Period")} value={detail.periode || "-"} />}
+                      {detail.endDate && <DetailRow label={L("Selesai Pada", "Ends On")} value={detail.endDate} />}
                     </>
                   )}
                 </div>
@@ -350,7 +350,7 @@ function LockerOverviewPanel() {
                       onClick={() => setReleaseConfirm(true)}
                       style={{ padding: 12, borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}
                     >
-                      {detail.periode === "Employee" ? "Exit Locker (Karyawan)" : "Selesai Kontrak / Magang"}
+                      {detail.periode === "Employee" ? L("Exit Locker (Karyawan)", "Release Locker (Employee)") : L("Selesai Kontrak / Magang", "End of Contract / Internship")}
                     </button>
                   )}
                   <button
@@ -423,17 +423,17 @@ function LockerOverviewPanel() {
           <div className="heroGlow" style={{ borderRadius: "var(--r2)", boxShadow: "var(--shadow-lg)", padding: 26, textAlign: "center" }}>
             <div style={{ fontSize: 30, marginBottom: 10 }}>✅</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
-              Locker {releaseResult.number} berhasil dinonaktifkan
+              {L(`Locker ${releaseResult.number} berhasil dinonaktifkan`, `Locker ${releaseResult.number} was released successfully`)}
             </div>
             <div style={{ fontSize: 12.5, color: "var(--t3)", marginBottom: 18 }}>
-              Penghuni sebelumnya sudah diberi tahu (email) bahwa PIN mereka tidak berlaku lagi.
+              {L("Penghuni sebelumnya sudah diberi tahu (email) bahwa PIN mereka tidak berlaku lagi.", "The previous occupant has been notified (by email) that their PIN is no longer valid.")}
             </div>
             <div style={{ background: "var(--green-soft)", border: "1px solid var(--green)", borderRadius: 14, padding: "16px 14px", marginBottom: 18 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--green)", textTransform: "uppercase", marginBottom: 6 }}>
-                ✓ Tidak Perlu Reset Kunci Fisik
+                ✓ {L("Tidak Perlu Reset Kunci Fisik", "No Need to Reset the Physical Lock")}
               </div>
               <div style={{ fontSize: 12.5, color: "var(--t2)", lineHeight: 1.5 }}>
-                PIN locker ini tetap sama seperti sebelumnya — <strong style={{ fontFamily: "var(--mono)", color: "var(--t1)" }}>{releaseResult.pin}</strong> — siap langsung dipakai peserta berikutnya.
+                {L("PIN locker ini tetap sama seperti sebelumnya", "This locker's PIN stays the same as before")} — <strong style={{ fontFamily: "var(--mono)", color: "var(--t1)" }}>{releaseResult.pin}</strong> — {L("siap langsung dipakai peserta berikutnya.", "ready to be used straight away by the next occupant.")}
               </div>
             </div>
             <button
@@ -607,8 +607,8 @@ function LockerManagePanel() {
       setBulkConfirmOpen(false);
       showToast(
         failed > 0
-          ? `Terkirim ke ${recipients.length - failed} orang, ${failed} gagal.`
-          : `Email konfirmasi terkirim ke ${recipients.length} orang.`
+          ? L(`Terkirim ke ${recipients.length - failed} orang, ${failed} gagal.`, `Sent to ${recipients.length - failed} people, ${failed} failed.`)
+          : L(`Email konfirmasi terkirim ke ${recipients.length} orang.`, `Confirmation email sent to ${recipients.length} people.`)
       );
     } catch (e) {
       showToast(e instanceof Error ? e.message : L("Gagal mengirim email.", "Failed to send the email."), true);
@@ -647,7 +647,7 @@ function LockerManagePanel() {
             <table className={lk.table}>
               <thead>
                 <tr style={{ background: "var(--bg2)" }}>
-                  {["No. Locker", "PIN", "Status", "Nama", "Email", "Periode", "Selesai", "Aksi"].map((h) => (
+                  {[L("No. Locker", "Locker No."), "PIN", "Status", L("Nama", "Name"), "Email", L("Periode", "Period"), L("Selesai", "Ends"), L("Aksi", "Actions")].map((h) => (
                     <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "var(--t2)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -659,7 +659,7 @@ function LockerManagePanel() {
                     <td style={{ padding: "10px 12px", color: "var(--t2)" }}>{r.pin}</td>
                     <td style={{ padding: "10px 12px" }}>
                       <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: "var(--pill)", background: r.status === "Terisi" ? "var(--red-soft)" : "var(--green-soft)", color: r.status === "Terisi" ? "var(--red)" : "var(--green)" }}>
-                        {r.status}
+                        {r.status === "Terisi" ? L("Terisi", "Occupied") : L("Tersedia", "Available")}
                       </span>
                     </td>
                     <td style={{ padding: "10px 12px", color: "var(--t1)" }}>{r.nama || "-"}</td>
@@ -703,20 +703,20 @@ function LockerManagePanel() {
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>Status</label>
                 <select className="premiumInput" style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as LockerStatus })}>
-                  <option value="Available">Available</option>
-                  <option value="Terisi">Terisi</option>
+                  <option value="Available">{L("Tersedia", "Available")}</option>
+                  <option value="Terisi">{L("Terisi", "Occupied")}</option>
                 </select>
               </div>
 
               {form.status === "Terisi" && (
                 <>
                   <div style={{ marginBottom: 14 }}>
-                    <label style={labelStyle}>Nama</label>
+                    <label style={labelStyle}>{L("Nama", "Name")}</label>
                     <input className="premiumInput" style={inputStyle} value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} />
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                     <div>
-                      <label style={labelStyle}>No. HP</label>
+                      <label style={labelStyle}>{L("No. HP", "Phone No.")}</label>
                       <input className="premiumInput" style={inputStyle} value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="08xxxxxxxxxx" />
                     </div>
                     <div>
@@ -726,11 +726,11 @@ function LockerManagePanel() {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                     <div>
-                      <label style={labelStyle}>Periode</label>
+                      <label style={labelStyle}>{L("Periode", "Period")}</label>
                       <input className="premiumInput" style={inputStyle} value={form.periode} onChange={(e) => setForm({ ...form, periode: e.target.value })} placeholder="Employee / Jul-Des 2026" />
                     </div>
                     <div>
-                      <label style={labelStyle}>Dept / Universitas</label>
+                      <label style={labelStyle}>{L("Dept / Universitas", "Dept / University")}</label>
                       <input className="premiumInput" style={inputStyle} value={form.extra} onChange={(e) => setForm({ ...form, extra: e.target.value })} />
                     </div>
                   </div>

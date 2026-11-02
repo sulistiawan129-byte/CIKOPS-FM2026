@@ -6,17 +6,22 @@
 import { useMemo, useRef, useState } from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { code128 } from "@/lib/receptionist/barcode";
-import { daysBetween, fmtDate, receiptUrl, todayISO, verifyCode, type ReceiptData } from "@/lib/receptionist/model";
+import { itemTypeLabel, daysBetween, fmtDate, receiptUrl, todayISO, verifyCode, type ReceiptData } from "@/lib/receptionist/model";
 import p from "./proof.module.css";
 import r from "./receptionist.module.css";
 
 import { loc , L} from "@/lib/i18n";
-const KIND_LABEL = { wifi: "Akses Wifi Tamu", in: "Barang / Surat Masuk", out: "Barang / Surat Keluar", booking: "Booking Ruangan" } as const;
+const KIND_LABEL = {
+  get wifi() { return L("Akses Wifi Tamu", "Guest Wifi Access"); },
+  get in() { return L("Barang / Surat Masuk", "Incoming Item / Mail"); },
+  get out() { return L("Barang / Surat Keluar", "Outgoing Item / Mail"); },
+  get booking() { return L("Booking Ruangan", "Room Booking"); },
+} as const;
 
 function stampOf(d: ReceiptData): { text: string; tone: string } {
-  if (d.kind === "wifi") return d.status === "active" ? { text: "Aktif", tone: p.s_ok } : d.status === "returned" ? { text: "Dikembalikan", tone: p.s_off } : { text: "Selesai", tone: p.s_off };
-  if (d.kind === "parcel") return d.status === "handed" ? { text: d.direction === "out" ? "Terkirim" : "Diserahkan", tone: p.s_ok } : { text: "Menunggu", tone: p.s_wait };
-  return d.status === "done" ? { text: "Selesai", tone: p.s_off } : { text: "Terkonfirmasi", tone: p.s_ok };
+  if (d.kind === "wifi") return d.status === "active" ? { text: L("Aktif", "Active"), tone: p.s_ok } : d.status === "returned" ? { text: L("Dikembalikan", "Returned"), tone: p.s_off } : { text: L("Selesai", "Done"), tone: p.s_off };
+  if (d.kind === "parcel") return d.status === "handed" ? { text: d.direction === "out" ? L("Terkirim", "Sent") : L("Diserahkan", "Handed over"), tone: p.s_ok } : { text: L("Menunggu", "Waiting"), tone: p.s_wait };
+  return d.status === "done" ? { text: L("Selesai", "Done"), tone: p.s_off } : { text: L("Terkonfirmasi", "Confirmed"), tone: p.s_ok };
 }
 const dt = (ts?: string | null) => (ts ? new Date(ts).toLocaleString(loc(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(".", ":") : "–");
 const longDate = (iso?: string) => fmtDate(iso, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -40,11 +45,11 @@ export function ProofCard({ data, token, innerRef }: { data: ReceiptData; token?
       <div className={p.top}>
         <div className={p.brand}>
           <img src="/logo.png" alt="" />
-          <div><b>Facility Management</b><small>Bukti Permintaan</small></div>
+          <div><b>Facility Management</b><small>{L("Bukti Permintaan", "Request Receipt")}</small></div>
         </div>
         <span className={p.kind}>{KIND_LABEL[kindKey]}</span>
         <div className={p.no}>{data.receipt_no}</div>
-        <div className={p.issued}>Diterbitkan {dt(data.created_at)}{data.created_by ? ` · oleh ${data.created_by}` : ""}</div>
+        <div className={p.issued}>{L("Diterbitkan", "Issued")} {dt(data.created_at)}{data.created_by ? ` · ${L("oleh", "by")} ${data.created_by}` : ""}</div>
       </div>
       <span className={`${p.stamp} ${stamp.tone}`}>{stamp.text}</span>
 
@@ -70,20 +75,20 @@ function WifiBody({ d }: { d: ReceiptData }) {
   const used = d.start_date ? Math.min(total, Math.max(0, daysBetween(d.start_date, todayISO()) + 1)) : 0;
   return (
     <>
-      <p className={p.hello}>Halo <b>{d.requestor_name}</b>, akses wifi untuk tamu Anda sudah siap. Berikan data di bawah ini kepada tamu.</p>
+      <p className={p.hello}>{L("Halo", "Hello")} <b>{d.requestor_name}</b>, {L("akses wifi untuk tamu Anda sudah siap. Berikan data di bawah ini kepada tamu.", "wifi access for your guest is ready. Give the details below to the guest.")}</p>
       <div className={p.creds}>
         {d.ssid ? <div className={p.cred}><span className={p.lbl}>Wifi</span><b>{d.ssid}</b></div> : null}
         <div className={p.cred}><span className={p.lbl}>User</span><b>{d.username}</b></div>
         <div className={p.cred}><span className={p.lbl}>Password</span>{d.password ? <b>{d.password}</b> : <span className={p.credHidden}>disembunyikan — akses sudah berakhir</span>}</div>
       </div>
       <div className={p.grid}>
-        <div><span className={p.lbl}>Tamu</span><div className={p.val}>{d.guest_name}</div></div>
+        <div><span className={p.lbl}>{L("Tamu", "Guest")}</span><div className={p.val}>{d.guest_name}</div></div>
         <div><span className={p.lbl}>Instansi</span><div className={p.val}>{d.guest_company || "–"}</div></div>
-        <div><span className={p.lbl}>Departemen</span><div className={p.val}>{d.department || "–"}</div></div>
+        <div><span className={p.lbl}>{L("Departemen", "Department")}</span><div className={p.val}>{d.department || "–"}</div></div>
         <div><span className={p.lbl}>Perangkat</span><div className={p.val}>{d.slots ?? 1}<span className={p.devices}>{Array.from({ length: d.slots ?? 1 }, (_, i) => <i key={i} />)}</span></div></div>
       </div>
       <div className={p.validity}>
-        <div className={p.vRow}><span>Mulai <b>{fmtDate(d.start_date)}</b></span><span>Berlaku sampai <b>{fmtDate(d.end_date)}</b></span></div>
+        <div className={p.vRow}><span>{L("Mulai", "Start")} <b>{fmtDate(d.start_date)}</b></span><span>{L("Berlaku sampai", "Valid until")} <b>{fmtDate(d.end_date)}</b></span></div>
         <div className={p.bar}><i style={{ width: `${d.status === "active" ? Math.max(6, (used / total) * 100) : 100}%` }} /></div>
         <div className={p.vRow}><span>{total} hari</span><span>{d.status === "active" ? `hari ke-${Math.max(used, 1)}` : d.status === "returned" ? `dikembalikan ${dt(d.returned_at)}` : "masa pakai selesai"}</span></div>
       </div>
@@ -96,20 +101,20 @@ function ParcelBody({ d }: { d: ReceiptData }) {
   const isIn = d.direction !== "out";
   return (
     <>
-      <p className={p.hello}>{isIn ? <>Kiriman untuk <b>{d.recipient}</b> {d.status === "handed" ? "sudah diambil." : "menunggu di meja resepsionis. Tunjukkan bukti ini saat mengambil."}</> : <>Kiriman dari <b>{d.sender}</b> {d.status === "handed" ? "sudah diserahkan ke kurir." : "menunggu diambil kurir."}</>}</p>
+      <p className={p.hello}>{isIn ? <>{L("Kiriman untuk", "Delivery for")} <b>{d.recipient}</b> {d.status === "handed" ? L("sudah diambil.", "has been collected.") : L("menunggu di meja resepsionis. Tunjukkan bukti ini saat mengambil.", "is waiting at the reception desk. Show this receipt when collecting.")}</> : <>{L("Kiriman dari", "Delivery from")} <b>{d.sender}</b> {d.status === "handed" ? L("sudah diserahkan ke kurir.", "has been handed to the courier.") : L("menunggu diambil kurir.", "is waiting for the courier.")}</>}</p>
       <div className={p.flow}>
-        <div className={p.party}><span className={p.lbl}>Dari</span><b>{d.sender || "–"}</b>{!isIn && d.department ? <small>{d.department}</small> : null}</div>
+        <div className={p.party}><span className={p.lbl}>{L("Dari", "From")}</span><b>{d.sender || "–"}</b>{!isIn && d.department ? <small>{d.department}</small> : null}</div>
         <span className={p.arrow}>→</span>
-        <div className={p.party}><span className={p.lbl}>Untuk</span><b>{d.recipient || "–"}</b>{isIn && d.department ? <small>{d.department}</small> : null}</div>
+        <div className={p.party}><span className={p.lbl}>{L("Untuk", "To")}</span><b>{d.recipient || "–"}</b>{isIn && d.department ? <small>{d.department}</small> : null}</div>
       </div>
       <div className={p.grid}>
-        <div><span className={p.lbl}>Jenis</span><div className={p.val}>{d.item_type}</div></div>
-        <div><span className={p.lbl}>Kurir / ekspedisi</span><div className={p.val}>{d.courier || "–"}</div></div>
-        {d.description ? <div className={p.full}><span className={p.lbl}>Keterangan</span><div className={p.val}>{d.description}</div></div> : null}
+        <div><span className={p.lbl}>{L("Jenis", "Type")}</span><div className={p.val}>{itemTypeLabel(d.item_type ?? "")}</div></div>
+        <div><span className={p.lbl}>{L("Kurir / ekspedisi", "Courier / carrier")}</span><div className={p.val}>{d.courier || "–"}</div></div>
+        {d.description ? <div className={p.full}><span className={p.lbl}>{L("Keterangan", "Description")}</span><div className={p.val}>{d.description}</div></div> : null}
       </div>
       <ol className={p.steps}>
         <li className={p.done}><b>Dicatat resepsionis</b><span>{dt(d.created_at)}</span></li>
-        <li className={d.status === "handed" ? p.done : ""}><b>{isIn ? `Diambil${d.handed_to ? ` oleh ${d.handed_to}` : ""}` : `Diserahkan ke kurir${d.handed_to ? ` (${d.handed_to})` : ""}`}</b><span>{d.status === "handed" ? dt(d.handed_at) : "menunggu"}</span></li>
+        <li className={d.status === "handed" ? p.done : ""}><b>{isIn ? `${L("Diambil", "Collected")}${d.handed_to ? ` ${L("oleh", "by")} ${d.handed_to}` : ""}` : `${L("Diserahkan ke kurir", "Handed to courier")}${d.handed_to ? ` (${d.handed_to})` : ""}`}</b><span>{d.status === "handed" ? dt(d.handed_at) : L("menunggu", "waiting")}</span></li>
       </ol>
     </>
   );
@@ -119,18 +124,18 @@ function BookingBody({ d }: { d: ReceiptData }) {
   const day = d.date ? new Date(d.date + "T00:00:00") : new Date();
   return (
     <>
-      <p className={p.hello}>Booking <b>{d.room}</b> untuk <b>{d.pic || "Anda"}</b> sudah tercatat dan otomatis masuk Kalender &amp; Agenda.</p>
+      <p className={p.hello}>{L("Booking", "Booking of")} <b>{d.room}</b> {L("untuk", "for")} <b>{d.pic || L("Anda", "you")}</b> {L("sudah tercatat dan otomatis masuk Kalender & Agenda.", "has been recorded and automatically added to the Calendar & Agenda.")}</p>
       <div className={p.when}>
         <div className={p.cal}><small>{day.toLocaleDateString(loc(), { month: "short" })}</small><b>{day.getDate()}</b><span>{day.toLocaleDateString(loc(), { weekday: "long" })}</span></div>
         <div><div className={p.time}>{d.start} – {d.end}</div><div className={p.room}>{d.room} · {longDate(d.date)}</div></div>
       </div>
       <div className={p.grid}>
-        <div className={p.full}><span className={p.lbl}>Keperluan</span><div className={p.val}>{d.title}</div></div>
+        <div className={p.full}><span className={p.lbl}>{L("Keperluan", "Purpose")}</span><div className={p.val}>{d.title}</div></div>
         <div><span className={p.lbl}>PIC</span><div className={p.val}>{d.pic || "–"}</div></div>
-        <div><span className={p.lbl}>Departemen</span><div className={p.val}>{d.department || "–"}</div></div>
-        <div><span className={p.lbl}>Peserta</span><div className={p.val}>{d.attendees ? `${d.attendees} orang` : "–"}</div></div>
+        <div><span className={p.lbl}>{L("Departemen", "Department")}</span><div className={p.val}>{d.department || "–"}</div></div>
+        <div><span className={p.lbl}>{L("Peserta", "Attendees")}</span><div className={p.val}>{d.attendees ? `${d.attendees} orang` : "–"}</div></div>
         {d.series ? <div><span className={p.lbl}>Berulang</span><div className={p.val}>{d.series.count}× · {fmtDate(d.series.first, { day: "numeric", month: "short" })} – {fmtDate(d.series.last, { day: "numeric", month: "short" })}</div></div> : null}
-        {d.notes ? <div className={p.full}><span className={p.lbl}>Catatan</span><div className={p.val}>{d.notes}</div></div> : null}
+        {d.notes ? <div className={p.full}><span className={p.lbl}>{L("Catatan", "Notes")}</span><div className={p.val}>{d.notes}</div></div> : null}
       </div>
     </>
   );
@@ -140,7 +145,7 @@ function BookingBody({ d }: { d: ReceiptData }) {
 export function printTicket(el: HTMLElement | null, title: string) {
   if (!el) return;
   const w = window.open("", "_blank", "width=560,height=860");
-  if (!w) { alert("Izinkan pop-up untuk mencetak bukti."); return; }
+  if (!w) { alert(L("Izinkan pop-up untuk mencetak bukti.", "Allow pop-ups to print the receipt.")); return; }
   // Salin ISI aturan CSS (bukan <link>) supaya jendela cetak langsung bergaya tanpa memuat ulang file.
   const inline: string[] = [], links: string[] = [];
   for (const sh of [...document.styleSheets]) {
@@ -170,10 +175,10 @@ export function ProofModal({ data, token, email, phone, onEmail, onClose }: {
   const [busy, setBusy] = useState(false);
   const link = token ? receiptUrl(token) : "";
   const kindText = data.kind === "wifi" ? "akses wifi tamu" : data.kind === "parcel" ? "barang/surat" : "booking ruangan";
-  const waText = `Bukti Permintaan ${data.receipt_no} (${kindText})${link ? `\nLihat & cetak: ${link}` : ""}`;
+  const waText = `${L("Bukti Permintaan", "Request Receipt")} ${data.receipt_no} (${kindText})${link ? `\n${L("Lihat & cetak", "View & print")}: ${link}` : ""}`;
   const waPhone = (phone ?? "").replace(/\D/g, "").replace(/^0/, "62");
   async function copy() {
-    try { await navigator.clipboard.writeText(link || data.receipt_no); setMsg({ ok: true, text: link ? "Tautan bukti disalin." : "Nomor disalin." }); }
+    try { await navigator.clipboard.writeText(link || data.receipt_no); setMsg({ ok: true, text: link ? L("Tautan bukti disalin.", "Receipt link copied.") : L("Nomor disalin.", "Number copied.") }); }
     catch { setMsg({ ok: false, text: L("Gagal menyalin.", "Failed to copy.") }); }
   }
   async function sendEmail() {
@@ -186,17 +191,17 @@ export function ProofModal({ data, token, email, phone, onEmail, onClose }: {
     <ModalPortal onOverlayClick={onClose} maxWidth={520}>
       <div className={r.modal} style={{ background: "var(--surface2)" }} role="dialog" aria-modal="true" aria-labelledby="rcp-proof-title">
         <div className={r.modalHead}>
-          <div><h2 id="rcp-proof-title">Bukti Permintaan</h2><p>Kirim atau cetak untuk requestor</p></div>
-          <button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button>
+          <div><h2 id="rcp-proof-title">Bukti Permintaan</h2><p>{L("Kirim atau cetak untuk requestor", "Send or print for the requestor")}</p></div>
+          <button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
         </div>
         <div style={{ ["--hole" as string]: "var(--surface2)" }}><ProofCard data={data} token={token} innerRef={ref} /></div>
-        {!token && <div className={r.warn}>Tautan publik belum tersedia — jalankan supabase/01_dasar.sql (bagian 033). Cetak tetap bisa.</div>}
+        {!token && <div className={r.warn}>{L("Tautan publik belum tersedia — jalankan supabase/01_dasar.sql (bagian 033). Cetak tetap bisa.", "The public link is not available yet — run supabase/01_dasar.sql (section 033). Printing still works.")}</div>}
         {msg && <div className={msg.ok ? r.ok : r.err}>{msg.text}</div>}
         <div className={r.proofActions}>
-          <button type="button" className={r.btn} onClick={() => printTicket(ref.current, data.receipt_no)}>🖨 Cetak</button>
+          <button type="button" className={r.btn} onClick={() => printTicket(ref.current, data.receipt_no)}>🖨 {L("Cetak", "Print")}</button>
           <button type="button" className={r.ghost} onClick={copy}>🔗 Salin tautan</button>
           <a className={r.ghost} href={`https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>💬 WhatsApp</a>
-          {onEmail && email ? <button type="button" className={r.ghost} disabled={busy} onClick={sendEmail}>{busy ? "Mengirim…" : "✉ Email"}</button> : null}
+          {onEmail && email ? <button type="button" className={r.ghost} disabled={busy} onClick={sendEmail}>{busy ? L("Mengirim…", "Sending…") : "✉ Email"}</button> : null}
         </div>
       </div>
     </ModalPortal>

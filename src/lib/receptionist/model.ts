@@ -1,5 +1,6 @@
 
-import { loc } from "@/lib/i18n";/* RECEPTIONIST — tipe data & logika murni (Wifi Guest, Barang & Surat, Induction Room).
+import { L, loc } from "@/lib/i18n";
+/* RECEPTIONIST — tipe data & logika murni (Wifi Guest, Barang & Surat, Induction Room).
    Aturan slot/berlaku/bentrok ditegakkan di database (supabase/01_dasar.sql (bagian 031));
    di sini hanya untuk tampilan & pengolahan di klien. */
 
@@ -92,8 +93,16 @@ export interface Contact { name: string; email: string; department: string; useC
 export const ITEM_TYPES = ["Paket", "Dokumen / Surat", "Makanan", "Barang lain"] as const;
 
 export const WIFI_STATUS_LABEL: Record<WifiStatus, string> = {
-  available: "Tersedia", partial: "Terpakai sebagian", full: "Penuh", expired: "Kedaluwarsa", inactive: "Nonaktif",
+  get available() { return L("Tersedia", "Available"); },
+  get partial() { return L("Terpakai sebagian", "Partially used"); },
+  get full() { return L("Penuh", "Full"); },
+  get expired() { return L("Kedaluwarsa", "Expired"); },
+  get inactive() { return L("Nonaktif", "Inactive"); },
 };
+
+/** Nilai ITEM_TYPES tersimpan di database (Indonesia); ini hanya label tampilan. */
+export const itemTypeLabel = (t: string): string =>
+  t === "Paket" ? L("Paket", "Package") : t === "Dokumen / Surat" ? L("Dokumen / Surat", "Document / Mail") : t === "Makanan" ? L("Makanan", "Food") : t === "Barang lain" ? L("Barang lain", "Other item") : t;
 
 /* ── tanggal (lokal WIB perangkat) ── */
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -124,12 +133,12 @@ export const grantActive = (g: WifiGrant, today = todayISO()) => !g.returnedAt &
 /** Durasi pemakaian wifi → tanggal selesai. */
 export type WifiDuration = "today" | "d3" | "w1" | "m1" | "m3" | "custom";
 export const WIFI_DURATIONS: { key: WifiDuration; label: string }[] = [
-  { key: "today", label: "Hari ini (harian)" },
-  { key: "d3", label: "3 hari" },
-  { key: "w1", label: "1 minggu" },
-  { key: "m1", label: "1 bulan" },
-  { key: "m3", label: "3 bulan" },
-  { key: "custom", label: "Sampai tanggal…" },
+  { key: "today", get label() { return L("Hari ini (harian)", "Today (daily)"); } },
+  { key: "d3", get label() { return L("3 hari", "3 days"); } },
+  { key: "w1", get label() { return L("1 minggu", "1 week"); } },
+  { key: "m1", get label() { return L("1 bulan", "1 month"); } },
+  { key: "m3", get label() { return L("3 bulan", "3 months"); } },
+  { key: "custom", get label() { return L("Sampai tanggal…", "Until date…"); } },
 ];
 export function durationEnd(start: string, d: WifiDuration, custom: string): string {
   switch (d) {
