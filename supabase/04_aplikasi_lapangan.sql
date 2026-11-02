@@ -10,6 +10,7 @@
 --   Bagian 047  Cleaning & Gardening: reset actual / generate ulang jadwal per periode (+ batalkan)
 --   Bagian 048  FM Command Center: ringkasan TGA untuk layar publik (tga_board)
 --   Bagian 049  Form kantin publik: boleh mengisi / memperbarui laporan TANGGAL MANA PUN (backdate)
+--   Bagian 050  Data karyawan ATK digabung ke Master Karyawan (employees) — satu sumber
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -747,3 +748,112 @@ notify pgrst, 'reload schema';
 
 select 'kantin: tanggal bebas' as cek, count(*) filter (where policyname like 'public_any_%') as policy_aktif
   from pg_policies where tablename = 'canteen_reports';
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 050 — Data karyawan ATK digabung ke Master Karyawan (employees)
+-- Sebelumnya pemohon ATK (NIK, nama, departemen) hanya ada di riwayat transaksi ATK / sheet
+-- Excel "MasterDataKaryawan", terpisah dari Master Data → Pegawai. Sekarang SATU sumber: employees.
+--   • employee_upsert_basic()  cocokkan per NIK (bila ada) lalu per nama; hanya MELENGKAPI kolom
+--                              yang kosong (tidak menimpa email / no HP / jabatan yang sudah diisi)
+--   • trigger di atk_requests  pemohon baru dari web ATK maupun Excel otomatis masuk employees
+--   • employees_merge_atk()    gabung riwayat ATK yang sudah ada (tombol di Master Data → Pegawai)
+--   • atk_excel_push_employee  Excel mengirim sheet MasterDataKaryawan (kunci sinkron, seperti 044)
+-- Restock tidak ikut digabung (kolom nama di sana = petugas gudang, bukan pemohon).
+-- ═══════════════════════════════════════════════════════════════
+create or replace function employee_upsert_basic(p_nama text, p_nik text, p_dept text) returns text
+language plpgsql security definer set search_path = public as $f$
+declare
+  v_nama text := left(trim(coalesce(p_nama, '')), 200);
+  v_nik  text := nullif(left(trim(coalesce(p_nik, '')), 60), '');
+  v_dept text := nullif(left(trim(coalesce(p_dept, '')), 120), '');
+  v_id uuid; v_old_nik text; v_old_dept text;
+begin
+  if v_nama = '' then return 'skip'; end if;
+  if v_nik is not null then select id into v_id from employees where nik = v_nik order by created_at limit 1; end if;
+  if v_id is null then
+    select id into v_id from employees
+     where lower(trim(nama)) = lower(v_nama) and (v_nik is null or nullif(nik, '') is null or nik = v_nik)
+     order by (nullif(nik, '') is null), created_at limit 1;
+  end if;
+  if v_id is null then
+    insert into employees (nama, nik, departement, aktif) values (v_nama, v_nik, v_dept, true);
+    return 'created';
+  end if;
+  select nullif(nik, ''), nullif(departement, '') into v_old_nik, v_old_dept from employees where id = v_id;
+  if (v_old_nik is null and v_nik is not null) or (v_old_dept is null and v_dept is not null) then
+    update employees set nik = coalesce(v_old_nik, v_nik), departement = coalesce(v_old_dept, v_dept), updated_at = now() where id = v_id;
+    return 'updated';
+  end if;
+  return 'same';
+end $f$;
+
+create or replace function atk_sync_employee_trg() returns trigger
+language plpgsql security definer set search_path = public as $f$
+begin
+  begin
+    perform employee_upsert_basic(new.nama, new.nik, new.departemen);
+  exception when others then
+    null;  -- sinkron master tidak boleh menggagalkan transaksi ATK
+  end;
+  return new;
+end $f$;
+
+create or replace function _employees_merge_atk() returns jsonb
+language plpgsql security definer set search_path = public as $f$
+declare r record; res text; c int := 0; u int := 0; n int := 0;
+begin
+  if to_regclass('public.atk_requests') is null then return jsonb_build_object('scanned', 0, 'created', 0, 'updated', 0); end if;
+  -- satu baris per orang (NIK bila ada, jika tidak nama); nilai terbaru yang dipakai
+  for r in
+    select distinct on (coalesce(nullif(trim(nik), ''), lower(trim(nama)))) nama, nik, departemen
+      from atk_requests
+     where coalesce(trim(nama), '') <> ''
+     order by coalesce(nullif(trim(nik), ''), lower(trim(nama))), tanggal desc, created_at desc
+  loop
+    n := n + 1;
+    res := employee_upsert_basic(r.nama, r.nik, r.departemen);
+    if res = 'created' then c := c + 1; elsif res = 'updated' then u := u + 1; end if;
+  end loop;
+  return jsonb_build_object('scanned', n, 'created', c, 'updated', u);
+end $f$;
+
+create or replace function employees_merge_atk() returns jsonb
+language plpgsql security definer set search_path = public as $f$
+begin
+  if auth.uid() is null or not exists (select 1 from profiles where id = auth.uid()) then
+    raise exception 'Akses ditolak: akun tidak terdaftar di CIKOPS.' using errcode = '42501';
+  end if;
+  return _employees_merge_atk();
+end $f$;
+
+create or replace function atk_excel_push_employee(p_key text, p_row jsonb) returns text
+language plpgsql security definer set search_path = public as $f$
+declare res text;
+begin
+  perform atk_check_key(p_key);
+  res := employee_upsert_basic(p_row ->> 'nama', p_row ->> 'nik', p_row ->> 'departemen');
+  update atk_sync_config set last_push_at = now() where id = 1;
+  return res;
+end $f$;
+
+revoke all on function employee_upsert_basic(text, text, text), atk_sync_employee_trg(), _employees_merge_atk() from public, anon, authenticated;
+revoke all on function employees_merge_atk() from public, anon;
+grant execute on function employees_merge_atk() to authenticated;
+revoke all on function atk_excel_push_employee(text, jsonb) from public;
+grant execute on function atk_excel_push_employee(text, jsonb) to anon, authenticated;
+
+do $$
+begin
+  if to_regclass('public.atk_requests') is null then
+    raise notice 'Tabel ATK belum ada — trigger bagian 050 dilewati.'; return;
+  end if;
+  drop trigger if exists trg_atk_requests_employee on atk_requests;
+  create trigger trg_atk_requests_employee after insert on atk_requests
+    for each row execute function atk_sync_employee_trg();
+end $$;
+
+-- Gabung riwayat ATK yang sudah ada (sekali jalan; aman diulang — hanya melengkapi yang kosong)
+select '050 gabung karyawan ATK' as cek, _employees_merge_atk() as hasil;
+
+notify pgrst, 'reload schema';

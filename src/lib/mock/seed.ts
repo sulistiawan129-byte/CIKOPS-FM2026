@@ -309,6 +309,16 @@ export function buildSeed(): MockDB {
       }
     }
   }
+  // Pemohon yang hanya ada di riwayat / Excel ATK (belum ada di Master Karyawan) — didemokan oleh tombol "Gabungkan data ATK"
+  [["Nur Hidayati", "NPI-90011", "Finance"], ["Bambang Sutrisno", "NPI-90012", "Warehouse"], ["Citra Anggraini", "NPI-90013", "HRD"],
+   ["Dedi Kurniawan", "NPI-90014", "Production"], ["Eka Wulandari", "NPI-90015", "QA"], ["Fajar Ramadhan", "", "Purchasing"]].forEach(([nama, nik, dept], n) => {
+    const d = addDays(today, -3 - n * 4);
+    put("atk_requests", {
+      id: uuid(), request_id: `REQ-X${ymd(d)}${pad(n + 1, 2)}`, tanggal: d, nama, nik, departemen: dept,
+      kode_barang: atkCode(1), nama_barang: ATK_NAMES[1], jumlah: 2, satuan: ATK_UNIT[1],
+      helper: "", source: "excel", excel_pulled_at: NOW, created_by: "Excel", created_at: tsAt(d, 650 + n * 11),
+    });
+  });
   for (let k = 0; k <= 3; k++) {
     const d = addDays(today, -k * 14);
     for (let i = 1; i <= 8; i++) {

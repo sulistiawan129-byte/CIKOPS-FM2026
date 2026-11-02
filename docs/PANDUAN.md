@@ -692,6 +692,20 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
   - Detail tiap transaksi, batalkan, ekspor.
 - **Sinkron Excel**: status terakhir kirim/tarik, jumlah yang menunggu, kunci sinkron, unduhan VBA, dan panduan.
 
+### Satu sumber data karyawan (bagian 050)
+Dulu pemohon ATK (NIK, nama, departemen) hanya ada di riwayat transaksi ATK dan sheet Excel
+`MasterDataKaryawan`, terpisah dari **Master Data → Pegawai**. Sekarang semuanya bermuara ke
+tabel `employees` (Master Karyawan) yang juga dipakai Receptionist, TGA, dan permintaan karyawan.
+- **Form Permintaan ATK** mengambil daftar nama / NIK / departemen dari Master Karyawan lebih dulu,
+  baru riwayat ATK. Pemohon baru yang diketik di form otomatis masuk ke Master Karyawan.
+- **Gabung data yang sudah ada:** Master Data → Pegawai → tombol **Gabungkan data ATK**.
+  Aman diulang; hanya *melengkapi* NIK / departemen yang kosong, tidak menimpa email, no HP, atau jabatan.
+  Pencocokan per NIK, lalu per nama.
+- **Dari Excel:** jalankan makro `SyncKaryawanOnly` (modul `modSyncCikops` versi terbaru) untuk mengirim sheet
+  `MasterDataKaryawan` (kolom A NIK, B Nama, C Departemen) ke Master Karyawan. Cukup dijalankan sesekali.
+- **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 050) di Supabase SQL Editor.
+  Restock tidak ikut digabung (kolom nama di restock = petugas gudang, bukan pemohon).
+
 ### File
 - Baru:
   - `src/app/dashboard/AtkTab.tsx`

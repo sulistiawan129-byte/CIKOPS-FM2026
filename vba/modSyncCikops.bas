@@ -17,6 +17,7 @@ Option Explicit
 '   SyncToCikops        -> TARIK lalu KIRIM semuanya (disarankan)
 '   TarikDariCikops     -> hanya TARIK transaksi dari CIKOPS
 '   SyncStokOnly / SyncPermintaanOnly / SyncRestockOnly -> seperti dulu
+'   SyncKaryawanOnly    -> kirim sheet MasterDataKaryawan ke Master Karyawan CIKOPS (sekali-sekali)
 '
 ' CARA PASANG / UPDATE:
 '   1. Alt+F11 -> hapus modul modSyncCikops yang lama
@@ -52,6 +53,7 @@ Private Const CIKOPS_SYNC_KEY As String = "isi-kunci-sinkron-dari-cikops"
 Private Const SH_MASTER As String = "MasterBarang"
 Private Const SH_PERMINTAAN As String = "TransaksiPermintaan"
 Private Const SH_UPDATE As String = "TransaksiUpdateBarang"
+Private Const SH_KARYAWAN As String = "MasterDataKaryawan" ' kolom A=NIK, B=Nama, C=Departemen
 Private Const SYNCED_COL As Long = 11 ' kolom K
 
 
@@ -158,6 +160,26 @@ ErrHandler:
     MsgBox "Gagal sinkron restock: " & Err.Description, vbCritical, "Sinkron Restock - Error"
 End Sub
 
+
+Public Sub SyncKaryawanOnly()
+    On Error GoTo ErrHandler
+    Application.ScreenUpdating = False
+    Application.StatusBar = "Mengirim Data Karyawan ke CIKOPS..."
+    Dim nKar As Long
+    nKar = SyncKaryawan()
+    Application.StatusBar = False
+    Application.ScreenUpdating = True
+    If nKar >= 0 Then
+        MsgBox "Sinkron Data Karyawan selesai." & vbCrLf & vbCrLf & _
+               "Karyawan dikirim ke Master Karyawan CIKOPS: " & nKar & " orang" & vbCrLf & _
+               "(yang sudah ada hanya dilengkapi NIK / departemen yang masih kosong)", vbInformation, "Sinkron Karyawan"
+    End If
+    Exit Sub
+ErrHandler:
+    Application.StatusBar = False
+    Application.ScreenUpdating = True
+    MsgBox "Gagal sinkron karyawan: " & Err.Description, vbCritical, "Sinkron Karyawan - Error"
+End Sub
 
 ' ============================================================
 ' TARIK: CIKOPS -> Excel
@@ -470,6 +492,48 @@ Private Function SyncRestock() As Long
         MsgBox "Sinkron Restock ada yang gagal." & vbCrLf & vbCrLf & "Contoh error pertama:" & vbCrLf & firstError, vbExclamation, "Sinkron Restock - Sebagian Gagal"
     End If
     SyncRestock = count
+End Function
+
+' ============================================================
+' KIRIM 4) DATA KARYAWAN - sheet MasterDataKaryawan -> Master Karyawan CIKOPS
+'    (Master Data -> Pegawai). Satu sumber untuk semua modul; yang sudah ada
+'    di CIKOPS hanya dilengkapi (NIK / departemen kosong), tidak ditimpa.
+'    Return -1 bila sheet tidak ada.
+' ============================================================
+Private Function SyncKaryawan() As Long
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets(SH_KARYAWAN)
+    On Error GoTo 0
+    If ws Is Nothing Then
+        MsgBox "Sheet '" & SH_KARYAWAN & "' tidak ditemukan di workbook ini.", vbExclamation, "Sinkron Karyawan"
+        SyncKaryawan = -1
+        Exit Function
+    End If
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.Rows.Count, 2).End(xlUp).Row
+
+    Dim i As Long, count As Long, firstError As String
+    For i = 2 To lastRow
+        If Trim(CStr(ws.Cells(i, 2).Value)) <> "" Then
+            Dim json As String, errDetail As String
+            json = "{""nik"":" & JQ(Trim(CStr(ws.Cells(i, 1).Value))) & _
+                   ",""nama"":" & JQ(Trim(CStr(ws.Cells(i, 2).Value))) & _
+                   ",""departemen"":" & JQ(Trim(CStr(ws.Cells(i, 3).Value))) & "}"
+            errDetail = ""
+            If PostJson(SUPABASE_URL & "/rest/v1/rpc/atk_excel_push_employee", "{""p_key"":" & JQ(CIKOPS_SYNC_KEY) & ",""p_row"":" & json & "}", "return=minimal", errDetail) Then
+                count = count + 1
+            ElseIf firstError = "" Then
+                firstError = "Baris " & i & ": " & errDetail
+            End If
+        End If
+        If i Mod 25 = 0 Then Application.StatusBar = "Mengirim Data Karyawan ke CIKOPS... " & i & " / " & lastRow
+    Next i
+    If firstError <> "" Then
+        MsgBox "Sinkron Karyawan ada yang gagal." & vbCrLf & vbCrLf & "Contoh error pertama:" & vbCrLf & firstError & vbCrLf & vbCrLf & _
+               "Pastikan supabase/04_aplikasi_lapangan.sql bagian 050 sudah dijalankan.", vbExclamation, "Sinkron Karyawan - Sebagian Gagal"
+    End If
+    SyncKaryawan = count
 End Function
 
 

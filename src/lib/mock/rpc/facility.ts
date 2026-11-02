@@ -102,7 +102,42 @@ function atkRestock(ctx: MockCtx, by: string, a: Row): string {
   return id;
 }
 
+/** Tiru employee_upsert_basic (SQL 050): cocokkan per NIK lalu nama; hanya melengkapi kolom kosong. */
+function employeeUpsertBasic(db: MockCtx["db"], namaIn: unknown, nikIn: unknown, deptIn: unknown): "created" | "updated" | "same" | "skip" {
+  const nama = s(namaIn), nik = s(nikIn), dept = s(deptIn);
+  if (!nama) return "skip";
+  const emp = table(db, "employees");
+  const key = nama.toLowerCase();
+  const hit = (nik ? emp.find((e) => s(e.nik) === nik) : undefined)
+    ?? emp.find((e) => s(e.nama).toLowerCase() === key && (!nik || !s(e.nik) || s(e.nik) === nik));
+  if (!hit) {
+    emp.push({ id: uuid(), nama, nik: nik || null, departement: dept || null, aktif: true, created_at: nowIso(), updated_at: nowIso() });
+    return "created";
+  }
+  let changed = false;
+  if (!s(hit.nik) && nik) { hit.nik = nik; changed = true; }
+  if (!s(hit.departement) && dept) { hit.departement = dept; changed = true; }
+  if (changed) hit.updated_at = nowIso();
+  return changed ? "updated" : "same";
+}
+
 const ATK: Record<string, RpcHandler> = {
+  employees_merge_atk(_a, ctx) {
+    atkStaff(ctx);
+    const seen = new Map<string, Row>();
+    const reqs = table(ctx.db, "atk_requests").slice().sort((a, b) => s(b.tanggal).localeCompare(s(a.tanggal)));
+    for (const r of reqs) {
+      if (!s(r.nama)) continue;
+      const k = s(r.nik) || s(r.nama).toLowerCase();
+      if (!seen.has(k)) seen.set(k, r);
+    }
+    let created = 0, updated = 0;
+    for (const r of seen.values()) {
+      const res = employeeUpsertBasic(ctx.db, r.nama, r.nik, r.departemen);
+      if (res === "created") created++; else if (res === "updated") updated++;
+    }
+    return { scanned: seen.size, created, updated };
+  },
   atk_web_request(a, ctx) {
     const by = atkStaff(ctx);
     if (!s(a.p_nama)) fail("Nama pemohon wajib diisi.");
@@ -127,6 +162,7 @@ const ATK: Record<string, RpcHandler> = {
       });
       it.stok = num(it.stok) - r.jumlah; it.updated_at = now;
     }
+    employeeUpsertBasic(ctx.db, a.p_nama, a.p_nik, a.p_departemen);
     return id;
   },
   atk_web_restock(a, ctx) {
