@@ -607,7 +607,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                     value={form.aktif ? "active" : "maintenance"}
                     onChange={(e) => setForm({ ...form, aktif: e.target.value === "active" })}
                   >
-                    <option value="active">Aktif</option>
+                    <option value="active">{L("Aktif", "Active")}</option>
                     <option value="maintenance">Maintenance</option>
                   </select>
                 </div>

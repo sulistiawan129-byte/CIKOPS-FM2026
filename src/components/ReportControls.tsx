@@ -47,7 +47,7 @@ export function LanguagePickerModal({ format, onConfirm, onClose }: LanguagePick
           </button>
         </div>
         <button onClick={onClose} style={{ marginTop: 14, width: "100%", padding: "9px", borderRadius: 10, border: "none", background: "transparent", color: "var(--t3)", fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}>
-          Batal
+          {L("Batal", "Cancel")}
         </button>
       </div>
     </div>

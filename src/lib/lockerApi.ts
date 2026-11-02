@@ -1,8 +1,9 @@
 import { supabase } from "./supabaseClient";
+import { L } from "./i18n";
 
 /** Update yang ditolak RLS tidak memberi error — 0 baris berubah. Jangan tampilkan "tersimpan". */
 function noChangeError(): Error {
-  return new Error("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.");
+  return new Error(L("Perubahan tidak tersimpan: data tidak ditemukan atau akun ini tidak punya izin mengubahnya.", "Changes were not saved: the record was not found or this account is not allowed to change it."));
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -128,7 +129,7 @@ export async function addLocker(input: LockerInput): Promise<void> {
   });
   if (error) {
     if (error.code === "23505") {
-      throw new Error(`Nomor locker ${input.number} sudah ada.`);
+      throw new Error(L(`Nomor locker ${input.number} sudah ada.`, `Locker number ${input.number} already exists.`));
     }
     throw new Error(error.message);
   }
@@ -152,7 +153,7 @@ export async function updateLocker(id: string, input: LockerInput): Promise<void
   if (!error && !updated?.length) throw noChangeError();
   if (error) {
     if (error.code === "23505") {
-      throw new Error(`Nomor locker ${input.number} sudah dipakai locker lain.`);
+      throw new Error(L(`Nomor locker ${input.number} sudah dipakai locker lain.`, `Locker number ${input.number} is already used by another locker.`));
     }
     throw new Error(error.message);
   }
@@ -213,7 +214,7 @@ export async function registerLocker(input: {
   });
   if (error) throw new Error(error.message);
   const row = data?.[0];
-  if (!row) throw new Error("Semua locker sudah terisi!");
+  if (!row) throw new Error(L("Semua locker sudah terisi!", "All lockers are occupied!"));
   return { lockerNumber: row.locker_number, pin: row.pin, periode: row.periode };
 }
 
@@ -251,14 +252,14 @@ function mapReleaseRow(row: {
 export async function releaseLockerByUser(number: string, pin: string): Promise<ReleaseLockerResult> {
   const { data, error } = await supabase.rpc("release_locker_by_user", { p_number: number, p_pin: pin });
   if (error) throw new Error(error.message);
-  if (!data?.[0]) throw new Error("Locker tidak ditemukan atau PIN salah.");
+  if (!data?.[0]) throw new Error(L("Locker tidak ditemukan atau PIN salah.", "Locker not found or wrong PIN."));
   return mapReleaseRow(data[0]);
 }
 
 export async function adminReleaseLocker(number: string): Promise<ReleaseLockerResult> {
   const { data, error } = await supabase.rpc("admin_release_locker", { p_number: number });
   if (error) throw new Error(error.message);
-  if (!data?.[0]) throw new Error("Locker tidak ditemukan atau PIN salah.");
+  if (!data?.[0]) throw new Error(L("Locker tidak ditemukan atau PIN salah.", "Locker not found or wrong PIN."));
   return mapReleaseRow(data[0]);
 }
 

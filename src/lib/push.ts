@@ -101,7 +101,7 @@ export async function enablePush(register: (s: PushSubData) => Promise<void>): P
     return;
   }
   if (!pushSupported()) {
-    throw new Error(isIOS() ? "Di iPhone, pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), lalu buka dari ikon." : "Browser ini belum mendukung notifikasi. Pakai Chrome.");
+    throw new Error(isIOS() ? L("Di iPhone, pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), lalu buka dari ikon.", "On iPhone, first add the app to the Home Screen (Share → Add to Home Screen), then open it from the icon.") : L("Browser ini belum mendukung notifikasi. Pakai Chrome.", "This browser does not support notifications. Use Chrome."));
   }
   const perm = await Notification.requestPermission();
   if (perm !== "granted") throw new Error("Izin notifikasi ditolak. Aktifkan lewat pengaturan situs / aplikasi di HP.");

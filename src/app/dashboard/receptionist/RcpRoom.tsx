@@ -91,7 +91,7 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
       <div className={r.legend}>
         <span><i style={{ background: "var(--green)" }} />Terbooking</span>
         <span><i style={{ border: "1px dashed var(--green)" }} />Booking berulang</span>
-        <span><i style={{ background: "var(--red)" }} />Garis = sekarang</span>
+        <span><i style={{ background: "var(--red)" }} />{L("Garis = sekarang", "Line = now")}</span>
         <span className={r.mute}>{L(`Jam operasional ${settings.openTime}–${settings.closeTime} · slot ${step} menit · klik slot kosong untuk booking`, `Operating hours ${settings.openTime}–${settings.closeTime} · ${step}-minute slots · click an empty slot to book`)}</span>
       </div>
       {err && <div className={r.err}>{err}</div>}

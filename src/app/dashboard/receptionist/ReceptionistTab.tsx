@@ -152,13 +152,13 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
                   {ageDays(p) >= 2 ? <span className={`${r.pill} ${r.pOrange}`}>{ageDays(p)} {L("hari", "days")}</span> : <span className={`${r.pill} ${r.pBlue}`}>{L("baru", "new")}</span>}
                 </div>
               ))}
-              {waiting.length > 6 && <span className={r.mute}>+{waiting.length - 6} lainnya</span>}
+              {waiting.length > 6 && <span className={r.mute}>+{waiting.length - 6} {L("lainnya", "more")}</span>}
             </div>
           )}
         </section>
 
         <section className={r.card}>
-          <div className={r.cardHead}><h2>{settings.roomName} hari ini</h2><button type="button" className={r.link} onClick={() => go("room")}>{L("Buka jadwal →", "Open schedule →")}</button></div>
+          <div className={r.cardHead}><h2>{settings.roomName} {L("hari ini", "today")}</h2><button type="button" className={r.link} onClick={() => go("room")}>{L("Buka jadwal →", "Open schedule →")}</button></div>
           {today.length === 0 ? <p className={r.empty}>{L("Tidak ada booking hari ini.", "No bookings today.")}</p> : (
             <div className={r.timeline}>
               {today.map((b) => (
@@ -172,7 +172,7 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
         </section>
 
         <section className={r.card}>
-          <div className={r.cardHead}><h2>{L("Akun wifi yang akan habis", "Wifi accounts about to expire")}</h2><small>≤ 7 hari</small></div>
+          <div className={r.cardHead}><h2>{L("Akun wifi yang akan habis", "Wifi accounts about to expire")}</h2><small>≤ 7 {L("hari", "days")}</small></div>
           {expiring.length === 0 ? <p className={r.empty}>{L("Tidak ada akun yang habis dalam 7 hari.", "No accounts expire within 7 days.")}</p> : (
             <div className={r.tableBox}>
               <table className={r.table}>

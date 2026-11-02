@@ -305,7 +305,7 @@ export default function CanteenTab() {
           {mode === "month" && <input className={c.input} type="month" value={monthValue} onChange={(e) => { setMonthValue(e.target.value); setPicked(null); }} aria-label={L("Bulan", "Month")} />}
           {mode === "custom" && (
             <>
-              <input className={c.input} type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Dari" />
+              <input className={c.input} type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label={L("Dari", "From")} />
               <span className={c.sep}>s/d</span>
               <input className={c.input} type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label={L("Sampai", "To")} />
             </>

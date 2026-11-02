@@ -95,7 +95,7 @@ export function PersonelView({ r, monthKey }: { r: SdReport | null; monthKey: st
         {r.improvements.length === 0 ? <p className={s.empty}>{L("Belum ada need improvement.", "No need-improvement items yet.")}</p> : (
           <div className={s.tableBox}><table className={s.table}>
             <thead><tr><th>{L("Dibuka", "Opened")}</th><th>{L("Deskripsi", "Description")}</th><th>{L("Tingkat", "Level")}</th><th>{L("Progres", "Progress")}</th><th>Status</th></tr></thead>
-            <tbody>{r.improvements.map((n, i) => <tr key={i}><td>{monthShort(n.opened_month)}</td><td>{n.description}</td><td>{n.priority}</td><td>{n.progress || "-"}</td><td><span className={tone[n.status] || s.badgeMute}>{n.status}</span></td></tr>)}</tbody>
+            <tbody>{r.improvements.map((n, i) => <tr key={i}><td>{monthShort(n.opened_month)}</td><td>{n.description}</td><td>{n.priority}</td><td>{n.progress || "-"}</td><td><span className={tone[n.status] || s.badgeMute}>{n.status === "Proses" ? L("Proses", "In progress") : n.status === "Selesai" ? L("Selesai", "Done") : n.status}</span></td></tr>)}</tbody>
           </table></div>
         )}
       </div>

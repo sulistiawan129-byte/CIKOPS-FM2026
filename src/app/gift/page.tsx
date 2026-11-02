@@ -294,7 +294,7 @@ export default function GiftPage() {
             {passcode}
           </div>
           <div style={{ fontSize: 12, color: "#a0aac0" }}>
-            Tunjukkan passcode ini ke petugas saat pengambilan
+            {L("Tunjukkan passcode ini ke petugas saat pengambilan", "Show this passcode to the staff when collecting")}
           </div>
         </div>
 

@@ -220,7 +220,7 @@ export default function GiftLookupPage() {
               onClick={() => { setPetugasInput(petugas); setShowPetugasPrompt(true); }}
               style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: 0, marginTop: 2 }}
             >
-              Ganti
+              {L("Ganti", "Change")}
             </button>
           </div>
         )}

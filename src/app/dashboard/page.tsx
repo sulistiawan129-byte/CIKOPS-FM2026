@@ -596,7 +596,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         const prev = tabHistory[tabHistory.length - 1];
         const showPrev = prev && prev !== "home";
         return (
-          <nav className={styles.backBar} aria-label="Navigasi kembali">
+          <nav className={styles.backBar} aria-label={L("Navigasi kembali", "Back navigation")}>
             <button className={styles.backBtn} onClick={() => setActiveTab("home")} title={lang === "en" ? "Back to Home" : "Kembali ke Home"}>
               <Icon name="home" size={15} strokeWidth={2.2} />
               {lang === "en" ? "Back to Home" : "Kembali ke Home"}

@@ -189,7 +189,7 @@ export default function GaTab({ myProfile }: { myProfile: MyProfile | null }) {
             <button type="button" className={g.navBtn} onClick={() => setPeriode((p) => shiftPeriode(p, 1))} aria-label={L("Bulan berikutnya", "Next month")}>›</button>
           </div>
           {(view === "dashboard" || view === "matrix") && (
-            <div className={a.seg} role="group" aria-label="Tim">
+            <div className={a.seg} role="group" aria-label={L("Tim", "Team")}>
               {(["Semua", "Cleaning Service", "Gardener"] as Team[]).map((t) => (
                 <button key={t} type="button" aria-pressed={team === t} className={team === t ? a.segOn : ""} onClick={() => setTeam(t)}>{t === "Semua" ? L("Semua tim", "All teams") : t}</button>
               ))}

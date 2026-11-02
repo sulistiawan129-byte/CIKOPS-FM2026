@@ -125,13 +125,13 @@ export function GateLogPanel(p: {
       )}
 
       <div className={g.toolbar}>
-        <div className={g.chips} role="group" aria-label="Rentang cepat">
+        <div className={g.chips} role="group" aria-label={L("Rentang cepat", "Quick range")}>
           {quick.map((c) => (
             <button key={c.days} type="button" className={`${g.chip} ${rangeDays === c.days ? g.chipOn : ""}`} onClick={() => p.onQuickRange(c.days)}>{c.label}</button>
           ))}
         </div>
         <div className={g.dates}>
-          <input type="date" value={p.dateFrom} onChange={(e) => p.onDateFrom(e.target.value)} aria-label="Dari tanggal" />
+          <input type="date" value={p.dateFrom} onChange={(e) => p.onDateFrom(e.target.value)} aria-label={L("Dari tanggal", "From date")} />
           <span>–</span>
           <input type="date" value={p.dateTo} onChange={(e) => p.onDateTo(e.target.value)} aria-label={L("Sampai tanggal", "To date")} />
         </div>

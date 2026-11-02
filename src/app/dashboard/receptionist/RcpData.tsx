@@ -32,8 +32,8 @@ export default function RcpData({ employees, accounts, reloadEmployees, reloadWi
   useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
   const cards: { k: Sub; icon: string; title: string; desc: string; n: number | string; c: string }[] = [
-    { k: "employees", icon: "👥", title: L("Data Karyawan", "Employee Data"), desc: "Nama, departemen, email & no HP requestor", n: employees.length, c: "var(--brand)" },
-    { k: "wifi", icon: "📶", title: L("Data Akun Wifi", "Wifi Account Data"), desc: "Akun tamu dari IT & masa berlakunya", n: accounts.length, c: "var(--purple)" },
+    { k: "employees", icon: "👥", title: L("Data Karyawan", "Employee Data"), get desc() { return L("Nama, departemen, email & no HP requestor", "Name, department, email & phone of the requestor"); }, n: employees.length, c: "var(--brand)" },
+    { k: "wifi", icon: "📶", title: L("Data Akun Wifi", "Wifi Account Data"), get desc() { return L("Akun tamu dari IT & masa berlakunya", "Guest accounts from IT & their validity"); }, n: accounts.length, c: "var(--purple)" },
     { k: "drivers", icon: "🚘", title: L("Data Driver", "Driver Data"), desc: L("Sinkron dengan driver CIKOPS", "Synced with CIKOPS drivers"), n: drivers ? drivers.length : "…", c: "var(--green)" },
   ];
   return (
@@ -81,7 +81,7 @@ function Employees({ rows, reload }: { rows: RcpEmployee[]; reload: () => Promis
   return (
     <section className={r.card}>
       <div className={r.cardHead}>
-        <div><h2>{L("Data Karyawan", "Employee Data")}</h2><p>Dipakai untuk mengisi email & departemen requestor secara otomatis. Tersimpan di master karyawan CIKOPS.</p></div>
+        <div><h2>{L("Data Karyawan", "Employee Data")}</h2><p>{L("Dipakai untuk mengisi email & departemen requestor secara otomatis. Tersimpan di master karyawan CIKOPS.", "Used to auto-fill the requestor email & department. Stored in the CIKOPS employee master.")}</p></div>
         <span className={r.row}>
           <ExportButtons rows={list} title={L("Data Karyawan", "Employee Data")} filename="Data_Karyawan" columns={[
             col<RcpEmployee>("n", L("Nama", "Name"), (x) => x.nama), col<RcpEmployee>("nik", "NIK", (x) => x.nik), col<RcpEmployee>("d", L("Departemen", "Department"), (x) => x.departement),
@@ -94,8 +94,8 @@ function Employees({ rows, reload }: { rows: RcpEmployee[]; reload: () => Promis
       <div className={r.stats}>
         <button type="button" className={r.stat} aria-pressed={f === "all"} onClick={() => setF("all")}><i /><b>{rows.length}</b>total</button>
         <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--green)" }} aria-pressed={false} onClick={() => setF("all")}><i /><b>{rows.length ? Math.round((withEmail / rows.length) * 100) : 0}%</b>punya email</button>
-        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--orange)" }} aria-pressed={f === "noEmail"} onClick={() => setF(f === "noEmail" ? "all" : "noEmail")}><i /><b>{rows.length - withEmail}</b>belum ada email</button>
-        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--t3)" }} aria-pressed={f === "inactive"} onClick={() => setF(f === "inactive" ? "all" : "inactive")}><i /><b>{rows.filter((x) => !x.aktif).length}</b>nonaktif</button>
+        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--orange)" }} aria-pressed={f === "noEmail"} onClick={() => setF(f === "noEmail" ? "all" : "noEmail")}><i /><b>{rows.length - withEmail}</b>{L("belum ada email", "no email yet")}</button>
+        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--t3)" }} aria-pressed={f === "inactive"} onClick={() => setF(f === "inactive" ? "all" : "inactive")}><i /><b>{rows.filter((x) => !x.aktif).length}</b>{L("nonaktif", "inactive")}</button>
       </div>
       <div className={r.toolbar}>
         <label className={r.search}><span>⌕</span><input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari nama, NIK, email, departemen…", "Search name, NIK, email, department…")} /></label>

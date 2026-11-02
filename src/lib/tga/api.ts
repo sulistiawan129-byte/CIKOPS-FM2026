@@ -114,13 +114,13 @@ function storeSession(token: string | null, nama = "") {
 
 /** Pesan error yang ramah: fungsi belum dipasang = 034 belum dijalankan. */
 function friendly(e: { message?: string; code?: string } | null): Error {
-  const msg = e?.message ?? "Terjadi kesalahan.";
+  const msg = e?.message ?? L("Terjadi kesalahan.", "Something went wrong.");
   if (e?.code === "PGRST202" || e?.code === "42883" || /could not find the function/i.test(msg)) {
     return new Error(/tga_admin_save|tga_admin_delete_act|tga_assign|assign_config|assign_code/i.test(msg)
       ? "Fitur ini belum aktif — admin perlu menjalankan supabase/04_aplikasi_lapangan.sql (bagian 045)."
       : "Aplikasi TGA belum aktif — admin perlu menjalankan supabase/01_dasar.sql (bagian 034).");
   }
-  if (/failed to fetch|network/i.test(msg)) return new Error("Tidak ada koneksi internet. Coba lagi.");
+  if (/failed to fetch|network/i.test(msg)) return new Error(L("Tidak ada koneksi internet. Coba lagi.", "No internet connection. Please try again."));
   return new Error(msg);
 }
 /** Sesi kedaluwarsa → hapus token supaya aplikasi kembali ke layar masuk. */

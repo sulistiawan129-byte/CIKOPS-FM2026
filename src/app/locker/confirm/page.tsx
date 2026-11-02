@@ -57,13 +57,13 @@ function LockerConfirmInner() {
           const data = await getLockerByConfirmToken(token);
           if (cancelled) return;
           if (!data) {
-            setState({ kind: "invalid", message: "Link ini sudah pernah digunakan sebelumnya, atau sudah kedaluwarsa." });
+            setState({ kind: "invalid", message: L("Link ini sudah pernah digunakan sebelumnya, atau sudah kedaluwarsa.", "This link has already been used, or has expired.") });
             return;
           }
           setState({ kind: "interstitial", lockerNumber: data.lockerNumber, nama: data.nama, answer: answerParam });
         } catch (e) {
           if (!cancelled) {
-            setState({ kind: "invalid", message: e instanceof Error ? e.message : "Terjadi kesalahan." });
+            setState({ kind: "invalid", message: e instanceof Error ? e.message : L("Terjadi kesalahan.", "Something went wrong.") });
           }
         }
         return;
@@ -135,7 +135,7 @@ function LockerConfirmInner() {
         {state.kind === "loading" && (
           <>
             <div style={{ width: 36, height: 36, borderRadius: "50%", border: "4px solid var(--border)", borderTopColor: "var(--brand)", animation: "spin 0.8s linear infinite", margin: "0 auto 14px" }} />
-            <p style={{ color: "var(--t3)", fontSize: 14 }}>Memuat...</p>
+            <p style={{ color: "var(--t3)", fontSize: 14 }}>{L("Memuat...", "Loading...")}</p>
           </>
         )}
 

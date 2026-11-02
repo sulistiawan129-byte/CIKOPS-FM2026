@@ -441,7 +441,7 @@ function LockerOverviewPanel() {
               className="pillBtn"
               style={{ width: "100%", justifyContent: "center" }}
             >
-              Selesai
+              {L("Selesai", "Done")}
             </button>
           </div>
         </ModalPortal>

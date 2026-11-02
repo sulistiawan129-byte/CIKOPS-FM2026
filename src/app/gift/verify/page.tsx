@@ -168,7 +168,7 @@ export default function GiftVerifyPage() {
               )}
 
               <button onClick={reset} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "1.5px solid #dfe6f3", background: "#f8faff", color: "#7a86aa", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-                Cek Passcode Lain
+                {L("Cek Passcode Lain", "Check Another Passcode")}
               </button>
             </div>
           </div>

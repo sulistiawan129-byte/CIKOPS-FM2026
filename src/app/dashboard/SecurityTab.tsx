@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MyProfile } from "@/lib/api";
 import {
-  DEFAULT_KHUSUS, KEJ_AUTO_PEL, KEJ_AUTO_TIMBANG, KEJ_CATS, NC_JENIS, TEAM_KEYS, VEH_CATS,
+  DEFAULT_KHUSUS, ncLabel, KEJ_AUTO_PEL, KEJ_AUTO_TIMBANG, KEJ_CATS, NC_JENIS, TEAM_KEYS, VEH_CATS,
   addMonthsKey, aggregateGc, aggregateManual, driverLabel, monthEnd, monthKeysBetween, monthStart, monthTotals, normCo,
   normalizeData, num, sumArr, weeksOfMonth,
   type GcAgg, type Issue, type MonthTotals, type PelManual, type SecData, type TotalKey, type VehKey,
@@ -310,17 +310,17 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
                 <thead>
                   <tr>
                     <th rowSpan={2}>{L("Minggu", "Week")}</th>
-                    {VEH_CATS.map((c) => <th key={c.k} colSpan={2} className={s.thGroup}>{c.id}{c.noteId ? <small>{c.noteId}</small> : null}</th>)}
+                    {VEH_CATS.map((c) => <th key={c.k} colSpan={2} className={s.thGroup}>{L(c.id, c.en)}{c.noteId ? <small>{L(c.noteId, c.noteEn ?? c.noteId)}</small> : null}</th>)}
                   </tr>
-                  <tr>{VEH_CATS.map((c) => [<th key={`${c.k}w`} className={s.thSub}>HK</th>, <th key={`${c.k}e`} className={s.thSub}>Libur</th>])}</tr>
+                  <tr>{VEH_CATS.map((c) => [<th key={`${c.k}w`} className={s.thSub}>{L("HK", "WD")}</th>, <th key={`${c.k}e`} className={s.thSub}>{L("Libur", "Off")}</th>])}</tr>
                 </thead>
                 <tbody>
                   {weeks.map((w, i) => (
                     <tr key={i}>
                       <th scope="row"><b>{L("Minggu", "Week")} {i + 1}</b><small>{w.label} {mname(mm, "short")}</small></th>
                       {VEH_CATS.map((c) => [
-                        <td key={`${c.k}w`}><NumIn label={L(`${c.id} minggu ${i + 1} hari kerja`, `${c.id} week ${i + 1} workdays`)} value={data.veh?.[c.k]?.wd[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.wd[i] = v; })} /></td>,
-                        <td key={`${c.k}e`}><NumIn label={L(`${c.id} minggu ${i + 1} akhir pekan`, `${c.id} week ${i + 1} weekend`)} value={data.veh?.[c.k]?.we[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.we[i] = v; })} /></td>,
+                        <td key={`${c.k}w`}><NumIn label={L(`${c.id} minggu ${i + 1} hari kerja`, `${c.en} week ${i + 1} workdays`)} value={data.veh?.[c.k]?.wd[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.wd[i] = v; })} /></td>,
+                        <td key={`${c.k}e`}><NumIn label={L(`${c.id} minggu ${i + 1} akhir pekan`, `${c.en} week ${i + 1} weekend`)} value={data.veh?.[c.k]?.we[i]} onChange={(v) => upd((d) => { d.veh![c.k]!.we[i] = v; })} /></td>,
                       ])}
                     </tr>
                   ))}
@@ -337,7 +337,7 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
               const tot = vehSum(c.k); const d = delta(tot, prevT?.[c.k]);
               return (
                 <div key={c.k} className={s.kpi}>
-                  <small>{c.id}</small>
+                  <small>{L(c.id, c.en)}</small>
                   <strong>{f(tot)}</strong>
                   <span className={d.up === null ? s.mute : d.up ? s.up : s.down}>{d.txt}</span>
                   <span className={s.mute}>{L("Rata-rata", "Average")} {f(Math.round(sumArr(data.veh?.[c.k]?.wd) / Math.max(1, wdDays)))} / {L("hari kerja", "workday")} · {f(Math.round(sumArr(data.veh?.[c.k]?.we) / Math.max(1, weDays)))} / {L("hari libur", "off day")}</span>
@@ -420,8 +420,8 @@ export default function SecurityTab({ myProfile }: { myProfile: MyProfile | null
             <div className={s.kejGrid}>
               {KEJ_CATS.map((c) => (
                 <label key={c.id} className={s.kejBox}>
-                  <span>{c.id}</span>
-                  <NumIn wide label={c.id} value={data.kej?.[c.id]} onChange={(v) => upd((d) => { d.kej![c.id] = v; })} />
+                  <span>{L(c.id, c.en)}</span>
+                  <NumIn wide label={L(c.id, c.en)} value={data.kej?.[c.id]} onChange={(v) => upd((d) => { d.kej![c.id] = v; })} />
                 </label>
               ))}
               <label className={`${s.kejBox} ${s.kejAuto}`}>
@@ -686,16 +686,16 @@ function ManualPel({ value, khusus, onChange }: { value: PelManual | undefined; 
         <div className={s.stack}>
           <small className={s.kicker}>{L("Rekap per jenis (semua perusahaan)", "Recap per type (all companies)")}</small>
           {NC_JENIS.map((j) => (
-            <label key={j} className={s.manualRow}><span>{j}</span><NumIn label={j} value={v.jenis[j]} onChange={(x) => set((p) => { p.jenis[j] = x; })} /></label>
+            <label key={j} className={s.manualRow}><span>{ncLabel(j)}</span><NumIn label={ncLabel(j)} value={v.jenis[j]} onChange={(x) => set((p) => { p.jenis[j] = x; })} /></label>
           ))}
           {jTotal !== coTotal && coTotal > 0 && <div className={s.checkWarn}>{L(`⚠ Rekap per jenis (${f(jTotal)}) belum sama dengan total kasus (${f(coTotal)}). Satu kasus bisa punya lebih dari satu temuan.`, `⚠ The per-type recap (${f(jTotal)}) does not equal the total cases (${f(coTotal)}). One case can have more than one finding.`)}</div>}
         </div>
       </div>
       <div className={s.grid2}>
         <div className={s.stack}>
-          <small className={s.kicker}>Khusus {khusus.join(" & ")} — jenis</small>
+          <small className={s.kicker}>{L("Khusus", "Special")} {khusus.join(" & ")} — {L("jenis", "type")}</small>
           {NC_JENIS.slice(0, 6).map((j) => (
-            <label key={j} className={s.manualRow}><span>{j}</span><NumIn label={`Khusus ${j}`} value={v.kJenis[j]} onChange={(x) => set((p) => { p.kJenis[j] = x; })} /></label>
+            <label key={j} className={s.manualRow}><span>{ncLabel(j)}</span><NumIn label={`${L("Khusus", "Special")} ${ncLabel(j)}`} value={v.kJenis[j]} onChange={(x) => set((p) => { p.kJenis[j] = x; })} /></label>
           ))}
         </div>
         <div className={s.stack}>
@@ -744,7 +744,7 @@ function IssuesPanel({ monthKey, issues, onChange }: { monthKey: string; issues:
       </div>
       <div className={s.issueForm}>
         <input type="date" className={s.text} aria-label={L("Tanggal kejadian", "Incident date")} value={tgl} min={monthStart(monthKey)} max={monthEnd(monthKey)} onChange={(e) => setTgl(e.target.value)} />
-        <select className={s.select} aria-label={L("Jenis kejadian", "Incident type")} value={kat} onChange={(e) => setKat(e.target.value)}>{KEJ_CATS.map((c) => <option key={c.id}>{c.id}</option>)}</select>
+        <select className={s.select} aria-label={L("Jenis kejadian", "Incident type")} value={kat} onChange={(e) => setKat(e.target.value)}>{KEJ_CATS.map((c) => <option key={c.id} value={c.id}>{L(c.id, c.en)}</option>)}</select>
         <input className={s.text} placeholder={L("Deskripsi singkat kejadian…", "Short description of the incident…")} aria-label={L("Deskripsi kejadian", "Incident description")} value={desc} onChange={(e) => setDesc(e.target.value)} />
         <select className={s.select} aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as Issue["status"])}><option>Open</option><option>Close</option></select>
         <button type="button" className={s.primary} onClick={() => { if (!desc.trim()) return; onChange([...issues, { tgl, kat, desc: desc.trim(), status }]); setDesc(""); }}>{L("+ Tambah", "+ Add")}</button>

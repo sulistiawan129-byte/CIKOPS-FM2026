@@ -94,7 +94,7 @@ function ActualCountCard({
             {saving ? "..." : L("Simpan", "Save")}
           </button>
           <button onClick={() => { setEditing(false); setDraft(value != null ? String(value) : ""); }} style={{ background: "none", border: "none", color: "var(--t3)", fontSize: 12, cursor: "pointer" }}>
-            Batal
+            {L("Batal", "Cancel")}
           </button>
         </div>
       ) : (
@@ -360,7 +360,7 @@ function StockPerSizeCard({
         ) : (
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", color: "var(--t3)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-              Batal
+              {L("Batal", "Cancel")}
             </button>
             <button onClick={handleSaveAll} disabled={saving} style={{ background: "var(--brand)", border: "none", borderRadius: 8, padding: "5px 14px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
               {saving ? L("Menyimpan...", "Saving...") : L("Simpan Semua", "Save All")}
@@ -804,8 +804,8 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const giftReportExportPicker = useExportLanguagePicker((format, exportLang) => {
     if (!regEvent) return;
     const activeFilterLabel =
-      claimFilter === "not_claimed" ? " (Belum Diambil)" :
-      claimFilter === "claimed" ? " (Sudah Diambil)" :
+      claimFilter === "not_claimed" ? L(" (Belum Diambil)", " (Not Claimed)") :
+      claimFilter === "claimed" ? L(" (Sudah Diambil)", " (Claimed)") :
       categoryFilter !== "all" ? ` (${CATEGORY_LABEL[categoryFilter].id})` :
       sizeFilter !== "all" ? ` (Ukuran ${sizeFilter})` : "";
     const opts = {
@@ -1090,7 +1090,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
               disabled={!csvFile || importing}
               style={{ background: "var(--brand)", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: !csvFile || importing ? "default" : "pointer", opacity: !csvFile || importing ? 0.6 : 1 }}
             >
-              {importing ? "Memproses..." : importMode === "update" ? "Update" : "Import"}
+              {importing ? L("Memproses...", "Processing...") : importMode === "update" ? "Update" : "Import"}
             </button>
           </div>
           {importResult && (
@@ -1112,7 +1112,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
       )}
       {regsLoading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>Memuat...</div>
+        <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>{L("Memuat...", "Loading...")}</div>
       ) : regs.length === 0 ? (
         <div style={{ textAlign: "center", padding: 40, color: "var(--t3)" }}>
           <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
@@ -1321,7 +1321,7 @@ export function GiftMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
         </div>
       ))}
       <button onClick={addItem} style={{ background: "none", border: "1.5px dashed var(--border2)", borderRadius: 12, padding: "10px 16px", color: "var(--t3)", cursor: "pointer", fontSize: 13, width: "100%", marginBottom: 20 }}>
-        + Tambah Item Lain
+        {L("+ Tambah Item Lain", "+ Add Another Item")}
       </button>
 
       <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 800, fontSize: 15, cursor: saving ? "default" : "pointer", opacity: saving ? 0.65 : 1 }}>

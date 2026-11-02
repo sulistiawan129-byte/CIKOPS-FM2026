@@ -32,7 +32,7 @@ export default function DemoRibbon() {
     position: "fixed", left: 12, bottom: 12, zIndex: 9999, font: "800 11px/1 system-ui, sans-serif", letterSpacing: ".08em", color: "#fff",
     background: "linear-gradient(135deg, #f97316, #e11d48)", boxShadow: "0 6px 18px -6px rgba(225,29,72,.6)", borderRadius: 999, border: 0,
   };
-  if (!MOCK_MODE) return <div role="note" aria-label="Mode demo — semua data fiktif" style={{ ...base, pointerEvents: "none", padding: "5px 11px", opacity: 0.92 }}>{pill}</div>;
+  if (!MOCK_MODE) return <div role="note" aria-label={L("Mode demo — semua data fiktif", "Demo mode — all data is fictional")} style={{ ...base, pointerEvents: "none", padding: "5px 11px", opacity: 0.92 }}>{pill}</div>;
 
   const current = DEMO_ACCOUNTS.find((a) => a.email === email);
   return (
@@ -42,7 +42,7 @@ export default function DemoRibbon() {
         {pill}<span style={{ marginLeft: 8, opacity: 0.9, letterSpacing: 0, fontWeight: 700 }}>{current ? `· ${current.label}` : ""} ▾</span>
       </button>
       {open && (
-        <div role="dialog" aria-label="Panel demo" style={{
+        <div role="dialog" aria-label={L("Panel demo", "Demo panel")} style={{
           position: "fixed", left: 12, bottom: 50, zIndex: 9999, width: "min(320px, calc(100vw - 24px))", maxHeight: "70vh", overflow: "auto",
           padding: 12, borderRadius: 16, background: "#0f172a", color: "#e2e8f0", font: "500 13px/1.35 system-ui, sans-serif",
           boxShadow: "0 18px 50px -12px rgba(0,0,0,.6)", border: "1px solid rgba(255,255,255,.1)",
