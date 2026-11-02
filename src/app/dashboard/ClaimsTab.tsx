@@ -420,7 +420,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         lang === "en" ? "New Claim Submitted 💰" : "Ada Klaim Baru 💰",
         lang === "en"
           ? `Period: ${periodDate} · Total: Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}`
-          : `Periode: ${periodDate} · Total: Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}`,
+          : L(`Periode: ${periodDate} · Total: Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}`, `Period: ${periodDate} · Total: Rp ${new Intl.NumberFormat(loc()).format(grandTotal)}`),
         { type: "claim" }
       ).catch(() => {});
     } catch (e) {
@@ -575,7 +575,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
           <div className={cs.actions}>
             {periodMode === "week" && filtered.length > 0 && (
               <button className={`${cs.btn} ${cs.btnGreen}`} onClick={handleExportRecap} disabled={exportingRecap} title={en ? "Export official Finance recap format (CSV)" : "Export format rekap resmi Finance (CSV)"}>
-                ⬇ {exportingRecap ? "..." : "Export Tanda Terima"}
+                ⬇ {exportingRecap ? "..." : L("Export Tanda Terima", "Export Receipt")}
               </button>
             )}
             <button className={cs.primary} onClick={openAdd}>

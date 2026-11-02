@@ -290,7 +290,7 @@ export default function CanteenTab() {
       />
 
       <div className={c.toolbar}>
-        <div className={c.seg} role="group" aria-label="Mode periode">
+        <div className={c.seg} role="group" aria-label={L("Mode periode", "Period mode")}>
           {([["day", L("Harian", "Daily")], ["week", L("Mingguan", "Weekly")], ["month", L("Bulanan", "Monthly")], ["custom", L("Kustom", "Custom")]] as const).map(([k, l]) => (
             <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? c.segOn : ""} onClick={() => { setMode(k); setPicked(null); }}>{l}</button>
           ))}
@@ -361,7 +361,7 @@ export default function CanteenTab() {
                       onFocus={() => setHover(i)}
                       onBlur={() => setHover(null)}
                       onClick={() => setPicked(on ? null : s.date)}
-                      aria-label={`${dFull(s.date)}: terpakai ${s.used}, sisa ${s.left}`}
+                      aria-label={L(`${dFull(s.date)}: terpakai ${s.used}, sisa ${s.left}`, `${dFull(s.date)}: consumed ${s.used}, leftover ${s.left}`)}
                       aria-pressed={on}
                     >
                       <span className={c.stack}>
@@ -390,7 +390,7 @@ export default function CanteenTab() {
           <div className={c.cardHead}>
             <div>
               <h2>Per shift</h2>
-              <span className={c.hint}>{picked ? dFull(picked) : `Seluruh periode · ${periodLabel}`}</span>
+              <span className={c.hint}>{picked ? dFull(picked) : L(`Seluruh periode · ${periodLabel}`, `Whole period · ${periodLabel}`)}</span>
             </div>
             {picked && <button type="button" className={c.link} onClick={() => setPicked(null)}>{L("Semua hari", "All days")}</button>}
           </div>
@@ -465,7 +465,7 @@ export default function CanteenTab() {
               </tbody>
               <tfoot>
                 <tr className={c.totalRow}>
-                  <td>Total periode</td>
+                  <td>{L("Total periode", "Period total")}</td>
                   <td className={`${c.num} ${c.gStart}`}>{num(totals.snackOrder)}</td>
                   <td className={c.num}>{num(totals.snackConsumed)}</td>
                   <td className={`${c.num} ${totals.snackLeftover > 0 ? c.inkBad : ""}`}>{num(totals.snackLeftover)}</td>

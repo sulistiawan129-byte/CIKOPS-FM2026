@@ -17,6 +17,7 @@ import { ModuleHeader, ModulePage } from "./ModuleShell";
 import a from "./atk.module.css";
 import x from "./accounts.module.css";
 
+import { L } from "@/lib/i18n";
 type Lang = "id" | "en";
 const LEGACY: Record<string, { id: string; en: string }> = { admin: { id: "Admin (role lama)", en: "Admin (legacy)" }, ga: { id: "GA (role lama)", en: "GA (legacy)" } };
 const roleName = (r: string, lang: Lang) => { const i = ROLE_INFO[r as StaffRole]; return i ? (lang === "en" ? i.en : i.id) : LEGACY[r]?.[lang] ?? r; };
@@ -211,7 +212,7 @@ function AccountModal({ lang, roles, acc, onClose, onSaved }: {
 function SecretModal({ lang, email, password, title, onClose }: { lang: Lang; email: string; password: string; title: string; onClose: () => void }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [copied, setCopied] = useState(false);
-  const text = `Email: ${email}\nPassword sementara: ${password}\nLogin: ${typeof window !== "undefined" ? window.location.origin : ""}/dashboard\nSetelah login Anda akan diminta membuat password baru (atau lewat menu akun → Ubah password).`;
+  const text = L(`Email: ${email}\nPassword sementara: ${password}\nLogin: ${typeof window !== "undefined" ? window.location.origin : ""}/dashboard\nSetelah login Anda akan diminta membuat password baru (atau lewat menu akun → Ubah password).`, `Email: ${email}\nTemporary password: ${password}\nLogin: ${typeof window !== "undefined" ? window.location.origin : ""}/dashboard\nAfter logging in you will be asked to set a new password (or via the account menu → Change password).`);
   return createPortal(
     <div className={a.overlay} onClick={onClose}>
       <div className={a.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="sec-title" style={{ width: "min(480px, 100%)" }}>

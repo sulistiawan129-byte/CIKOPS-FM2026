@@ -553,7 +553,7 @@ function LockerManagePanel() {
       else await addLocker(form);
       setShowForm(false);
       await load();
-      showToast(editing ? "Locker berhasil diperbarui." : "Locker baru berhasil ditambahkan.");
+      showToast(editing ? L("Locker berhasil diperbarui.", "Locker updated successfully.") : L("Locker baru berhasil ditambahkan.", "New locker added successfully."));
     } catch (e) {
       showToast(e instanceof Error ? e.message : L("Gagal menyimpan data.", "Failed to save the data."), true);
     } finally {
@@ -565,7 +565,7 @@ function LockerManagePanel() {
     if (!confirmDelete) return;
     try {
       await deleteLocker(confirmDelete.id);
-      showToast(`Locker ${confirmDelete.number} berhasil dihapus.`);
+      showToast(L(`Locker ${confirmDelete.number} berhasil dihapus.`, `Locker ${confirmDelete.number} deleted successfully.`));
       setConfirmDelete(null);
       await load();
     } catch (e) {
