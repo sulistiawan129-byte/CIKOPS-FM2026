@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import styles from "./dashboard.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
-import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, addEmployee, updateEmployee, deleteEmployee, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
+import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, mergeAtkIntoEmployees, addEmployee, updateEmployee, deleteEmployee, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
 import type { Plant, DriverTier } from "@/lib/types";
 import type { DriverType } from "@/lib/types";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf, DRIVER_TYPES, DRIVER_TYPE_LABEL, DRIVER_TYPE_COLOR } from "@/lib/duty";
@@ -561,7 +561,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
   );
 }
 
-interface EmployeeRow extends Record<string, unknown> { id: string; nama: string; departement: string }
+interface EmployeeRow extends Record<string, unknown> { id: string; nama: string; nik: string; departement: string }
 interface JobTypeRow extends Record<string, unknown> { id: string; label: string }
 
 /* ── Pegawai (dipakai Receptionist, aplikasi TGA & permintaan karyawan) ── */
@@ -570,23 +570,44 @@ function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   const [rows, setRows] = useState<EmployeeRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
-    try { setRows((await getAllEmployeesFull()).map((e) => ({ id: e.id, nama: e.nama, departement: e.departement ?? "" }))); setError(null); }
+    try { setRows((await getAllEmployeesFull()).map((e) => ({ id: e.id, nama: e.nama, nik: e.nik ?? "", departement: e.departement ?? "" }))); setError(null); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); setRows([]); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  const [merging, setMerging] = useState(false);
+  const [mergeMsg, setMergeMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  async function doMerge() {
+    setMerging(true); setMergeMsg(null);
+    try {
+      const res = await mergeAtkIntoEmployees();
+      setMergeMsg({ ok: true, text: L(`Selesai: ${res.scanned} pemohon ATK diperiksa · ${res.created} karyawan baru · ${res.updated} dilengkapi.`, `Done: ${res.scanned} ATK requesters checked · ${res.created} new employees · ${res.updated} completed.`) });
+      await load();
+    } catch (e) { setMergeMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
+    finally { setMerging(false); }
+  }
   if (!rows) return <SkeletonRows />;
   const depts = [...new Set(rows.map((r) => r.departement).filter(Boolean))].sort();
-  const input = (v: Partial<EmployeeRow>) => ({ nama: String(v.nama ?? "").trim(), departement: String(v.departement ?? "").trim() || null });
+  const input = (v: Partial<EmployeeRow>) => ({ nama: String(v.nama ?? "").trim(), nik: String(v.nik ?? "").trim() || null, departement: String(v.departement ?? "").trim() || null });
   return (
     <SettingsPage>
       {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
+      <div style={{ gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: "var(--bg2, rgba(127,127,127,.08))", border: "1px solid var(--border2, rgba(127,127,127,.2))" }}>
+        <div style={{ flex: "1 1 280px", fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
+          <b style={{ color: "var(--t1)" }}>{L("Satu sumber data karyawan", "One employee source")}</b> — {L("pemohon ATK (NIK, nama, departemen) otomatis masuk ke daftar ini, dan form ATK memakai daftar ini. Tekan tombol untuk menggabungkan riwayat ATK yang sudah ada (hanya melengkapi yang kosong, tidak menimpa).", "ATK requesters (ID, name, department) are added to this list automatically, and the ATK form uses this list. Press the button to merge existing ATK history (fills blanks only, never overwrites).")}
+          {mergeMsg && <div style={{ marginTop: 6, fontWeight: 700, color: mergeMsg.ok ? "var(--green, #16a34a)" : "var(--red)" }}>{mergeMsg.text}</div>}
+        </div>
+        <button type="button" disabled={merging} onClick={doMerge} style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: merging ? "default" : "pointer", opacity: merging ? 0.6 : 1 }}>
+          {merging ? L("Menggabungkan…", "Merging…") : L("Gabungkan data ATK", "Merge ATK data")}
+        </button>
+      </div>
       <div style={{ gridColumn: "1 / -1" }}>
         <CrudList<EmployeeRow>
           icon="👤" title={L("Pegawai", "Employees")} itemName={L("pegawai", "employee")}
           desc={L(`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan. ${depts.length} departemen.`, `Employee data for TGA requestors, Receptionist and employee requests. ${depts.length} department(s).`)}
           rows={rows} rowKey={(r) => r.id}
-          columns={[{ label: L("Nama", "Name"), render: (r) => <b>{r.nama}</b> }, { label: L("Departemen", "Department"), render: (r) => r.departement || "—" }]}
+          columns={[{ label: "NIK", render: (r) => r.nik || "—" }, { label: L("Nama", "Name"), render: (r) => <b>{r.nama}</b> }, { label: L("Departemen", "Department"), render: (r) => r.departement || "—" }]}
           fields={[
+            { key: "nik", label: "NIK", placeholder: L("opsional — dipakai juga oleh ATK", "optional — also used by ATK") },
             { key: "nama", label: L("Nama", "Name"), required: true },
             { key: "departement", label: L("Departemen", "Department"), placeholder: depts.slice(0, 3).join(" / ") || L("mis. GA", "e.g. GA") },
           ]}

@@ -2325,6 +2325,7 @@ export async function getAllEmployeesFull(): Promise<Employee[]> {
 export interface EmployeeInput {
   nama: string;
   departement: string | null;
+  nik?: string | null;
 }
 
 export async function addEmployee(input: EmployeeInput): Promise<void> {
@@ -2336,6 +2337,16 @@ export async function updateEmployee(id: string, input: EmployeeInput): Promise<
   const { data: updated, error } = await supabase.from("employees").update(input).eq("id", id).select("id");
   if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
+}
+
+/** Gabungkan pemohon dari riwayat ATK (NIK, nama, departemen) ke Master Karyawan — hanya melengkapi yang kosong. */
+export async function mergeAtkIntoEmployees(): Promise<{ scanned: number; created: number; updated: number }> {
+  const { data, error } = await supabase.rpc("employees_merge_atk");
+  if (error) throw new Error(error.code === "PGRST202" || error.code === "42883"
+    ? L("Fungsi penggabungan belum ada — jalankan supabase/04_aplikasi_lapangan.sql (bagian 050) di Supabase SQL Editor.", "The merge function is missing — run supabase/04_aplikasi_lapangan.sql (section 050) in the Supabase SQL Editor.")
+    : error.message);
+  const d = (data ?? {}) as Record<string, unknown>;
+  return { scanned: Number(d.scanned ?? 0), created: Number(d.created ?? 0), updated: Number(d.updated ?? 0) };
 }
 
 export async function deleteEmployee(id: string): Promise<void> {

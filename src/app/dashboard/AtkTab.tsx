@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getAtkItems, getAtkRequests, getAtkRestocks, createAtkRequest, createAtkRestock, addAtkItem, setAtkMinStok,
-  cancelAtkTransaction, getAtkSyncStatus, rotateAtkSyncKey,
+  cancelAtkTransaction, getAtkSyncStatus, rotateAtkSyncKey, getAllEmployeesFull,
 } from "@/lib/api";
 import type { MyProfile, AtkLineInput } from "@/lib/api";
 import type { AtkItem, AtkRequest, AtkRestock, AtkSyncStatus } from "@/lib/types";
@@ -630,17 +630,31 @@ function TxnForm({ kind, lang, items, history, myProfile, prefillKode, onDone }:
   const [saved, setSaved] = useState<{ id: string; lines: { nama: string; jumlah: number; satuan: string }[] } | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
 
-  // isian otomatis dari riwayat
+  // Master Karyawan (Master Data → Pegawai) = sumber utama pemohon; riwayat ATK hanya pelengkap
+  const [master, setMaster] = useState<{ nama: string; nik: string; dept: string }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    getAllEmployeesFull()
+      .then((es) => { if (alive) setMaster(es.filter((e) => e.aktif !== false).map((e) => ({ nama: e.nama, nik: (e.nik ?? "").trim(), dept: (e.departement ?? "").trim() }))); })
+      .catch(() => { /* daftar master opsional — form tetap bisa diketik manual */ });
+    return () => { alive = false; };
+  }, []);
+
+  // isian otomatis: master dulu, lalu riwayat
   const people = useMemo(() => {
     const m = new Map<string, { nama: string; nik: string; dept: string }>();
+    for (const e of master) {
+      if (e.nik && !m.has("n:" + e.nik)) m.set("n:" + e.nik, e);
+      if (e.nama && !m.has("p:" + e.nama.toLowerCase())) m.set("p:" + e.nama.toLowerCase(), e);
+    }
     for (const r of history) {
       if (r.nik && !m.has("n:" + r.nik)) m.set("n:" + r.nik, { nama: r.nama, nik: r.nik, dept: r.departemen });
       if (r.nama && !m.has("p:" + r.nama.toLowerCase())) m.set("p:" + r.nama.toLowerCase(), { nama: r.nama, nik: r.nik, dept: r.departemen });
     }
     return m;
-  }, [history]);
-  const deptList = useMemo(() => [...new Set(history.map((r) => r.departemen).filter(Boolean))].sort(), [history]);
-  const nameList = useMemo(() => [...new Set(history.map((r) => r.nama).filter(Boolean))].sort().slice(0, 400), [history]);
+  }, [history, master]);
+  const deptList = useMemo(() => [...new Set([...master.map((e) => e.dept), ...history.map((r) => r.departemen)].filter(Boolean))].sort(), [history, master]);
+  const nameList = useMemo(() => [...new Set([...master.map((e) => e.nama), ...history.map((r) => r.nama)].filter(Boolean))].sort().slice(0, 3000), [history, master]);
   const helperList = useMemo(() => [...new Set(history.map((r) => r.helper).filter(Boolean))].sort(), [history]);
   function fillFrom(key: string) {
     const p = people.get(key);

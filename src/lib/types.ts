@@ -42,6 +42,8 @@ export interface Employee {
   id: string;
   nama: string;
   departement: string | null;
+  nik?: string | null;
+  aktif?: boolean | null;
 }
 
 export interface JobType {
