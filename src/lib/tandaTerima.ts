@@ -13,22 +13,24 @@ function buildRecapSection(
   claims: Claim[],
   weekLabel: string,
   plant: string,
-  sectionTitle: string
+  sectionTitle: string,
+  lang: "id" | "en" = "id"
 ): string[] {
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
   const lines: string[] = [];
   const rows = summarizeByDriver(claims);
   const grand = grandTotalOf(rows);
 
-  lines.push(escapeCsv("REKAPITULASI BIAYA OPERASIONAL KENDARAAN " + new Date().getFullYear()));
+  lines.push(escapeCsv(L("REKAPITULASI BIAYA OPERASIONAL KENDARAAN ", "VEHICLE OPERATING COST RECAP ") + new Date().getFullYear()));
   lines.push(escapeCsv(sectionTitle));
   lines.push("");
-  lines.push(["Periode", ":", weekLabel].map(escapeCsv).join(","));
+  lines.push([L("Periode", "Period"), ":", weekLabel].map(escapeCsv).join(","));
   lines.push(["Plant", ":", plant].map(escapeCsv).join(","));
   lines.push("");
   lines.push(["NO", "POLICE NO", "HOLDER", "DRIVER", "GASOLINE", "TOLL", "PARKING", "OTHERS", "TOTAL", "KET"].map(escapeCsv).join(","));
 
   if (rows.length === 0) {
-    lines.push(["", "", "", "(tidak ada klaim minggu ini)", "", "", "", "", "", ""].map(escapeCsv).join(","));
+    lines.push(["", "", "", L("(tidak ada klaim minggu ini)", "(no claims this week)"), "", "", "", "", "", ""].map(escapeCsv).join(","));
   } else {
     rows.forEach((r, i) => {
       lines.push(
@@ -50,7 +52,7 @@ function buildRecapSection(
 
   lines.push(["", "", "", "Total", rows.length === 1 ? rows[0].gasoline : "", "", "", "", grand.total, ""].map(escapeCsv).join(","));
   lines.push(
-    ["", "", "", "Grand Total", grand.gasoline, grand.toll, grand.parking, grand.others, grand.total, ""].map(escapeCsv).join(",")
+    ["", "", "", L("Total Keseluruhan", "Grand Total"), grand.gasoline, grand.toll, grand.parking, grand.others, grand.total, ""].map(escapeCsv).join(",")
   );
   lines.push("");
 
@@ -59,7 +61,7 @@ function buildRecapSection(
   // category in the same claim — each was submitted as its own sheet.
   // Each row shows that item's final total, never the raw addition
   // expression like "100000+10000". ──
-  lines.push(escapeCsv("RINCIAN"));
+  lines.push(escapeCsv(L("RINCIAN", "DETAILS")));
   lines.push(["GASOLINE", "TOLL", "PARKING", "OTHERS", "TOTAL"].map(escapeCsv).join(","));
 
   const rincianRows = buildRincianRows(claims);
@@ -95,18 +97,20 @@ export function exportTandaTerima(
   weekClaims: Claim[],
   weekLabel: string,
   plant: string,
-  driverUserIds: string[]
+  driverUserIds: string[],
+  lang: "id" | "en" = "id"
 ): void {
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
   const userClaims = weekClaims.filter((c) => driverUserIds.includes(c.driver_id));
   const otherClaims = weekClaims.filter((c) => !driverUserIds.includes(c.driver_id));
 
   const safeLabel = weekLabel.replace(/[^a-zA-Z0-9_-]/g, "_");
 
   if (userClaims.length > 0) {
-    const lines = buildRecapSection(userClaims, weekLabel, plant, "TANDA TERIMA — DRIVER USER");
+    const lines = buildRecapSection(userClaims, weekLabel, plant, L("TANDA TERIMA — DRIVER USER", "RECEIPT — DRIVER USER"), lang);
     downloadCsv(lines, `TandaTerima_DriverUser_${safeLabel}.csv`);
   }
 
-  const combinedLines = buildRecapSection(otherClaims, weekLabel, plant, "TANDA TERIMA");
+  const combinedLines = buildRecapSection(otherClaims, weekLabel, plant, L("TANDA TERIMA", "RECEIPT"), lang);
   downloadCsv(combinedLines, `TandaTerima_${safeLabel}.csv`);
 }

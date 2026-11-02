@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useLang, useTheme } from "@/lib/providers";
+import { L } from "@/lib/i18n";
 import {
   registerLocker,
   verifyLockerRelease,
@@ -157,7 +158,7 @@ export default function LockerPublicPage() {
       setResultPeriode(res.periode);
       goTo("result");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Terjadi kesalahan.");
+      alert(e instanceof Error ? e.message : L("Terjadi kesalahan.", "An error occurred."));
     } finally {
       setLoading(null);
     }
@@ -194,7 +195,7 @@ export default function LockerPublicPage() {
       setResultPeriode(res.periode);
       goTo("result");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Terjadi kesalahan.");
+      alert(e instanceof Error ? e.message : L("Terjadi kesalahan.", "An error occurred."));
     } finally {
       setLoading(null);
     }
@@ -212,7 +213,7 @@ export default function LockerPublicPage() {
       setConfirmData(data);
       goTo("end-confirm");
     } catch (e) {
-      setEndUseError(e instanceof Error ? e.message : "Gagal menghubungi server. Coba lagi.");
+      setEndUseError(e instanceof Error ? e.message : L("Gagal menghubungi server. Coba lagi.", "Could not reach the server. Please try again."));
     } finally {
       setLoading(null);
     }
@@ -236,7 +237,7 @@ export default function LockerPublicPage() {
       if (lastLocker?.number === res.lockerNumber) forgetLocker();
       goTo("end-result");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Terjadi kesalahan.");
+      alert(e instanceof Error ? e.message : L("Terjadi kesalahan.", "An error occurred."));
     } finally {
       setLoading(null);
     }

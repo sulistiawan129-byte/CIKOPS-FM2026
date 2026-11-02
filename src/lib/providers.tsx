@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -9,6 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { DICT, type Lang, type Dict } from "./dictionary";
+import { setGlobalLang } from "./i18n";
 
 /* ════════════════════════════════════════════════════════════
    THEME — same localStorage key ("cikops_theme") and same
@@ -62,6 +64,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
       ? "dark"
       : "light";
   });
+  // Bahasa tersimpan dibaca sinkron saat inisialisasi (seperti semula). Remount `key={lang}` di bawah
+  // hanya terjadi saat pengguna mengganti bahasa — bukan saat halaman dibuka.
   const [lang, setLangState] = useState<Lang>(() => {
     if (typeof window === "undefined") return "id";
     try {
@@ -71,6 +75,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
       return "id";
     }
   });
+
+  // L() di seluruh aplikasi membaca bahasa aktif ini (aman diulang: hanya menyimpan nilai)
+  setGlobalLang(lang);
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => {
@@ -106,7 +113,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <LangContext.Provider value={langValue}>{children}</LangContext.Provider>
+      {/* key={lang}: ganti bahasa me-render ulang seluruh tampilan, jadi semua teks L() ikut berubah */}
+      <LangContext.Provider value={langValue}><Fragment key={lang}>{children}</Fragment></LangContext.Provider>
     </ThemeContext.Provider>
   );
 }

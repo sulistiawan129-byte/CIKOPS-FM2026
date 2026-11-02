@@ -18,6 +18,7 @@ import { exportCanteenToPdf } from "@/lib/canteenReport";
 import c from "./canteen.module.css";
 import { ModuleHeader } from "./ModuleShell";
 
+import { loc , L} from "@/lib/i18n";
 type PeriodMode = "day" | "week" | "month" | "custom";
 type Cat = "snack" | "meal";
 
@@ -45,15 +46,15 @@ function weekRangeOf(dateStr: string) {
   sunday.setDate(monday.getDate() + 6);
   return { from: toISO(monday), to: toISO(sunday) };
 }
-const num = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+const num = (n: number) => new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 const pctTxt = (n: number) => `${n.toFixed(1).replace(".", ",")}%`;
 function dShort(iso: string) {
   const d = new Date(iso + "T00:00:00");
-  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString(loc(), { day: "numeric", month: "short" });
 }
 function dFull(iso: string) {
   const d = new Date(iso + "T00:00:00");
-  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString(loc(), { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 const sum3 = (a: number[]) => (a[0] || 0) + (a[1] || 0) + (a[2] || 0);
 function toDayAgg(r: CanteenReport): DayAgg {
@@ -67,11 +68,11 @@ function toDayAgg(r: CanteenReport): DayAgg {
 }
 const effOf = (consumed: number, order: number) => (order > 0 ? (consumed / order) * 100 : 0);
 function health(eff: number, hasData: boolean): { label: string; tone: string } {
-  if (!hasData) return { label: "Belum ada data", tone: c.tMute };
-  if (eff >= 97) return { label: "Sangat baik", tone: c.tGood };
-  if (eff >= 90) return { label: "Baik", tone: c.tGood };
-  if (eff >= 80) return { label: "Cukup", tone: c.tWarn };
-  return { label: "Perlu perhatian", tone: c.tBad };
+  if (!hasData) return { label: L("Belum ada data", "No data yet"), tone: c.tMute };
+  if (eff >= 97) return { label: L("Sangat baik", "Excellent"), tone: c.tGood };
+  if (eff >= 90) return { label: L("Baik", "Good"), tone: c.tGood };
+  if (eff >= 80) return { label: L("Cukup", "Fair"), tone: c.tWarn };
+  return { label: L("Perlu perhatian", "Needs attention"), tone: c.tBad };
 }
 
 const IcPrev = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>;
@@ -106,7 +107,7 @@ export default function CanteenTab() {
     try {
       setAllRows(await getAllCanteenReports());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data kantin");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data kantin", "Failed to load canteen data"));
     } finally {
       setLoading(false);
     }
@@ -121,7 +122,7 @@ export default function CanteenTab() {
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus laporan");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus laporan", "Failed to delete the report"));
     }
   }
 
@@ -137,7 +138,7 @@ export default function CanteenTab() {
     return {
       rangeFrom: `${monthValue}-01`,
       rangeTo: `${monthValue}-${String(last).padStart(2, "0")}`,
-      periodLabel: new Date(y, m - 1, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" }),
+      periodLabel: new Date(y, m - 1, 1).toLocaleDateString(loc(), { month: "long", year: "numeric" }),
     };
   }, [mode, dayValue, monthValue, customFrom, customTo]);
 
@@ -187,24 +188,24 @@ export default function CanteenTab() {
     const out: string[] = [];
     const sPeak = dayAggs.reduce((b, d) => (d.snackLeftover > b.snackLeftover ? d : b), dayAggs[0]);
     const mPeak = dayAggs.reduce((b, d) => (d.mealLeftover > b.mealLeftover ? d : b), dayAggs[0]);
-    if (sPeak.snackLeftover > 0) out.push(`Sisa snack terbanyak ${num(sPeak.snackLeftover)} porsi pada ${dShort(sPeak.date)}.`);
-    if (mPeak.mealLeftover > 0) out.push(`Sisa makan terbanyak ${num(mPeak.mealLeftover)} porsi pada ${dShort(mPeak.date)}.`);
+    if (sPeak.snackLeftover > 0) out.push(L(`Sisa snack terbanyak ${num(sPeak.snackLeftover)} porsi pada ${dShort(sPeak.date)}.`, `Most snack leftover: ${num(sPeak.snackLeftover)} portions on ${dShort(sPeak.date)}.`));
+    if (mPeak.mealLeftover > 0) out.push(L(`Sisa makan terbanyak ${num(mPeak.mealLeftover)} porsi pada ${dShort(mPeak.date)}.`, `Most meal leftover: ${num(mPeak.mealLeftover)} portions on ${dShort(mPeak.date)}.`));
     const worstShift = (pick: (r: CanteenReport) => number[]) => SHIFTS.map((label, i) => ({
       label,
       left: filteredRows.reduce((a, r) => a + (pick(r)[i] || 0), 0),
     })).sort((a, b) => b.left - a.left)[0];
     const sShift = worstShift((r) => r.snackLeftover), mShift = worstShift((r) => r.mealLeftover);
-    if (sShift && sShift.left > 0) out.push(`Sisa snack paling banyak di ${sShift.label} (${num(sShift.left)} porsi).`);
-    if (mShift && mShift.left > 0) out.push(`Sisa makan paling banyak di ${mShift.label} (${num(mShift.left)} porsi).`);
-    if (out.length === 0) out.push("Tidak ada sisa makanan pada periode ini.");
+    if (sShift && sShift.left > 0) out.push(L(`Sisa snack paling banyak di ${sShift.label} (${num(sShift.left)} porsi).`, `Most snack leftover in ${sShift.label} (${num(sShift.left)} portions).`));
+    if (mShift && mShift.left > 0) out.push(L(`Sisa makan paling banyak di ${mShift.label} (${num(mShift.left)} porsi).`, `Most meal leftover in ${mShift.label} (${num(mShift.left)} portions).`));
+    if (out.length === 0) out.push(L("Tidak ada sisa makanan pada periode ini.", "No food leftover in this period."));
     return out;
   }, [dayAggs, filteredRows]);
 
   const autoAnalysis = useMemo(() => {
-    if (dayAggs.length === 0) return "Belum ada data tercatat pada periode ini.";
+    if (dayAggs.length === 0) return L("Belum ada data tercatat pada periode ini.", "No data recorded for this period.");
     const part = (name: string, order: number, used: number, left: number, eff: number) =>
-      order > 0 ? `${name}: order ${num(order)}, terpakai ${num(used)}, sisa ${num(left)} (${eff.toFixed(2)}% — ${health(eff, true).label})` : `${name}: belum ada order`;
-    return `${periodLabel} — ${part("Snack", totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}. ${part("Makan", totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}. ${insights.join(" ")}`;
+      order > 0 ? L(`${name}: order ${num(order)}, terpakai ${num(used)}, sisa ${num(left)} (${eff.toFixed(2)}% — ${health(eff, true).label})`, `${name}: ordered ${num(order)}, consumed ${num(used)}, leftover ${num(left)} (${eff.toFixed(2)}% — ${health(eff, true).label})`) : L(`${name}: belum ada order`, `${name}: no orders yet`);
+    return `${periodLabel} — ${part("Snack", totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}. ${part(L("Makan", "Meal"), totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}. ${insights.join(" ")}`;
   }, [dayAggs, totals, periodLabel, insights]);
 
   function handleExportCsv() {
@@ -212,10 +213,10 @@ export default function CanteenTab() {
     const pctCsv = (used: number, order: number) => (order > 0 ? effOf(used, order).toFixed(2) : "");
     const lines: string[] = [];
     (["snack", "meal"] as const).forEach((k, idx) => {
-      const name = k === "snack" ? "SNACK" : "MAKAN";
+      const name = k === "snack" ? "SNACK" : L("MAKAN", "MEAL");
       if (idx > 0) lines.push("");
       lines.push(name);
-      lines.push(["Tanggal", "Order", "Terpakai", "Sisa", "Efisiensi %"].join(","));
+      lines.push([L("Tanggal", "Date"), L("Order", "Ordered"), L("Terpakai", "Consumed"), L("Sisa", "Leftover"), L("Efisiensi %", "Efficiency %")].join(","));
       dayAggs.forEach((d) => {
         const o = k === "snack" ? d.snackOrder : d.mealOrder, u = k === "snack" ? d.snackConsumed : d.mealConsumed, l = k === "snack" ? d.snackLeftover : d.mealLeftover;
         lines.push([d.date, o, u, l, pctCsv(u, o)].join(","));
@@ -227,7 +228,7 @@ export default function CanteenTab() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Laporan_Kantin_${rangeFrom}_sd_${rangeTo}.csv`;
+    a.download = L(`Laporan_Kantin_${rangeFrom}_sd_${rangeTo}.csv`, `Canteen_Report_${rangeFrom}_to_${rangeTo}.csv`);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -236,15 +237,15 @@ export default function CanteenTab() {
   async function handleExportPdf() {
     setExportingPdf(true);
     try {
-      await exportCanteenToPdf(dayAggs, totals, periodLabel, autoAnalysis, rangeFrom, rangeTo);
+      await exportCanteenToPdf(dayAggs, totals, periodLabel, autoAnalysis, rangeFrom, rangeTo, L("id", "en") === "en" ? "en" : "id");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal membuat PDF");
+      alert(e instanceof Error ? e.message : L("Gagal membuat PDF", "Failed to create the PDF"));
     } finally {
       setExportingPdf(false);
     }
   }
 
-  if (loading) return <div className={c.loading}>Memuat data kantin…</div>;
+  if (loading) return <div className={c.loading}>{L("Memuat data kantin…", "Loading canteen data…")}</div>;
 
   const hasData = dayAggs.length > 0;
 
@@ -264,14 +265,14 @@ export default function CanteenTab() {
           <b>{title}</b>
           <span className={`${c.badge} ${h.tone}`}>{h.label}</span>
         </span>
-        <span className={c.catBig}><b>{order > 0 ? pctTxt(eff) : "–"}</b><span>terpakai</span></span>
+        <span className={c.catBig}><b>{order > 0 ? pctTxt(eff) : "–"}</b><span>{L("terpakai", "consumed")}</span></span>
         <span className={c.track}><i style={{ width: `${Math.min(100, eff)}%` }} /></span>
         <span className={c.catStats}>
-          <span><small>Total order</small><b>{num(order)}</b></span>
-          <span><small>Terpakai</small><b>{num(used)}</b></span>
-          <span><small>Total sisa</small><b className={left > 0 ? c.inkBad : ""}>{num(left)}</b></span>
+          <span><small>{L("Total order", "Total ordered")}</small><b>{num(order)}</b></span>
+          <span><small>{L("Terpakai", "Consumed")}</small><b>{num(used)}</b></span>
+          <span><small>{L("Total sisa", "Total leftover")}</small><b className={left > 0 ? c.inkBad : ""}>{num(left)}</b></span>
         </span>
-        <span className={c.catFoot}>{hasData ? `${dayAggs.length} hari tercatat · rata-rata sisa ${num(left / dayAggs.length)} porsi/hari` : "Belum ada laporan pada periode ini."}</span>
+        <span className={c.catFoot}>{hasData ? L(`${dayAggs.length} hari tercatat · rata-rata sisa ${num(left / dayAggs.length)} porsi/hari`, `${dayAggs.length} day${dayAggs.length === 1 ? "" : "s"} recorded · average leftover ${num(left / dayAggs.length)} portions/day`) : L("Belum ada laporan pada periode ini.", "No reports in this period.")}</span>
       </button>
     );
   };
@@ -279,34 +280,34 @@ export default function CanteenTab() {
   return (
     <div className={c.wrap}>
       <ModuleHeader
-        kicker="Fasilitas · Kantin"
-        title="Kantin"
-        desc="Snack dan makan dilaporkan terpisah — total order, terpakai, dan sisa per shift, dari input harian staf kantin di /canteen."
+        kicker={L("Fasilitas · Kantin", "Facility · Canteen")}
+        title={L("Kantin", "Canteen")}
+        desc={L("Snack dan makan dilaporkan terpisah — total order, terpakai, dan sisa per shift, dari input harian staf kantin di /canteen.", "Snacks and meals are reported separately — total ordered, consumed and leftover per shift, from the canteen staff's daily input at /canteen.")}
         actions={<>
           <button type="button" className={c.ghost} onClick={handleExportCsv} disabled={!hasData}><IcDown />CSV</button>
-          <button type="button" className={c.ghost} onClick={handleExportPdf} disabled={!hasData || exportingPdf}><IcDown />{exportingPdf ? "Membuat…" : "PDF"}</button>
+          <button type="button" className={c.ghost} onClick={handleExportPdf} disabled={!hasData || exportingPdf}><IcDown />{exportingPdf ? L("Membuat…", "Creating…") : "PDF"}</button>
         </>}
       />
 
       <div className={c.toolbar}>
-        <div className={c.seg} role="group" aria-label="Mode periode">
-          {([["day", "Harian"], ["week", "Mingguan"], ["month", "Bulanan"], ["custom", "Kustom"]] as const).map(([k, l]) => (
+        <div className={c.seg} role="group" aria-label={L("Mode periode", "Period mode")}>
+          {([["day", L("Harian", "Daily")], ["week", L("Mingguan", "Weekly")], ["month", L("Bulanan", "Monthly")], ["custom", L("Kustom", "Custom")]] as const).map(([k, l]) => (
             <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? c.segOn : ""} onClick={() => { setMode(k); setPicked(null); }}>{l}</button>
           ))}
         </div>
         <div className={c.period}>
-          {mode !== "custom" && <button type="button" className={c.navBtn} onClick={() => shift(-1)} aria-label="Periode sebelumnya"><IcPrev /></button>}
+          {mode !== "custom" && <button type="button" className={c.navBtn} onClick={() => shift(-1)} aria-label={L("Periode sebelumnya", "Previous period")}><IcPrev /></button>}
           <span className={c.periodLabel}>{periodLabel}</span>
-          {mode !== "custom" && <button type="button" className={c.navBtn} onClick={() => shift(1)} aria-label="Periode berikutnya"><IcNext /></button>}
+          {mode !== "custom" && <button type="button" className={c.navBtn} onClick={() => shift(1)} aria-label={L("Periode berikutnya", "Next period")}><IcNext /></button>}
         </div>
         <div className={c.pickers}>
-          {(mode === "day" || mode === "week") && <input className={c.input} type="date" value={dayValue} onChange={(e) => { setDayValue(e.target.value); setPicked(null); }} aria-label="Tanggal" />}
-          {mode === "month" && <input className={c.input} type="month" value={monthValue} onChange={(e) => { setMonthValue(e.target.value); setPicked(null); }} aria-label="Bulan" />}
+          {(mode === "day" || mode === "week") && <input className={c.input} type="date" value={dayValue} onChange={(e) => { setDayValue(e.target.value); setPicked(null); }} aria-label={L("Tanggal", "Date")} />}
+          {mode === "month" && <input className={c.input} type="month" value={monthValue} onChange={(e) => { setMonthValue(e.target.value); setPicked(null); }} aria-label={L("Bulan", "Month")} />}
           {mode === "custom" && (
             <>
-              <input className={c.input} type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Dari" />
+              <input className={c.input} type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} aria-label={L("Dari", "From")} />
               <span className={c.sep}>s/d</span>
-              <input className={c.input} type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label="Sampai" />
+              <input className={c.input} type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} aria-label={L("Sampai", "To")} />
             </>
           )}
         </div>
@@ -315,12 +316,12 @@ export default function CanteenTab() {
       {error && <div className={c.err}>{error}</div>}
 
       <section className={c.top}>
-        {catCard("snack", "Snack", totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}
-        {catCard("meal", "Makan", totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}
+        {catCard("snack", L("Snack", "Snacks"), totals.snackOrder, totals.snackConsumed, totals.snackLeftover, totals.snackEff)}
+        {catCard("meal", L("Makan", "Meals"), totals.mealOrder, totals.mealConsumed, totals.mealLeftover, totals.mealEff)}
       </section>
 
       {hasData && (
-        <section className={c.insight} aria-label="Catatan otomatis">
+        <section className={c.insight} aria-label={L("Catatan otomatis", "Automatic notes")}>
           <span className={c.insightIc}><IcBulb /></span>
           <ul>{insights.map((s, i) => <li key={i}>{s}</li>)}</ul>
         </section>
@@ -330,20 +331,20 @@ export default function CanteenTab() {
         <section className={`${c.card} ${c.chartCard}`}>
           <div className={c.cardHead}>
             <div>
-              <h2>Tren harian · {cat === "snack" ? "Snack" : "Makan"}</h2>
-              <span className={c.hint}>Arahkan kursor untuk detail, klik batang untuk melihat rincian shift hari itu.</span>
+              <h2>{L("Tren harian", "Daily trend")} · {cat === "snack" ? L("Snack", "Snacks") : L("Makan", "Meals")}</h2>
+              <span className={c.hint}>{L("Arahkan kursor untuk detail, klik batang untuk melihat rincian shift hari itu.", "Hover for details, click a bar to see that day's shift breakdown.")}</span>
             </div>
-            <div className={c.seg} role="group" aria-label="Kategori">
-              <button type="button" aria-pressed={cat === "snack"} className={cat === "snack" ? c.segOn : ""} onClick={() => setCat("snack")}>Snack</button>
-              <button type="button" aria-pressed={cat === "meal"} className={cat === "meal" ? c.segOn : ""} onClick={() => setCat("meal")}>Makan</button>
+            <div className={c.seg} role="group" aria-label={L("Kategori", "Category")}>
+              <button type="button" aria-pressed={cat === "snack"} className={cat === "snack" ? c.segOn : ""} onClick={() => setCat("snack")}>{L("Snack", "Snacks")}</button>
+              <button type="button" aria-pressed={cat === "meal"} className={cat === "meal" ? c.segOn : ""} onClick={() => setCat("meal")}>{L("Makan", "Meals")}</button>
             </div>
           </div>
           <div className={c.legend}>
-            <span><i className={`${c.dot} ${cat === "meal" ? c.dotMeal : c.dotSnack}`} />Terpakai</span>
-            <span><i className={`${c.dot} ${c.dotLeft}`} />Sisa</span>
+            <span><i className={`${c.dot} ${cat === "meal" ? c.dotMeal : c.dotSnack}`} />{L("Terpakai", "Consumed")}</span>
+            <span><i className={`${c.dot} ${c.dotLeft}`} />{L("Sisa", "Leftover")}</span>
           </div>
           {series.length === 0 ? (
-            <div className={c.empty}>Belum ada data pada periode ini.</div>
+            <div className={c.empty}>{L("Belum ada data pada periode ini.", "No data for this period.")}</div>
           ) : (
             <div className={c.chartBox} onMouseLeave={() => setHover(null)}>
               <div className={c.chart} style={{ gridTemplateColumns: `repeat(${series.length}, minmax(14px, 1fr))` }}>
@@ -360,7 +361,7 @@ export default function CanteenTab() {
                       onFocus={() => setHover(i)}
                       onBlur={() => setHover(null)}
                       onClick={() => setPicked(on ? null : s.date)}
-                      aria-label={`${dFull(s.date)}: terpakai ${s.used}, sisa ${s.left}`}
+                      aria-label={L(`${dFull(s.date)}: terpakai ${s.used}, sisa ${s.left}`, `${dFull(s.date)}: consumed ${s.used}, leftover ${s.left}`)}
                       aria-pressed={on}
                     >
                       <span className={c.stack}>
@@ -376,9 +377,9 @@ export default function CanteenTab() {
                 <div className={c.tip} style={{ left: `${((hover + 0.5) / series.length) * 100}%` }} role="status">
                   <b>{dFull(tip.date)}</b>
                   <span>Order <b>{num(tip.order)}</b></span>
-                  <span>Terpakai <b>{num(tip.used)}</b></span>
-                  <span>Sisa <b>{num(tip.left)}</b></span>
-                  <span>Efisiensi <b>{pctTxt(effOf(tip.used, tip.order))}</b></span>
+                  <span>{L("Terpakai", "Consumed")} <b>{num(tip.used)}</b></span>
+                  <span>{L("Sisa", "Leftover")} <b>{num(tip.left)}</b></span>
+                  <span>{L("Efisiensi", "Efficiency")} <b>{pctTxt(effOf(tip.used, tip.order))}</b></span>
                 </div>
               )}
             </div>
@@ -389,23 +390,23 @@ export default function CanteenTab() {
           <div className={c.cardHead}>
             <div>
               <h2>Per shift</h2>
-              <span className={c.hint}>{picked ? dFull(picked) : `Seluruh periode · ${periodLabel}`}</span>
+              <span className={c.hint}>{picked ? dFull(picked) : L(`Seluruh periode · ${periodLabel}`, `Whole period · ${periodLabel}`)}</span>
             </div>
-            {picked && <button type="button" className={c.link} onClick={() => setPicked(null)}>Semua hari</button>}
+            {picked && <button type="button" className={c.link} onClick={() => setPicked(null)}>{L("Semua hari", "All days")}</button>}
           </div>
           {shiftRows.map((s) => (
             <div key={s.label} className={c.shiftRow}>
               <b className={c.shiftName}>{s.label}</b>
               <div className={c.shiftBars}>
                 <div className={c.shiftLine}>
-                  <span>Snack</span>
+                  <span>{L("Snack", "Snacks")}</span>
                   <span className={c.track}><i className={c.trackSnack} style={{ width: `${Math.min(100, s.sEff)}%` }} /></span>
-                  <span className={c.shiftVal}>{s.so > 0 ? pctTxt(s.sEff) : "–"}<small>sisa {num(s.sl)}</small></span>
+                  <span className={c.shiftVal}>{s.so > 0 ? pctTxt(s.sEff) : "–"}<small>{L("sisa", "left")} {num(s.sl)}</small></span>
                 </div>
                 <div className={c.shiftLine}>
-                  <span>Makan</span>
+                  <span>{L("Makan", "Meals")}</span>
                   <span className={c.track}><i className={c.trackMeal} style={{ width: `${Math.min(100, s.mEff)}%` }} /></span>
-                  <span className={c.shiftVal}>{s.mo > 0 ? pctTxt(s.mEff) : "–"}<small>sisa {num(s.ml)}</small></span>
+                  <span className={c.shiftVal}>{s.mo > 0 ? pctTxt(s.mEff) : "–"}<small>{L("sisa", "left")} {num(s.ml)}</small></span>
                 </div>
               </div>
             </div>
@@ -415,8 +416,8 @@ export default function CanteenTab() {
 
       <section className={c.card}>
         <div className={c.cardHead}>
-          <h2>Laporan harian</h2>
-          <span className={c.hint}>{filteredRows.length} laporan</span>
+          <h2>{L("Laporan harian", "Daily reports")}</h2>
+          <span className={c.hint}>{filteredRows.length} {L("laporan", "reports")}</span>
         </div>
         {filteredRows.length === 0 ? (
           <div className={c.empty}>{t.actionNoDataYet}</div>
@@ -426,14 +427,14 @@ export default function CanteenTab() {
               <thead>
                 <tr className={c.groupRow}>
                   <th />
-                  <th colSpan={4} className={`${c.group} ${c.groupSnack}`}>Snack</th>
-                  <th colSpan={4} className={`${c.group} ${c.groupMeal}`}>Makan</th>
+                  <th colSpan={4} className={`${c.group} ${c.groupSnack}`}>{L("Snack", "Snacks")}</th>
+                  <th colSpan={4} className={`${c.group} ${c.groupMeal}`}>{L("Makan", "Meals")}</th>
                   <th colSpan={2} />
                 </tr>
                 <tr>
-                  <th>Tanggal</th>
-                  <th className={`${c.num} ${c.gStart}`}>Order</th><th className={c.num}>Terpakai</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
-                  <th className={`${c.num} ${c.gStart}`}>Order</th><th className={c.num}>Terpakai</th><th className={c.num}>Sisa</th><th className={c.num}>Efisiensi</th>
+                  <th>{L("Tanggal", "Date")}</th>
+                  <th className={`${c.num} ${c.gStart}`}>{L("Order", "Ordered")}</th><th className={c.num}>{L("Terpakai", "Consumed")}</th><th className={c.num}>{L("Sisa", "Leftover")}</th><th className={c.num}>{L("Efisiensi", "Efficiency")}</th>
+                  <th className={`${c.num} ${c.gStart}`}>{L("Order", "Ordered")}</th><th className={c.num}>{L("Terpakai", "Consumed")}</th><th className={c.num}>{L("Sisa", "Leftover")}</th><th className={c.num}>{L("Efisiensi", "Efficiency")}</th>
                   <th>Pelapor</th>
                   <th aria-label="Aksi" />
                 </tr>
@@ -456,7 +457,7 @@ export default function CanteenTab() {
                       <td className={c.num}><span className={`${c.badge} ${health(me, d.mealOrder > 0).tone}`}>{d.mealOrder > 0 ? pctTxt(me) : "–"}</span></td>
                       <td className={c.muted}>{r.submittedBy || "-"}</td>
                       <td className={c.num}>
-                        <button type="button" className={c.del} onClick={(e) => { e.stopPropagation(); setConfirmDelete(r); }} aria-label={`Hapus laporan ${dFull(r.reportDate)}`}><IcTrash /></button>
+                        <button type="button" className={c.del} onClick={(e) => { e.stopPropagation(); setConfirmDelete(r); }} aria-label={L(`Hapus laporan ${dFull(r.reportDate)}`, `Delete report ${dFull(r.reportDate)}`)}><IcTrash /></button>
                       </td>
                     </tr>
                   );
@@ -464,7 +465,7 @@ export default function CanteenTab() {
               </tbody>
               <tfoot>
                 <tr className={c.totalRow}>
-                  <td>Total periode</td>
+                  <td>{L("Total periode", "Period total")}</td>
                   <td className={`${c.num} ${c.gStart}`}>{num(totals.snackOrder)}</td>
                   <td className={c.num}>{num(totals.snackConsumed)}</td>
                   <td className={`${c.num} ${totals.snackLeftover > 0 ? c.inkBad : ""}`}>{num(totals.snackLeftover)}</td>
@@ -484,8 +485,8 @@ export default function CanteenTab() {
       {confirmDelete && (
         <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>
           <div className={c.confirm}>
-            <h3>Hapus laporan ini?</h3>
-            <p>Laporan <b>{dFull(confirmDelete.reportDate)}</b> akan dihapus permanen.</p>
+            <h3>{L("Hapus laporan ini?", "Delete this report?")}</h3>
+            <p>{L("Laporan", "The report for")} <b>{dFull(confirmDelete.reportDate)}</b> {L("akan dihapus permanen.", "will be permanently deleted.")}</p>
             <div className={c.confirmActions}>
               <button type="button" className={c.ghost} onClick={() => setConfirmDelete(null)}>{t.actionCancel}</button>
               <button type="button" className={c.danger} onClick={handleDelete}>{t.actionYesDelete}</button>

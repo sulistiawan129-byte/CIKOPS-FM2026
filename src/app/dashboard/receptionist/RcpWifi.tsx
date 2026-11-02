@@ -15,6 +15,7 @@ import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./s
 import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
 
+import { L } from "@/lib/i18n";
 type Sub = "grant" | "active" | "history";
 const STATUS_PILL: Record<WifiStatus, string> = { available: r.pGreen, partial: r.pBlue, full: r.pOrange, expired: r.pRed, inactive: r.pGray };
 
@@ -28,7 +29,7 @@ export default function RcpWifi({ settings, accounts, grants, dir, reload }: {
   return (
     <div className={r.wrap} style={{ padding: 0 }}>
       <div className={r.seg} role="group" aria-label="Wifi">
-        {([["grant", "Beri akses"], ["active", `Tamu aktif (${active.length})`], ["history", "Riwayat"]] as [Sub, string][]).map(([k, l]) => (
+        {([["grant", L("Beri akses", "Grant access")], ["active", L(`Tamu aktif (${active.length})`, `Active guests (${active.length})`)], ["history", L("Riwayat", "History")]] as [Sub, string][]).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={sub === k} onClick={() => setSub(k)}>{l}</button>
         ))}
       </div>
@@ -99,60 +100,60 @@ function GrantForm({ settings, accounts, dir, reload, onProof }: { settings: Rcp
   return (
     <div className={r.split}>
       <section className={r.card}>
-        <div className={r.cardHead}><h2>Beri akses wifi</h2><small>{usable.reduce((s, a) => s + a.free, 0)} slot tersedia</small></div>
+        <div className={r.cardHead}><h2>{L("Beri akses wifi", "Grant wifi access")}</h2><small>{usable.reduce((s, a) => s + a.free, 0)} {L("slot tersedia", "slots available")}</small></div>
         <div className={r.form}>
           <div className={r.section}>Requestor</div>
-          <label className={r.field}><span>Nama requestor *</span>
-            <NameInput dir={dir} value={f.requestorName} onChange={(v) => set("requestorName", v)} onPick={(p) => setF((x) => ({ ...x, requestorEmail: p.email || x.requestorEmail, department: p.department || x.department }))} placeholder="Karyawan yang meminta" />
+          <label className={r.field}><span>{L("Nama requestor *", "Requestor name *")}</span>
+            <NameInput dir={dir} value={f.requestorName} onChange={(v) => set("requestorName", v)} onPick={(p) => setF((x) => ({ ...x, requestorEmail: p.email || x.requestorEmail, department: p.department || x.department }))} placeholder={L("Karyawan yang meminta", "Requesting employee")} />
           </label>
-          <label className={r.field}><span>Email requestor <em>(tanda terima dikirim ke sini)</em></span>
+          <label className={r.field}><span>{L("Email requestor", "Requestor email")} <em>({L("tanda terima dikirim ke sini", "receipt is sent here")})</em></span>
             <input className={r.input} type="email" value={f.requestorEmail} onChange={(e) => set("requestorEmail", e.target.value)} placeholder="nama@perusahaan.com" />
           </label>
-          <label className={r.field}><span>Departemen</span><input className={r.input} value={f.department} onChange={(e) => set("department", e.target.value)} /></label>
-          <label className={r.field}><span>Line manager <em>(hanya dicatat)</em></span><input className={r.input} value={f.lineManager} onChange={(e) => set("lineManager", e.target.value)} /></label>
-          <div className={r.section}>Tamu</div>
-          <label className={r.field}><span>Nama tamu *</span><input className={r.input} value={f.guestName} onChange={(e) => set("guestName", e.target.value)} /></label>
-          <label className={r.field}><span>Perusahaan / instansi tamu</span><input className={r.input} value={f.guestCompany} onChange={(e) => set("guestCompany", e.target.value)} /></label>
-          <div className={`${r.field} ${r.full}`}><span>Slot yang dipakai</span>
+          <label className={r.field}><span>{L("Departemen", "Department")}</span><input className={r.input} value={f.department} onChange={(e) => set("department", e.target.value)} /></label>
+          <label className={r.field}><span>Line manager <em>({L("hanya dicatat", "recorded only")})</em></span><input className={r.input} value={f.lineManager} onChange={(e) => set("lineManager", e.target.value)} /></label>
+          <div className={r.section}>{L("Tamu", "Guest")}</div>
+          <label className={r.field}><span>{L("Nama tamu *", "Guest name *")}</span><input className={r.input} value={f.guestName} onChange={(e) => set("guestName", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Perusahaan / instansi tamu", "Guest company / organisation")}</span><input className={r.input} value={f.guestCompany} onChange={(e) => set("guestCompany", e.target.value)} /></label>
+          <div className={`${r.field} ${r.full}`}><span>{L("Slot yang dipakai", "Slots used")}</span>
             <div className={r.chips}>
               <button type="button" className={r.chip} aria-pressed={slots === 1} onClick={() => setSlots(1)}>1 slot — 1 perangkat</button>
               <button type="button" className={r.chip} aria-pressed={slots === 2} onClick={() => setSlots(2)}>2 slot — 2 orang / 2 perangkat</button>
             </div>
           </div>
-          <div className={r.section}>Waktu pemakaian</div>
+          <div className={r.section}>{L("Waktu pemakaian", "Usage period")}</div>
           <div className={`${r.field} ${r.full}`}><span>Durasi</span>
             <div className={r.chips}>{WIFI_DURATIONS.map((d) => <button key={d.key} type="button" className={r.chip} aria-pressed={dur === d.key} onClick={() => { setDur(d.key); if (d.key === "custom") setCustomEnd(end); }}>{d.label}</button>)}</div>
           </div>
-          <label className={r.field}><span>Mulai</span><input className={r.input} type="date" value={start} min={today} onChange={(e) => setStart(e.target.value || today)} /></label>
-          <div className={r.field}><span>Berlaku sampai</span>
+          <label className={r.field}><span>{L("Mulai", "Start")}</span><input className={r.input} type="date" value={start} min={today} onChange={(e) => setStart(e.target.value || today)} /></label>
+          <div className={r.field}><span>{L("Berlaku sampai", "Valid until")}</span>
             {dur === "custom"
               ? <input className={r.input} type="date" value={customEnd} min={start} onChange={(e) => setCustomEnd(e.target.value)} />
               : <div className={r.readout}><b>{fmtDate(end, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</b><span className={r.mute}>· {days} hari</span></div>}
           </div>
-          <label className={`${r.field} ${r.full}`}><span>Keperluan <em>(opsional)</em></span><input className={r.input} value={f.purpose} onChange={(e) => set("purpose", e.target.value)} placeholder="mis. audit, vendor, training" /></label>
+          <label className={`${r.field} ${r.full}`}><span>{L("Keperluan", "Purpose")} <em>(opsional)</em></span><input className={r.input} value={f.purpose} onChange={(e) => set("purpose", e.target.value)} placeholder="mis. audit, vendor, training" /></label>
         </div>
       </section>
 
       <section className={r.card}>
-        <div className={r.cardHead}><div><h2>Akun yang disarankan</h2><p>Berlaku sampai ≥ {fmtDate(end)} · butuh {slots} slot</p></div></div>
-        <p className={r.hint}>Hanya akun yang masa berlakunya cukup. Teratas = paling pas (paling cepat habis), jadi tamu harian memakai akun 30 hari dan pemakaian panjang otomatis ke akun berdurasi panjang.</p>
-        {sugs === null ? <p className={r.empty}>Mencari akun…</p> : sugs.length === 0 ? (
-          <div className={r.warn}>Tidak ada akun yang cukup sampai {fmtDate(end)} dengan {slots} slot kosong. Tambah atau impor akun baru di Data Master → Data Akun Wifi, atau kurangi durasi.</div>
+        <div className={r.cardHead}><div><h2>{L("Akun yang disarankan", "Suggested accounts")}</h2><p>{L("Berlaku sampai ≥", "Valid until ≥")} {fmtDate(end)} · {L(`butuh ${slots} slot`, `needs ${slots} slots`)}</p></div></div>
+        <p className={r.hint}>{L("Hanya akun yang masa berlakunya cukup. Teratas = paling pas (paling cepat habis), jadi tamu harian memakai akun 30 hari dan pemakaian panjang otomatis ke akun berdurasi panjang.", "Only accounts with enough validity. The top one is the best fit (expires soonest), so daily guests use 30-day accounts and long stays automatically go to long-validity accounts.")}</p>
+        {sugs === null ? <p className={r.empty}>{L("Mencari akun…", "Looking for accounts…")}</p> : sugs.length === 0 ? (
+          <div className={r.warn}>{L(`Tidak ada akun yang cukup sampai ${fmtDate(end)} dengan ${slots} slot kosong. Tambah atau impor akun baru di Data Master → Data Akun Wifi, atau kurangi durasi.`, `No account is valid until ${fmtDate(end)} with ${slots} free slot(s). Add or import new accounts in Master Data → Wifi Account Data, or shorten the duration.`)}</div>
         ) : (
           <div className={r.sugs}>
             {sugs.map((s, i) => (
               <button key={s.id} type="button" className={r.sug} aria-pressed={pick === s.id} onClick={() => setPick(s.id)}>
                 <span className={r.radio} />
-                <span><b>{s.username}</b>{i === 0 && <span className={r.tagBest}>paling pas</span>}<small>akun {s.durationDays + 1} hari · berlaku s/d {fmtDate(s.validUntil)} ({s.daysLeft} hari lagi)</small></span>
-                <span className={r.slotDots} title={`${s.free} slot kosong`}>{Array.from({ length: Math.max(s.free, 0) }, (_, i) => <i key={i} />)}</span>
+                <span><b>{s.username}</b>{i === 0 && <span className={r.tagBest}>{L("paling pas", "best fit")}</span>}<small>{L(`akun ${s.durationDays + 1} hari · berlaku s/d ${fmtDate(s.validUntil)} (${s.daysLeft} hari lagi)`, `${s.durationDays + 1}-day account · valid until ${fmtDate(s.validUntil)} (${s.daysLeft} days left)`)}</small></span>
+                <span className={r.slotDots} title={L(`${s.free} slot kosong`, `${s.free} free slots`)}>{Array.from({ length: Math.max(s.free, 0) }, (_, i) => <i key={i} />)}</span>
               </button>
             ))}
           </div>
         )}
         {err && <div className={r.err}>{err}</div>}
         <div className={r.formFoot}>
-          <span className={r.hint}>{f.requestorEmail.trim() ? `Tanda terima dikirim ke ${f.requestorEmail.trim()}` : "Isi email requestor agar tanda terima terkirim."}</span>
-          <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : "Beri akses"}</button>
+          <span className={r.hint}>{f.requestorEmail.trim() ? L(`Tanda terima dikirim ke ${f.requestorEmail.trim()}`, `The receipt will be sent to ${f.requestorEmail.trim()}`) : L("Isi email requestor agar tanda terima terkirim.", "Enter the requestor email so the receipt can be sent.")}</span>
+          <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? L("Menyimpan…", "Saving…") : L("Beri akses", "Grant access")}</button>
         </div>
         {done && <Receipt done={done} onProof={() => onProof(done.grant)} onClose={() => setDone(null)} />}
       </section>
@@ -164,11 +165,11 @@ function Receipt({ done, onClose, onProof }: { done: { res: WifiGrantResult; ema
   const t = `No. ${done.res.receiptNo}\nUser: ${done.res.username}\nPassword: ${done.res.password}\nBerlaku sampai: ${fmtDate(done.res.endDate)}`;
   return (
     <div className={r.receipt} role="status">
-      <div className={r.receiptHead}><span className={r.receiptIcon}>✓</span><div><span className={r.kicker}>Akses diberikan · tanda terima</span><br /><b>{done.res.receiptNo}</b></div><span className={r.grow} /><button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button></div>
+      <div className={r.receiptHead}><span className={r.receiptIcon}>✓</span><div><span className={r.kicker}>{L("Akses diberikan · tanda terima", "Access granted · receipt")}</span><br /><b>{done.res.receiptNo}</b></div><span className={r.grow} /><button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
       <div className={r.cred}><div><small>User</small><b>{done.res.username}</b></div><div><small>Password</small><b>{done.res.password}</b></div></div>
       <div>{done.guest} · {done.slots} slot · berlaku sampai <b>{fmtDate(done.res.endDate, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</b></div>
-      <div className={r.hint}>{done.email ? (done.emailErr ? `⚠ ${done.emailErr}` : `✓ Tanda terima dikirim ke ${done.email}`) : "Email requestor kosong — tanda terima tidak dikirim."}</div>
-      <div className={r.row}><button type="button" className={`${r.btn} ${r.btnSm}`} onClick={onProof}>🧾 Bukti permintaan</button><button type="button" className={r.ghost} onClick={() => navigator.clipboard?.writeText(t)}>Salin teks</button></div>
+      <div className={r.hint}>{done.email ? (done.emailErr ? `⚠ ${done.emailErr}` : L(`✓ Tanda terima dikirim ke ${done.email}`, `✓ Receipt sent to ${done.email}`)) : L("Email requestor kosong — tanda terima tidak dikirim.", "Requestor email is empty — the receipt was not sent.")}</div>
+      <div className={r.row}><button type="button" className={`${r.btn} ${r.btnSm}`} onClick={onProof}>🧾 {L("Bukti permintaan", "Request receipt")}</button><button type="button" className={r.ghost} onClick={() => navigator.clipboard?.writeText(t)}>{L("Salin teks", "Copy text")}</button></div>
     </div>
   );
 }
@@ -186,9 +187,9 @@ function ActiveList({ grants, reload, onProof }: { grants: WifiGrant[]; reload: 
   }
   return (
     <section className={r.card}>
-      <div className={r.cardHead}><h2>Tamu aktif</h2><input className={r.input} style={{ maxWidth: 260 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari tamu, akun, nomor…" /></div>
-      <p className={r.hint}>Slot kembali otomatis di akhir tanggal “berlaku sampai”. Klik <b>Kembalikan</b> bila tamu pulang lebih awal.</p>
-      {list.length === 0 ? <p className={r.empty}>Tidak ada tamu yang sedang memakai wifi.</p> : (
+      <div className={r.cardHead}><h2>{L("Tamu aktif", "Active guests")}</h2><input className={r.input} style={{ maxWidth: 260 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari tamu, akun, nomor…", "Search guest, account, number…")} /></div>
+      <p className={r.hint}>{L("Slot kembali otomatis di akhir tanggal “berlaku sampai”. Klik", "Slots are released automatically at the end of the “valid until” date. Click")} <b>{L("Kembalikan", "Return")}</b> {L("bila tamu pulang lebih awal.", "if the guest leaves early.")}</p>
+      {list.length === 0 ? <p className={r.empty}>{L("Tidak ada tamu yang sedang memakai wifi.", "No guests are currently using wifi.")}</p> : (
         <div className={r.list}>
           {list.map((g) => (
             <div key={g.id} className={r.item}>
@@ -196,12 +197,12 @@ function ActiveList({ grants, reload, onProof }: { grants: WifiGrant[]; reload: 
                 <b>{g.guestName}</b>{g.guestCompany && <span className={r.mute}> · {g.guestCompany}</span>}
                 <div className={r.meta}>
                   <span className={r.mono}>{g.username}</span><span>{g.slots} slot</span>
-                  <span>s/d {fmtDate(g.endDate)}{g.endDate === today ? " (hari ini)" : ""}</span>
+                  <span>{L("s/d", "to")} {fmtDate(g.endDate)}{g.endDate === today ? ` (${L("hari ini", "today")})` : ""}</span>
                   <span>{g.requestorName}{g.department ? ` · ${g.department}` : ""}</span><span className={r.mute}>{g.receiptNo}</span>
                 </div>
               </div>
               <div className={r.itemSide}>
-                <button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 Bukti</button>
+                <button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 {L("Bukti", "Receipt")}</button>
                 <button type="button" className={r.ghost} disabled={busy === g.id} onClick={() => back(g)}>{busy === g.id ? "…" : "Kembalikan"}</button>
               </div>
             </div>
@@ -228,49 +229,49 @@ export function Accounts({ accounts, reload }: { accounts: WifiAccount[]; reload
   const free = accounts.filter((a) => a.status === "available" || a.status === "partial").reduce((s, a) => s + a.free, 0);
   async function toggle(a: WifiAccount) { try { await setWifiAccountActive(a.id, !a.active); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); } }
   async function del(a: WifiAccount) {
-    if (!confirm(`Hapus akun ${a.username}?`)) return;
+    if (!confirm(L(`Hapus akun ${a.username}?`, `Delete account ${a.username}?`))) return;
     try { await deleteWifiAccount(a.id); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
   }
   return (
     <section className={r.card}>
       <div className={r.cardHead}>
-        <div><h2>Data Akun Wifi</h2><p>Akun tamu dari IT · {free} slot tersedia · 1 akun = 2 slot (bisa diubah per akun)</p></div>
+        <div><h2>{L("Data Akun Wifi", "Wifi Account Data")}</h2><p>{L(`Akun tamu dari IT · ${free} slot tersedia · 1 akun = 2 slot (bisa diubah per akun)`, `Guest accounts from IT · ${free} slots available · 1 account = 2 slots (adjustable per account)`)}</p></div>
         <span className={r.row}>
-          <button type="button" className={r.ghost} onClick={() => setShow((x) => !x)}>{show ? "🙈 Sembunyikan" : "👁 Password"}</button>
-          <ExportButtons rows={list} title="Akun Wifi Tamu" filename="Akun_Wifi" columns={[
-            col<WifiAccount>("u", "Username", (a) => a.username), col<WifiAccount>("from", "Berlaku mulai", (a) => fmtDate(a.validFrom)),
-            col<WifiAccount>("until", "Berlaku sampai", (a) => fmtDate(a.validUntil)), col<WifiAccount>("slot", "Slot terpakai", (a) => `${a.used}/${a.slots}`),
+          <button type="button" className={r.ghost} onClick={() => setShow((x) => !x)}>{show ? L("🙈 Sembunyikan", "🙈 Hide") : "👁 Password"}</button>
+          <ExportButtons rows={list} title={L("Akun Wifi Tamu", "Guest Wifi Accounts")} filename="Akun_Wifi" columns={[
+            col<WifiAccount>("u", "Username", (a) => a.username), col<WifiAccount>("from", L("Berlaku mulai", "Valid from"), (a) => fmtDate(a.validFrom)),
+            col<WifiAccount>("until", L("Berlaku sampai", "Valid until"), (a) => fmtDate(a.validUntil)), col<WifiAccount>("slot", L("Slot terpakai", "Slots used"), (a) => `${a.used}/${a.slots}`),
             col<WifiAccount>("st", "Status", (a) => WIFI_STATUS_LABEL[a.status]), col<WifiAccount>("b", "Batch", (a) => a.batch)]} />
           <button type="button" className={r.ghost} onClick={() => setImp(true)}>Impor</button>
-          <button type="button" className={`${r.btn} ${r.btnSm}`} onClick={() => setEdit({ a: null })}>+ Akun</button>
+          <button type="button" className={`${r.btn} ${r.btnSm}`} onClick={() => setEdit({ a: null })}>{L("+ Akun", "+ Account")}</button>
         </span>
       </div>
       <div className={r.stats}>
         {(["all", "available", "partial", "full", "expired", "inactive"] as const).map((k) => (
           <button key={k} type="button" className={r.stat} style={{ ["--c" as string]: STATUS_COLOR[k] }} aria-pressed={filter === k} onClick={() => setFilter(filter === k ? "all" : k)}>
-            <i /><b>{k === "all" ? accounts.length : counts[k] ?? 0}</b>{k === "all" ? "semua" : WIFI_STATUS_LABEL[k].toLowerCase()}
+            <i /><b>{k === "all" ? accounts.length : counts[k] ?? 0}</b>{k === "all" ? L("semua", "all") : WIFI_STATUS_LABEL[k].toLowerCase()}
           </button>
         ))}
       </div>
-      <div className={r.toolbar}><label className={r.search}><span>⌕</span><input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari username, batch, catatan…" /></label></div>
-      {list.length === 0 ? <p className={r.empty}>{accounts.length ? "Tidak ada akun dengan status ini." : "Belum ada akun. Klik “Impor akun” untuk menempel daftar akun dari IT."}</p> : (
+      <div className={r.toolbar}><label className={r.search}><span>⌕</span><input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari username, batch, catatan…", "Search username, batch, notes…")} /></label></div>
+      {list.length === 0 ? <p className={r.empty}>{accounts.length ? L("Tidak ada akun dengan status ini.", "No accounts with this status.") : L("Belum ada akun. Klik “Impor akun” untuk menempel daftar akun dari IT.", "No accounts yet. Click “Import accounts” to paste the account list from IT.")}</p> : (
         <div className={r.tableBox}>
           <table className={r.table}>
-            <thead><tr><th>Username</th><th>Password</th><th>Masa berlaku</th><th>Sisa</th><th>Slot</th><th>Status</th><th>Batch</th><th /></tr></thead>
+            <thead><tr><th>Username</th><th>Password</th><th>{L("Masa berlaku", "Validity")}</th><th>{L("Sisa", "Left")}</th><th>{L("Slot", "Slots")}</th><th>Status</th><th>Batch</th><th /></tr></thead>
             <tbody>
               {list.map((a) => (
                 <tr key={a.id} className={`${r.clickRow} ${a.active ? "" : r.rowOff}`} onClick={() => setEdit({ a })}>
                   <td className={r.mono}><b>{a.username}</b></td>
                   <td className={r.mono}>{show ? a.password : "••••••"}</td>
                   <td className={r.nowrap}>{fmtDate(a.validFrom)} – {fmtDate(a.validUntil)} <span className={r.mute}>({a.durationDays + 1} hr)</span></td>
-                  <td className={r.nowrap}>{a.daysLeft < 0 ? "–" : `${a.daysLeft} hari`}</td>
+                  <td className={r.nowrap}>{a.daysLeft < 0 ? "–" : L(`${a.daysLeft} hari`, `${a.daysLeft} days`)}</td>
                   <td><span className={r.slotDots}>{Array.from({ length: a.slots }, (_, i) => <i key={i} className={i < a.used ? r.used : ""} />)}</span> <span className={r.mute}>{a.used}/{a.slots}</span></td>
                   <td><span className={`${r.pill} ${STATUS_PILL[a.status]}`}>{WIFI_STATUS_LABEL[a.status]}</span></td>
                   <td>{a.batch || "–"}</td>
                   <td className={r.num} onClick={(e) => e.stopPropagation()}><span className={r.rowActs} style={{ alignItems: "center", gap: 10 }}>
-                    <button type="button" role="switch" aria-checked={a.active} aria-label={`Aktif ${a.username}`} className={r.switch} onClick={() => toggle(a)} />
-                    <button type="button" className={r.link} onClick={() => setEdit({ a })}>Ubah</button>
-                    <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(a)}>Hapus</button>
+                    <button type="button" role="switch" aria-checked={a.active} aria-label={L(`Aktif ${a.username}`, `Active ${a.username}`)} className={r.switch} onClick={() => toggle(a)} />
+                    <button type="button" className={r.link} onClick={() => setEdit({ a })}>{L("Ubah", "Edit")}</button>
+                    <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(a)}>{L("Hapus", "Delete")}</button>
                   </span></td>
                 </tr>
               ))}
@@ -297,7 +298,7 @@ function AccountModal({ a, onClose, onSaved }: { a: WifiAccount | null; onClose:
   const ok = v.username.trim() && v.validUntil >= v.validFrom && v.slots >= 1 && v.slots <= 10 && !busy;
   async function save() {
     if (!ok) return;
-    if (a && a.used > v.slots && !confirm(`Akun ini sedang dipakai ${a.used} slot. Tetap ubah slot menjadi ${v.slots}?`)) return;
+    if (a && a.used > v.slots && !confirm(L(`Akun ini sedang dipakai ${a.used} slot. Tetap ubah slot menjadi ${v.slots}?`, `This account is using ${a.used} slot(s). Change the slots to ${v.slots} anyway?`))) return;
     setBusy(true); setErr("");
     try { await saveWifiAccount(a?.id ?? null, v); await onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); }
   }
@@ -305,35 +306,35 @@ function AccountModal({ a, onClose, onSaved }: { a: WifiAccount | null; onClose:
     <ModalPortal onOverlayClick={onClose} maxWidth={560}>
       <form className={r.modal} onSubmit={(e) => { e.preventDefault(); save(); }} role="dialog" aria-modal="true" aria-labelledby="rcp-acc-title">
         <div className={r.modalHead}>
-          <div><h2 id="rcp-acc-title">{a ? `Ubah akun ${a.username}` : "Akun wifi baru"}</h2><p>{a ? `${WIFI_STATUS_LABEL[a.status]} · ${a.used}/${a.slots} slot terpakai` : "Tambah satu akun dari IT"}</p></div>
-          <button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button>
+          <div><h2 id="rcp-acc-title">{a ? L(`Ubah akun ${a.username}`, `Edit account ${a.username}`) : L("Akun wifi baru", "New wifi account")}</h2><p>{a ? L(`${WIFI_STATUS_LABEL[a.status]} · ${a.used}/${a.slots} slot terpakai`, `${WIFI_STATUS_LABEL[a.status]} · ${a.used}/${a.slots} slots used`) : L("Tambah satu akun dari IT", "Add one account from IT")}</p></div>
+          <button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
         </div>
         <div className={r.form}>
           <div className={r.section}>Kredensial</div>
           <label className={r.field}><span>Username *</span><input className={`${r.input} ${r.mono}`} value={v.username} onChange={(e) => set("username", e.target.value)} autoFocus={!a} required /></label>
           <label className={r.field}><span>Password</span>
             <span className={r.row} style={{ gap: 6, flexWrap: "nowrap" }}><input className={`${r.input} ${r.mono}`} type={showPw ? "text" : "password"} value={v.password} onChange={(e) => set("password", e.target.value)} />
-              <button type="button" className={r.iconBtn} style={{ width: 40, height: 40 }} onClick={() => setShowPw((x) => !x)} aria-label="Tampilkan password">{showPw ? "🙈" : "👁"}</button></span>
+              <button type="button" className={r.iconBtn} style={{ width: 40, height: 40 }} onClick={() => setShowPw((x) => !x)} aria-label={L("Tampilkan password", "Show password")}>{showPw ? "🙈" : "👁"}</button></span>
           </label>
-          <div className={r.section}>Masa berlaku</div>
+          <div className={r.section}>{L("Masa berlaku", "Validity")}</div>
           <div className={`${r.field} ${r.full}`}><span>Durasi cepat</span>
             <div className={r.chips}>{[30, 60, 90].map((d) => <button key={d} type="button" className={r.chip} aria-pressed={days === d} onClick={() => set("validUntil", addDays(v.validFrom, d - 1))}>{d} hari</button>)}</div>
           </div>
-          <label className={r.field}><span>Berlaku mulai</span><input className={r.input} type="date" value={v.validFrom} onChange={(e) => e.target.value && set("validFrom", e.target.value)} /></label>
-          <label className={r.field}><span>Berlaku sampai <em>({days > 0 ? `${days} hari` : "tidak valid"})</em></span><input className={r.input} type="date" value={v.validUntil} min={v.validFrom} onChange={(e) => e.target.value && set("validUntil", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Berlaku mulai", "Valid from")}</span><input className={r.input} type="date" value={v.validFrom} onChange={(e) => e.target.value && set("validFrom", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Berlaku sampai", "Valid until")} <em>({days > 0 ? L(`${days} hari`, `${days} days`) : L("tidak valid", "invalid")})</em></span><input className={r.input} type="date" value={v.validUntil} min={v.validFrom} onChange={(e) => e.target.value && set("validUntil", e.target.value)} /></label>
           <div className={r.section}>Lainnya</div>
           <div className={r.field}><span>Slot (perangkat)</span>
             <div className={r.chips}>{[1, 2, 3, 4].map((n) => <button key={n} type="button" className={r.chip} aria-pressed={v.slots === n} onClick={() => set("slots", n)}>{n}</button>)}</div>
           </div>
-          <div className={r.field}><span>Status</span><label className={r.check} style={{ height: 40 }}><button type="button" role="switch" aria-checked={v.active} className={r.switch} onClick={() => set("active", !v.active)} /> {v.active ? "Aktif — bisa disarankan" : "Nonaktif"}</label></div>
-          <label className={r.field}><span>Batch</span><input className={r.input} value={v.batch} onChange={(e) => set("batch", e.target.value)} placeholder="mis. Okt 2026 · 30 hari" /></label>
-          <label className={r.field}><span>Catatan</span><input className={r.input} value={v.notes} onChange={(e) => set("notes", e.target.value)} /></label>
+          <div className={r.field}><span>Status</span><label className={r.check} style={{ height: 40 }}><button type="button" role="switch" aria-checked={v.active} className={r.switch} onClick={() => set("active", !v.active)} /> {v.active ? L("Aktif — bisa disarankan", "Active — can be suggested") : L("Nonaktif", "Inactive")}</label></div>
+          <label className={r.field}><span>Batch</span><input className={r.input} value={v.batch} onChange={(e) => set("batch", e.target.value)} placeholder={L("mis. Okt 2026 · 30 hari", "e.g. Oct 2026 · 30 days")} /></label>
+          <label className={r.field}><span>{L("Catatan", "Notes")}</span><input className={r.input} value={v.notes} onChange={(e) => set("notes", e.target.value)} /></label>
         </div>
         {err && <div className={r.err}>{err}</div>}
         <div className={r.modalFoot}>
           <span className={r.grow} />
-          <button type="button" className={r.ghost} onClick={onClose}>Batal</button>
-          <button type="submit" className={r.btn} disabled={!ok}>{busy ? "Menyimpan…" : "Simpan"}</button>
+          <button type="button" className={r.ghost} onClick={onClose}>{L("Batal", "Cancel")}</button>
+          <button type="submit" className={r.btn} disabled={!ok}>{busy ? L("Menyimpan…", "Saving…") : L("Simpan", "Save")}</button>
         </div>
       </form>
     </ModalPortal>
@@ -379,27 +380,27 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
     <ModalPortal onOverlayClick={onClose} maxWidth={760}>
       <div className={r.modal} role="dialog" aria-modal="true" aria-labelledby="rcp-imp-title">
         <div className={r.modalHead}>
-          <div><h2 id="rcp-imp-title">Impor akun wifi dari IT</h2><p>Tempel dari Excel atau unggah file</p></div>
-          <button type="button" className={r.iconBtn} onClick={onClose} aria-label="Tutup">✕</button>
+          <div><h2 id="rcp-imp-title">{L("Impor akun wifi dari IT", "Import wifi accounts from IT")}</h2><p>{L("Tempel dari Excel atau unggah file", "Paste from Excel or upload a file")}</p></div>
+          <button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
         </div>
-        <p className={r.hint}>Tempel dari Excel (salin kolom) atau unggah file .xlsx / .csv. Kolom yang dikenali: <b>Username</b>, <b>Password</b>, <b>Berlaku sampai</b> (atau <b>Durasi/Hari</b>), opsional <b>Berlaku mulai</b>, <b>Slot</b>, <b>Batch</b>. Tanpa baris judul, urutannya: username, password, berlaku sampai. Username yang sudah ada akan diperbarui.</p>
+        <p className={r.hint}>{L("Tempel dari Excel (salin kolom) atau unggah file .xlsx / .csv. Kolom yang dikenali: ", "Paste from Excel (copy columns) or upload an .xlsx / .csv file. Recognised columns: ")}<b>Username</b>, <b>Password</b>, <b>{L("Berlaku sampai", "Valid until")}</b> {L("(atau ", "(or ")}<b>{L("Durasi/Hari", "Duration/Days")}</b>), {L("opsional", "optional")} <b>{L("Berlaku mulai", "Valid from")}</b>, <b>{L("Slot", "Slots")}</b>, <b>Batch</b>. {L("Tanpa baris judul, urutannya: username, password, berlaku sampai. Username yang sudah ada akan diperbarui.", "Without a header row the order is: username, password, valid until. Existing usernames are updated.")}</p>
         <div className={r.form}>
-          <label className={r.field}><span>Berlaku mulai <em>(jika tidak ada di data)</em></span><input className={r.input} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <div className={r.field}><span>Masa berlaku <em>(jika tidak ada di data)</em></span>
+          <label className={r.field}><span>{L("Berlaku mulai", "Valid from")} <em>{L("(jika tidak ada di data)", "(if not in the data)")}</em></span><input className={r.input} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+          <div className={r.field}><span>{L("Masa berlaku", "Validity")} <em>{L("(jika tidak ada di data)", "(if not in the data)")}</em></span>
             <div className={r.chips}>{[30, 60, 90].map((d) => <button key={d} type="button" className={r.chip} aria-pressed={days === d} onClick={() => setDays(d)}>{d} hari</button>)}
-              <input className={r.input} style={{ width: 90 }} type="number" min={1} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 30))} aria-label="Hari" /></div>
+              <input className={r.input} style={{ width: 90 }} type="number" min={1} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 30))} aria-label={L("Hari", "Days")} /></div>
           </div>
-          <label className={r.field}><span>Slot per akun</span><input className={r.input} type="number" min={1} max={10} value={slots} onChange={(e) => setSlots(Math.min(10, Math.max(1, Number(e.target.value) || 2)))} /></label>
-          <label className={r.field}><span>Batch / keterangan</span><input className={r.input} value={batch} onChange={(e) => setBatch(e.target.value)} placeholder="mis. Okt 2026 · 30 hari" /></label>
-          <label className={`${r.field} ${r.full}`}><span>Data akun</span>
-            <textarea className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={"Username\tPassword\tBerlaku sampai\nguest001\tAbc123\t31/10/2026"} />
+          <label className={r.field}><span>{L("Slot per akun", "Slots per account")}</span><input className={r.input} type="number" min={1} max={10} value={slots} onChange={(e) => setSlots(Math.min(10, Math.max(1, Number(e.target.value) || 2)))} /></label>
+          <label className={r.field}><span>{L("Batch / keterangan", "Batch / note")}</span><input className={r.input} value={batch} onChange={(e) => setBatch(e.target.value)} placeholder={L("mis. Okt 2026 · 30 hari", "e.g. Oct 2026 · 30 days")} /></label>
+          <label className={`${r.field} ${r.full}`}><span>{L("Data akun", "Account data")}</span>
+            <textarea className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={L("Username\tPassword\tBerlaku sampai\nguest001\tAbc123\t31/10/2026", "Username\tPassword\tValid until\nguest001\tAbc123\t31/10/2026")} />
           </label>
-          <label className={`${r.field} ${r.full}`}><span>…atau unggah file</span><input type="file" accept=".xlsx,.csv,.txt" onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])} /></label>
+          <label className={`${r.field} ${r.full}`}><span>{L("…atau unggah file", "…or upload a file")}</span><input type="file" accept=".xlsx,.csv,.txt" onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])} /></label>
         </div>
         {rows.length > 0 && (
           <div className={r.previewBox}>
             <table className={r.table}>
-              <thead><tr><th>Username</th><th>Password</th><th>Mulai</th><th>Sampai</th><th>Slot</th><th>Batch</th><th /></tr></thead>
+              <thead><tr><th>Username</th><th>Password</th><th>{L("Mulai", "Start")}</th><th>{L("Sampai", "Until")}</th><th>{L("Slot", "Slots")}</th><th>Batch</th><th /></tr></thead>
               <tbody>{rows.slice(0, 200).map((x, i) => (
                 <tr key={i}><td className={r.mono}>{x.username || "–"}</td><td className={r.mono}>{x.password}</td><td>{fmtDate(x.validFrom)}</td><td>{fmtDate(x.validUntil)}</td><td>{x.slots}</td><td>{x.batch}</td>
                   <td>{x.error ? <span className={`${r.pill} ${r.pRed}`}>{x.error}</span> : <span className={`${r.pill} ${r.pGreen}`}>OK</span>}</td></tr>
@@ -409,8 +410,8 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
         )}
         {msg && <div className={msg.startsWith("✓") ? r.ok : r.err}>{msg}</div>}
         <div className={r.modalFoot}>
-          <button type="button" className={r.ghost} onClick={onClose}>Tutup</button>
-          <button type="button" className={r.btn} disabled={!ok.length || busy} onClick={go}>{busy ? "Mengimpor…" : `Impor ${ok.length} akun`}</button>
+          <button type="button" className={r.ghost} onClick={onClose}>{L("Tutup", "Close")}</button>
+          <button type="button" className={r.btn} disabled={!ok.length || busy} onClick={go}>{busy ? L("Mengimpor…", "Importing…") : L(`Impor ${ok.length} akun`, `Import ${ok.length} accounts`)}</button>
         </div>
       </div>
     </ModalPortal>
@@ -423,26 +424,26 @@ function History({ grants, onProof }: { grants: WifiGrant[]; onProof: (g: WifiGr
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const list = grants.filter((g) => (!month || monthOf(g.createdAt) === month) && (!q || [g.guestName, g.guestCompany, g.requestorName, g.username, g.receiptNo, g.department, g.lineManager].join(" ").toLowerCase().includes(q.toLowerCase())));
   const today = todayISO();
-  const status = (g: WifiGrant) => (g.returnedAt ? "Dikembalikan" : g.endDate < today ? "Selesai" : "Aktif");
+  const status = (g: WifiGrant) => (g.returnedAt ? L("Dikembalikan", "Returned") : g.endDate < today ? L("Selesai", "Done") : L("Aktif", "Active"));
   return (
     <section className={r.card}>
       <div className={r.cardHead}>
         <h2>Riwayat akses wifi</h2>
         <span className={r.row}>
-          <input className={r.input} style={{ width: 160 }} type="month" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Bulan" />
-          <input className={r.input} style={{ width: 220 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari…" />
-          <ExportButtons rows={list} title="Riwayat Wifi Tamu" filename="Wifi_Tamu" period={month} columns={[
-            col<WifiGrant>("no", "No. Tanda Terima", (g) => g.receiptNo), col<WifiGrant>("tgl", "Dibuat", (g) => fmtDateTime(g.createdAt)),
-            col<WifiGrant>("tamu", "Tamu", (g) => g.guestName + (g.guestCompany ? ` (${g.guestCompany})` : "")), col<WifiGrant>("req", "Requestor", (g) => g.requestorName),
-            col<WifiGrant>("dept", "Departemen", (g) => g.department), col<WifiGrant>("lm", "Line Manager", (g) => g.lineManager),
-            col<WifiGrant>("akun", "Akun", (g) => g.username), col<WifiGrant>("slot", "Slot", (g) => g.slots, "right"),
-            col<WifiGrant>("per", "Periode", (g) => `${fmtDate(g.startDate)} – ${fmtDate(g.endDate)}`), col<WifiGrant>("st", "Status", status)]} />
+          <input className={r.input} style={{ width: 160 }} type="month" value={month} onChange={(e) => setMonth(e.target.value)} aria-label={L("Bulan", "Month")} />
+          <input className={r.input} style={{ width: 220 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari…", "Search…")} />
+          <ExportButtons rows={list} title={L("Riwayat Wifi Tamu", "Guest Wifi History")} filename="Wifi_Tamu" period={month} columns={[
+            col<WifiGrant>("no", L("No. Tanda Terima", "Receipt No."), (g) => g.receiptNo), col<WifiGrant>("tgl", L("Dibuat", "Created"), (g) => fmtDateTime(g.createdAt)),
+            col<WifiGrant>("tamu", L("Tamu", "Guest"), (g) => g.guestName + (g.guestCompany ? ` (${g.guestCompany})` : "")), col<WifiGrant>("req", "Requestor", (g) => g.requestorName),
+            col<WifiGrant>("dept", L("Departemen", "Department"), (g) => g.department), col<WifiGrant>("lm", "Line Manager", (g) => g.lineManager),
+            col<WifiGrant>("akun", L("Akun", "Account"), (g) => g.username), col<WifiGrant>("slot", L("Slot", "Slots"), (g) => g.slots, "right"),
+            col<WifiGrant>("per", L("Periode", "Period"), (g) => `${fmtDate(g.startDate)} – ${fmtDate(g.endDate)}`), col<WifiGrant>("st", "Status", status)]} />
         </span>
       </div>
-      {list.length === 0 ? <p className={r.empty}>Tidak ada data.</p> : (
+      {list.length === 0 ? <p className={r.empty}>{L("Tidak ada data.", "No data.")}</p> : (
         <div className={r.tableBox}>
           <table className={r.table}>
-            <thead><tr><th>No.</th><th>Tamu</th><th>Requestor</th><th>Akun</th><th>Periode</th><th>Status</th><th>Email</th><th /></tr></thead>
+            <thead><tr><th>No.</th><th>{L("Tamu", "Guest")}</th><th>Requestor</th><th>{L("Akun", "Account")}</th><th>{L("Periode", "Period")}</th><th>Status</th><th>Email</th><th /></tr></thead>
             <tbody>{list.map((g) => (
               <tr key={g.id}>
                 <td className={`${r.mono} ${r.nowrap}`}>{g.receiptNo}</td>
@@ -451,8 +452,8 @@ function History({ grants, onProof }: { grants: WifiGrant[]; onProof: (g: WifiGr
                 <td className={r.mono}>{g.username} <span className={r.mute}>· {g.slots} slot</span></td>
                 <td className={r.nowrap}>{fmtDate(g.startDate)} – {fmtDate(g.endDate)}</td>
                 <td><span className={`${r.pill} ${g.returnedAt ? r.pGray : g.endDate < today ? r.pGray : r.pGreen}`}>{status(g)}</span></td>
-                <td>{g.emailSentAt ? <span className={`${r.pill} ${r.pBlue}`}>Terkirim</span> : <span className={r.mute}>–</span>}</td>
-                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 Bukti</button></td>
+                <td>{g.emailSentAt ? <span className={`${r.pill} ${r.pBlue}`}>{L("Terkirim", "Sent")}</span> : <span className={r.mute}>–</span>}</td>
+                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 {L("Bukti", "Receipt")}</button></td>
               </tr>
             ))}</tbody>
           </table>

@@ -9,10 +9,11 @@ import type { GiftEvent, GiftSelection } from "@/lib/types";
 import { supabase } from "@/lib/supabaseClient";
 import { BRAND } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 type Screen = "list" | "form" | "success";
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  return new Date(d).toLocaleDateString(loc(), { day: "numeric", month: "long", year: "numeric" });
 }
 
 export default function GiftPage() {
@@ -55,7 +56,7 @@ export default function GiftPage() {
     e.preventDefault();
     if (!selectedEvent) return;
     if (!nik.trim() || !nama.trim() || !departemen.trim() || !email.trim()) {
-      setError("Semua kolom wajib diisi."); return;
+      setError(L("Semua kolom wajib diisi.", "All fields are required.")); return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError("Format email tidak valid."); return;
@@ -82,11 +83,11 @@ export default function GiftPage() {
 
       if (!res.success) {
         if (res.errorCode === "ALREADY_REGISTERED") {
-          setError("NIK ini sudah terdaftar untuk event ini.");
+          setError(L("NIK ini sudah terdaftar untuk event ini.", "This NIK is already registered for this event."));
         } else if (res.errorCode === "EVENT_CLOSED") {
-          setError("Pendaftaran untuk event ini sudah ditutup.");
+          setError(L("Pendaftaran untuk event ini sudah ditutup.", "Registration for this event is closed."));
         } else {
-          setError(`Gagal mendaftar: ${res.errorCode ?? "error tidak diketahui"}`);
+          setError(L(`Gagal mendaftar: ${res.errorCode ?? "error tidak diketahui"}`, `Registration failed: ${res.errorCode ?? "unknown error"}`));
         }
         return;
       }
@@ -108,7 +109,7 @@ export default function GiftPage() {
     } catch (err) {
       const msg = (err instanceof Error ? err.message : null) ||
         (err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : null) ||
-        "Terjadi kesalahan. Coba lagi.";
+        L("Terjadi kesalahan. Coba lagi.", "An error occurred. Please try again.");
       setError(msg);
     } finally {
       setSaving(false);
@@ -129,17 +130,17 @@ export default function GiftPage() {
             Pendaftaran Pengambilan
           </h1>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, margin: 0 }}>
-            Pilih program di bawah ini untuk mendaftar
+            {L("Pilih program di bawah ini untuk mendaftar", "Choose a programme below to register")}
           </p>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", color: "rgba(255,255,255,0.5)", padding: 40 }}>Memuat data...</div>
+          <div style={{ textAlign: "center", color: "rgba(255,255,255,0.5)", padding: 40 }}>{L("Memuat data...", "Loading data...")}</div>
         ) : events.length === 0 ? (
           <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 20, padding: 40, textAlign: "center" }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
-            <div style={{ color: "#fff", fontWeight: 700, marginBottom: 6 }}>Belum ada program aktif</div>
-            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Hubungi tim GA untuk informasi lebih lanjut.</div>
+            <div style={{ color: "#fff", fontWeight: 700, marginBottom: 6 }}>{L("Belum ada program aktif", "No active programme yet")}</div>
+            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{L("Hubungi tim GA untuk informasi lebih lanjut.", "Contact the GA team for more information.")}</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -160,7 +161,7 @@ export default function GiftPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>{ev.name}</div>
                   <span style={{ fontSize: 11, fontWeight: 700, background: "#22c55e", color: "#fff", padding: "3px 10px", borderRadius: 999, flexShrink: 0, marginLeft: 10 }}>
-                    BUKA
+                    {L("BUKA", "OPEN")}
                   </span>
                 </div>
                 {ev.description && (
@@ -204,12 +205,12 @@ export default function GiftPage() {
 
         <form onSubmit={handleSubmit}>
           <div style={{ background: "rgba(255,255,255,0.08)", backdropFilter: "blur(16px)", borderRadius: 20, border: "1.5px solid rgba(255,255,255,0.18)", padding: "24px 20px", marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 18 }}>Data Karyawan</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 18 }}>{L("Data Karyawan", "Employee Data")}</div>
 
             {[
-              { label: "NIK / No. Karyawan", value: nik, set: setNik, type: "text", placeholder: "Contoh: 1234567890" },
-              { label: "Nama Lengkap", value: nama, set: setNama, type: "text", placeholder: "Sesuai data karyawan" },
-              { label: "Departemen", value: departemen, set: setDepartemen, type: "text", placeholder: "Contoh: Operations" },
+              { label: L("NIK / No. Karyawan", "NIK / Employee No."), value: nik, set: setNik, type: "text", placeholder: L("Contoh: 1234567890", "Example: 1234567890") },
+              { label: L("Nama Lengkap", "Full Name"), value: nama, set: setNama, type: "text", placeholder: L("Sesuai data karyawan", "As in the employee records") },
+              { label: L("Departemen", "Department"), value: departemen, set: setDepartemen, type: "text", placeholder: L("Contoh: Operations", "Example: Operations") },
               { label: "Email", value: email, set: setEmail, type: "email", placeholder: "email@example.com" },
             ].map(f => (
               <div key={f.label} style={{ marginBottom: 16 }}>
@@ -248,7 +249,7 @@ export default function GiftPage() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Semua ukuran/varian sama</div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{L("Semua ukuran/varian sama", "All sizes/variants are the same")}</div>
                 )}
               </div>
             ))}
@@ -265,7 +266,7 @@ export default function GiftPage() {
             background: saving ? "rgba(255,255,255,0.3)" : "#fff",
             color: "#1c3e82", fontWeight: 800, fontSize: 16, cursor: saving ? "default" : "pointer", transition: "all 0.15s",
           }}>
-            {saving ? "Mendaftar..." : "Daftar Sekarang"}
+            {saving ? L("Mendaftar...", "Registering...") : L("Daftar Sekarang", "Register Now")}
           </button>
         </form>
       </div>
@@ -278,9 +279,9 @@ export default function GiftPage() {
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "48px 16px 0" }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: "#fff", fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Pendaftaran Berhasil!</h2>
+          <h2 style={{ color: "#fff", fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>{L("Pendaftaran Berhasil!", "Registration Successful!")}</h2>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, margin: 0 }}>
-            {emailSent ? `Passcode juga sudah dikirim ke ${email}` : "Simpan passcode di bawah ini — screenshot sekarang"}
+            {emailSent ? `Passcode juga sudah dikirim ke ${email}` : L("Simpan passcode di bawah ini — screenshot sekarang", "Save the passcode below — take a screenshot now")}
           </p>
         </div>
 
@@ -293,7 +294,7 @@ export default function GiftPage() {
             {passcode}
           </div>
           <div style={{ fontSize: 12, color: "#a0aac0" }}>
-            Tunjukkan passcode ini ke petugas saat pengambilan
+            {L("Tunjukkan passcode ini ke petugas saat pengambilan", "Show this passcode to the staff when collecting")}
           </div>
         </div>
 
@@ -304,9 +305,9 @@ export default function GiftPage() {
             <tbody>
               {[
                 ["Program", successData.eventName],
-                ["Nama", successData.nama],
+                [L("Nama", "Name"), successData.nama],
                 ["NIK", nik],
-                ["Departemen", departemen],
+                [L("Departemen", "Department"), departemen],
               ].map(([k, v]) => (
                 <tr key={k} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                   <td style={{ padding: "8px 0", color: "rgba(255,255,255,0.5)" }}>{k}</td>

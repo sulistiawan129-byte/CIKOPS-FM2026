@@ -18,6 +18,7 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import { useLang } from "@/lib/providers";
 import c from "./calendar.module.css";
 
+import { L } from "@/lib/i18n";
 type Lang = "id" | "en";
 
 export const AGENDA_CAT: Record<AgendaCategory, { id: string; en: string; icon: string; color: string }> = {
@@ -120,7 +121,7 @@ export default function CalendarAgenda({
   const loadTasks = useCallback(async () => {
     if (!allowTasks) return;
     try { setTasks(await getTasksByRange(rangeFrom, rangeTo, plant)); }
-    catch (e) { console.warn("Gagal memuat penugasan untuk kalender:", e); }
+    catch (e) { console.warn(L("Gagal memuat penugasan untuk kalender:", "Failed to load assignments for the calendar:"), e); }
   }, [rangeFrom, rangeTo, plant, allowTasks]);
 
   useEffect(() => { loadEvents().finally(() => setLoading(false)); }, [loadEvents]);

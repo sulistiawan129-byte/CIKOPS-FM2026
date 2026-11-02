@@ -5,11 +5,12 @@
 
 import { useMemo, useState } from "react";
 import { createParcel, deleteParcel, emailParcel, handoverParcel } from "@/lib/receptionist/api";
-import { ITEM_TYPES, fmtDate, fmtDateTime, fmtTime, todayISO, dayOf, monthOf, receiptFromParcel, type Parcel, type ParcelDirection } from "@/lib/receptionist/model";
+import { itemTypeLabel, ITEM_TYPES, fmtDate, fmtDateTime, fmtTime, todayISO, dayOf, monthOf, receiptFromParcel, type Parcel, type ParcelDirection } from "@/lib/receptionist/model";
 import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./shared";
 import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
 
+import { L } from "@/lib/i18n";
 type Sub = "waiting" | "today" | "history";
 
 export default function RcpParcels({ parcels, dir, reload }: { parcels: Parcel[]; dir: Directory; reload: () => Promise<void> }) {
@@ -25,7 +26,7 @@ export default function RcpParcels({ parcels, dir, reload }: { parcels: Parcel[]
       <section className={r.card}>
         <div className={r.cardHead}>
           <div className={r.seg} role="group" aria-label="Daftar">
-            {([["waiting", `Menunggu (${waiting.length})`], ["today", "Hari ini"], ["history", "Riwayat"]] as [Sub, string][]).map(([k, l]) => (
+            {([["waiting", `Menunggu (${waiting.length})`], ["today", L("Hari ini", "Today")], ["history", L("Riwayat", "History")]] as [Sub, string][]).map(([k, l]) => (
               <button key={k} type="button" aria-pressed={sub === k} onClick={() => setSub(k)}>{l}</button>
             ))}
           </div>
@@ -73,35 +74,35 @@ function NewParcel({ dir, reload, onProof }: { dir: Directory; reload: () => Pro
 
   return (
     <section className={r.card}>
-      <div className={r.cardHead}><div><h2>Catat barang / surat</h2><p>Nomor tanda terima dibuat otomatis</p></div></div>
+      <div className={r.cardHead}><div><h2>{L("Catat barang / surat", "Log item / mail")}</h2><p>{L("Nomor tanda terima dibuat otomatis", "The receipt number is generated automatically")}</p></div></div>
       <div className={r.chips}>
-        <button type="button" className={r.chip} aria-pressed={isIn} onClick={() => setDirection("in")}>⬇ Masuk (untuk karyawan)</button>
-        <button type="button" className={r.chip} aria-pressed={!isIn} onClick={() => setDirection("out")}>⬆ Keluar (dikirim karyawan)</button>
+        <button type="button" className={r.chip} aria-pressed={isIn} onClick={() => setDirection("in")}>{L("⬇ Masuk (untuk karyawan)", "⬇ Incoming (for an employee)")}</button>
+        <button type="button" className={r.chip} aria-pressed={!isIn} onClick={() => setDirection("out")}>{L("⬆ Keluar (dikirim karyawan)", "⬆ Outgoing (sent by an employee)")}</button>
       </div>
       <div className={r.form}>
-        <div className={`${r.field} ${r.full}`}><span>Jenis</span>
-          <div className={r.chips}>{ITEM_TYPES.map((t) => <button key={t} type="button" className={r.chip} aria-pressed={f.itemType === t} onClick={() => set("itemType", t)}>{t}</button>)}</div>
+        <div className={`${r.field} ${r.full}`}><span>{L("Jenis", "Type")}</span>
+          <div className={r.chips}>{ITEM_TYPES.map((t) => <button key={t} type="button" className={r.chip} aria-pressed={f.itemType === t} onClick={() => set("itemType", t)}>{itemTypeLabel(t)}</button>)}</div>
         </div>
         {isIn ? (
           <>
             <label className={r.field}><span>Untuk (karyawan) *</span><NameInput dir={dir} value={f.recipient} onChange={(v) => set("recipient", v)} onPick={pickPerson} placeholder="Ketik nama — email terisi sendiri" /></label>
-            <label className={r.field}><span>Dari</span><input className={r.input} value={f.sender} onChange={(e) => set("sender", e.target.value)} placeholder="Pengirim / ekspedisi" /></label>
+            <label className={r.field}><span>{L("Dari", "From")}</span><input className={r.input} value={f.sender} onChange={(e) => set("sender", e.target.value)} placeholder={L("Pengirim / ekspedisi", "Sender / courier")} /></label>
           </>
         ) : (
           <>
             <label className={r.field}><span>Dari (karyawan) *</span><NameInput dir={dir} value={f.sender} onChange={(v) => set("sender", v)} onPick={pickPerson} placeholder="Ketik nama — email terisi sendiri" /></label>
-            <label className={r.field}><span>Untuk / tujuan</span><input className={r.input} value={f.recipient} onChange={(e) => set("recipient", e.target.value)} placeholder="Nama & alamat tujuan" /></label>
+            <label className={r.field}><span>{L("Untuk / tujuan", "To / destination")}</span><input className={r.input} value={f.recipient} onChange={(e) => set("recipient", e.target.value)} placeholder={L("Nama & alamat tujuan", "Recipient name & address")} /></label>
           </>
         )}
-        <label className={r.field}><span>Departemen</span><input className={r.input} value={f.department} onChange={(e) => set("department", e.target.value)} /></label>
-        <label className={r.field}><span>Email <em>(opsional — untuk notifikasi)</em></span><input className={r.input} type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></label>
-        <label className={r.field}><span>Keterangan <em>(opsional)</em></span><input className={r.input} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="mis. 1 dus, amplop coklat" /></label>
+        <label className={r.field}><span>{L("Departemen", "Department")}</span><input className={r.input} value={f.department} onChange={(e) => set("department", e.target.value)} /></label>
+        <label className={r.field}><span>Email <em>{L("(opsional — untuk notifikasi)", "(optional — for notifications)")}</em></span><input className={r.input} type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></label>
+        <label className={r.field}><span>{L("Keterangan", "Description")} <em>(opsional)</em></span><input className={r.input} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="mis. 1 dus, amplop coklat" /></label>
         <label className={r.field}><span>Kurir / ekspedisi <em>(opsional)</em></span><input className={r.input} value={f.courier} onChange={(e) => set("courier", e.target.value)} placeholder="JNE, Gojek, internal…" /></label>
       </div>
       {msg && <div className={msg.ok ? r.ok : r.err}>{msg.text}</div>}
       <div className={r.formFoot}>
-        <span className={r.hint}>Email yang diisi diingat untuk nama ini — lain kali cukup ketik namanya.</span>
-        <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? "Menyimpan…" : isIn ? "Simpan barang masuk" : "Simpan barang keluar"}</button>
+        <span className={r.hint}>{L("Email yang diisi diingat untuk nama ini — lain kali cukup ketik namanya.", "The email entered is remembered for this name — next time just type the name.")}</span>
+        <button type="button" className={r.btn} disabled={!canSave} onClick={submit}>{busy ? L("Menyimpan…", "Saving…") : isIn ? L("Simpan barang masuk", "Save incoming item") : L("Simpan barang keluar", "Save outgoing item")}</button>
       </div>
     </section>
   );
@@ -115,7 +116,7 @@ function WaitingList({ list, reload, onProof }: { list: Parcel[]; reload: () => 
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   async function hand(p: Parcel) {
     const who = (names[p.id] ?? (p.direction === "in" ? p.recipient : p.courier)).trim();
-    if (!who) { alert("Isi nama pengambil."); return; }
+    if (!who) { alert(L("Isi nama pengambil.", "Enter the name of the person collecting.")); return; }
     setBusy(p.id);
     try {
       const done = await handoverParcel(p.id, who);
@@ -125,14 +126,14 @@ function WaitingList({ list, reload, onProof }: { list: Parcel[]; reload: () => 
     } catch (e) { alert(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
   }
   async function del(p: Parcel) {
-    if (!confirm(`Hapus ${p.receiptNo}? (salah input)`)) return;
+    if (!confirm(L(`Hapus ${p.receiptNo}? (salah input)`, `Delete ${p.receiptNo}? (entered by mistake)`))) return;
     try { await deleteParcel(p.id); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
   }
   const ageDays = (p: Parcel) => Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000);
   return (
     <>
-      <input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari nomor, nama, departemen…" />
-      {shown.length === 0 ? <p className={r.empty}>Tidak ada barang yang menunggu.</p> : (
+      <input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari nomor, nama, departemen…", "Search number, name, department…")} />
+      {shown.length === 0 ? <p className={r.empty}>{L("Tidak ada barang yang menunggu.", "No items waiting.")}</p> : (
         <div className={r.list}>
           {shown.map((p) => (
             <div key={p.id} className={r.item}>
@@ -140,17 +141,17 @@ function WaitingList({ list, reload, onProof }: { list: Parcel[]; reload: () => 
                 <b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
                 {ageDays(p) >= 2 && <span className={`${r.pill} ${r.pOrange}`} style={{ marginLeft: 8 }}>{ageDays(p)} hari</span>}
                 <div className={r.meta}>
-                  <span className={r.mono}>{p.receiptNo}</span><span>{p.itemType}{p.description ? ` · ${p.description}` : ""}</span>
-                  <span>{p.direction === "in" ? `dari ${p.sender || "–"}` : `ke ${p.recipient || "–"}`}</span>
+                  <span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}{p.description ? ` · ${p.description}` : ""}</span>
+                  <span>{p.direction === "in" ? `${L("dari", "from")} ${p.sender || "–"}` : `${L("ke", "to")} ${p.recipient || "–"}`}</span>
                   {p.department && <span>{p.department}</span>}<span className={r.mute}>{fmtDateTime(p.createdAt)}</span>
                   {p.email && <span className={r.mute}>{p.notifiedAt ? "✉ terkirim" : "✉ belum terkirim"}</span>}
                 </div>
               </div>
               <div className={r.itemSide}>
-                <input className={r.input} value={names[p.id] ?? (p.direction === "in" ? p.recipient : p.courier)} onChange={(e) => setNames((x) => ({ ...x, [p.id]: e.target.value }))} placeholder={p.direction === "in" ? "Nama pengambil" : "Nama kurir"} aria-label="Nama pengambil" />
+                <input className={r.input} value={names[p.id] ?? (p.direction === "in" ? p.recipient : p.courier)} onChange={(e) => setNames((x) => ({ ...x, [p.id]: e.target.value }))} placeholder={p.direction === "in" ? L("Nama pengambil", "Collector name") : L("Nama kurir", "Courier name")} aria-label={L("Nama pengambil", "Collector name")} />
                 <button type="button" className={`${r.btn} ${r.btnSm}`} disabled={busy === p.id} onClick={() => hand(p)}>{busy === p.id ? "…" : "Serahkan"}</button>
-                <button type="button" className={r.proofBtn} onClick={() => onProof(p)} title="Bukti permintaan">🧾</button>
-                <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(p)}>Hapus</button>
+                <button type="button" className={r.proofBtn} onClick={() => onProof(p)} title={L("Bukti permintaan", "Request receipt")}>🧾</button>
+                <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(p)}>{L("Hapus", "Delete")}</button>
               </div>
             </div>
           ))}
@@ -161,28 +162,28 @@ function WaitingList({ list, reload, onProof }: { list: Parcel[]; reload: () => 
 }
 
 function SimpleList({ list, onProof }: { list: Parcel[]; onProof: (p: Parcel) => void }) {
-  if (!list.length) return <p className={r.empty}>Belum ada aktivitas hari ini.</p>;
+  if (!list.length) return <p className={r.empty}>{L("Belum ada aktivitas hari ini.", "No activity today.")}</p>;
   return (
     <div className={r.list}>
       {list.map((p) => (
         <div key={p.id} className={r.item}>
           <div>
             <b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
-            <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{p.itemType}</span><span>masuk {fmtTime(p.createdAt)}</span></div>
+            <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}</span><span>{L("masuk", "logged")} {fmtTime(p.createdAt)}</span></div>
           </div>
-          <div className={r.itemSide}>{p.status === "handed" ? <span className={`${r.pill} ${r.pGreen}`}>{p.handedTo} · {fmtTime(p.handedAt)}</span> : <span className={`${r.pill} ${r.pOrange}`}>Menunggu</span>}
-            <button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 Bukti</button></div>
+          <div className={r.itemSide}>{p.status === "handed" ? <span className={`${r.pill} ${r.pGreen}`}>{p.handedTo} · {fmtTime(p.handedAt)}</span> : <span className={`${r.pill} ${r.pOrange}`}>{L("Menunggu", "Waiting")}</span>}
+            <button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 {L("Bukti", "Receipt")}</button></div>
         </div>
       ))}
     </div>
   );
 }
 
-const COLS = [
-  col<Parcel>("no", "No. Tanda Terima", (p) => p.receiptNo), col<Parcel>("arah", "Arah", (p) => (p.direction === "in" ? "Masuk" : "Keluar")),
-  col<Parcel>("jenis", "Jenis", (p) => p.itemType), col<Parcel>("ket", "Keterangan", (p) => p.description), col<Parcel>("dari", "Dari", (p) => p.sender),
-  col<Parcel>("untuk", "Untuk", (p) => p.recipient), col<Parcel>("dept", "Departemen", (p) => p.department), col<Parcel>("masuk", "Dicatat", (p) => fmtDateTime(p.createdAt)),
-  col<Parcel>("ambil", "Diambil oleh", (p) => p.handedTo || "-"), col<Parcel>("jam", "Waktu serah", (p) => (p.handedAt ? fmtDateTime(p.handedAt) : "-")),
+const cols = () => [
+  col<Parcel>("no", L("No. Tanda Terima", "Receipt No."), (p) => p.receiptNo), col<Parcel>("arah", L("Arah", "Direction"), (p) => (p.direction === "in" ? L("Masuk", "Incoming") : L("Keluar", "Outgoing"))),
+  col<Parcel>("jenis", L("Jenis", "Type"), (p) => itemTypeLabel(p.itemType)), col<Parcel>("ket", L("Keterangan", "Description"), (p) => p.description), col<Parcel>("dari", L("Dari", "From"), (p) => p.sender),
+  col<Parcel>("untuk", L("Untuk", "To"), (p) => p.recipient), col<Parcel>("dept", L("Departemen", "Department"), (p) => p.department), col<Parcel>("masuk", L("Dicatat", "Logged"), (p) => fmtDateTime(p.createdAt)),
+  col<Parcel>("ambil", L("Diambil oleh", "Collected by"), (p) => p.handedTo || "-"), col<Parcel>("jam", L("Waktu serah", "Handover time"), (p) => (p.handedAt ? fmtDateTime(p.handedAt) : "-")),
 ];
 
 function HistoryList({ parcels, onProof }: { parcels: Parcel[]; onProof: (p: Parcel) => void }) {
@@ -193,24 +194,24 @@ function HistoryList({ parcels, onProof }: { parcels: Parcel[]; onProof: (p: Par
   return (
     <>
       <div className={r.row}>
-        <input className={r.input} style={{ width: 150 }} type="month" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Bulan" />
-        <div className={r.seg}>{([["all", "Semua"], ["in", "Masuk"], ["out", "Keluar"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={dirF === k} onClick={() => setDirF(k)}>{l}</button>)}</div>
-        <input className={r.input} style={{ flex: "1 1 160px", width: "auto" }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari…" />
-        <ExportButtons rows={list} columns={COLS} title="Barang & Surat" filename="Barang_Surat" period={month} />
+        <input className={r.input} style={{ width: 150 }} type="month" value={month} onChange={(e) => setMonth(e.target.value)} aria-label={L("Bulan", "Month")} />
+        <div className={r.seg}>{([["all", L("Semua", "All")], ["in", L("Masuk", "Incoming")], ["out", L("Keluar", "Outgoing")]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={dirF === k} onClick={() => setDirF(k)}>{l}</button>)}</div>
+        <input className={r.input} style={{ flex: "1 1 160px", width: "auto" }} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari…", "Search…")} />
+        <ExportButtons rows={list} columns={cols()} title={L("Barang & Surat", "Items & Mail")} filename="Barang_Surat" period={month} />
       </div>
       <p className={r.hint}>Riwayat memuat 6 bulan terakhir.</p>
-      {list.length === 0 ? <p className={r.empty}>Tidak ada data.</p> : (
+      {list.length === 0 ? <p className={r.empty}>{L("Tidak ada data.", "No data.")}</p> : (
         <div className={r.tableBox}>
           <table className={r.table}>
-            <thead><tr><th>No.</th><th>Jenis</th><th>Dari → Untuk</th><th>Dicatat</th><th>Serah terima</th><th /></tr></thead>
+            <thead><tr><th>No.</th><th>{L("Jenis", "Type")}</th><th>{L("Dari → Untuk", "From → To")}</th><th>{L("Dicatat", "Logged")}</th><th>{L("Serah terima", "Handover")}</th><th /></tr></thead>
             <tbody>{list.map((p) => (
               <tr key={p.id}>
                 <td className={`${r.mono} ${r.nowrap}`}>{p.receiptNo}</td>
-                <td>{p.itemType}{p.description && <div className={r.mute}>{p.description}</div>}</td>
+                <td>{itemTypeLabel(p.itemType)}{p.description && <div className={r.mute}>{p.description}</div>}</td>
                 <td>{p.sender || "–"} → <b>{p.recipient || "–"}</b>{p.department && <div className={r.mute}>{p.department}</div>}</td>
                 <td className={r.nowrap}>{fmtDateTime(p.createdAt)}</td>
-                <td>{p.status === "handed" ? <>{p.handedTo}<div className={r.mute}>{fmtDateTime(p.handedAt)}</div></> : <span className={`${r.pill} ${r.pOrange}`}>Menunggu</span>}</td>
-                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 Bukti</button></td>
+                <td>{p.status === "handed" ? <>{p.handedTo}<div className={r.mute}>{fmtDateTime(p.handedAt)}</div></> : <span className={`${r.pill} ${r.pOrange}`}>{L("Menunggu", "Waiting")}</span>}</td>
+                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 {L("Bukti", "Receipt")}</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -232,11 +233,11 @@ function CourierSheet({ parcels }: { parcels: Parcel[] }) {
     doc.setFont("helvetica", "bold"); doc.setFontSize(13);
     doc.text("LEMBAR SERAH TERIMA KURIR — BARANG & SURAT KELUAR", w / 2, 40, { align: "center" });
     doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-    doc.text(`Tanggal: ${fmtDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`, w / 2, 58, { align: "center" });
+    doc.text(`${L("Tanggal", "Date")}: ${fmtDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`, w / 2, 58, { align: "center" });
     autoTable(doc, {
       startY: 74,
-      head: [["No", "No. Tanda Terima", "Jenis", "Dari", "Untuk / tujuan", "Kurir", "Jam serah", "Paraf kurir"]],
-      body: rows.map((p, i) => [String(i + 1), p.receiptNo, p.itemType + (p.description ? ` — ${p.description}` : ""), p.sender, p.recipient, p.handedTo || p.courier, p.handedAt ? fmtTime(p.handedAt) : "", ""]),
+      head: [["No", L("No. Tanda Terima", "Receipt No."), L("Jenis", "Type"), L("Dari", "From"), L("Untuk / tujuan", "To / destination"), "Kurir", "Jam serah", "Paraf kurir"]],
+      body: rows.map((p, i) => [String(i + 1), p.receiptNo, itemTypeLabel(p.itemType) + (p.description ? ` — ${p.description}` : ""), p.sender, p.recipient, p.handedTo || p.courier, p.handedAt ? fmtTime(p.handedAt) : "", ""]),
       styles: { fontSize: 9, cellPadding: 6, minCellHeight: 26 }, headStyles: { fillColor: [15, 40, 71] }, margin: { left: 30, right: 30 },
       columnStyles: { 7: { cellWidth: 90 } },
     });
@@ -248,8 +249,8 @@ function CourierSheet({ parcels }: { parcels: Parcel[] }) {
   }
   return (
     <span className={r.row} style={{ gap: 6 }}>
-      <input className={r.input} style={{ width: 150, minHeight: 36 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Tanggal lembar kurir" />
-      <button type="button" className={r.ghost} disabled={!rows.length} onClick={() => print().catch((e) => alert(String(e)))} title="Cetak lembar serah terima kurir (barang keluar)">🖨 Lembar kurir ({rows.length})</button>
+      <input className={r.input} style={{ width: 150, minHeight: 36 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label={L("Tanggal lembar kurir", "Courier sheet date")} />
+      <button type="button" className={r.ghost} disabled={!rows.length} onClick={() => print().catch((e) => alert(String(e)))} title={L("Cetak lembar serah terima kurir (barang keluar)", "Print the courier handover sheet (outgoing items)")}>🖨 Lembar kurir ({rows.length})</button>
     </span>
   );
 }

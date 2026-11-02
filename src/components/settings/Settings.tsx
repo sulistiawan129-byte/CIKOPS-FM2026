@@ -12,6 +12,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import s from "./settings.module.css";
 
+import { L } from "@/lib/i18n";
 export type FieldType = "text" | "email" | "number" | "time" | "textarea" | "select" | "chips";
 export interface FieldDef<T> {
   key: keyof T & string;
@@ -63,7 +64,7 @@ function FormModal<T extends Record<string, unknown>>({ title, fields, initial, 
   return createPortal(
     <div className={s.overlay} onClick={onClose}>
       <form className={s.modal} onSubmit={submit} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
-        <div className={s.modalHead}><h2>{title}</h2><button type="button" className={s.iconBtn} onClick={onClose} aria-label="Tutup">✕</button></div>
+        <div className={s.modalHead}><h2>{title}</h2><button type="button" className={s.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
         {fields.map((f, i) => {
           const val = asText(v[f.key]);
           const ro = !isNew && f.readOnlyOnEdit;
@@ -81,7 +82,7 @@ function FormModal<T extends Record<string, unknown>>({ title, fields, initial, 
               {f.type === "textarea" ? <textarea className={s.input} rows={5} value={val} disabled={ro} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} autoFocus={i === 0} />
                 : f.type === "select" ? (
                   <select className={s.input} value={val} disabled={ro} onChange={(e) => set(f.key, e.target.value)} autoFocus={i === 0}>
-                    <option value="">— pilih —</option>
+                    <option value="">{L("— pilih —", "— select —")}</option>
                     {(f.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 ) : <input className={s.input} type={f.type === "number" ? "number" : f.type ?? "text"} value={val} disabled={ro} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} autoFocus={i === 0} />}
@@ -91,8 +92,8 @@ function FormModal<T extends Record<string, unknown>>({ title, fields, initial, 
         })}
         {err && <div className={s.err} role="alert">{err}</div>}
         <div className={s.modalFoot}>
-          <button type="button" className={s.ghost} onClick={onClose}>Batal</button>
-          <button type="submit" className={s.primary} disabled={busy}>{busy ? "Menyimpan…" : isNew ? "Tambah" : "Simpan"}</button>
+          <button type="button" className={s.ghost} onClick={onClose}>{L("Batal", "Cancel")}</button>
+          <button type="submit" className={s.primary} disabled={busy}>{busy ? L("Menyimpan…", "Saving…") : isNew ? L("Tambah", "Add") : L("Simpan", "Save")}</button>
         </div>
       </form>
     </div>,
@@ -106,15 +107,15 @@ function ConfirmModal({ text, onClose, onConfirm }: { text: string; onClose: () 
   return createPortal(
     <div className={s.overlay} onClick={onClose}>
       <div className={s.modal} onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" style={{ width: "min(420px, 100%)" }}>
-        <div className={s.modalHead}><h2>Hapus data?</h2><button type="button" className={s.iconBtn} onClick={onClose} aria-label="Tutup">✕</button></div>
+        <div className={s.modalHead}><h2>{L("Hapus data?", "Delete this data?")}</h2><button type="button" className={s.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
         <p className={s.mute}>{text}</p>
         {err && <div className={s.err} role="alert">{err}</div>}
         <div className={s.modalFoot}>
-          <button type="button" className={s.ghost} onClick={onClose}>Batal</button>
+          <button type="button" className={s.ghost} onClick={onClose}>{L("Batal", "Cancel")}</button>
           <button type="button" className={s.danger} disabled={busy} onClick={async () => {
             setBusy(true); setErr(null);
             try { await onConfirm(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); }
-          }}>{busy ? "Menghapus…" : "Hapus"}</button>
+          }}>{busy ? L("Menghapus…", "Deleting…") : L("Hapus", "Delete")}</button>
         </div>
       </div>
     </div>,
@@ -154,24 +155,24 @@ export function CrudList<T extends Record<string, unknown>>({
           {desc && <p>{desc}</p>}
         </div>
         <div className={s.headActions}>
-          {rows.length > 5 && <input className={`${s.input} ${s.search}`} placeholder="Cari…" value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Cari ${itemName}`} />}
+          {rows.length > 5 && <input className={`${s.input} ${s.search}`} placeholder={L("Cari…", "Search…")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={`${L("Cari", "Search")} ${itemName}`} />}
           {extraActions}
-          {canEdit && onCreate && <button type="button" className={s.primary} onClick={() => setEdit({ row: null })}>+ Tambah</button>}
+          {canEdit && onCreate && <button type="button" className={s.primary} onClick={() => setEdit({ row: null })}>{L("+ Tambah", "+ Add")}</button>}
         </div>
       </header>
       {msg && <div className={s.ok} role="status">{msg}</div>}
-      {shown.length === 0 ? <p className={s.empty}>{rows.length ? "Tidak ada yang cocok." : empty ?? `Belum ada ${itemName}.`}</p> : (
+      {shown.length === 0 ? <p className={s.empty}>{rows.length ? L("Tidak ada yang cocok.", "Nothing matches.") : empty ?? L(`Belum ada ${itemName}.`, `No ${itemName} yet.`)}</p> : (
         <div className={s.tableWrap}>
           <table className={s.table}>
-            <thead><tr>{columns.map((c) => <th key={c.label} style={c.width ? { width: c.width } : undefined}>{c.label}</th>)}{hasActions && <th className={s.actCol} aria-label="Aksi" />}</tr></thead>
+            <thead><tr>{columns.map((c) => <th key={c.label} style={c.width ? { width: c.width } : undefined}>{c.label}</th>)}{hasActions && <th className={s.actCol} aria-label={L("Aksi", "Actions")} />}</tr></thead>
             <tbody>
               {shown.map((r) => (
                 <tr key={rowKey(r)}>
                   {columns.map((c) => <td key={c.label}>{c.render(r)}</td>)}
                   {hasActions && (
                     <td className={s.actCol}>
-                      {onUpdate && <button type="button" className={s.small} onClick={() => setEdit({ row: r })}>Ubah</button>}
-                      {onDelete && <button type="button" className={s.smallDanger} onClick={() => setDel(r)}>Hapus</button>}
+                      {onUpdate && <button type="button" className={s.small} onClick={() => setEdit({ row: r })}>{L("Ubah", "Edit")}</button>}
+                      {onDelete && <button type="button" className={s.smallDanger} onClick={() => setDel(r)}>{L("Hapus", "Delete")}</button>}
                     </td>
                   )}
                 </tr>
@@ -182,16 +183,16 @@ export function CrudList<T extends Record<string, unknown>>({
       )}
       {edit && (
         <FormModal<T>
-          title={edit.row ? `Ubah ${itemName}` : `Tambah ${itemName}`} fields={fields} isNew={!edit.row}
+          title={edit.row ? L(`Ubah ${itemName}`, `Edit ${itemName}`) : L(`Tambah ${itemName}`, `Add ${itemName}`)} fields={fields} isNew={!edit.row}
           initial={edit.row ?? newDefaults ?? {}}
           onClose={() => setEdit(null)}
           onSubmit={async (v) => {
             if (edit.row) await onUpdate?.(edit.row, v); else await onCreate?.(v);
-            setEdit(null); flash(edit.row ? "✓ Perubahan tersimpan." : `✓ ${itemName[0].toUpperCase()}${itemName.slice(1)} ditambahkan.`);
+            setEdit(null); flash(edit.row ? L("✓ Perubahan tersimpan.", "✓ Changes saved.") : L(`✓ ${itemName[0].toUpperCase()}${itemName.slice(1)} ditambahkan.`, `✓ ${itemName[0].toUpperCase()}${itemName.slice(1)} added.`));
           }}
         />
       )}
-      {del && <ConfirmModal text={`Hapus ${itemName} ini? Tindakan ini tidak bisa dibatalkan.`} onClose={() => setDel(null)} onConfirm={async () => { await onDelete?.(del); setDel(null); flash("✓ Dihapus."); }} />}
+      {del && <ConfirmModal text={L(`Hapus ${itemName} ini? Tindakan ini tidak bisa dibatalkan.`, `Delete this ${itemName}? This cannot be undone.`)} onClose={() => setDel(null)} onConfirm={async () => { await onDelete?.(del); setDel(null); flash(L("✓ Dihapus.", "✓ Deleted.")); }} />}
     </section>
   );
 }
@@ -218,17 +219,17 @@ export function SettingsGroup<T extends Record<string, unknown>>({ icon, title, 
             <li key={it.key}>
               <div className={s.itemText}><b>{it.label}</b>{it.hint && <small>{it.hint}</small>}</div>
               <div className={`${s.itemValue} ${it.type === "textarea" ? s.itemValueLong : ""}`}>{shown}</div>
-              {canEdit && <button type="button" className={s.small} onClick={() => setEdit(it)}>Ubah</button>}
+              {canEdit && <button type="button" className={s.small} onClick={() => setEdit(it)}>{L("Ubah", "Edit")}</button>}
             </li>
           );
         })}
       </ul>
       {edit && (
         <FormModal<T>
-          title={`Ubah ${edit.label.toLowerCase()}`} fields={[edit]} isNew={false}
+          title={L(`Ubah ${edit.label.toLowerCase()}`, `Edit ${edit.label.toLowerCase()}`)} fields={[edit]} isNew={false}
           initial={{ [edit.key]: asText(values[edit.key]) } as Partial<T>}
           onClose={() => setEdit(null)}
-          onSubmit={async (v) => { await onSave(v); setEdit(null); setMsg("✓ Tersimpan."); setTimeout(() => setMsg(null), 2500); }}
+          onSubmit={async (v) => { await onSave(v); setEdit(null); setMsg(L("✓ Tersimpan.", "✓ Saved.")); setTimeout(() => setMsg(null), 2500); }}
         />
       )}
     </section>

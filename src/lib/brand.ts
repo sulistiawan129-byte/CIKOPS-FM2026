@@ -2,6 +2,7 @@
    (mis. deployment DEMO memakai perusahaan fiktif). Kode plant di database tetap CIK / PRB.
    Catatan: NEXT_PUBLIC_* harus ditulis lengkap (bukan process.env[k]) supaya ikut terbawa ke browser. */
 import type { Plant } from "./types";
+import { L } from "./i18n";
 
 const pick = (v: string | undefined, d: string) => (v && v.trim() ? v.trim() : d);
 /** Deployment MOCKUP (backend tiruan) otomatis memakai identitas perusahaan fiktif. */
@@ -41,13 +42,13 @@ export const DEMO_PASSWORD = pick(process.env.NEXT_PUBLIC_DEMO_PASSWORD, "Demo20
 
 /** Akun demo (dibuat oleh supabase/05_data_demo.sql). Password semuanya DEMO_PASSWORD. */
 export const DEMO_ACCOUNTS: { email: string; role: string; label: string; desc: string; icon: string }[] = [
-  { email: "master@demo.cikops.id", role: "master", label: "Master Admin", desc: "Semua modul & akun", icon: "home" },
-  { email: "ga.cik@demo.cikops.id", role: "admin_ga_cik", label: `Admin GA ${plantCik}`, desc: "Fleet, finance, fasilitas", icon: "fleet" },
-  { email: "ga.prb@demo.cikops.id", role: "admin_ga_prb", label: `Admin GA ${plantPrb}`, desc: `Fleet ${plantPrb} saja`, icon: "vehicles" },
-  { email: "iss@demo.cikops.id", role: "admin_iss", label: "Admin / SPV ISS", desc: "Cleaning, Gardening & TGA", icon: "gafacility" },
-  { email: "security@demo.cikops.id", role: "admin_security", label: "Admin Security", desc: "Laporan security", icon: "security" },
-  { email: "resepsionis@demo.cikops.id", role: "receptionist", label: "Receptionist", desc: "Wifi tamu, barang, ruangan", icon: "receptionist" },
-  { email: "manajemen@demo.cikops.id", role: "management", label: "Management", desc: "Command Center & laporan", icon: "reports" },
+  { email: "master@demo.cikops.id", role: "master", label: "Master Admin", get desc() { return L("Semua modul & akun", "All modules & accounts"); }, icon: "home" },
+  { email: "ga.cik@demo.cikops.id", role: "admin_ga_cik", label: `Admin GA ${plantCik}`, get desc() { return L("Fleet, finance, fasilitas", "Fleet, finance, facilities"); }, icon: "fleet" },
+  { email: "ga.prb@demo.cikops.id", role: "admin_ga_prb", label: `Admin GA ${plantPrb}`, get desc() { return L(`Fleet ${plantPrb} saja`, `${plantPrb} fleet only`); }, icon: "vehicles" },
+  { email: "iss@demo.cikops.id", role: "admin_iss", label: "Admin / SPV ISS", get desc() { return L("Cleaning, Gardening & TGA", "Cleaning, Gardening & TGA"); }, icon: "gafacility" },
+  { email: "security@demo.cikops.id", role: "admin_security", label: "Admin Security", get desc() { return L("Laporan security", "Security report"); }, icon: "security" },
+  { email: "resepsionis@demo.cikops.id", role: "receptionist", label: "Receptionist", get desc() { return L("Wifi tamu, barang, ruangan", "Guest wifi, parcels, rooms"); }, icon: "receptionist" },
+  { email: "manajemen@demo.cikops.id", role: "management", label: "Management", get desc() { return L("Command Center & laporan", "Command Center & reports"); }, icon: "reports" },
 ];
 export const DEMO_DRIVER_EMAIL = "driver.andi@demo.cikops.id";
 export const DEMO_TGA_PIN = "1234";

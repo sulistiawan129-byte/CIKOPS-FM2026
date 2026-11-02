@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import type { ReportLang, ReportRangeState } from "@/lib/reportEngine";
 
+import { L } from "@/lib/i18n";
 /* ════════════════════════════════════════════════════════════
    LANGUAGE PICKER — selalu muncul sebelum export apapun (CSV/Excel/
    PDF), di modul manapun. Reusable, tidak perlu ditulis ulang tiap
@@ -29,7 +30,7 @@ export function LanguagePickerModal({ format, onConfirm, onClose }: LanguagePick
       style={{ position: "fixed", inset: 0, background: "rgba(6,13,24,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: "var(--r2)", padding: 26, width: 320, boxShadow: "var(--shadow-lg)" }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>Pilih Bahasa Laporan</div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>{L("Pilih Bahasa Laporan", "Choose Report Language")}</div>
         <div style={{ fontSize: 12.5, color: "var(--t3)", marginBottom: 20 }}>Export {formatLabel} — choose report language</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button
@@ -46,7 +47,7 @@ export function LanguagePickerModal({ format, onConfirm, onClose }: LanguagePick
           </button>
         </div>
         <button onClick={onClose} style={{ marginTop: 14, width: "100%", padding: "9px", borderRadius: 10, border: "none", background: "transparent", color: "var(--t3)", fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}>
-          Batal
+          {L("Batal", "Cancel")}
         </button>
       </div>
     </div>
@@ -96,7 +97,7 @@ export function ReportRangePicker({ value, onChange, inputClassName }: ReportRan
         onClick={() => onChange({ ...value, mode: "month" })}
         style={{ ...pillBase, background: value.mode === "month" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: value.mode === "month" ? "#fff" : "var(--t2)" }}
       >
-        Per Bulan
+        {L("Per Bulan", "By Month")}
       </button>
       <button
         onClick={() => {
@@ -110,7 +111,7 @@ export function ReportRangePicker({ value, onChange, inputClassName }: ReportRan
         }}
         style={{ ...pillBase, background: value.mode === "range" ? "linear-gradient(135deg, var(--brand), var(--brand2))" : "transparent", color: value.mode === "range" ? "#fff" : "var(--t2)" }}
       >
-        Rentang Tanggal
+        {L("Rentang Tanggal", "Date Range")}
       </button>
 
       {value.mode === "month" ? (

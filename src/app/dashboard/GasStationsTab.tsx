@@ -13,12 +13,13 @@ import of from "./opfund.module.css";
 import { ModuleHeader, ModulePage } from "./ModuleShell";
 import { SkeletonRows } from "./TaskModals";
 
+import { L } from "@/lib/i18n";
 // Leaflet touches `window` directly, so it must never be server-rendered.
 const GasStationMap = dynamic(() => import("./GasStationMap"), {
   ssr: false,
   loading: () => (
     <div style={{ height: 420, borderRadius: "var(--r2)", background: "var(--bg2)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--t3)" }}>
-      Memuat peta...
+      {L("Memuat peta...", "Loading map...")}
     </div>
   ),
 });
@@ -54,7 +55,7 @@ export function GasStationsTab() {
     try {
       setStations(await getGasStations());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data SPBU");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data SPBU", "Failed to load gas station data"));
     } finally {
       setLoading(false);
     }
@@ -119,7 +120,7 @@ export function GasStationsTab() {
       setShowForm(false);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan SPBU");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan SPBU", "Failed to save the gas station"));
     } finally {
       setSaving(false);
     }
@@ -132,7 +133,7 @@ export function GasStationsTab() {
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus SPBU");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus SPBU", "Failed to delete the gas station"));
     }
   }
 
@@ -382,7 +383,7 @@ return (
             </div>
             <div style={{ marginBottom: 18 }}>
               <label>{t.fieldNotes}</label>
-              <input className={styles.formInput} value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="dekat pintu tol, buka 24 jam..." />
+              <input className={styles.formInput} value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder={L("dekat pintu tol, buka 24 jam...", "near the toll gate, open 24 hours...")} />
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
@@ -397,7 +398,7 @@ return (
           <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this station?" : "Hapus SPBU ini?"}</div>
-            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}><strong style={{ color: "var(--t1)" }}>{confirmDelete.name}</strong> akan dihapus permanen.</div>
+            <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}><strong style={{ color: "var(--t1)" }}>{confirmDelete.name}</strong> {L("akan dihapus permanen.", "will be permanently deleted.")}</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
               <button onClick={handleDelete} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.actionYesDelete}</button>

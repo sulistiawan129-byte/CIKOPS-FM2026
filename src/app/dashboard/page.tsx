@@ -41,6 +41,7 @@ import { MasterDataTab } from "./MasterDataTab";
 import ChangePasswordModal from "./ChangePasswordModal";
 import { GiftMasterPanel } from "./GiftTab";
 
+import { L } from "@/lib/i18n";
 /** Label pendek grup untuk rail sidebar. */
 const NAV_SHORT_ID: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Fasilitas", security: "Security", system: "Sistem" };
 const NAV_SHORT_EN: Record<string, string> = { fleet: "Fleet", finance: "Finance", facility: "Facility", security: "Security", system: "System" };
@@ -180,11 +181,11 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       if (results.length >= 4) break;
     }
     for (const v of vehicles) {
-      if (v.nopol.toLowerCase().includes(q) || (v.jenis ?? "").toLowerCase().includes(q)) results.push({ kind: "vehicle", id: v.id, label: v.nopol, sub: v.jenis || "Kendaraan" });
+      if (v.nopol.toLowerCase().includes(q) || (v.jenis ?? "").toLowerCase().includes(q)) results.push({ kind: "vehicle", id: v.id, label: v.nopol, sub: v.jenis || L("Kendaraan", "Vehicle") });
       if (results.filter((r) => r.kind === "vehicle").length >= 4) break;
     }
     for (const e of employees) {
-      if (e.nama.toLowerCase().includes(q)) results.push({ kind: "employee", id: e.id, label: e.nama, sub: e.departement || "Karyawan" });
+      if (e.nama.toLowerCase().includes(q)) results.push({ kind: "employee", id: e.id, label: e.nama, sub: e.departement || L("Karyawan", "Employee") });
       if (results.filter((r) => r.kind === "employee").length >= 3) break;
     }
     return results.slice(0, 8);
@@ -227,7 +228,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       const data = await getTasksByDate(dateFilter, myProfile?.plantScope ?? null);
       setTasks(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data tugas");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data tugas", "Failed to load task data"));
     } finally {
       setLoading(false);
     }
@@ -262,7 +263,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         setJobTypes(j);
       } catch (err) {
         showToast(
-          err instanceof Error ? err.message : "Gagal memuat master data",
+          err instanceof Error ? err.message : L("Gagal memuat master data", "Failed to load master data"),
           true
         );
       }
@@ -297,7 +298,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       showToast(`Status diubah ke ${status}`);
       loadTasks();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal mengubah status", true);
+      showToast(e instanceof Error ? e.message : L("Gagal mengubah status", "Failed to change the status"), true);
     }
   }
 
@@ -306,7 +307,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 
     if (isBatch) {
       const deleteAll = confirm(
-        `Tugas ini bagian dari penugasan rentang tanggal (${task.batch_total_days} hari total).\n\nKlik OK untuk HAPUS SELURUH ${task.batch_total_days} hari sekaligus, atau Cancel untuk pilihan lain.`
+        L(`Tugas ini bagian dari penugasan rentang tanggal (${task.batch_total_days} hari total).\n\nKlik OK untuk HAPUS SELURUH ${task.batch_total_days} hari sekaligus, atau Cancel untuk pilihan lain.`, `This task is part of a date-range assignment (${task.batch_total_days} days in total).\n\nClick OK to DELETE ALL ${task.batch_total_days} days at once, or Cancel for other options.`)
       );
       if (deleteAll) {
         try {
@@ -314,14 +315,14 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           showToast(`${count} tugas (seluruh penugasan) dihapus`);
           loadTasks();
         } catch (e) {
-          showToast(e instanceof Error ? e.message : "Gagal menghapus seluruh penugasan", true);
+          showToast(e instanceof Error ? e.message : L("Gagal menghapus seluruh penugasan", "Failed to delete all assignments"), true);
         }
         return;
       }
-      const deleteOne = confirm(`Hapus tugas hari ini saja ("${task.tujuan}")?`);
+      const deleteOne = confirm(L(`Hapus tugas hari ini saja ("${task.tujuan}")?`, `Delete only today's task ("${task.tujuan}")?`));
       if (!deleteOne) return;
     } else {
-      if (!confirm(`Hapus tugas ke "${task.tujuan}"?`)) return;
+      if (!confirm(L(`Hapus tugas ke "${task.tujuan}"?`, `Delete the task to "${task.tujuan}"?`))) return;
     }
 
     try {
@@ -329,7 +330,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       showToast("Tugas dihapus");
       loadTasks();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal menghapus tugas", true);
+      showToast(e instanceof Error ? e.message : L("Gagal menghapus tugas", "Failed to delete the task"), true);
     }
   }
 
@@ -346,7 +347,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       showToast("Tugas dibatalkan");
       loadTasks();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Gagal membatalkan tugas", true);
+      showToast(e instanceof Error ? e.message : L("Gagal membatalkan tugas", "Failed to cancel the task"), true);
     }
   }
 
@@ -595,7 +596,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         const prev = tabHistory[tabHistory.length - 1];
         const showPrev = prev && prev !== "home";
         return (
-          <nav className={styles.backBar} aria-label="Navigasi kembali">
+          <nav className={styles.backBar} aria-label={L("Navigasi kembali", "Back navigation")}>
             <button className={styles.backBtn} onClick={() => setActiveTab("home")} title={lang === "en" ? "Back to Home" : "Kembali ke Home"}>
               <Icon name="home" size={15} strokeWidth={2.2} />
               {lang === "en" ? "Back to Home" : "Kembali ke Home"}
@@ -619,7 +620,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           title={lang === "en" ? "Tasks" : "Penugasan"}
           desc={lang === "en" ? "Assign drivers, follow trips live, and print task slips." : "Tugaskan driver, pantau perjalanan secara langsung, dan cetak slip tugas."}
           actions={<>
-            {!isPrbOnly(myProfile) && <button type="button" onClick={() => setReportModalOpen(true)} title="Laporan & Analytics" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 14px", borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface)", color: "var(--t1)", fontWeight: 700, cursor: "pointer" }}>
+            {!isPrbOnly(myProfile) && <button type="button" onClick={() => setReportModalOpen(true)} title={L("Laporan & Analytics", "Report & Analytics")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 14px", borderRadius: 12, border: "1px solid var(--border2)", background: "var(--surface)", color: "var(--t1)", fontWeight: 700, cursor: "pointer" }}>
               <Icon name="reports" size={16} /> {lang === "en" ? "Report" : "Laporan"}
             </button>}
             <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>{isMobile ? "+ Tugaskan" : "+ Tugaskan Driver"}</button>
@@ -641,7 +642,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         {error && <div className={styles.errBanner}>{error}</div>}
 
         {loading && tasks.length === 0 ? (
-          <div className={tk.loading}><div className={tk.spin} /><span>Memuat data tugas…</span></div>
+          <div className={tk.loading}><div className={tk.spin} /><span>{L("Memuat data tugas…", "Loading task data…")}</span></div>
         ) : filteredTasks.length === 0 ? (
           <TaskEmpty
             filtered={tasks.length > 0}
@@ -758,9 +759,9 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
             className={`${styles.confirmBox} modalPop`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={styles.modalTitle}>Batalkan tugas ini?</div>
+            <div className={styles.modalTitle}>{L("Batalkan tugas ini?", "Cancel this task?")}</div>
             <div className={styles.confirmSub}>
-              {(cancelTarget.lokasi_asal || plantLocation(cancelTarget.plant))} → {cancelTarget.tujuan} · Driver:{" "}
+              {(cancelTarget.lokasi_asal || plantLocation(cancelTarget.plant))} → {cancelTarget.tujuan} · {L("Driver:", "Driver:")}{" "}
               {cancelTarget.driver_nama || "-"}
             </div>
             <div className={styles.modalActions}>
@@ -768,13 +769,13 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
                 className={styles.btnCancel}
                 onClick={() => setCancelTarget(null)}
               >
-                Tidak
+                {L("Tidak", "No")}
               </button>
               <button
                 className={styles.btnDangerConfirm}
                 onClick={handleCancelConfirmed}
               >
-                Ya, Batalkan
+                {L("Ya, Batalkan", "Yes, Cancel")}
               </button>
             </div>
           </div>

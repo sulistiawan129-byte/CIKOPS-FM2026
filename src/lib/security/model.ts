@@ -1,3 +1,4 @@
+import { L } from "@/lib/i18n";
 /* ════════════════════════════════════════════════════════════
    SECURITY — model data input bulanan (dipakai form & report).
    Satu baris per bulan di tabel security_monthly (kolom data jsonb).
@@ -41,6 +42,15 @@ export const NC_JENIS = [
   "Pengganjal Tidak Standard", "Tidak Pakai Rompi", "Tidak Tersedia APAR & P3K", "Tidak Pakai Sepatu Safety",
   "KIR Kendaraan Mati", "Tidak Ada Pengganjal Ban", "Tidak Pakai Helm", "SIM Tidak Sesuai", "Tidak Tersedia APAR",
 ];
+
+/** Nama tampilan jenis pelanggaran (kuncinya tetap Indonesia karena sama dengan kategori NC di G-C). */
+const NC_JENIS_EN: Record<string, string> = {
+  "Pengganjal Tidak Standard": "Non-standard wheel chock", "Tidak Pakai Rompi": "No safety vest",
+  "Tidak Tersedia APAR & P3K": "No fire extinguisher & first-aid kit", "Tidak Pakai Sepatu Safety": "No safety shoes",
+  "KIR Kendaraan Mati": "Expired vehicle inspection (KIR)", "Tidak Ada Pengganjal Ban": "No wheel chock",
+  "Tidak Pakai Helm": "No helmet", "SIM Tidak Sesuai": "Driving licence mismatch", "Tidak Tersedia APAR": "No fire extinguisher",
+};
+export const ncLabel = (j: string) => L(j, NC_JENIS_EN[j] ?? j);
 
 export const DEFAULT_KHUSUS = ["PT. BECIS", "PT. JAYA MUKTI MANDIRI"];
 

@@ -8,6 +8,7 @@ import of from "./opfund.module.css";
 import { NavTab } from "./HomeTab";
 import { BRAND } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 export function todayStr() {
   return toLocalISODate(new Date());
 }
@@ -156,7 +157,7 @@ export function formatDateLabel(isoDate: string): string {
 }
 
 export function fmtRp(n: number): string {
-  return new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+  return new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 }
 
 /** Hitung nominal dari isian seperti "50000+30000" — dipakai bersama aplikasi driver. */
@@ -235,7 +236,7 @@ export function printRequestReceipt(params: {
   w.document.write(`
     <html>
       <head>
-        <title>Bukti Permintaan — ${refNo}</title>
+        <title>${L("Bukti Permintaan", "Request Receipt")} — ${refNo}</title>
         <style>
           @page { margin: 16mm; }
           body { font-family: -apple-system, 'Segoe UI', sans-serif; color: #0d1a36; margin: 0; }
@@ -253,29 +254,29 @@ export function printRequestReceipt(params: {
             <div>
               <div style="font-size:15.5px;font-weight:800;color:#0d1a36;line-height:1.3;">${RECEIPT_COMPANY_NAME}</div>
               <div style="font-size:12.5px;color:#44537a;font-weight:600;">${RECEIPT_SYSTEM_NAME}</div>
-              <div style="font-size:11px;color:#7886a8;">Departemen Facility Management</div>
+              <div style="font-size:11px;color:#7886a8;">${L("Departemen Facility Management", "Facility Management Department")}</div>
             </div>
           </div>
 
           <div style="padding:18px 28px 14px;text-align:center;background:#f6f9ff;">
-            <div style="font-size:15px;font-weight:800;color:#0d1a36;letter-spacing:0.04em;">BUKTI PERMINTAAN</div>
-            <div style="font-size:11.5px;color:#7886a8;font-family:monospace;margin-top:3px;">No. ${refNo}</div>
+            <div style="font-size:15px;font-weight:800;color:#0d1a36;letter-spacing:0.04em;">${L("BUKTI PERMINTAAN", "REQUEST RECEIPT")}</div>
+            <div style="font-size:11.5px;color:#7886a8;font-family:monospace;margin-top:3px;">${L("No.", "No.")} ${refNo}</div>
           </div>
 
           <div style="padding:20px 28px;">
             <table style="margin-bottom:16px;font-size:13px;">
-              <tr><td style="padding:5px 0;color:#7886a8;width:38%;">Tanggal Pengajuan</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
-              <tr><td style="padding:5px 0;color:#7886a8;">Jenis Permintaan</td><td style="padding:5px 0;font-weight:700;">: ${params.typeLabel}</td></tr>
-              <tr><td style="padding:5px 0;color:#7886a8;">Nama Pemohon</td><td style="padding:5px 0;font-weight:700;">: ${params.employeeName}</td></tr>
-              <tr><td style="padding:5px 0;color:#7886a8;">Departemen</td><td style="padding:5px 0;font-weight:700;">: ${params.department || "-"}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;width:38%;">${L("Tanggal Pengajuan", "Submission Date")}</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">${L("Jenis Permintaan", "Request Type")}</td><td style="padding:5px 0;font-weight:700;">: ${params.typeLabel}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">${L("Nama Pemohon", "Requester Name")}</td><td style="padding:5px 0;font-weight:700;">: ${params.employeeName}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">${L("Departemen", "Department")}</td><td style="padding:5px 0;font-weight:700;">: ${params.department || "-"}</td></tr>
             </table>
 
-            <div class="lbl" style="border-top:1px solid #eef3fc;padding-top:14px;margin-bottom:8px;">DETAIL PERMINTAAN</div>
+            <div class="lbl" style="border-top:1px solid #eef3fc;padding-top:14px;margin-bottom:8px;">${L("DETAIL PERMINTAAN", "REQUEST DETAILS")}</div>
             <table style="margin-bottom:22px;font-size:13px;">${rows}</table>
 
             <div style="border-top:1px dashed #cfd9ee;padding-top:16px;display:flex;justify-content:flex-end;">
               <div style="text-align:center;min-width:170px;">
-                <div style="font-size:11px;color:#7886a8;margin-bottom:46px;">Diterima &amp; diproses oleh,</div>
+                <div style="font-size:11px;color:#7886a8;margin-bottom:46px;">${L("Diterima &amp; diproses oleh,", "Received &amp; processed by,")}</div>
                 <div style="font-size:13.5px;font-weight:800;color:#0d1a36;border-top:1px solid #0d1a36;padding-top:4px;">${RECEIPT_ADMIN_NAME}</div>
                 <div style="font-size:11.5px;color:#7886a8;">${RECEIPT_ADMIN_DEPARTMENT}</div>
               </div>
@@ -283,7 +284,7 @@ export function printRequestReceipt(params: {
           </div>
 
           <div style="text-align:center;padding:10px 0;font-size:10px;color:#a0aabb;border-top:1px solid #eef3fc;">
-            Dokumen ini digenerate otomatis oleh sistem ${RECEIPT_SYSTEM_NAME}
+            ${L("Dokumen ini digenerate otomatis oleh sistem", "This document was generated automatically by")} ${RECEIPT_SYSTEM_NAME}
           </div>
         </div>
       </body>

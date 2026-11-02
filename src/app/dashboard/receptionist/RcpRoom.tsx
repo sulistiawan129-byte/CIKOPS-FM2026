@@ -14,6 +14,7 @@ import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./s
 import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
 
+import { L } from "@/lib/i18n";
 const DOW = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 const SLOT_PX = 26;
 
@@ -73,25 +74,25 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
     <section className={r.card}>
       <div className={r.cardHead}>
         <div className={r.weekNav}>
-          <button type="button" className={r.ghost} onClick={() => setWeek(addDays(week, -7))} aria-label="Minggu sebelumnya">‹</button>
+          <button type="button" className={r.ghost} onClick={() => setWeek(addDays(week, -7))} aria-label={L("Minggu sebelumnya", "Previous week")}>‹</button>
           <b>{weekLabel}</b>
-          <button type="button" className={r.ghost} onClick={() => setWeek(addDays(week, 7))} aria-label="Minggu berikutnya">›</button>
-          <button type="button" className={r.ghost} onClick={() => setWeek(weekStart(today))}>Minggu ini</button>
+          <button type="button" className={r.ghost} onClick={() => setWeek(addDays(week, 7))} aria-label={L("Minggu berikutnya", "Next week")}>›</button>
+          <button type="button" className={r.ghost} onClick={() => setWeek(weekStart(today))}>{L("Minggu ini", "This week")}</button>
         </div>
         <span className={r.row}>
           <ExportButtons rows={rows} title={`Booking ${settings.roomName}`} filename="Booking_Induction_Room" period={weekLabel} columns={[
-            col<RoomBooking>("tgl", "Tanggal", (b) => fmtDate(b.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })),
-            col<RoomBooking>("jam", "Jam", (b) => `${b.start}–${b.end}`), col<RoomBooking>("judul", "Keperluan", (b) => b.title),
-            col<RoomBooking>("pic", "PIC", (b) => b.pic), col<RoomBooking>("dept", "Departemen", (b) => b.department),
-            col<RoomBooking>("org", "Peserta", (b) => b.attendees ?? "", "right"), col<RoomBooking>("ket", "Catatan", (b) => b.notes)]} />
+            col<RoomBooking>("tgl", L("Tanggal", "Date"), (b) => fmtDate(b.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })),
+            col<RoomBooking>("jam", L("Jam", "Time"), (b) => `${b.start}–${b.end}`), col<RoomBooking>("judul", L("Keperluan", "Purpose"), (b) => b.title),
+            col<RoomBooking>("pic", "PIC", (b) => b.pic), col<RoomBooking>("dept", L("Departemen", "Department"), (b) => b.department),
+            col<RoomBooking>("org", L("Peserta", "Attendees"), (b) => b.attendees ?? "", "right"), col<RoomBooking>("ket", L("Catatan", "Notes"), (b) => b.notes)]} />
           <button type="button" className={`${r.btn} ${r.btnSm}`} onClick={quickNew}>+ Booking</button>
         </span>
       </div>
       <div className={r.legend}>
         <span><i style={{ background: "var(--green)" }} />Terbooking</span>
         <span><i style={{ border: "1px dashed var(--green)" }} />Booking berulang</span>
-        <span><i style={{ background: "var(--red)" }} />Garis = sekarang</span>
-        <span className={r.mute}>Jam operasional {settings.openTime}–{settings.closeTime} · slot {step} menit · klik slot kosong untuk booking</span>
+        <span><i style={{ background: "var(--red)" }} />{L("Garis = sekarang", "Line = now")}</span>
+        <span className={r.mute}>{L(`Jam operasional ${settings.openTime}–${settings.closeTime} · slot ${step} menit · klik slot kosong untuk booking`, `Operating hours ${settings.openTime}–${settings.closeTime} · ${step}-minute slots · click an empty slot to book`)}</span>
       </div>
       {err && <div className={r.err}>{err}</div>}
 
@@ -182,7 +183,7 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone, onProo
       } else {
         const res = await bookRoom({ slots: dates.map((d) => ({ date: d, start: draft.start, end: draft.end })), title: draft.title, pic: draft.pic, email: draft.email, department: draft.department, attendees: att, notes: draft.notes, skipConflicts: skip });
         const notes: string[] = [];
-        if (res.skipped.length) notes.push(`${res.skipped.length} tanggal dilewati karena bentrok:\n` + res.skipped.map((x) => `• ${fmtDate(x.date)} — ${x.reason}`).join("\n"));
+        if (res.skipped.length) notes.push(L(`${res.skipped.length} tanggal dilewati karena bentrok:\n`, `${res.skipped.length} date(s) skipped due to clashes:\n`) + res.skipped.map((x) => `• ${fmtDate(x.date)} — ${x.reason}`).join("\n"));
         if (res.first && draft.email.trim()) {
           try { await emailBooking(res.first, draft.email.trim(), res.series.length || 1); } catch (e) { notes.push(e instanceof Error ? e.message : String(e)); }
         }
@@ -193,7 +194,7 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone, onProo
   }
   async function remove(series: boolean) {
     if (!draft.id) return;
-    if (!confirm(series ? "Hapus booking ini dan semua jadwal berikutnya dalam seri yang sama?" : "Hapus booking ini?")) return;
+    if (!confirm(series ? L("Hapus booking ini dan semua jadwal berikutnya dalam seri yang sama?", "Delete this booking and all following bookings in the same series?") : L("Hapus booking ini?", "Delete this booking?"))) return;
     setBusy(true);
     try { await deleteBooking(draft.id, series ? draft.seriesId : null, draft.date); await onDone(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); }
   }
@@ -202,58 +203,58 @@ function BookingModal({ draft, setDraft, settings, dir, weekRows, onDone, onProo
     <ModalPortal onOverlayClick={() => setDraft(null)} maxWidth={620}>
       <div className={r.modal} role="dialog" aria-modal="true" aria-labelledby="rcp-bk-title">
         <div className={r.modalHead}>
-          <div><h2 id="rcp-bk-title">{draft.id ? "Ubah booking" : `Booking ${settings.roomName}`}</h2><p>Jam operasional {settings.openTime}–{settings.closeTime}</p></div>
-          <button type="button" className={r.iconBtn} onClick={() => setDraft(null)} aria-label="Tutup">✕</button>
+          <div><h2 id="rcp-bk-title">{draft.id ? L("Ubah booking", "Edit booking") : `Booking ${settings.roomName}`}</h2><p>Jam operasional {settings.openTime}–{settings.closeTime}</p></div>
+          <button type="button" className={r.iconBtn} onClick={() => setDraft(null)} aria-label={L("Tutup", "Close")}>✕</button>
         </div>
         <div className={r.form}>
           <div className={r.section}>Detail</div>
           <label className={`${r.field} ${r.full}`}><span>Keperluan *</span><input className={r.input} value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="mis. Induction karyawan baru" autoFocus /></label>
           <label className={r.field}><span>PIC</span><NameInput dir={dir} value={draft.pic} onChange={(v) => set("pic", v)} onPick={(p) => setDraft((d) => (d ? { ...d, email: p.email || d.email, department: p.department || d.department } : d))} placeholder="Yang meminta" /></label>
-          <label className={r.field}><span>Departemen</span><input className={r.input} value={draft.department} onChange={(e) => set("department", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Departemen", "Department")}</span><input className={r.input} value={draft.department} onChange={(e) => set("department", e.target.value)} /></label>
           <label className={`${r.field} ${r.full}`}><span>Email PIC <em>(konfirmasi & bukti booking dikirim ke sini)</em></span><input className={r.input} type="email" value={draft.email} onChange={(e) => set("email", e.target.value)} placeholder="nama@perusahaan.com" /></label>
           <div className={r.section}>Waktu</div>
-          <label className={r.field}><span>Tanggal</span><input className={r.input} type="date" value={draft.date} min={draft.id ? undefined : todayISO()} onChange={(e) => e.target.value && set("date", e.target.value)} /></label>
-          <label className={r.field}><span>Jumlah peserta</span><input className={r.input} type="number" min={0} value={draft.attendees} onChange={(e) => set("attendees", e.target.value)} /></label>
-          <label className={r.field}><span>Mulai</span>
+          <label className={r.field}><span>{L("Tanggal", "Date")}</span><input className={r.input} type="date" value={draft.date} min={draft.id ? undefined : todayISO()} onChange={(e) => e.target.value && set("date", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Jumlah peserta", "Number of attendees")}</span><input className={r.input} type="number" min={0} value={draft.attendees} onChange={(e) => set("attendees", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Mulai", "Start")}</span>
             <select className={r.input} value={draft.start} onChange={(e) => setStart(e.target.value)}>{times.slice(0, -1).map((t) => <option key={t}>{t}</option>)}</select>
           </label>
-          <label className={r.field}><span>Selesai <em>({durMin > 0 ? `${Math.floor(durMin / 60) ? `${Math.floor(durMin / 60)} jam ` : ""}${durMin % 60 ? `${durMin % 60} mnt` : ""}` : "–"})</em></span>
+          <label className={r.field}><span>{L("Selesai", "Done")} <em>({durMin > 0 ? `${Math.floor(durMin / 60) ? `${Math.floor(durMin / 60)} jam ` : ""}${durMin % 60 ? `${durMin % 60} mnt` : ""}` : "–"})</em></span>
             <select className={r.input} value={draft.end} onChange={(e) => set("end", e.target.value)}>{times.filter((t) => toMin(t) > toMin(draft.start)).map((t) => <option key={t}>{t}</option>)}</select>
           </label>
           {!draft.id && (
             <div className={`${r.field} ${r.full}`}><span>Ulangi <em>(booking berulang)</em></span>
               <div className={r.chips}>
-                {([["none", "Tidak"], ["daily", "Setiap hari"], ["weekdays", "Hari kerja (Sen–Jum)"], ["weekly", "Setiap minggu"]] as [RepeatMode, string][]).map(([k, l]) => (
+                {([["none", L("Tidak", "None")], ["daily", L("Setiap hari", "Every day")], ["weekdays", L("Hari kerja (Sen–Jum)", "Weekdays (Mon–Fri)")], ["weekly", L("Setiap minggu", "Every week")]] as [RepeatMode, string][]).map(([k, l]) => (
                   <button key={k} type="button" className={r.chip} aria-pressed={draft.repeat === k} onClick={() => set("repeat", k)}>{l}</button>
                 ))}
               </div>
               {draft.repeat !== "none" && (
                 <div className={r.row} style={{ marginTop: 8 }}>
-                  <span className={r.mute} style={{ fontSize: 13 }}>Sampai</span><input className={r.input} style={{ width: 180 }} type="date" value={draft.until} min={draft.date} onChange={(e) => set("until", e.target.value)} />
+                  <span className={r.mute} style={{ fontSize: 13 }}>{L("Sampai", "Until")}</span><input className={r.input} style={{ width: 180 }} type="date" value={draft.until} min={draft.date} onChange={(e) => set("until", e.target.value)} />
                   <span className={`${r.pill} ${r.pBlue}`}>{dates.length} jadwal{dates.length >= 60 ? " (maks 60)" : ""}</span>
                 </div>
               )}
             </div>
           )}
-          <label className={`${r.field} ${r.full}`}><span>Catatan</span><input className={r.input} value={draft.notes} onChange={(e) => set("notes", e.target.value)} placeholder="mis. butuh proyektor, layout kelas" /></label>
+          <label className={`${r.field} ${r.full}`}><span>{L("Catatan", "Notes")}</span><input className={r.input} value={draft.notes} onChange={(e) => set("notes", e.target.value)} placeholder="mis. butuh proyektor, layout kelas" /></label>
         </div>
         {clashes.length > 0 && (
           <div className={r.warn}>
-            Bentrok pada {clashes.length} jadwal: {clashes.slice(0, 4).map((x) => `${fmtDate(x.d, { day: "numeric", month: "short" })} (“${x.b!.title}” ${x.b!.start}–${x.b!.end})`).join(", ")}{clashes.length > 4 ? ", …" : ""}.
+            {L("Bentrok pada", "Clashes on")} {clashes.length} {L("jadwal", "schedule(s)")}: {clashes.slice(0, 4).map((x) => `${fmtDate(x.d, { day: "numeric", month: "short" })} (“${x.b!.title}” ${x.b!.start}–${x.b!.end})`).join(", ")}{clashes.length > 4 ? ", …" : ""}.
             {dates.length > 1 && clashes.length < dates.length && (
-              <label className={r.check} style={{ marginTop: 8, display: "flex" }}><input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} /> Lewati tanggal yang bentrok, booking sisanya ({dates.length - clashes.length})</label>
+              <label className={r.check} style={{ marginTop: 8, display: "flex" }}><input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} /> {L("Lewati tanggal yang bentrok, booking sisanya", "Skip clashing dates, book the rest")} ({dates.length - clashes.length})</label>
             )}
           </div>
         )}
         {err && <div className={r.err}>{err}</div>}
         <div className={r.modalFoot}>
-          {draft.id && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(false)}>Hapus</button>}
-          {draft.id && draft.seriesId && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(true)}>Hapus seri berikutnya</button>}
-          {draft.id && (() => { const b = known.find((x) => x.id === draft.id) ?? weekRows.find((x) => x.id === draft.id); return b ? <button type="button" className={r.proofBtn} style={{ minHeight: 38 }} onClick={() => onProof(b)}>🧾 Bukti</button> : null; })()}
+          {draft.id && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(false)}>{L("Hapus", "Delete")}</button>}
+          {draft.id && draft.seriesId && <button type="button" className={r.dangerBtn} disabled={busy} onClick={() => remove(true)}>{L("Hapus seri berikutnya", "Delete following series")}</button>}
+          {draft.id && (() => { const b = known.find((x) => x.id === draft.id) ?? weekRows.find((x) => x.id === draft.id); return b ? <button type="button" className={r.proofBtn} style={{ minHeight: 38 }} onClick={() => onProof(b)}>🧾 {L("Bukti", "Receipt")}</button> : null; })()}
           {!draft.id && <span className={r.hint}>Otomatis muncul di Kalender &amp; Agenda.</span>}
           <span className={r.grow} />
-          <button type="button" className={r.ghost} onClick={() => setDraft(null)}>Batal</button>
-          <button type="button" className={r.btn} disabled={!canSave} onClick={save}>{busy ? "Menyimpan…" : draft.id ? "Simpan" : dates.length > 1 ? `Booking ${skip ? dates.length - clashes.length : dates.length} jadwal` : "Booking"}</button>
+          <button type="button" className={r.ghost} onClick={() => setDraft(null)}>{L("Batal", "Cancel")}</button>
+          <button type="button" className={r.btn} disabled={!canSave} onClick={save}>{busy ? L("Menyimpan…", "Saving…") : draft.id ? L("Simpan", "Save") : dates.length > 1 ? `Booking ${skip ? dates.length - clashes.length : dates.length} jadwal` : "Booking"}</button>
         </div>
       </div>
     </ModalPortal>

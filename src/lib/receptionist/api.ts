@@ -1,6 +1,7 @@
 /* RECEPTIONIST — akses data (migrasi 031) + email (Edge Function send-receptionist-email). */
 
 import { supabase } from "../supabaseClient";
+import { L } from "@/lib/i18n";
 import {
   DEFAULT_SETTINGS, receiptUrl, type Contact, type ImportRow, type Parcel, type ParcelDirection, type RcpEmployee, type RcpSettings, type ReceiptData,
   type RoomBooking, type WifiAccount, type WifiGrant, type WifiGrantResult, type WifiSuggestion,
@@ -8,7 +9,7 @@ import {
 
 const MIGRATION_MSG = "Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031) di Supabase SQL Editor.";
 function friendly(error: { code?: string; message?: string } | null): Error {
-  if (!error) return new Error("Terjadi kesalahan");
+  if (!error) return new Error(L("Terjadi kesalahan", "An error occurred"));
   if (error.code === "42P01" || error.code === "PGRST202" || error.code === "PGRST205" || error.code === "42883" || /Could not find the (function|table)|does not exist/i.test(error.message ?? "")) {
     return new Error(MIGRATION_MSG);
   }
@@ -70,7 +71,7 @@ export async function setWifiAccountActive(id: string, active: boolean): Promise
 }
 export async function deleteWifiAccount(id: string): Promise<void> {
   const { error } = await supabase.from("rcp_wifi_accounts").delete().eq("id", id);
-  if (error) throw new Error(error.code === "23503" ? "Akun sudah pernah dipakai — nonaktifkan saja (riwayat tanda terima tetap tersimpan)." : friendly(error).message);
+  if (error) throw new Error(error.code === "23503" ? L("Akun sudah pernah dipakai — nonaktifkan saja (riwayat tanda terima tetap tersimpan).", "This account has been used before — just deactivate it (receipt history is kept).") : friendly(error).message);
 }
 
 interface GrantRow {
@@ -119,7 +120,7 @@ export async function returnWifi(grantId: string, note = ""): Promise<void> {
 type EmailPayload = Record<string, unknown> & { kind: "wifi-receipt" | "parcel-arrived" | "parcel-handed" | "room-booking"; toEmail: string; receiptNo: string; receiptUrl?: string };
 async function sendEmail(p: EmailPayload): Promise<void> {
   const { data, error } = await supabase.functions.invoke("send-receptionist-email", { body: p });
-  if (error) throw new Error(`Email gagal dikirim: ${error.message}. Pastikan fungsi send-receptionist-email sudah di-deploy.`);
+  if (error) throw new Error(L(`Email gagal dikirim: ${error.message}. Pastikan fungsi send-receptionist-email sudah di-deploy.`, `The email failed to send: ${error.message}. Make sure the send-receptionist-email function is deployed.`));
   if (data && (data as { error?: string }).error) throw new Error(`Email gagal dikirim: ${(data as { error: string }).error}`);
 }
 export async function emailWifiReceipt(g: { id: string; receiptNo: string; shareToken?: string; toEmail: string; requestorName: string; guestName: string; guestCompany: string; username: string; password: string; slots: number; startDate: string; endDate: string }, s: RcpSettings): Promise<void> {
@@ -199,7 +200,7 @@ export async function importRcpEmployees(rows: RcpEmployeeInput[], existing: Rcp
 }
 export async function deleteRcpEmployee(id: string): Promise<void> {
   const { error } = await supabase.from("employees").delete().eq("id", id);
-  if (error) throw new Error(error.code === "23503" ? "Karyawan ini sudah dipakai di data lain (mis. penugasan) — nonaktifkan saja." : friendly(error).message);
+  if (error) throw new Error(error.code === "23503" ? L("Karyawan ini sudah dipakai di data lain (mis. penugasan) — nonaktifkan saja.", "This employee is used in other data (e.g. assignments) — just deactivate them.") : friendly(error).message);
 }
 
 /* ── Data Akun Wifi (tambah / ubah satu per satu) ── */
@@ -208,7 +209,7 @@ export async function saveWifiAccount(id: string | null, a: WifiAccountInput): P
   const row = { username: a.username.trim(), password: a.password, valid_from: a.validFrom, valid_until: a.validUntil, slots: a.slots, batch: a.batch.trim(), notes: a.notes.trim(), active: a.active };
   const { error } = id ? await supabase.from("rcp_wifi_accounts").update(row).eq("id", id) : await supabase.from("rcp_wifi_accounts").insert(row);
   if (error?.code === "23505") throw new Error(`Username "${a.username}" sudah ada.`);
-  if (error?.code === "23514") throw new Error("Tanggal berakhir harus sama atau setelah tanggal mulai, dan slot 1–10.");
+  if (error?.code === "23514") throw new Error(L("Tanggal berakhir harus sama atau setelah tanggal mulai, dan slot 1–10.", "The end date must be on or after the start date, and slots must be 1–10."));
   if (error) throw friendly(error);
 }
 

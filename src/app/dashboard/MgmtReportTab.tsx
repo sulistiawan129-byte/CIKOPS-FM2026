@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { reportModulesOf, type MyProfile } from "@/lib/api";
 import { useLang } from "@/lib/providers";
+import { L } from "@/lib/i18n";
 import { buildMgmtReport, reportFilename } from "@/lib/mgmtReport/build";
 import { renderChartPNG } from "@/lib/mgmtReport/chartImage";
 import {
@@ -18,7 +19,8 @@ import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
 const ALL_MODULES: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "security"];
-const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const MONTHS_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** Rentang periode untuk mode kalender (minggu Senin–Minggu, bulan, kuartal, tahun) yang memuat tanggal anchor. */
 function rangeOf(mode: Exclude<Mode, "range">, anchor: string): { from: string; to: string } {
@@ -51,6 +53,7 @@ const Ic = {
 
 export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | null }) {
   const { lang: appLang } = useLang();
+  const MONTHS = appLang === "en" ? MONTHS_EN : MONTHS_ID;
   // modul yang boleh ditarik role ini (mis. Admin ISS hanya Cleaning & Gardening)
   const ALL = useMemo(() => { const ok = reportModulesOf(myProfile); return ALL_MODULES.filter((k) => ok.includes(k)); }, [myProfile]);
   const today = iso(new Date());
@@ -95,7 +98,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
         plant: myProfile?.plantScope ?? null, generatedBy: myProfile?.fullName ?? "",
       }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal menyusun laporan");
+      setError(e instanceof Error ? e.message : L("Gagal menyusun laporan", "Failed to build the report"));
     } finally {
       setBusy(false);
     }
@@ -110,7 +113,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
       else if (kind === "pptx") await (await import("@/lib/mgmtReport/exportPptx")).exportMgmtPptx(report, name);
       else await (await import("@/lib/mgmtReport/exportPdf")).exportMgmtPdf(report, name);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal membuat file");
+      setError(e instanceof Error ? e.message : L("Gagal membuat file", "Failed to create the file"));
     } finally {
       setExporting(null);
     }
@@ -130,8 +133,8 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
       <header className={r.head}>
         <div>
           <span className={r.kicker}>Report</span>
-          <h1>Laporan Manajemen</h1>
-          <p>Ringkasan per modul untuk manajemen: angka utama, grafik, temuan, dan rekomendasi. Unduh dalam Excel, PowerPoint, atau PDF.</p>
+          <h1>{L("Laporan Manajemen", "Management Report")}</h1>
+          <p>{L("Ringkasan per modul untuk manajemen: angka utama, grafik, temuan, dan rekomendasi. Unduh dalam Excel, PowerPoint, atau PDF.", "A per-module summary for management: key figures, charts, findings and recommendations. Download as Excel, PowerPoint or PDF.")}</p>
         </div>
       </header>
 
@@ -139,7 +142,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
         <div className={r.step}>
           <span className={r.stepNo}>1</span>
           <div className={r.stepBody}>
-            <h2>Pilih modul</h2>
+            <h2>{L("Pilih modul", "Select modules")}</h2>
             {CATEGORIES.map((c) => {
               const ks = c.modules.filter((k) => ALL.includes(k));
               if (!ks.length) return null;
@@ -150,9 +153,9 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
                     {ks.map((k) => {
                       const on = mods.includes(k);
                       return (
-                        <button key={k} type="button" className={`${r.mod} ${on ? r.modOn : ""}`} style={{ ["--c" as string]: metaOf(k, "id").accent }} onClick={() => toggle(k)} aria-pressed={on}>
+                        <button key={k} type="button" className={`${r.mod} ${on ? r.modOn : ""}`} style={{ ["--c" as string]: metaOf(k, appLang === "en" ? "en" : "id").accent }} onClick={() => toggle(k)} aria-pressed={on}>
                           <span className={r.modTick}>{on ? Ic.check : null}</span>
-                          <span className={r.modText}><b>{metaOf(k, "id").title}</b><small>{metaOf(k, "id").desc}</small></span>
+                          <span className={r.modText}><b>{metaOf(k, appLang === "en" ? "en" : "id").title}</b><small>{metaOf(k, appLang === "en" ? "en" : "id").desc}</small></span>
                         </button>
                       );
                     })}
@@ -166,26 +169,26 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
         <div className={r.step}>
           <span className={r.stepNo}>2</span>
           <div className={r.stepBody}>
-            <h2>Periode</h2>
-            <div className={r.seg} role="group" aria-label="Jenis periode">
-              {([["week", "Mingguan"], ["month", "Bulanan"], ["quarter", "Kuartalan"], ["year", "Tahunan"], ["range", "Rentang tanggal"]] as const).map(([k, l]) => (
+            <h2>{L("Periode", "Period")}</h2>
+            <div className={r.seg} role="group" aria-label={L("Jenis periode", "Period type")}>
+              {([["week", L("Mingguan", "Weekly")], ["month", L("Bulanan", "Monthly")], ["quarter", L("Kuartalan", "Quarterly")], ["year", L("Tahunan", "Yearly")], ["range", L("Rentang tanggal", "Date range")]] as const).map(([k, l]) => (
                 <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? r.segOn : ""} onClick={() => { if (k !== mode && k !== "range") setAnchor(today); setMode(k); }}>{l}</button>
               ))}
             </div>
 
             {mode !== "range" ? (
               <div className={r.nav}>
-                <button type="button" className={r.navBtn} onClick={() => setAnchor(shiftAnchor(mode, anchor, -1))} aria-label="Periode sebelumnya">‹</button>
+                <button type="button" className={r.navBtn} onClick={() => setAnchor(shiftAnchor(mode, anchor, -1))} aria-label={L("Periode sebelumnya", "Previous period")}>‹</button>
                 <div className={r.navPick}>
                   {mode === "week" && (
                     <label className={r.field}>
-                      <span>Minggu yang memuat tanggal</span>
+                      <span>{L("Minggu yang memuat tanggal", "Week containing date")}</span>
                       <input type="date" value={anchor} onChange={(e) => e.target.value && setAnchor(e.target.value)} />
                     </label>
                   )}
                   {mode === "month" && (
                     <label className={r.field}>
-                      <span>Bulan</span>
+                      <span>{L("Bulan", "Month")}</span>
                       <select value={cur.getMonth()} onChange={(e) => setAnchor(iso(new Date(cur.getFullYear(), Number(e.target.value), 1)))}>
                         {MONTHS.map((n, i) => <option key={n} value={i}>{n}</option>)}
                       </select>
@@ -193,32 +196,32 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
                   )}
                   {mode === "quarter" && (
                     <label className={r.field}>
-                      <span>Kuartal</span>
+                      <span>{L("Kuartal", "Quarter")}</span>
                       <select value={Math.floor(cur.getMonth() / 3)} onChange={(e) => setAnchor(iso(new Date(cur.getFullYear(), Number(e.target.value) * 3, 1)))}>
-                        {["Q1 · Jan–Mar", "Q2 · Apr–Jun", "Q3 · Jul–Sep", "Q4 · Okt–Des"].map((n, i) => <option key={n} value={i}>{n}</option>)}
+                        {[L("Q1 · Jan–Mar", "Q1 · Jan–Mar"), L("Q2 · Apr–Jun", "Q2 · Apr–Jun"), L("Q3 · Jul–Sep", "Q3 · Jul–Sep"), L("Q4 · Okt–Des", "Q4 · Oct–Dec")].map((n, i) => <option key={n} value={i}>{n}</option>)}
                       </select>
                     </label>
                   )}
                   {mode !== "week" && (
                     <label className={r.field}>
-                      <span>Tahun</span>
+                      <span>{L("Tahun", "Year")}</span>
                       <select value={cur.getFullYear()} onChange={(e) => setAnchor(iso(new Date(Number(e.target.value), cur.getMonth(), 1)))}>
                         {years.map((y) => <option key={y} value={y}>{y}</option>)}
                       </select>
                     </label>
                   )}
                 </div>
-                <button type="button" className={r.navBtn} onClick={() => setAnchor(shiftAnchor(mode, anchor, 1))} disabled={rangeOf(mode, shiftAnchor(mode, anchor, 1)).from > today} aria-label="Periode berikutnya">›</button>
+                <button type="button" className={r.navBtn} onClick={() => setAnchor(shiftAnchor(mode, anchor, 1))} disabled={rangeOf(mode, shiftAnchor(mode, anchor, 1)).from > today} aria-label={L("Periode berikutnya", "Next period")}>›</button>
                 <button type="button" className={r.navNow} onClick={() => setAnchor(today)} disabled={from <= today && today <= to}>
-                  {mode === "week" ? "Minggu ini" : mode === "month" ? "Bulan ini" : mode === "quarter" ? "Kuartal ini" : "Tahun ini"}
+                  {mode === "week" ? L("Minggu ini", "This week") : mode === "month" ? L("Bulan ini", "This month") : mode === "quarter" ? L("Kuartal ini", "This quarter") : L("Tahun ini", "This year")}
                 </button>
               </div>
             ) : (
               <div className={r.nav}>
-                <label className={r.field}><span>Dari</span><input type="date" value={rFrom} max={rTo} onChange={(e) => setRFrom(e.target.value)} /></label>
-                <label className={r.field}><span>Sampai</span><input type="date" value={rTo} min={rFrom} onChange={(e) => setRTo(e.target.value)} /></label>
+                <label className={r.field}><span>{L("Dari", "From")}</span><input type="date" value={rFrom} max={rTo} onChange={(e) => setRFrom(e.target.value)} /></label>
+                <label className={r.field}><span>{L("Sampai", "To")}</span><input type="date" value={rTo} min={rFrom} onChange={(e) => setRTo(e.target.value)} /></label>
                 <div className={r.quick}>
-                  {([[7, "7 hari terakhir"], [30, "30 hari terakhir"], [90, "90 hari terakhir"], ["ytd", "Sejak awal tahun"]] as const).map(([d, l]) => (
+                  {([[7, L("7 hari terakhir", "Last 7 days")], [30, L("30 hari terakhir", "Last 30 days")], [90, L("90 hari terakhir", "Last 90 days")], ["ytd", L("Sejak awal tahun", "Year to date")]] as const).map(([d, l]) => (
                     <button key={l} type="button" onClick={() => quickRange(d)}>{l}</button>
                   ))}
                 </div>
@@ -229,9 +232,9 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
               {valid ? (
                 <>
                   <strong>{periodHint}</strong>
-                  <span>{nDays} hari · dibandingkan dengan {prevHint}</span>
+                  <span>{nDays} {L("hari", "days")} · {L("dibandingkan dengan", "compared with")} {prevHint}</span>
                 </>
-              ) : <span className={r.tBad}>Tanggal awal harus sebelum tanggal akhir</span>}
+              ) : <span className={r.tBad}>{L("Tanggal awal harus sebelum tanggal akhir", "The start date must be before the end date")}</span>}
             </div>
           </div>
         </div>
@@ -239,25 +242,25 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
         <div className={r.step}>
           <span className={r.stepNo}>3</span>
           <div className={r.stepBody}>
-            <h2>Opsi laporan</h2>
+            <h2>{L("Opsi laporan", "Report options")}</h2>
             <div className={r.opts}>
               <div className={r.opt}>
-                <span className={r.optLabel}>Bahasa laporan</span>
-                <div className={r.seg} role="group" aria-label="Bahasa laporan">
-                  {([["id", "Indonesia"], ["en", "English"]] as const).map(([k, l]) => (
+                <span className={r.optLabel}>{L("Bahasa laporan", "Report language")}</span>
+                <div className={r.seg} role="group" aria-label={L("Bahasa laporan", "Report language")}>
+                  {([["id", "Bahasa Indonesia"], ["en", "English"]] as const).map(([k, l]) => (
                     <button key={k} type="button" aria-pressed={lang === k} className={lang === k ? r.segOn : ""} onClick={() => setLang(k)}>{l}</button>
                   ))}
                 </div>
               </div>
               <div className={r.opt}>
-                <span className={r.optLabel}>Grafik tren</span>
-                <div className={r.seg} role="group" aria-label="Grafik tren">
-                  {([["auto", "Otomatis"], ["day", "Per hari"], ["week", "Per minggu"], ["month", "Per bulan"]] as const).map(([k, l]) => (
+                <span className={r.optLabel}>{L("Grafik tren", "Trend chart")}</span>
+                <div className={r.seg} role="group" aria-label={L("Grafik tren", "Trend chart")}>
+                  {([["auto", L("Otomatis", "Automatic")], ["day", L("Per hari", "Per day")], ["week", L("Per minggu", "Per week")], ["month", L("Per bulan", "Per month")]] as const).map(([k, l]) => (
                     <button key={k} type="button" aria-pressed={gran === k} className={gran === k ? r.segOn : ""} onClick={() => setGran(k)} disabled={k === "day" && nDays > 92}>{l}</button>
                   ))}
                 </div>
                 <small className={r.optHint}>
-                  {valid ? `Tren ditampilkan ${effGran === "day" ? "per hari" : effGran === "week" ? "per minggu" : "per bulan"}${gran === "auto" ? " (otomatis menyesuaikan panjang periode)" : ""}.` : ""}
+                  {valid ? (appLang === "en" ? `Trend shown ${effGran === "day" ? "per day" : effGran === "week" ? "per week" : "per month"}${gran === "auto" ? " (adjusts automatically to the period length)" : ""}.` : `Tren ditampilkan ${effGran === "day" ? "per hari" : effGran === "week" ? "per minggu" : "per bulan"}${gran === "auto" ? " (otomatis menyesuaikan panjang periode)" : ""}.`) : ""}
                 </small>
               </div>
             </div>
@@ -266,22 +269,22 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
 
         <div className={r.actions}>
           <button type="button" className={r.primary} onClick={generate} disabled={!valid || busy}>
-            {Ic.spark}{busy ? "Menyusun laporan…" : report ? (stale ? "Perbarui laporan" : "Susun ulang") : "Susun laporan"}
+            {Ic.spark}{busy ? L("Menyusun laporan…", "Building report…") : report ? (stale ? L("Perbarui laporan", "Update report") : L("Susun ulang", "Rebuild")) : L("Susun laporan", "Build report")}
           </button>
           <div className={r.dl}>
-            <button type="button" className={`${r.dlBtn} ${r.dlXls}`} onClick={() => download("xlsx")} disabled={!report || stale || !!exporting}>{Ic.xls}{exporting === "xlsx" ? "Membuat…" : "Excel"}</button>
-            <button type="button" className={`${r.dlBtn} ${r.dlPpt}`} onClick={() => download("pptx")} disabled={!report || stale || !!exporting}>{Ic.ppt}{exporting === "pptx" ? "Membuat…" : "PowerPoint"}</button>
-            <button type="button" className={`${r.dlBtn} ${r.dlPdf}`} onClick={() => download("pdf")} disabled={!report || stale || !!exporting}>{Ic.pdf}{exporting === "pdf" ? "Membuat…" : "PDF"}</button>
+            <button type="button" className={`${r.dlBtn} ${r.dlXls}`} onClick={() => download("xlsx")} disabled={!report || stale || !!exporting}>{Ic.xls}{exporting === "xlsx" ? L("Membuat…", "Creating…") : "Excel"}</button>
+            <button type="button" className={`${r.dlBtn} ${r.dlPpt}`} onClick={() => download("pptx")} disabled={!report || stale || !!exporting}>{Ic.ppt}{exporting === "pptx" ? L("Membuat…", "Creating…") : "PowerPoint"}</button>
+            <button type="button" className={`${r.dlBtn} ${r.dlPdf}`} onClick={() => download("pdf")} disabled={!report || stale || !!exporting}>{Ic.pdf}{exporting === "pdf" ? L("Membuat…", "Creating…") : "PDF"}</button>
           </div>
         </div>
-        {stale && <div className={r.note}>Pilihan berubah — tekan &quot;Perbarui laporan&quot; sebelum mengunduh.</div>}
+        {stale && <div className={r.note}>{L("Pilihan berubah — tekan \"Perbarui laporan\" sebelum mengunduh.", "Selection changed — press \"Update report\" before downloading.")}</div>}
         {error && <div className={r.err}>{error}</div>}
       </section>
 
       {!report && !busy && (
         <div className={r.emptyState}>
-          <b>Belum ada laporan</b>
-          <span>Pilih modul dan periode, lalu tekan "Susun laporan" untuk melihat pratinjau.</span>
+          <b>{L("Belum ada laporan", "No report yet")}</b>
+          <span>{L("Pilih modul dan periode, lalu tekan \"Susun laporan\" untuk melihat pratinjau.", "Choose modules and a period, then press \"Build report\" to see a preview.")}</span>
         </div>
       )}
 

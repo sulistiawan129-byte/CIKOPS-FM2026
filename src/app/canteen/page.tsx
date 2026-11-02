@@ -6,6 +6,7 @@ import { useLang, useTheme } from "@/lib/providers";
 import { saveCanteenReport } from "@/lib/api";
 import { toLocalISODate } from "@/lib/dateUtils";
 
+import { loc , L} from "@/lib/i18n";
 const SHIFT_LABELS = ["Shift 1", "Shift 2", "Shift 3"];
 
 function todayStr() {
@@ -68,14 +69,14 @@ export default function CanteenPublicPage() {
       const msg =
         (e instanceof Error ? e.message : null) ||
         (e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : null) ||
-        (lang === "en" ? "Failed to save report. Please try again." : "Gagal menyimpan laporan. Coba lagi.");
+        (lang === "en" ? "Failed to save report. Please try again." : L("Gagal menyimpan laporan. Coba lagi.", "Failed to save the report. Please try again."));
       alert(msg);
     } finally {
       setSaving(false);
     }
   }
 
-  const fmtRp = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+  const fmtRp = (n: number) => new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 
   return (
     <div style={outerWrap}>

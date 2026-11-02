@@ -12,6 +12,7 @@ import type { Claim, Driver, DriverTier, Plant, TaskDetail, Vehicle } from "@/li
 import o from "./overview.module.css";
 import { plantFull } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 export type OverviewGo = "tasks" | "vehicles" | "claims" | "opfund" | "driverbudget" | "canteen" | "locker" | "gasstations";
 
 export interface OverviewData {
@@ -32,37 +33,37 @@ type Period = "today" | "week" | "month";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const rp = (n: number) => "Rp " + new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+const rp = (n: number) => "Rp " + new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 function rpShort(n: number): string {
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")} jt`;
   if (n >= 1_000) return `Rp ${Math.round(n / 1_000)} rb`;
   return rp(n);
 }
-const num = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+const num = (n: number) => new Intl.NumberFormat(loc()).format(Math.round(n || 0));
 const pct = (a: number, b: number) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
 const fmtDay = (s: string) => {
   const d = new Date(s.length === 10 ? s + "T00:00:00" : s);
-  return isNaN(d.getTime()) ? s : d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+  return isNaN(d.getTime()) ? s : d.toLocaleDateString(loc(), { day: "numeric", month: "short" });
 };
 
 function ranges(period: Period, now: Date) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   if (period === "today") {
     const y = new Date(today); y.setDate(y.getDate() - 1);
-    return { from: iso(today), to: iso(today), pFrom: iso(y), pTo: iso(y), label: "kemarin" };
+    return { from: iso(today), to: iso(today), pFrom: iso(y), pTo: iso(y), get label() { return L("kemarin", "yesterday"); } };
   }
   if (period === "week") {
     const dow = (today.getDay() + 6) % 7;
     const mon = new Date(today); mon.setDate(today.getDate() - dow);
     const pMon = new Date(mon); pMon.setDate(mon.getDate() - 7);
     const pTo = new Date(today); pTo.setDate(today.getDate() - 7);
-    return { from: iso(mon), to: iso(today), pFrom: iso(pMon), pTo: iso(pTo), label: "minggu lalu" };
+    return { from: iso(mon), to: iso(today), pFrom: iso(pMon), pTo: iso(pTo), get label() { return L("minggu lalu", "last week"); } };
   }
   const first = new Date(today.getFullYear(), today.getMonth(), 1);
   const pFirst = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const pLast = new Date(today.getFullYear(), today.getMonth(), 0);
   const pTo = new Date(pFirst.getFullYear(), pFirst.getMonth(), Math.min(today.getDate(), pLast.getDate()));
-  return { from: iso(first), to: iso(today), pFrom: iso(pFirst), pTo: iso(pTo), label: "bulan lalu" };
+  return { from: iso(first), to: iso(today), pFrom: iso(pFirst), pTo: iso(pTo), get label() { return L("bulan lalu", "last month"); } };
 }
 
 function paths(vals: number[]) {
@@ -142,8 +143,8 @@ export function OverviewBoard({
     return {
       r, tasksP, going, done, vehicles, vActive, drivers, free, claimNow, claimPrev,
       series: [
-        { key: "t", label: "Tugas", cls: o.cBrand, total: `${num(sum(sT))} tugas`, note: `Rata-rata ${(sum(sT) / 30).toFixed(1).replace(".", ",")} per hari`, ...paths(sT) },
-        { key: "c", label: "Klaim", cls: o.cGreen, total: rpShort(sum(sC)), note: `Puncak ${rp(Math.max(0, ...sC))}`, ...paths(sC) },
+        { key: "t", label: L("Tugas", "Tasks"), cls: o.cBrand, total: `${num(sum(sT))} ${L("tugas", "tasks")}`, note: L(`Rata-rata ${(sum(sT) / 30).toFixed(1).replace(".", ",")} per hari`, `Average ${(sum(sT) / 30).toFixed(1)} per day`), ...paths(sT) },
+        { key: "c", label: L("Klaim", "Claims"), cls: o.cGreen, total: rpShort(sum(sC)), note: `${L("Puncak", "Peak")} ${rp(Math.max(0, ...sC))}`, ...paths(sC) },
       ],
       days, docs, docsUrgent, late, funds, lowFunds, feed,
     };
@@ -151,22 +152,22 @@ export function OverviewBoard({
   }, [data, plant, period, now]);
 
   const trend = v.claimPrev > 0 ? ((v.claimNow - v.claimPrev) / v.claimPrev) * 100 : null;
-  const periodWord = period === "today" ? "hari ini" : period === "week" ? "minggu ini" : "bulan ini";
+  const periodWord = period === "today" ? L("hari ini", "today") : period === "week" ? L("minggu ini", "this week") : L("bulan ini", "this month");
 
   const alerts: { tone: "bad" | "warn"; title: string; sub: string; go: OverviewGo }[] = [];
-  if (v.docsUrgent.length) alerts.push({ tone: "bad", title: `${v.docsUrgent.length} dokumen kendaraan jatuh tempo`, sub: v.docsUrgent.slice(0, 2).map((d) => `${d.doc} ${d.nopol}`).join(" dan ") + (v.docsUrgent.some((d) => d.days < 0) ? " · sudah lewat atau ≤ 7 hari" : " dalam 7 hari"), go: "vehicles" });
-  if (v.late.length) alerts.push({ tone: "warn", title: `${v.late.length} tugas berjalan lebih dari 2 jam`, sub: v.late.slice(0, 1).map((t) => `${t.driver_nama ?? "-"} ke ${t.tujuan}`).join(""), go: "tasks" });
-  v.lowFunds.forEach((f) => alerts.push({ tone: "bad", title: `Dana operasional ${f.plant} tersisa ${Math.round(pct(f.cash, f.budget))}%`, sub: `${rp(f.cash)} dari ${rp(f.budget)} periode ini`, go: "opfund" }));
+  if (v.docsUrgent.length) alerts.push({ tone: "bad", title: L(`${v.docsUrgent.length} dokumen kendaraan jatuh tempo`, `${v.docsUrgent.length} vehicle document${v.docsUrgent.length === 1 ? "" : "s"} due`), sub: v.docsUrgent.slice(0, 2).map((d) => `${d.doc} ${d.nopol}`).join(L(" dan ", " and ")) + (v.docsUrgent.some((d) => d.days < 0) ? L(" · sudah lewat atau ≤ 7 hari", " · overdue or within 7 days") : L(" dalam 7 hari", " within 7 days")), go: "vehicles" });
+  if (v.late.length) alerts.push({ tone: "warn", title: L(`${v.late.length} tugas berjalan lebih dari 2 jam`, `${v.late.length} task${v.late.length === 1 ? "" : "s"} running for over 2 hours`), sub: v.late.slice(0, 1).map((t) => `${t.driver_nama ?? "-"} ${L("ke", "to")} ${t.tujuan}`).join(""), go: "tasks" });
+  v.lowFunds.forEach((f) => alerts.push({ tone: "bad", title: L(`Dana operasional ${f.plant} tersisa ${Math.round(pct(f.cash, f.budget))}%`, `${f.plant} operational fund at ${Math.round(pct(f.cash, f.budget))}%`), sub: L(`${rp(f.cash)} dari ${rp(f.budget)} periode ini`, `${rp(f.cash)} of ${rp(f.budget)} this period`), go: "opfund" }));
 
-  const dateLabel = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const timeLabel = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":");
+  const dateLabel = now.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const timeLabel = now.toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" }).replace(".", ":");
   const cant = data.canteen;
 
   const kpis = [
-    { label: `Tugas ${periodWord}`, value: num(v.tasksP.length), unit: "tugas", foot: `${v.going} berjalan · ${v.done} selesai`, bar: pct(v.done, v.tasksP.length), go: "tasks" as OverviewGo },
-    { label: "Kendaraan aktif", value: num(v.vActive), unit: `/ ${v.vehicles.length} unit`, foot: v.vehicles.length - v.vActive > 0 ? `${v.vehicles.length - v.vActive} tidak aktif / perawatan` : "Semua unit aktif", bar: pct(v.vActive, v.vehicles.length), go: "vehicles" as OverviewGo },
-    { label: "Driver tersedia", value: num(v.free), unit: `/ ${v.drivers.length} driver`, foot: `${v.drivers.length - v.free} sedang bertugas`, bar: pct(v.free, v.drivers.length), go: "tasks" as OverviewGo },
-    { label: `Klaim ${periodWord}`, value: rpShort(v.claimNow), unit: "", foot: trend === null ? `Belum ada data ${v.r.label}` : `${trend >= 0 ? "Naik" : "Turun"} ${Math.abs(Math.round(trend))}% dari ${v.r.label}`, bar: pct(v.claimNow, Math.max(v.claimNow, v.claimPrev)), go: "claims" as OverviewGo },
+    { label: L(`Tugas ${periodWord}`, `Tasks ${periodWord}`), value: num(v.tasksP.length), unit: L("tugas", "tasks"), foot: L(`${v.going} berjalan · ${v.done} selesai`, `${v.going} in progress · ${v.done} done`), bar: pct(v.done, v.tasksP.length), go: "tasks" as OverviewGo },
+    { label: L("Kendaraan aktif", "Active vehicles"), value: num(v.vActive), unit: L(`/ ${v.vehicles.length} unit`, `/ ${v.vehicles.length} units`), foot: v.vehicles.length - v.vActive > 0 ? L(`${v.vehicles.length - v.vActive} tidak aktif / perawatan`, `${v.vehicles.length - v.vActive} inactive / under maintenance`) : L("Semua unit aktif", "All units active"), bar: pct(v.vActive, v.vehicles.length), go: "vehicles" as OverviewGo },
+    { label: L("Driver tersedia", "Available drivers"), value: num(v.free), unit: `/ ${v.drivers.length} ${L("driver", "drivers")}`, foot: L(`${v.drivers.length - v.free} sedang bertugas`, `${v.drivers.length - v.free} on duty`), bar: pct(v.free, v.drivers.length), go: "tasks" as OverviewGo },
+    { label: L(`Klaim ${periodWord}`, `Claims ${periodWord}`), value: rpShort(v.claimNow), unit: "", foot: trend === null ? L(`Belum ada data ${v.r.label}`, `No data for ${v.r.label}`) : L(`${trend >= 0 ? "Naik" : "Turun"} ${Math.abs(Math.round(trend))}% dari ${v.r.label}`, `${trend >= 0 ? "Up" : "Down"} ${Math.abs(Math.round(trend))}% from ${v.r.label}`), bar: pct(v.claimNow, Math.max(v.claimNow, v.claimPrev)), go: "claims" as OverviewGo },
   ];
 
   const fleetMaint = v.vehicles.length - v.vActive;
@@ -181,19 +182,19 @@ export function OverviewBoard({
       <header className={o.head}>
         <div className={o.headText}>
           <span className={o.eyebrow}>{dateLabel} · diperbarui {timeLabel}</span>
-          <h1>Ringkasan operasional</h1>
-          <p>{userName ? `Halo ${userName.split(" ")[0]}, ini` : "Ini"} kondisi armada, keuangan, dan fasilitas {plant === "all" ? "semua plant" : plantFull(plant)}.</p>
+          <h1>{L("Ringkasan operasional", "Operations summary")}</h1>
+          <p>{L(`${userName ? `Halo ${userName.split(" ")[0]}, ini` : "Ini"} kondisi armada, keuangan, dan fasilitas ${plant === "all" ? "semua plant" : plantFull(plant)}.`, `${userName ? `Hello ${userName.split(" ")[0]}, here is` : "Here is"} the status of fleet, finance and facilities for ${plant === "all" ? "all plants" : plantFull(plant)}.`)}</p>
         </div>
         <div className={o.filters}>
           {!lockedPlant && (
             <div className={o.seg} role="group" aria-label="Plant">
-              {([["all", "Semua plant"], ["CIK", "CIK"], ["PRB", "PRB"]] as const).map(([k, l]) => (
+              {([["all", L("Semua plant", "All plants")], ["CIK", "CIK"], ["PRB", "PRB"]] as const).map(([k, l]) => (
                 <button key={k} type="button" aria-pressed={plantSel === k} className={plantSel === k ? o.segOn : ""} onClick={() => setPlant(k)}>{l}</button>
               ))}
             </div>
           )}
-          <div className={o.seg} role="group" aria-label="Periode">
-            {([["today", "Hari ini"], ["week", "Minggu ini"], ["month", "Bulan ini"]] as const).map(([k, l]) => (
+          <div className={o.seg} role="group" aria-label={L("Periode", "Period")}>
+            {([["today", L("Hari ini", "Today")], ["week", L("Minggu ini", "This week")], ["month", L("Bulan ini", "This month")]] as const).map(([k, l]) => (
               <button key={k} type="button" aria-pressed={period === k} className={period === k ? o.segOn : ""} onClick={() => setPeriod(k)}>{l}</button>
             ))}
           </div>
@@ -204,13 +205,13 @@ export function OverviewBoard({
         {alerts.length === 0 ? (
           <div className={`${o.alert} ${o.alertOk}`}>
             <span className={o.alertIc}><IcOk /></span>
-            <span className={o.alertText}><b>Tidak ada yang perlu ditindak</b><span>Dokumen, tugas, dan dana operasional dalam batas aman.</span></span>
+            <span className={o.alertText}><b>{L("Tidak ada yang perlu ditindak", "Nothing needs action")}</b><span>{L("Dokumen, tugas, dan dana operasional dalam batas aman.", "Documents, tasks and operational funds are within safe limits.")}</span></span>
           </div>
         ) : alerts.map((a, i) => (
           <button key={i} type="button" className={`${o.alert} ${a.tone === "bad" ? o.alertBad : o.alertWarn}`} onClick={() => onGo(a.go)}>
             <span className={o.alertIc}><IcWarn /></span>
             <span className={o.alertText}><b>{a.title}</b><span>{a.sub}</span></span>
-            <span className={o.alertGo}>Lihat</span>
+            <span className={o.alertGo}>{L("Lihat", "View")}</span>
           </button>
         ))}
       </section>
@@ -229,8 +230,8 @@ export function OverviewBoard({
       <div className={o.split}>
         <section className={`${o.card} ${o.trend}`}>
           <div className={o.cardHead}>
-            <h2>Aktivitas 30 hari</h2>
-            <span>Tiap baris memakai skalanya sendiri</span>
+            <h2>{L("Aktivitas 30 hari", "30-day activity")}</h2>
+            <span>{L("Tiap baris memakai skalanya sendiri", "Each row uses its own scale")}</span>
           </div>
           {v.series.map((s) => (
             <div key={s.key} className={o.sRow}>
@@ -239,7 +240,7 @@ export function OverviewBoard({
                 <b>{s.total}</b>
                 <span>{s.note}</span>
               </div>
-              <svg viewBox="0 0 600 72" preserveAspectRatio="none" className={`${o.spark} ${s.cls}`} role="img" aria-label={`Tren ${s.label.toLowerCase()} 30 hari`}>
+              <svg viewBox="0 0 600 72" preserveAspectRatio="none" className={`${o.spark} ${s.cls}`} role="img" aria-label={L(`Tren ${s.label.toLowerCase()} 30 hari`, `${s.label} trend, 30 days`)}>
                 <polyline points={s.area} className={o.sArea} />
                 <polyline points={s.line} className={o.sLine} vectorEffect="non-scaling-stroke" />
               </svg>
@@ -250,24 +251,24 @@ export function OverviewBoard({
 
         <section className={`${o.card} ${o.fleet}`}>
           <div className={o.cardHead}>
-            <h2>Armada</h2>
-            <button type="button" className={o.link} onClick={() => onGo("vehicles")}>Buka Armada</button>
+            <h2>{L("Armada", "Fleet")}</h2>
+            <button type="button" className={o.link} onClick={() => onGo("vehicles")}>{L("Buka Armada", "Open Fleet")}</button>
           </div>
-          <div className={o.stack} aria-label={`${v.vActive} aktif, ${fleetMaint} tidak aktif`}>
+          <div className={o.stack} aria-label={L(`${v.vActive} aktif, ${fleetMaint} tidak aktif`, `${v.vActive} active, ${fleetMaint} inactive`)}>
             <span className={o.stackA} style={{ width: `${pct(v.vActive, v.vehicles.length)}%` }} />
             <span className={o.stackB} style={{ width: `${pct(fleetMaint, v.vehicles.length)}%` }} />
           </div>
           <div className={o.legend}>
-            <span><i className={o.cBrand} />Aktif <b>{v.vActive}</b></span>
-            <span><i className={o.cOrange} />Tidak aktif / perawatan <b>{fleetMaint}</b></span>
+            <span><i className={o.cBrand} />{L("Aktif", "Active")} <b>{v.vActive}</b></span>
+            <span><i className={o.cOrange} />{L("Tidak aktif / perawatan", "Inactive / maintenance")} <b>{fleetMaint}</b></span>
           </div>
           <h3 className={o.sub}>Dokumen jatuh tempo</h3>
           <div className={o.docs}>
-            {v.docs.length === 0 && <div className={o.empty}>Belum ada data tanggal KIR, STNK, atau service.</div>}
+            {v.docs.length === 0 && <div className={o.empty}>{L("Belum ada data tanggal KIR, STNK, atau service.", "No KIR, STNK or service date data yet.")}</div>}
             {v.docs.slice(0, 5).map((d) => (
               <div key={d.id} className={o.docRow}>
                 <span><b>{d.nopol}</b><small>{d.doc} · {fmtDay(d.date)}</small></span>
-                <span className={`${o.pill} ${d.days <= 7 ? o.pBad : d.days <= 30 ? o.pWarn : o.pMute}`}>{d.days < 0 ? `Lewat ${-d.days} hari` : d.days === 0 ? "Hari ini" : `${d.days} hari`}</span>
+                <span className={`${o.pill} ${d.days <= 7 ? o.pBad : d.days <= 30 ? o.pWarn : o.pMute}`}>{d.days < 0 ? L(`Lewat ${-d.days} hari`, `${-d.days} days overdue`) : d.days === 0 ? L("Hari ini", "Today") : L(`${d.days} hari`, `${d.days} days`)}</span>
               </div>
             ))}
           </div>
@@ -277,10 +278,10 @@ export function OverviewBoard({
       <div className={o.trio}>
         <section className={o.card}>
           <div className={o.cardHead}>
-            <h2>Dana operasional</h2>
-            <span>Per plant, tidak dijumlah</span>
+            <h2>{L("Dana operasional", "Operational fund")}</h2>
+            <span>{L("Per plant, tidak dijumlah", "Per plant, not summed")}</span>
           </div>
-          {v.funds.length === 0 && <div className={o.empty}>Belum ada periode dana operasional.</div>}
+          {v.funds.length === 0 && <div className={o.empty}>{L("Belum ada periode dana operasional.", "No operational fund period yet.")}</div>}
           {v.funds.map((f) => {
             const p = pct(f.cash, f.budget);
             const low = f.budget > 0 && f.cash / f.budget < 0.2;
@@ -288,7 +289,7 @@ export function OverviewBoard({
               <button key={f.plant} type="button" className={o.fund} onClick={() => onGo("opfund")}>
                 <span className={o.fundTop}><b>{plantFull(f.plant)}</b><span className={low ? o.inkBad : ""}>{Math.round(p)}% tersisa</span></span>
                 <span className={o.bar}><i className={low ? o.barBad : ""} style={{ width: `${p}%` }} /></span>
-                <span className={o.fundFoot}><span>Tersedia <b>{rp(f.cash)}</b></span><span>dari {rp(f.budget)}</span></span>
+                <span className={o.fundFoot}><span>{L("Tersedia", "Available")} <b>{rp(f.cash)}</b></span><span>{L("dari", "of")} {rp(f.budget)}</span></span>
               </button>
             );
           })}
@@ -296,11 +297,11 @@ export function OverviewBoard({
 
         <section className={o.card}>
           <div className={o.cardHead}>
-            <h2>Budget driver</h2>
-            <button type="button" className={o.link} onClick={() => onGo("driverbudget")}>Buka</button>
+            <h2>{L("Budget driver", "Driver budget")}</h2>
+            <button type="button" className={o.link} onClick={() => onGo("driverbudget")}>{L("Buka", "Open")}</button>
           </div>
-          <div className={o.big}><b>{rpShort(budget.total)}</b><span>per bulan · {num(budget.drivers)} driver</span></div>
-          {data.tiers.length === 0 && <div className={o.empty}>Belum ada tier budget driver.</div>}
+          <div className={o.big}><b>{rpShort(budget.total)}</b><span>{L("per bulan", "per month")} · {num(budget.drivers)} {L("driver", "drivers")}</span></div>
+          {data.tiers.length === 0 && <div className={o.empty}>{L("Belum ada tier budget driver.", "No driver budget tiers yet.")}</div>}
           {data.tiers.map((t) => (
             <div key={t.id} className={o.otRow}>
               <b title={t.name}>{t.name}</b>
@@ -309,30 +310,30 @@ export function OverviewBoard({
             </div>
           ))}
           <div className={o.kv}>
-            <span>Klaim {periodWord}</span><b>{rp(v.claimNow)}</b>
+            <span>{L("Klaim", "Claims")} {periodWord}</span><b>{rp(v.claimNow)}</b>
           </div>
         </section>
 
         <section className={o.card}>
-          <div className={o.cardHead}><h2>Fasilitas</h2><span>Bulan ini</span></div>
+          <div className={o.cardHead}><h2>{L("Fasilitas", "Facilities")}</h2><span>{L("Bulan ini", "This month")}</span></div>
           <button type="button" className={o.fac} onClick={() => onGo("canteen")}>
-            <span className={o.fundTop}><b>Kantin · snack</b><span>{num(cant.snackUsed)} / {num(cant.snackOrder)} terpakai · sisa {num(Math.max(0, cant.snackOrder - cant.snackUsed))}</span></span>
+            <span className={o.fundTop}><b>{L("Kantin · snack", "Canteen · snacks")}</b><span>{num(cant.snackUsed)} / {num(cant.snackOrder)} {L("terpakai", "used")} · {L("sisa", "left")} {num(Math.max(0, cant.snackOrder - cant.snackUsed))}</span></span>
             <span className={o.bar}><i className={o.barGreen} style={{ width: `${pct(cant.snackUsed, cant.snackOrder)}%` }} /></span>
           </button>
           <button type="button" className={o.fac} onClick={() => onGo("canteen")}>
-            <span className={o.fundTop}><b>Kantin · makan</b><span>{num(cant.mealUsed)} / {num(cant.mealOrder)} terpakai · sisa {num(Math.max(0, cant.mealOrder - cant.mealUsed))}</span></span>
+            <span className={o.fundTop}><b>{L("Kantin · makan", "Canteen · meals")}</b><span>{num(cant.mealUsed)} / {num(cant.mealOrder)} {L("terpakai", "used")} · {L("sisa", "left")} {num(Math.max(0, cant.mealOrder - cant.mealUsed))}</span></span>
             <span className={o.bar}><i className={o.barGreen} style={{ width: `${pct(cant.mealUsed, cant.mealOrder)}%` }} /></span>
           </button>
           <div className={o.tiles}>
             <button type="button" className={o.tile} onClick={() => onGo("locker")}>
-              <span>Locker terisi</span>
+              <span>{L("Locker terisi", "Lockers occupied")}</span>
               <b>{num(data.locker.used)} <small>/ {num(data.locker.total)}</small></b>
-              <em>{num(data.locker.total - data.locker.used)} tersedia</em>
+              <em>{num(data.locker.total - data.locker.used)} {L("tersedia", "available")}</em>
             </button>
             <button type="button" className={o.tile} onClick={() => onGo("gasstations")}>
-              <span>Pom bensin</span>
-              <b>{num(data.gas.stations)} <small>lokasi</small></b>
-              <em>{data.gas.fuelTypes} jenis BBM tersedia</em>
+              <span>{L("Pom bensin", "Gas stations")}</span>
+              <b>{num(data.gas.stations)} <small>{L("lokasi", "locations")}</small></b>
+              <em>{data.gas.fuelTypes} {L("jenis BBM tersedia", "fuel types available")}</em>
             </button>
           </div>
         </section>
@@ -340,16 +341,16 @@ export function OverviewBoard({
 
       <section className={o.card}>
         <div className={o.cardHead}>
-          <h2>Klaim terbaru</h2>
-          <button type="button" className={o.link} onClick={() => onGo("claims")}>Lihat klaim</button>
+          <h2>{L("Klaim terbaru", "Latest claims")}</h2>
+          <button type="button" className={o.link} onClick={() => onGo("claims")}>{L("Lihat klaim", "View claims")}</button>
         </div>
         {v.feed.length === 0 ? (
-          <div className={o.empty}>Belum ada klaim.</div>
+          <div className={o.empty}>{L("Belum ada klaim.", "No claims yet.")}</div>
         ) : (
           <div className={o.tableBox}>
             <table className={o.table}>
               <thead>
-                <tr><th>Driver</th><th>Plant</th><th>Jenis klaim</th><th>Tanggal</th><th className={o.right}>Nominal</th></tr>
+                <tr><th>Driver</th><th>Plant</th><th>{L("Jenis klaim", "Claim type")}</th><th>{L("Tanggal", "Date")}</th><th className={o.right}>{L("Nominal", "Amount")}</th></tr>
               </thead>
               <tbody>
                 {v.feed.map((r) => (

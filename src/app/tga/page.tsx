@@ -10,6 +10,7 @@ import { BottomNav, NavBtn, PullIndicator, Skeleton, SuccessScreen, SunMoon, hap
 import { useTheme } from "@/lib/providers";
 import { DEMO_MODE, DEMO_TGA_PIN, MOCK_MODE } from "@/lib/brand";
 import { autoEnableNative, createRinger, enablePush, disablePush, pushState, testPush, type PushState } from "@/lib/push";
+import { L, loc } from "@/lib/i18n";
 import {
   TGA_CATEGORIES, TGA_SOURCE_LABEL, TGA_STATUS, isSessionError, tgaAccept, tgaCategory, tgaDelete, tgaLogin, tgaLogout, tgaMyData, tgaNames,
   tgaCachedRequestors, tgaPushSubscribe, tgaRequestors, tgaSave, tgaStatusInfo, tgaStatusLabel, tgaStoredSession,
@@ -20,8 +21,8 @@ type Screen = "splash" | "login" | "app";
 type Tab = "home" | "open" | "history" | "profile";
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
-const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-const BLN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const hariName = (d: number) => new Date(2023, 0, 1 + d).toLocaleDateString(loc(), { weekday: "long" });
+const blnName = (m: number) => new Date(2000, m, 1).toLocaleDateString(loc(), { month: "short" });
 
 function localToday() {
   const d = new Date();
@@ -29,19 +30,19 @@ function localToday() {
 }
 const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 function fmtDay(iso: string, today: string) {
-  if (iso === today) return "Hari ini";
+  if (iso === today) return L("Hari ini", "Today");
   const t = new Date(today + "T00:00:00"); t.setDate(t.getDate() - 1);
   const d = new Date(iso + "T00:00:00");
-  if (d.getTime() === t.getTime()) return "Kemarin";
-  return `${HARI[d.getDay()]}, ${d.getDate()} ${BLN[d.getMonth()]} ${d.getFullYear()}`;
+  if (d.getTime() === t.getTime()) return L("Kemarin", "Yesterday");
+  return `${hariName(d.getDay())}, ${d.getDate()} ${blnName(d.getMonth())} ${d.getFullYear()}`;
 }
 function fmtLong(iso: string) {
   const d = new Date(iso + "T00:00:00");
-  return `${HARI[d.getDay()]}, ${d.getDate()} ${BLN[d.getMonth()]} ${d.getFullYear()}`;
+  return `${hariName(d.getDay())}, ${d.getDate()} ${blnName(d.getMonth())} ${d.getFullYear()}`;
 }
 function greeting() {
   const h = new Date().getHours();
-  return h < 11 ? "Selamat pagi" : h < 15 ? "Selamat siang" : h < 18 ? "Selamat sore" : "Selamat malam";
+  return h < 11 ? L("Selamat pagi", "Good morning") : h < 15 ? L("Selamat siang", "Good afternoon") : h < 18 ? L("Selamat sore", "Good evening") : L("Selamat malam", "Good night");
 }
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 const hueOf = (n: string) => [...n].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
@@ -133,7 +134,7 @@ export default function TgaAppPage() {
       }
       knownNew.current = new Set(fresh.map((a) => a.id));
     } catch (e) {
-      if (isSessionError(e)) { signOut("Sesi berakhir — silakan masuk lagi."); return; }
+      if (isSessionError(e)) { signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again.")); return; }
       setLoadErr(e instanceof Error ? e.message : String(e));
     } finally { setRefreshing(false); }
   }, [token, signOut]);
@@ -166,7 +167,7 @@ export default function TgaAppPage() {
 
   // Dibuka dari APK CIKOPS (Firebase) → daftarkan HP untuk notifikasi native otomatis
   useEffect(() => {
-    if (screen === "app" && token) autoEnableNative((sub) => tgaPushSubscribe(token, sub)).then((ok) => { if (ok) flash("🔔 Notifikasi aktif di HP ini"); });
+    if (screen === "app" && token) autoEnableNative((sub) => tgaPushSubscribe(token, sub)).then((ok) => { if (ok) flash(L("🔔 Notifikasi aktif di HP ini", "🔔 Notifications are on for this phone")); });
   }, [screen, token, flash]);
 
   const formOpen = form !== null;
@@ -200,10 +201,10 @@ export default function TgaAppPage() {
   async function quickDone(a: TgaActivity) {
     try {
       const r = await tgaSave(token, a.id, { ...draftOf(a), status: "selesai", jam_selesai: a.jam_selesai || nowHM() });
-      upsertLocal(r); setDetail(null); flash(`✓ ${r.ref_no} ditandai selesai`);
+      upsertLocal(r); setDetail(null); flash(L(`✓ ${r.ref_no} ditandai selesai`, `✓ ${r.ref_no} marked as done`));
       haptic(30);
     } catch (e) {
-      if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
+      if (isSessionError(e)) return signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again."));
       flash(e instanceof Error ? e.message : String(e));
     }
   }
@@ -213,20 +214,20 @@ export default function TgaAppPage() {
       const r = await tgaAccept(token, a.id);
       upsertLocal(r);
       setData((d) => d && ({ ...d, pool: (d.pool ?? []).filter((x) => x.id !== a.id) }));
-      setDetail(null); flash(`👍 ${r.ref_no} diterima — selamat bekerja!`);
+      setDetail(null); flash(L(`👍 ${r.ref_no} diterima — selamat bekerja!`, `👍 ${r.ref_no} accepted — good luck!`));
       haptic(40);
     } catch (e) {
-      if (isSessionError(e)) return signOut("Sesi berakhir — silakan masuk lagi.");
+      if (isSessionError(e)) return signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again."));
       flash(e instanceof Error ? e.message : String(e));
       load();
     }
   }
   async function remove(a: TgaActivity) {
-    if (!confirm(`Hapus kegiatan ${a.ref_no}?\n"${a.activity}"`)) return;
+    if (!confirm(L(`Hapus kegiatan ${a.ref_no}?\n"${a.activity}"`, `Delete activity ${a.ref_no}?\n"${a.activity}"`))) return;
     try {
       await tgaDelete(token, a.id);
       setData((d) => d && ({ ...d, activities: d.activities.filter((x) => x.id !== a.id), month_count: Math.max(0, d.month_count - (a.tanggal.slice(0, 7) === today.slice(0, 7) ? 1 : 0)) }));
-      setDetail(null); flash("Kegiatan dihapus");
+      setDetail(null); flash(L("Kegiatan dihapus", "Activity deleted"));
     } catch (e) { flash(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -235,7 +236,7 @@ export default function TgaAppPage() {
       <div className={s.splash}>
         <div className={s.splashLogo}><ToolGlyph /></div>
         <b>CIKOPS TGA</b>
-        <span>Teknisi GA · Catat kegiatan</span>
+        <span>{L("Teknisi GA · Catat kegiatan", "GA Technician · Log activities")}</span>
       </div>
     );
   }
@@ -249,18 +250,18 @@ export default function TgaAppPage() {
   return (
     <div className={s.app}>
       <PullIndicator pull={pull} busy={pulling} />
-      {!online && <div className={s.offline}>Tidak ada koneksi — periksa internet sebelum menyimpan.</div>}
+      {!online && <div className={s.offline}>{L("Tidak ada koneksi — periksa internet sebelum menyimpan.", "No connection — check your internet before saving.")}</div>}
       <header className={s.hero}>
         <div className={s.heroTop}>
           <div className={s.brandMini}><span><ToolGlyph /></span>CIKOPS TGA</div>
           <div className={s.heroBtns}>
-            <button type="button" className={s.iconBtn} onClick={toggleTheme} aria-label="Ganti tema"><SunMoon dark={theme === "dark"} /></button>
-            <button type="button" className={`${s.iconBtn} ${refreshing ? s.spin : ""}`} onClick={load} aria-label="Muat ulang">⟳</button>
+            <button type="button" className={s.iconBtn} onClick={toggleTheme} aria-label={L("Ganti tema", "Toggle theme")}><SunMoon dark={theme === "dark"} /></button>
+            <button type="button" className={`${s.iconBtn} ${refreshing ? s.spin : ""}`} onClick={load} aria-label={L("Muat ulang", "Reload")}>⟳</button>
           </div>
         </div>
         <p className={s.hello}>{greeting()},</p>
-        <h1 className={s.heroName}>{firstName(nama) || "Teknisi"} 👋</h1>
-        <p className={s.heroDate}>{fmtLong(today)} · {data?.month_count ?? 0} kegiatan bulan ini</p>
+        <h1 className={s.heroName}>{firstName(nama) || L("Teknisi", "Technician")} 👋</h1>
+        <p className={s.heroDate}>{fmtLong(today)} · {data?.month_count ?? 0} {L("kegiatan bulan ini", "activities this month")}</p>
         {data && (
           <div className={s.heroChips}>
             <span className={`${s.heroChip} ${working ? s.heroChipBusy : ""}`}><i />{working ? `BUSY · ${working.ref_no}` : "AVAILABLE"}</span>
@@ -269,7 +270,7 @@ export default function TgaAppPage() {
       </header>
 
       <main className={s.main}>
-        {loadErr && <div className={s.errBox}>{loadErr} <button type="button" onClick={load}>Coba lagi</button></div>}
+        {loadErr && <div className={s.errBox}>{loadErr} <button type="button" onClick={load}>{L("Coba lagi", "Try again")}</button></div>}
         {!data && !loadErr ? <Skeleton /> : (
           <>
             {tab === "home" && <Home acts={acts} pool={pool} working={working} today={today} onOpen={setDetail} onDone={quickDone} onAccept={accept} onNew={() => setForm({ id: null, draft: emptyDraft(today) })} />}
@@ -279,7 +280,7 @@ export default function TgaAppPage() {
               <Profile nama={nama} acts={acts} monthCount={data?.month_count ?? 0} today={today} token={token}
                 installEvt={installEvt} installed={installed}
                 onInstall={async () => { if (!installEvt) return; await installEvt.prompt(); const c = await installEvt.userChoice; if (c.outcome === "accepted") setInstalled(true); setInstallEvt(null); }}
-                onLogout={() => { if (confirm("Keluar dari aplikasi TGA?")) signOut(); }} />
+                onLogout={() => { if (confirm(L("Keluar dari aplikasi TGA?", "Log out of the TGA app?"))) signOut(); }} />
             )}
           </>
         )}
@@ -290,7 +291,7 @@ export default function TgaAppPage() {
           <NavBtn on={tab === "home"} icon="⌂" label="Beranda" onClick={() => setTab("home")} />
           <NavBtn on={tab === "history"} icon="☰" label="Riwayat" onClick={() => setTab("history")} />
         </>}
-        fab={{ label: "Catat kegiatan baru", onClick: () => setForm({ id: null, draft: emptyDraft(today) }) }}
+        fab={{ label: L("Catat kegiatan baru", "Log a new activity"), onClick: () => setForm({ id: null, draft: emptyDraft(today) }) }}
         right={<>
           <NavBtn on={tab === "open"} icon="◷" label="Terbuka" badge={acts.filter((a) => a.status !== "selesai").length + pool.length} onClick={() => setTab("open")} />
           <NavBtn on={tab === "profile"} icon="◉" label="Profil" onClick={() => setTab("profile")} />
@@ -311,7 +312,7 @@ export default function TgaAppPage() {
             if (form.id === null) setData((d) => d && ({ ...d, month_count: d.month_count + (r.tanggal.slice(0, 7) === today.slice(0, 7) ? 1 : 0) }));
             setSaved({ a: r, isNew: form.id === null }); setForm(null);
           }}
-          onSessionLost={() => signOut("Sesi berakhir — silakan masuk lagi.")} />
+          onSessionLost={() => signOut(L("Sesi berakhir — silakan masuk lagi.", "Session expired — please log in again."))} />
       )}
 
       {saved && (
@@ -335,15 +336,15 @@ function Incoming({ a, onAccept, onLater }: { a: TgaActivity; onAccept: () => vo
     <div className={s.incomingWrap} role="alertdialog" aria-modal="true" aria-labelledby="tga-incoming">
       <div className={s.incomingCard}>
         <div className={s.bell}>🔔</div>
-        <small className={s.incomingKicker}>{a.pool ? "Permintaan baru · siapa cepat" : "Tugas baru untukmu"}</small>
+        <small className={s.incomingKicker}>{a.pool ? L("Permintaan baru · siapa cepat", "New request · first come") : L("Tugas baru untukmu", "New task for you")}</small>
         <h2 id="tga-incoming">{a.activity}</h2>
         <div className={s.incomingMeta}>
-          <span>{c.icon} {c.id}</span>
+          <span>{c.icon} {c.label}</span>
           {a.lokasi && <span>📍 {a.lokasi}</span>}
           {a.request_by && <span>👤 {a.request_by}{a.departemen ? ` · ${a.departemen}` : ""}</span>}
           {a.prioritas === "urgent" && <span className={s.urgent}>URGENT</span>}
         </div>
-        <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? "✋ Ambil tugas ini" : "✓ Terima & kerjakan"}</button>
+        <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? L("✋ Ambil tugas ini", "✋ Take this task") : L("✓ Terima & kerjakan", "✓ Accept & start")}</button>
         <button type="button" className={s.ghostBtn} onClick={onLater}>Nanti</button>
       </div>
     </div>
@@ -402,18 +403,18 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
         <div className={s.blob1} /><div className={s.blob2} />
         <div className={s.loginLogo}><ToolGlyph /></div>
         <h1>CIKOPS <span>TGA</span></h1>
-        <p>Catat setiap pekerjaan teknisi GA — cepat, rapi, langsung masuk laporan.</p>
+        <p>{L("Catat setiap pekerjaan teknisi GA — cepat, rapi, langsung masuk laporan.", "Log every GA technician job — fast, tidy, straight into the report.")}</p>
       </div>
 
       <div className={s.loginCard}>
         {step === "name" ? (
           <>
-            <h2>Siapa yang bertugas?</h2>
-            <p className={s.sub}>Pilih nama Anda</p>
-            {(names?.length ?? 0) > 6 && <input className={s.input} placeholder="Cari nama…" value={q} onChange={(e) => setQ(e.target.value)} />}
+            <h2>{L("Siapa yang bertugas?", "Who is on duty?")}</h2>
+            <p className={s.sub}>{L("Pilih nama Anda", "Select your name")}</p>
+            {(names?.length ?? 0) > 6 && <input className={s.input} placeholder={L("Cari nama…", "Search name…")} value={q} onChange={(e) => setQ(e.target.value)} />}
             {err && <div className={s.errBox}>{err}</div>}
             {names === null && !err && <div className={s.nameGrid}>{[0, 1, 2, 3].map((i) => <div key={i} className={s.skelName} />)}</div>}
-            {names && names.length === 0 && <div className={s.emptyBox}>Belum ada akun TGA. Minta admin membuatkan akun di Dashboard → TGA → Teknisi.</div>}
+            {names && names.length === 0 && <div className={s.emptyBox}>{L("Belum ada akun TGA. Minta admin membuatkan akun di Dashboard → TGA → Teknisi.", "No TGA accounts yet. Ask the admin to create one in Dashboard → TGA → Technicians.")}</div>}
             <div className={s.nameGrid}>
               {list.map((n) => (
                 <button key={n} type="button" className={`${s.nameBtn} ${nama === n ? s.nameOn : ""}`} onClick={() => { setNama(n); setStep("pin"); setPin(""); setErr(null); }}>
@@ -425,11 +426,11 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
           </>
         ) : (
           <>
-            <button type="button" className={s.backLink} onClick={() => { setStep("name"); setErr(null); }}>‹ Ganti nama</button>
+            <button type="button" className={s.backLink} onClick={() => { setStep("name"); setErr(null); }}>‹ {L("Ganti nama", "Change name")}</button>
             <div className={s.pinWho}>
               <span className={`${s.avatar} ${s.avatarLg}`} style={{ ["--h" as string]: hueOf(nama) }}>{initials(nama)}</span>
               <b>{nama}</b>
-              <small>Masukkan PIN Anda</small>
+              <small>{L("Masukkan PIN Anda", "Enter your PIN")}</small>
             </div>
             <div className={`${s.dots} ${shake ? s.shake : ""}`}>
               {Array.from({ length: Math.max(4, pin.length) }, (_, i) => <span key={i} className={i < pin.length ? s.dotOn : ""} />)}
@@ -438,12 +439,12 @@ function Login({ onDone, toast }: { onDone: (token: string) => void; toast: stri
             <div className={s.keypad}>
               {["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0", "ok"].map((k) => (
                 <button key={k} type="button" disabled={busy || (k === "ok" && pin.length < 4)}
-                  className={k === "ok" ? s.keyOk : k === "del" ? s.keyDel : ""} onClick={() => press(k)} aria-label={k === "del" ? "Hapus" : k === "ok" ? "Masuk" : k}>
-                  {k === "del" ? "⌫" : k === "ok" ? "Masuk" : k}
+                  className={k === "ok" ? s.keyOk : k === "del" ? s.keyDel : ""} onClick={() => press(k)} aria-label={k === "del" ? L("Hapus", "Delete") : k === "ok" ? L("Masuk", "Log in") : k}>
+                  {k === "del" ? "⌫" : k === "ok" ? L("Masuk", "Log in") : k}
                 </button>
               ))}
             </div>
-            <p className={s.hint}>{DEMO_MODE ? <>Demo: PIN semua teknisi <b>{DEMO_TGA_PIN}</b></> : "Lupa PIN? Hubungi admin GA untuk reset."}</p>
+            <p className={s.hint}>{DEMO_MODE ? <>{L("Demo: PIN semua teknisi", "Demo: PIN for all technicians")} <b>{DEMO_TGA_PIN}</b></> : L("Lupa PIN? Hubungi admin GA untuk reset.", "Forgot your PIN? Contact the GA admin to reset it.")}</p>
           </>
         )}
       </div>
@@ -465,8 +466,8 @@ function NotifNudge() {
   return (
     <div className={s.nudge}>
       <span>🔔</span>
-      <p><b>Aktifkan notifikasi</b><small>Supaya HP berdering saat ada tugas baru. Buka tab Profil.</small></p>
-      <button type="button" aria-label="Tutup" onClick={() => { setShow(false); try { localStorage.setItem("cikops_tga_nudge", "0"); } catch {} }}>✕</button>
+      <p><b>{L("Aktifkan notifikasi", "Turn on notifications")}</b><small>{L("Supaya HP berdering saat ada tugas baru. Buka tab Profil.", "So your phone rings when there is a new task. Open the Profile tab.")}</small></p>
+      <button type="button" aria-label={L("Tutup", "Close")} onClick={() => { setShow(false); try { localStorage.setItem("cikops_tga_nudge", "0"); } catch {} }}>✕</button>
     </div>
   );
 }
@@ -488,7 +489,7 @@ function TaskCard({ a, today, onOpen, onAccept }: { a: TgaActivity; today: strin
         </div>
         {a.prioritas === "urgent" && <span className={s.urgent}>URGENT</span>}
       </div>
-      <button type="button" className={s.acceptBtn} onClick={(e) => { e.stopPropagation(); onAccept(a); }}>{a.pool ? "✋ Ambil tugas" : "✓ Terima & kerjakan"}</button>
+      <button type="button" className={s.acceptBtn} onClick={(e) => { e.stopPropagation(); onAccept(a); }}>{a.pool ? L("✋ Ambil tugas", "✋ Take task") : L("✓ Terima & kerjakan", "✓ Accept & start")}</button>
     </div>
   );
 }
@@ -504,7 +505,7 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(d.getDate() + i);
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    return { iso, label: HARI[d.getDay()].slice(0, 3), n: acts.filter((a) => a.tanggal === iso).length };
+    return { iso, label: hariName(d.getDay()).slice(0, 3), n: acts.filter((a) => a.tanggal === iso).length };
   });
   const maxW = Math.max(1, ...week.map((w) => w.n));
   const pct = todayActs.length ? Math.round((doneToday / todayActs.length) * 100) : 0;
@@ -516,24 +517,24 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
         <span>{working ? "🔧" : "✓"}</span>
         <p>
           <b>{working ? "BUSY" : "AVAILABLE"}</b>
-          <small>{working ? `${working.ref_no} · ${working.activity}` : "Siap menerima tugas baru"}</small>
+          <small>{working ? `${working.ref_no} · ${working.activity}` : L("Siap menerima tugas baru", "Ready for a new task")}</small>
         </p>
-        {working && <button type="button" className={s.dutyBtn} onClick={() => onDone(working)}>✓ Selesai</button>}
+        {working && <button type="button" className={s.dutyBtn} onClick={() => onDone(working)}>{L("✓ Selesai", "✓ Done")}</button>}
       </section>
       <section className={s.statCard}>
         <div className={s.ring} style={{ ["--p" as string]: pct }}>
-          <div><b>{todayActs.length}</b><small>hari ini</small></div>
+          <div><b>{todayActs.length}</b><small>{L("hari ini", "today")}</small></div>
         </div>
         <div className={s.statList}>
-          <div><i className={s.tGreen} /> <span>Selesai</span><b>{doneToday}</b></div>
-          <div><i className={s.tBlue} /> <span>Masih terbuka</span><b>{open.length}</b></div>
+          <div><i className={s.tGreen} /> <span>{L("Selesai", "Done")}</span><b>{doneToday}</b></div>
+          <div><i className={s.tBlue} /> <span>{L("Masih terbuka", "Still open")}</span><b>{open.length}</b></div>
           <div><i className={s.tRed} /> <span>Urgent terbuka</span><b>{open.filter((a) => a.prioritas === "urgent").length}</b></div>
         </div>
       </section>
 
       {(mine.length > 0 || pool.length > 0) && (
         <section>
-          <div className={s.secHead}><h3>🔔 Tugas masuk</h3><span className={`${s.badge} ${s.badgeRed}`}>{mine.length + pool.length}</span></div>
+          <div className={s.secHead}><h3>{L("🔔 Tugas masuk", "🔔 Incoming tasks")}</h3><span className={`${s.badge} ${s.badgeRed}`}>{mine.length + pool.length}</span></div>
           <div className={s.list}>
             {mine.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}
             {pool.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}
@@ -542,7 +543,7 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
       )}
 
       <section className={s.card}>
-        <div className={s.cardHead}><h3>7 hari terakhir</h3><span>{week.reduce((x, w) => x + w.n, 0)} kegiatan</span></div>
+        <div className={s.cardHead}><h3>{L("7 hari terakhir", "Last 7 days")}</h3><span>{week.reduce((x, w) => x + w.n, 0)} {L("kegiatan", "activities")}</span></div>
         <div className={s.week}>
           {week.map((w) => (
             <div key={w.iso} className={w.iso === today ? s.weekOn : ""}>
@@ -556,7 +557,7 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
 
       {open.length > 0 && (
         <section>
-          <div className={s.secHead}><h3>Pekerjaan terbuka</h3><span className={s.badge}>{open.length}</span></div>
+          <div className={s.secHead}><h3>{L("Pekerjaan terbuka", "Open jobs")}</h3><span className={s.badge}>{open.length}</span></div>
           <div className={s.list}>
             {open.slice(0, 8).map((a) => <ActRow key={a.id} a={a} today={today} onOpen={onOpen} onDone={onDone} showDate />)}
           </div>
@@ -564,12 +565,12 @@ function Home({ acts, pool, working, today, onOpen, onDone, onAccept, onNew }: {
       )}
 
       <section>
-        <div className={s.secHead}><h3>Catatan hari ini</h3><span className={s.badge}>{todayActs.length}</span></div>
+        <div className={s.secHead}><h3>{L("Catatan hari ini", "Today's log")}</h3><span className={s.badge}>{todayActs.length}</span></div>
         {todayActs.length === 0 ? (
           <button type="button" className={s.emptyCta} onClick={onNew}>
             <span className={s.emptyIcon}>📝</span>
-            <b>Belum ada kegiatan hari ini</b>
-            <small>Ketuk untuk mencatat pekerjaan pertama Anda</small>
+            <b>{L("Belum ada kegiatan hari ini", "No activities today")}</b>
+            <small>{L("Ketuk untuk mencatat pekerjaan pertama Anda", "Tap to log your first job")}</small>
           </button>
         ) : (
           <div className={s.list}>{todayActs.map((a) => <ActRow key={a.id} a={a} today={today} onOpen={onOpen} onDone={onDone} />)}</div>
@@ -598,9 +599,9 @@ function ActRow({ a, today, onOpen, onDone, showDate }: { a: TgaActivity; today:
         </div>
       </div>
       {a.status === "baru" ? (
-        <span className={`${s.pill} ${s.t_red}`}>Baru</span>
+        <span className={`${s.pill} ${s.t_red}`}>{L("Baru", "New")}</span>
       ) : a.status !== "selesai" && onDone ? (
-        <button type="button" className={s.doneBtn} onClick={(e) => { e.stopPropagation(); onDone(a); }} aria-label="Tandai selesai" title="Tandai selesai">✓</button>
+        <button type="button" className={s.doneBtn} onClick={(e) => { e.stopPropagation(); onDone(a); }} aria-label={L("Tandai selesai", "Mark as done")} title={L("Tandai selesai", "Mark as done")}>✓</button>
       ) : (
         <span className={`${s.pill} ${s["t_" + (st?.tone ?? "green")]}`}>{st?.short ?? a.status}</span>
       )}
@@ -624,15 +625,15 @@ function OpenList({ acts, pool, today, onOpen, onDone, onAccept }: {
       </div>
       {incoming.length > 0 && (
         <>
-          <p className={s.count}>🔔 Menunggu diterima / diambil</p>
+          <p className={s.count}>{L("🔔 Menunggu diterima / diambil", "🔔 Waiting to be accepted / taken")}</p>
           <div className={s.list}>{incoming.map((a) => <TaskCard key={a.id} a={a} today={today} onOpen={onOpen} onAccept={onAccept} />)}</div>
         </>
       )}
       {open.length === 0 && incoming.length === 0 ? (
-        <div className={s.emptyBox}><span className={s.emptyIcon}>🎉</span><b>Semua pekerjaan selesai</b><small>Tidak ada pekerjaan yang masih terbuka.</small></div>
+        <div className={s.emptyBox}><span className={s.emptyIcon}>🎉</span><b>{L("Semua pekerjaan selesai", "All jobs completed")}</b><small>{L("Tidak ada pekerjaan yang masih terbuka.", "There are no jobs still open.")}</small></div>
       ) : open.length === 0 ? null : (
         <>
-          <p className={s.count}>Sedang dikerjakan · urgent di atas · ketuk ✓ bila sudah selesai</p>
+          <p className={s.count}>{L("Sedang dikerjakan · urgent di atas · ketuk ✓ bila sudah selesai", "In progress · urgent on top · tap ✓ when done")}</p>
           <div className={s.list}>{open.map((a) => <ActRow key={a.id} a={a} today={today} onOpen={onOpen} onDone={onDone} showDate />)}</div>
         </>
       )}
@@ -657,18 +658,18 @@ function History({ acts, today, onOpen }: { acts: TgaActivity[]; today: string; 
     <div className={s.stack}>
       <div className={s.searchBox}>
         <span>⌕</span>
-        <input placeholder="Cari kegiatan, lokasi, requestor, no. ref…" value={q} onChange={(e) => setQ(e.target.value)} />
-        {q && <button type="button" onClick={() => setQ("")} aria-label="Hapus pencarian">✕</button>}
+        <input placeholder={L("Cari kegiatan, lokasi, requestor, no. ref…", "Search activity, location, requestor, ref. no…")} value={q} onChange={(e) => setQ(e.target.value)} />
+        {q && <button type="button" onClick={() => setQ("")} aria-label={L("Hapus pencarian", "Clear search")}>✕</button>}
       </div>
       <div className={s.chips}>
-        <button type="button" className={!st ? s.chipOn : ""} onClick={() => setSt("")}>Semua</button>
+        <button type="button" className={!st ? s.chipOn : ""} onClick={() => setSt("")}>{L("Semua", "All")}</button>
         {TGA_STATUS.map((x) => <button key={x.id} type="button" className={st === x.id ? s.chipOn : ""} onClick={() => setSt(st === x.id ? "" : x.id)}>{x.short}</button>)}
       </div>
       <div className={s.chips}>
-        {TGA_CATEGORIES.map((c) => <button key={c.id} type="button" className={cat === c.id ? s.chipOn : ""} onClick={() => setCat(cat === c.id ? "" : c.id)}>{c.icon} {c.id}</button>)}
+        {TGA_CATEGORIES.map((c) => <button key={c.id} type="button" className={cat === c.id ? s.chipOn : ""} onClick={() => setCat(cat === c.id ? "" : c.id)}>{c.icon} {c.label}</button>)}
       </div>
       <p className={s.count}>{list.length} kegiatan · 90 hari terakhir</p>
-      {groups.length === 0 ? <div className={s.emptyBox}>Tidak ada kegiatan yang cocok.</div> : groups.map(([d, rows]) => (
+      {groups.length === 0 ? <div className={s.emptyBox}>{L("Tidak ada kegiatan yang cocok.", "No matching activities.")}</div> : groups.map(([d, rows]) => (
         <section key={d}>
           <div className={s.dayHead}><b>{fmtDay(d, today)}</b><span>{rows.length}</span></div>
           <div className={s.list}>{rows.map((a) => <ActRow key={a.id} a={a} today={today} onOpen={onOpen} />)}</div>
@@ -694,21 +695,21 @@ function Profile({ nama, acts, monthCount, today, token, installEvt, installed, 
       <section className={s.profileCard}>
         <span className={`${s.avatar} ${s.avatarLg}`} style={{ ["--h" as string]: hueOf(nama) }}>{initials(nama)}</span>
         <b>{nama}</b>
-        <small>Teknisi GA · CIKOPS</small>
+        <small>{L("Teknisi GA · CIKOPS", "GA Technician · CIKOPS")}</small>
         <div className={s.profileStats}>
-          <div><b>{monthCount}</b><span>Bulan ini</span></div>
-          <div><b>{doneRate}%</b><span>Selesai</span></div>
+          <div><b>{monthCount}</b><span>{L("Bulan ini", "This month")}</span></div>
+          <div><b>{doneRate}%</b><span>{L("Selesai", "Done")}</span></div>
           <div><b>{acts.filter((a) => a.status !== "selesai").length}</b><span>Terbuka</span></div>
         </div>
       </section>
 
       <section className={s.card}>
-        <div className={s.cardHead}><h3>Jenis pekerjaan bulan ini</h3></div>
-        {byCat.length === 0 ? <p className={s.muted}>Belum ada kegiatan bulan ini.</p> : (
+        <div className={s.cardHead}><h3>{L("Jenis pekerjaan bulan ini", "Job types this month")}</h3></div>
+        {byCat.length === 0 ? <p className={s.muted}>{L("Belum ada kegiatan bulan ini.", "No activities this month.")}</p> : (
           <div className={s.catBars}>
             {byCat.map((c) => (
               <div key={c.id}>
-                <span>{c.icon} {c.id}</span>
+                <span>{c.icon} {c.label}</span>
                 <i><em style={{ width: `${(c.n / maxC) * 100}%`, ["--h" as string]: c.hue }} /></i>
                 <b>{c.n}</b>
               </div>
@@ -721,28 +722,28 @@ function Profile({ nama, acts, monthCount, today, token, installEvt, installed, 
 
       <section className={s.card}>
         <div className={s.cardHead}><h3>📲 Pasang di HP</h3></div>
-        {installed ? <p className={s.muted}>Aplikasi sudah terpasang di layar utama. 👍</p>
+        {installed ? <p className={s.muted}>{L("Aplikasi sudah terpasang di layar utama. 👍", "The app is already installed on your home screen. 👍")}</p>
           : installEvt ? (
             <>
-              <p className={s.muted}>Pasang aplikasi TGA supaya bisa dibuka langsung dari layar utama, seperti aplikasi biasa.</p>
+              <p className={s.muted}>{L("Pasang aplikasi TGA supaya bisa dibuka langsung dari layar utama, seperti aplikasi biasa.", "Install the TGA app so it opens straight from your home screen, like a regular app.")}</p>
               <button type="button" className={s.primaryBtn} onClick={onInstall}>Pasang aplikasi</button>
             </>
           ) : ios ? (
             <ol className={s.steps}>
-              <li>Buka halaman ini di <b>Safari</b>.</li>
-              <li>Ketuk tombol <b>Bagikan</b> (kotak dengan panah ke atas).</li>
-              <li>Pilih <b>Tambah ke Layar Utama</b> → <b>Tambah</b>.</li>
+              <li>{L("Buka halaman ini di", "Open this page in")} <b>Safari</b>.</li>
+              <li>{L("Ketuk tombol", "Tap the")} <b>{L("Bagikan", "Share")}</b> {L("(kotak dengan panah ke atas).", "button (the box with an up arrow).")}</li>
+              <li>{L("Pilih", "Choose")} <b>{L("Tambah ke Layar Utama", "Add to Home Screen")}</b> → <b>{L("Tambah", "Add")}</b>.</li>
             </ol>
           ) : (
             <ol className={s.steps}>
-              <li>Buka halaman ini di <b>Chrome</b>.</li>
-              <li>Ketuk menu <b>⋮</b> di kanan atas.</li>
-              <li>Pilih <b>Instal aplikasi</b> / <b>Tambahkan ke layar utama</b>.</li>
+              <li>{L("Buka halaman ini di", "Open this page in")} <b>Chrome</b>.</li>
+              <li>{L("Ketuk menu", "Tap the")} <b>⋮</b> {L("di kanan atas.", "menu at the top right.")}</li>
+              <li>{L("Pilih", "Choose")} <b>{L("Instal aplikasi", "Install app")}</b> / <b>{L("Tambahkan ke layar utama", "Add to home screen")}</b>.</li>
             </ol>
           )}
       </section>
 
-      <button type="button" className={s.logoutBtn} onClick={onLogout}>Keluar</button>
+      <button type="button" className={s.logoutBtn} onClick={onLogout}>{L("Keluar", "Log out")}</button>
       <p className={s.footNote}>CIKOPS-FM · Aplikasi TGA</p>
     </div>
   );
@@ -762,22 +763,22 @@ function NotifCard({ token }: { token: string }) {
   }
   return (
     <section className={`${s.card} ${s.notifCard}`}>
-      <div className={s.cardHead}><h3>🔔 Notifikasi & nada dering</h3>{st === "on" && <span className={`${s.pill} ${s.t_green}`}>Aktif</span>}</div>
+      <div className={s.cardHead}><h3>{L("🔔 Notifikasi & nada dering", "🔔 Notifications & ringtone")}</h3>{st === "on" && <span className={`${s.pill} ${s.t_green}`}>{L("Aktif", "On")}</span>}</div>
       <p className={s.muted}>
-        {st === "on" ? "HP ini akan berbunyi & bergetar saat ada tugas baru, walau aplikasi tertutup."
-          : st === "denied" ? "Notifikasi diblokir. Buka pengaturan situs / aplikasi di HP → Notifikasi → Izinkan, lalu coba lagi."
-          : st === "ios-install" ? "Di iPhone: pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), buka dari ikon, lalu aktifkan di sini."
-          : st === "unsupported" ? "Browser ini belum mendukung notifikasi. Buka aplikasi lewat Chrome."
-          : "Aktifkan supaya HP berbunyi saat admin atau karyawan memberi tugas baru."}
+        {st === "on" ? L("HP ini akan berbunyi & bergetar saat ada tugas baru, walau aplikasi tertutup.", "This phone will ring & vibrate when there is a new task, even if the app is closed.")
+          : st === "denied" ? L("Notifikasi diblokir. Buka pengaturan situs / aplikasi di HP → Notifikasi → Izinkan, lalu coba lagi.", "Notifications are blocked. Open the site / app settings on the phone → Notifications → Allow, then try again.")
+          : st === "ios-install" ? L("Di iPhone: pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), buka dari ikon, lalu aktifkan di sini.", "On iPhone: first add the app to the Home Screen (Share → Add to Home Screen), open it from the icon, then turn it on here.")
+          : st === "unsupported" ? L("Browser ini belum mendukung notifikasi. Buka aplikasi lewat Chrome.", "This browser does not support notifications yet. Open the app in Chrome.")
+          : L("Aktifkan supaya HP berbunyi saat admin atau karyawan memberi tugas baru.", "Turn it on so the phone rings when an admin or employee assigns a new task.")}
       </p>
       {st === "on" ? (
         <div className={s.btnRow}>
-          <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => run(() => testPush({ app: "tga", token }), "Notifikasi tes dikirim — cek bar notifikasi HP.")}>Kirim tes</button>
-          <button type="button" className={`${s.ghostBtn} ${s.danger}`} disabled={busy} onClick={() => run(disablePush, "Notifikasi dimatikan untuk HP ini.")}>Matikan</button>
+          <button type="button" className={s.ghostBtn} disabled={busy} onClick={() => run(() => testPush({ app: "tga", token }), L("Notifikasi tes dikirim — cek bar notifikasi HP.", "Test notification sent — check the phone's notification bar."))}>{L("Kirim tes", "Send test")}</button>
+          <button type="button" className={`${s.ghostBtn} ${s.danger}`} disabled={busy} onClick={() => run(disablePush, L("Notifikasi dimatikan untuk HP ini.", "Notifications turned off for this phone."))}>{L("Matikan", "Turn off")}</button>
         </div>
       ) : st === "off" || st === "denied" ? (
-        <button type="button" className={s.primaryBtn} disabled={busy} onClick={() => run(() => enablePush((sub) => tgaPushSubscribe(token, sub)), "Notifikasi aktif! 🎉")}>
-          {busy ? "Mengaktifkan…" : "🔔 Aktifkan notifikasi"}
+        <button type="button" className={s.primaryBtn} disabled={busy} onClick={() => run(() => enablePush((sub) => tgaPushSubscribe(token, sub)), L("Notifikasi aktif! 🎉", "Notifications are on! 🎉"))}>
+          {busy ? L("Mengaktifkan…", "Turning on…") : L("🔔 Aktifkan notifikasi", "🔔 Turn on notifications")}
         </button>
       ) : null}
       {msg && <p className={msg.ok ? s.okText : s.errText}>{msg.text}</p>}
@@ -799,7 +800,7 @@ function Detail({ a, today, onClose, onDone, onAccept, onEdit, onDelete }: {
         <div className={s.detailHead} style={{ ["--h" as string]: c.hue }}>
           <span className={s.catIconLg}>{c.icon}</span>
           <div>
-            <small>{a.ref_no} · {c.id}</small>
+            <small>{a.ref_no} · {c.label}</small>
             <h2>{a.activity}</h2>
             <div className={s.detailTags}>
               <span className={`${s.pill} ${s["t_" + (st?.tone ?? "green")]}`}>{tgaStatusLabel(a.status)}</span>
@@ -808,23 +809,23 @@ function Detail({ a, today, onClose, onDone, onAccept, onEdit, onDelete }: {
           </div>
         </div>
         <dl className={s.dl}>
-          <div><dt>Tanggal</dt><dd>{fmtDay(a.tanggal, today)}</dd></div>
-          <div><dt>Jam</dt><dd>{a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? ` – ${a.jam_selesai}` : ""}` : "—"}</dd></div>
-          <div><dt>Lokasi</dt><dd>{a.lokasi || "—"}</dd></div>
-          <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}{a.request_by && !a.requestor_id ? <small> (di luar data karyawan)</small> : null}</dd></div>
+          <div><dt>{L("Tanggal", "Date")}</dt><dd>{fmtDay(a.tanggal, today)}</dd></div>
+          <div><dt>{L("Jam", "Time")}</dt><dd>{a.jam_mulai ? `${a.jam_mulai}${a.jam_selesai ? ` – ${a.jam_selesai}` : ""}` : "—"}</dd></div>
+          <div><dt>{L("Lokasi", "Location")}</dt><dd>{a.lokasi || "—"}</dd></div>
+          <div><dt>Requestor</dt><dd>{a.request_by || "—"}{a.departemen ? <small> · {a.departemen}</small> : null}{a.request_by && !a.requestor_id ? <small> {L("(di luar data karyawan)", "(not in the employee data)")}</small> : null}</dd></div>
           {fromOthers && <div><dt>Sumber</dt><dd>{a.pool ? "Siapa cepat" : TGA_SOURCE_LABEL[a.sumber ?? "tugas"]}{a.assigned_by && a.sumber === "tugas" ? <small> · {a.assigned_by}</small> : null}</dd></div>}
           {a.request_phone && <div><dt>Kontak</dt><dd><a className={s.callLink} href={`tel:${a.request_phone.replace(/[^\d+]/g, "")}`}>📞 {a.request_phone}</a></dd></div>}
-          {a.catatan && <div className={s.dlWide}><dt>Catatan</dt><dd>{a.catatan}</dd></div>}
+          {a.catatan && <div className={s.dlWide}><dt>{L("Catatan", "Notes")}</dt><dd>{a.catatan}</dd></div>}
         </dl>
         <div className={s.sheetActions}>
           {a.status === "baru" ? (
-            <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? "✋ Ambil tugas ini" : "✓ Terima & kerjakan"}</button>
+            <button type="button" className={s.acceptBtn} onClick={onAccept}>{a.pool ? L("✋ Ambil tugas ini", "✋ Take this task") : L("✓ Terima & kerjakan", "✓ Accept & start")}</button>
           ) : (
             <>
-              {a.status !== "selesai" && <button type="button" className={s.primaryBtn} onClick={onDone}>✓ Tandai selesai</button>}
+              {a.status !== "selesai" && <button type="button" className={s.primaryBtn} onClick={onDone}>{L("✓ Tandai selesai", "✓ Mark as done")}</button>}
               <div className={fromOthers ? undefined : s.btnRow}>
-                <button type="button" className={s.ghostBtn} onClick={onEdit}>✎ {fromOthers ? "Ubah status / catatan" : "Ubah"}</button>
-                {!fromOthers && <button type="button" className={`${s.ghostBtn} ${s.danger}`} onClick={onDelete}>🗑 Hapus</button>}
+                <button type="button" className={s.ghostBtn} onClick={onEdit}>✎ {fromOthers ? L("Ubah status / catatan", "Edit status / notes") : L("Ubah", "Edit")}</button>
+                {!fromOthers && <button type="button" className={`${s.ghostBtn} ${s.danger}`} onClick={onDelete}>🗑 {L("Hapus", "Delete")}</button>}
               </div>
             </>
           )}
@@ -854,8 +855,8 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
     : requestors.find((r) => !r.id && r.nama === d.request_by);
 
   async function submit() {
-    if (!d.activity.trim()) { setErr("Isi dulu kegiatan yang dikerjakan."); actRef.current?.focus(); return; }
-    if (d.jam_mulai && d.jam_selesai && d.jam_selesai < d.jam_mulai) { setErr("Jam selesai lebih awal dari jam mulai."); return; }
+    if (!d.activity.trim()) { setErr(L("Isi dulu kegiatan yang dikerjakan.", "Enter the activity you worked on first.")); actRef.current?.focus(); return; }
+    if (d.jam_mulai && d.jam_selesai && d.jam_selesai < d.jam_mulai) { setErr(L("Jam selesai lebih awal dari jam mulai.", "The end time is earlier than the start time.")); return; }
     setBusy(true); setErr(null);
     try {
       await onSave({ ...d, kategori: d.kategori || "Lainnya", jam_selesai: d.status === "selesai" && !d.jam_selesai && d.tanggal === today ? nowHM() : d.jam_selesai });
@@ -868,34 +869,34 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
   return (
     <div className={s.formWrap}>
       <header className={s.formHead}>
-        <button type="button" className={s.iconBtnDark} onClick={onClose} aria-label="Tutup">✕</button>
-        <div><b>{id ? "Ubah kegiatan" : "Catat kegiatan"}</b><small>{id ? "Perbarui data pekerjaan" : "Isi singkat saja — 30 detik selesai"}</small></div>
+        <button type="button" className={s.iconBtnDark} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
+        <div><b>{id ? L("Ubah kegiatan", "Edit activity") : L("Catat kegiatan", "Log activity")}</b><small>{id ? L("Perbarui data pekerjaan", "Update the job details") : L("Isi singkat saja — 30 detik selesai", "Keep it short — done in 30 seconds")}</small></div>
       </header>
 
       <div className={s.formBody}>
         <section className={s.fSec}>
-          <label className={s.fLabel}><span className={s.step}>1</span> Jenis pekerjaan</label>
+          <label className={s.fLabel}><span className={s.step}>1</span> {L("Jenis pekerjaan", "Job type")}</label>
           <div className={s.catGrid}>
             {TGA_CATEGORIES.map((c) => (
               <button key={c.id} type="button" className={`${s.catBtn} ${d.kategori === c.id ? s.catOn : ""}`} style={{ ["--h" as string]: c.hue }} onClick={() => set("kategori", d.kategori === c.id ? "" : c.id)}>
-                <span>{c.icon}</span><b>{c.id}</b>
+                <span>{c.icon}</span><b>{c.label}</b>
               </button>
             ))}
           </div>
         </section>
 
         <section className={s.fSec}>
-          <label className={s.fLabel} htmlFor="tga-act"><span className={s.step}>2</span> Apa yang dikerjakan? <em>*</em></label>
+          <label className={s.fLabel} htmlFor="tga-act"><span className={s.step}>2</span> {L("Apa yang dikerjakan?", "What was done?")} <em>*</em></label>
           {cat && (
             <div className={s.quick}>
               {cat.quick.map((q) => <button key={q} type="button" onClick={() => { set("activity", d.activity && !d.activity.startsWith(q) ? `${q} — ${d.activity}` : q); actRef.current?.focus(); }}>{q}</button>)}
             </div>
           )}
-          <textarea id="tga-act" ref={actRef} className={s.textarea} rows={3} placeholder="mis. Ganti lampu TL 2 buah di ruang meeting lt. 2" value={d.activity} onChange={(e) => set("activity", e.target.value)} />
+          <textarea id="tga-act" ref={actRef} className={s.textarea} rows={3} placeholder={L("mis. Ganti lampu TL 2 buah di ruang meeting lt. 2", "e.g. Replace 2 fluorescent lights in the 2nd-floor meeting room")} value={d.activity} onChange={(e) => set("activity", e.target.value)} />
         </section>
 
         <section className={s.fSec}>
-          <label className={s.fLabel} htmlFor="tga-lok"><span className={s.step}>3</span> Lokasi</label>
+          <label className={s.fLabel} htmlFor="tga-lok"><span className={s.step}>3</span> {L("Lokasi", "Location")}</label>
           <input id="tga-lok" className={s.input} placeholder="mis. Lobby, Gedung A lt. 2, Pos Security" value={d.lokasi} onChange={(e) => set("lokasi", e.target.value)} />
           {recentLokasi.length > 0 && (
             <div className={s.quick}>{recentLokasi.map((l) => <button key={l} type="button" className={d.lokasi === l ? s.quickOn : ""} onClick={() => set("lokasi", l)}>📍 {l}</button>)}</div>
@@ -903,7 +904,7 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
         </section>
 
         <section className={s.fSec}>
-          <label className={s.fLabel}><span className={s.step}>4</span> Requestor <span className={s.opt}>dari Data Karyawan</span></label>
+          <label className={s.fLabel}><span className={s.step}>4</span> Requestor <span className={s.opt}>{L("dari Data Karyawan", "from Employee Data")}</span></label>
           {emp ? (
             <div className={s.reqCard}>
               <span className={s.avatar} style={{ ["--h" as string]: hueOf(emp.nama) }}>{initials(emp.nama)}</span>
@@ -912,22 +913,22 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
                 <small>{[emp.jabatan, emp.dept || d.departemen].filter(Boolean).join(" · ") || "—"}</small>
                 <em className={s.reqLinked}>✓ Data karyawan{emp.nik ? ` · NIK ${emp.nik}` : ""}</em>
               </div>
-              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>Ganti</button>
+              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>{L("Ganti", "Change")}</button>
             </div>
           ) : d.request_by ? (
             <div className={`${s.reqCard} ${s.reqGuest}`}>
               <span className={s.avatar} style={{ ["--h" as string]: 30 }}>{initials(d.request_by)}</span>
               <div className={s.reqInfo}>
                 <b>{d.request_by}</b>
-                <input className={s.inputSm} placeholder="Perusahaan / departemen" value={d.departemen} onChange={(e) => set("departemen", e.target.value)} />
-                <em className={s.reqOut}>Di luar data karyawan</em>
+                <input className={s.inputSm} placeholder={L("Perusahaan / departemen", "Company / department")} value={d.departemen} onChange={(e) => set("departemen", e.target.value)} />
+                <em className={s.reqOut}>{L("Di luar data karyawan", "Not in the employee data")}</em>
               </div>
-              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>Ganti</button>
+              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>{L("Ganti", "Change")}</button>
             </div>
           ) : (
             <button type="button" className={s.reqPick} onClick={() => setPicker(true)}>
               <span>👤</span>
-              <span><b>Pilih requestor</b><small>Cari nama, NIK, atau departemen karyawan</small></span>
+              <span><b>{L("Pilih requestor", "Select requestor")}</b><small>{L("Cari nama, NIK, atau departemen karyawan", "Search by employee name, NIK or department")}</small></span>
               <i>›</i>
             </button>
           )}
@@ -947,7 +948,7 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
           </div>
           <button type="button" className={`${s.urgentToggle} ${d.prioritas === "urgent" ? s.urgentOn : ""}`} onClick={() => set("prioritas", d.prioritas === "urgent" ? "normal" : "urgent")} aria-pressed={d.prioritas === "urgent"}>
             <span className={s.switch}><span /></span>
-            <span><b>Urgent</b><small>Tandai bila pekerjaan mendesak</small></span>
+            <span><b>Urgent</b><small>{L("Tandai bila pekerjaan mendesak", "Mark if the job is urgent")}</small></span>
             <span className={s.flame}>🔥</span>
           </button>
         </section>
@@ -955,12 +956,12 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
         <section className={s.fSec}>
           <label className={s.fLabel}><span className={s.step}>6</span> Waktu</label>
           <div className={s.timeGrid}>
-            <label><small>Tanggal</small><input type="date" className={s.input} value={d.tanggal} max={today} onChange={(e) => set("tanggal", e.target.value || today)} /></label>
-            <label><small>Mulai</small><input type="time" className={s.input} value={d.jam_mulai} onChange={(e) => set("jam_mulai", e.target.value)} /></label>
-            <label><small>Selesai</small>
+            <label><small>{L("Tanggal", "Date")}</small><input type="date" className={s.input} value={d.tanggal} max={today} onChange={(e) => set("tanggal", e.target.value || today)} /></label>
+            <label><small>{L("Mulai", "Start")}</small><input type="time" className={s.input} value={d.jam_mulai} onChange={(e) => set("jam_mulai", e.target.value)} /></label>
+            <label><small>{L("Selesai", "End")}</small>
               <span className={s.timeWithBtn}>
                 <input type="time" className={s.input} value={d.jam_selesai} onChange={(e) => set("jam_selesai", e.target.value)} />
-                {!d.jam_selesai && <button type="button" onClick={() => set("jam_selesai", nowHM())}>Kini</button>}
+                {!d.jam_selesai && <button type="button" onClick={() => set("jam_selesai", nowHM())}>{L("Kini", "Now")}</button>}
               </span>
             </label>
           </div>
@@ -969,10 +970,10 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
         <section className={s.fSec}>
           {more ? (
             <>
-              <label className={s.fLabel} htmlFor="tga-cat">Catatan <span className={s.opt}>opsional</span></label>
-              <textarea id="tga-cat" className={s.textarea} rows={2} placeholder="Part yang dibutuhkan, kendala, tindak lanjut…" value={d.catatan} onChange={(e) => set("catatan", e.target.value)} />
+              <label className={s.fLabel} htmlFor="tga-cat">{L("Catatan", "Notes")} <span className={s.opt}>{L("opsional", "optional")}</span></label>
+              <textarea id="tga-cat" className={s.textarea} rows={2} placeholder={L("Part yang dibutuhkan, kendala, tindak lanjut…", "Parts needed, obstacles, follow-up…")} value={d.catatan} onChange={(e) => set("catatan", e.target.value)} />
             </>
-          ) : <button type="button" className={s.addNote} onClick={() => setMore(true)}>＋ Tambah catatan</button>}
+          ) : <button type="button" className={s.addNote} onClick={() => setMore(true)}>{L("＋ Tambah catatan", "＋ Add a note")}</button>}
         </section>
       </div>
 
@@ -986,7 +987,7 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
       <footer className={s.formFoot}>
         {err && <div className={s.errBox}>{err}</div>}
         <button type="button" className={s.saveBtn} onClick={submit} disabled={busy}>
-          {busy ? "Menyimpan…" : id ? "Simpan perubahan" : "Simpan kegiatan"}
+          {busy ? L("Menyimpan…", "Saving…") : id ? L("Simpan perubahan", "Save changes") : L("Simpan kegiatan", "Save activity")}
         </button>
       </footer>
     </div>
@@ -1026,18 +1027,18 @@ function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClo
   return (
     <div className={s.pickerWrap}>
       <header className={s.formHead}>
-        <button type="button" className={s.iconBtnDark} onClick={onClose} aria-label="Tutup">‹</button>
-        <div><b>Pilih requestor</b><small>{requestors.length} karyawan · Data Karyawan</small></div>
+        <button type="button" className={s.iconBtnDark} onClick={onClose} aria-label={L("Tutup", "Close")}>‹</button>
+        <div><b>{L("Pilih requestor", "Select requestor")}</b><small>{requestors.length} {L("karyawan · Data Karyawan", "employees · Employee Data")}</small></div>
       </header>
       <div className={s.pickerTop}>
         <div className={s.searchBox}>
           <span>⌕</span>
-          <input autoFocus placeholder="Cari nama, NIK, departemen…" value={q} onChange={(e) => setQ(e.target.value)} />
-          {q && <button type="button" onClick={() => setQ("")} aria-label="Hapus pencarian">✕</button>}
+          <input autoFocus placeholder={L("Cari nama, NIK, departemen…", "Search name, NIK, department…")} value={q} onChange={(e) => setQ(e.target.value)} />
+          {q && <button type="button" onClick={() => setQ("")} aria-label={L("Hapus pencarian", "Clear search")}>✕</button>}
         </div>
         {depts.length > 1 && (
           <div className={s.chips}>
-            <button type="button" className={!dept ? s.chipOn : ""} onClick={() => setDept("")}>Semua</button>
+            <button type="button" className={!dept ? s.chipOn : ""} onClick={() => setDept("")}>{L("Semua", "All")}</button>
             {depts.map((x) => <button key={x} type="button" className={dept === x ? s.chipOn : ""} onClick={() => setDept(dept === x ? "" : x)}>{x}</button>)}
           </div>
         )}
@@ -1047,28 +1048,28 @@ function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClo
           <>
             <p className={s.pickerHead}>Sering meminta</p>
             {recent.map((r) => <Row key={"r" + (r.id ?? r.nama)} r={r} />)}
-            <p className={s.pickerHead}>Semua karyawan</p>
+            <p className={s.pickerHead}>{L("Semua karyawan", "All employees")}</p>
           </>
         )}
         {requestors.length === 0 && (error ? (
           <div className={s.emptyBox}>
-            <b>Gagal memuat data karyawan</b>
+            <b>{L("Gagal memuat data karyawan", "Failed to load employee data")}</b>
             <small>{error}</small>
-            <button type="button" className={s.ghostBtn} style={{ marginTop: 10 }} onClick={onRetry}>⟳ Coba lagi</button>
+            <button type="button" className={s.ghostBtn} style={{ marginTop: 10 }} onClick={onRetry}>⟳ {L("Coba lagi", "Try again")}</button>
           </div>
         ) : (
           <div className={s.emptyBox}>
-            <b>Memuat data karyawan…</b>
-            <small>Diambil dari Master Data Karyawan (sama dengan dashboard &amp; driver).</small>
+            <b>{L("Memuat data karyawan…", "Loading employee data…")}</b>
+            <small>{L("Diambil dari Master Data Karyawan (sama dengan dashboard & driver).", "Taken from the Employee Master Data (same as the dashboard & driver).")}</small>
           </div>
         ))}
         {list.slice(0, LIMIT).map((r) => <Row key={r.id ?? r.nama} r={r} />)}
-        {list.length > LIMIT && <p className={s.count} style={{ textAlign: "center", padding: 10 }}>+{list.length - LIMIT} lainnya — ketik nama untuk mempersempit</p>}
-        {requestors.length > 0 && list.length === 0 && <p className={s.count} style={{ textAlign: "center", padding: 14 }}>Tidak ada karyawan yang cocok.</p>}
+        {list.length > LIMIT && <p className={s.count} style={{ textAlign: "center", padding: 10 }}>+{list.length - LIMIT} {L("lainnya — ketik nama untuk mempersempit", "more — type a name to narrow down")}</p>}
+        {requestors.length > 0 && list.length === 0 && <p className={s.count} style={{ textAlign: "center", padding: 14 }}>{L("Tidak ada karyawan yang cocok.", "No matching employees.")}</p>}
         {needle && !exact && (
           <button type="button" className={s.guestBtn} onClick={() => onGuest(q.trim())}>
             <span>＋</span>
-            <span><b>Pakai &ldquo;{q.trim()}&rdquo;</b><small>Tamu / vendor — di luar data karyawan</small></span>
+            <span><b>{L("Pakai", "Use")} &ldquo;{q.trim()}&rdquo;</b><small>{L("Tamu / vendor — di luar data karyawan", "Guest / vendor — not in the employee data")}</small></span>
           </button>
         )}
       </div>
@@ -1080,10 +1081,10 @@ function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClo
 function Success({ a, isNew, onClose, onAnother }: { a: TgaActivity; isNew: boolean; onClose: () => void; onAnother: () => void }) {
   const c = tgaCategory(a.kategori);
   return (
-    <SuccessScreen title={isNew ? "Tercatat!" : "Tersimpan!"} text={isNew ? "Kegiatan masuk ke laporan GA." : "Perubahan sudah disimpan."}
-      primary={{ label: "＋ Catat lagi", onClick: onAnother }} secondary={{ label: "Kembali ke beranda", onClick: onClose }}>
+    <SuccessScreen title={isNew ? L("Tercatat!", "Logged!") : L("Tersimpan!", "Saved!")} text={isNew ? L("Kegiatan masuk ke laporan GA.", "The activity is now in the GA report.") : L("Perubahan sudah disimpan.", "The changes have been saved.")}
+      primary={{ label: L("＋ Catat lagi", "＋ Log another"), onClick: onAnother }} secondary={{ label: L("Kembali ke beranda", "Back to home"), onClick: onClose }}>
       <div className={s.ticket}>
-        <div className={s.ticketTop}><span>{c.icon} {c.id}</span><b>{a.ref_no}</b></div>
+        <div className={s.ticketTop}><span>{c.icon} {c.label}</span><b>{a.ref_no}</b></div>
         <strong>{a.activity}</strong>
         <div className={s.ticketMeta}>
           {a.lokasi && <span>📍 {a.lokasi}</span>}

@@ -5,6 +5,7 @@
 //  • Browser / PWA: Web Push (Android Chrome; iPhone iOS 16.4+ dan harus dipasang ke Layar Utama).
 import { supabase } from "./supabaseClient";
 
+import { L } from "@/lib/i18n";
 export type PushState = "unsupported" | "ios-install" | "denied" | "on" | "off";
 
 export interface PushSubData { endpoint: string; p256dh: string; auth: string; ua: string }
@@ -100,7 +101,7 @@ export async function enablePush(register: (s: PushSubData) => Promise<void>): P
     return;
   }
   if (!pushSupported()) {
-    throw new Error(isIOS() ? "Di iPhone, pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), lalu buka dari ikon." : "Browser ini belum mendukung notifikasi. Pakai Chrome.");
+    throw new Error(isIOS() ? L("Di iPhone, pasang dulu aplikasi ke Layar Utama (Bagikan → Tambah ke Layar Utama), lalu buka dari ikon.", "On iPhone, first add the app to the Home Screen (Share → Add to Home Screen), then open it from the icon.") : L("Browser ini belum mendukung notifikasi. Pakai Chrome.", "This browser does not support notifications. Use Chrome."));
   }
   const perm = await Notification.requestPermission();
   if (perm !== "granted") throw new Error("Izin notifikasi ditolak. Aktifkan lewat pengaturan situs / aplikasi di HP.");
@@ -133,7 +134,7 @@ export async function testPush(body: Record<string, unknown>): Promise<void> {
   const { data, error } = await supabase.functions.invoke("send-web-push", { body: { event: "test", ...body } });
   const d = data as { ok?: boolean; sent?: number; error?: string; errors?: string[] } | null;
   if (error) throw new Error(error.message);
-  if (!d?.ok) throw new Error(d?.error ?? "Gagal mengirim notifikasi tes.");
+  if (!d?.ok) throw new Error(d?.error ?? L("Gagal mengirim notifikasi tes.", "Failed to send the test notification."));
   if (!d.sent) throw new Error(d.errors?.length ? `Notifikasi tidak terkirim: ${d.errors.join(" · ")}` : "Notifikasi tidak terkirim — coba matikan lalu aktifkan lagi. (Bila tetap gagal, pastikan fungsi send-web-push sudah versi terbaru.)");
 }
 

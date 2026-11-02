@@ -16,30 +16,30 @@ import { BRAND, plantFull } from "./brand";
 const esc = (v: unknown) =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
 
-const STATUS_LABEL: Record<TaskStatus, string> = {
-  ASSIGNED: "Ditugaskan",
-  "ON GOING": "Sedang berjalan",
-  DONE: "Selesai",
-  CANCELLED: "Dibatalkan",
+type Lang = "id" | "en";
+const STATUS_LABEL: Record<Lang, Record<TaskStatus, string>> = {
+  id: { ASSIGNED: "Ditugaskan", "ON GOING": "Sedang berjalan", DONE: "Selesai", CANCELLED: "Dibatalkan" },
+  en: { ASSIGNED: "Assigned", "ON GOING": "In progress", DONE: "Completed", CANCELLED: "Cancelled" },
 };
+const loc = (lang: Lang) => (lang === "en" ? "en-GB" : "id-ID");
 
 export function taskRefNo(t: Pick<TaskDetail, "id" | "tanggal">): string {
   return `PNG/${t.tanggal.replace(/-/g, "")}/${t.id.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
 }
 
-function fmtDay(iso: string): string {
+function fmtDay(iso: string, lang: Lang): string {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return d.toLocaleDateString(loc(lang), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-function fmtStamp(iso: string): string {
+function fmtStamp(iso: string, lang: Lang = "id"): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "-";
   return (
-    d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) +
+    d.toLocaleDateString(loc(lang), { day: "2-digit", month: "short", year: "numeric" }) +
     " " +
-    d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":")
+    d.toLocaleTimeString(loc(lang), { hour: "2-digit", minute: "2-digit" }).replace(".", ":")
   );
 }
 
@@ -47,17 +47,18 @@ function plantName(p: string): string {
   return plantFull(p);
 }
 
-function slip(t: TaskDetail, printedAt: string, printedBy: string): string {
+function slip(t: TaskDetail, printedAt: string, printedBy: string, lang: Lang): string {
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
   const asal = (t.lokasi_asal && t.lokasi_asal.trim()) || plantLocation(t.plant);
   const kendaraan = t.kendaraan ? `${esc(t.kendaraan)}${t.kendaraan_jenis ? ` <span class="muted">(${esc(t.kendaraan_jenis)})</span>` : ""}` : "-";
   const requestor = `${esc(t.requestor || "-")}${t.departement ? ` <span class="muted">· ${esc(t.departement)}</span>` : ""}`;
   const cancelled = t.status === "CANCELLED";
   const times: string[] = [];
-  if (t.accepted_at) times.push(`Diterima ${fmtStamp(t.accepted_at)}`);
-  if (t.completed_at) times.push(`${isAutoCompleted(t) ? "Selesai otomatis (batas jam tugas)" : "Selesai"} ${fmtStamp(t.completed_at)}`);
+  if (t.accepted_at) times.push(`${L("Diterima", "Accepted")} ${fmtStamp(t.accepted_at, lang)}`);
+  if (t.completed_at) times.push(`${isAutoCompleted(t) ? L("Selesai otomatis (batas jam tugas)", "Auto-completed (duty-hour limit)") : L("Selesai", "Completed")} ${fmtStamp(t.completed_at, lang)}`);
   return `
   <section class="slip${cancelled ? " void" : ""}">
-    ${cancelled ? '<div class="stamp">DIBATALKAN</div>' : ""}
+    ${cancelled ? '<div class="stamp">${L("DIBATALKAN", "CANCELLED")}</div>' : ""}
     <header class="head">
       <div class="brand">
         <div>
@@ -66,46 +67,46 @@ function slip(t: TaskDetail, printedAt: string, printedBy: string): string {
         </div>
       </div>
       <div class="doc">
-        <h1>BUKTI PERMINTAAN DAN PENUGASAN DRIVER</h1>
-        <div class="ref">No. Ref <b>${esc(taskRefNo(t))}</b></div>
+        <h1>${L("BUKTI PERMINTAAN DAN PENUGASAN DRIVER", "DRIVER REQUEST AND ASSIGNMENT SLIP")}</h1>
+        <div class="ref">${L("No. Ref", "Ref. No.")} <b>${esc(taskRefNo(t))}</b></div>
       </div>
     </header>
 
     <div class="route">
       <div class="stop">
-        <small>DARI · KEBERANGKATAN</small>
+        <small>${L("DARI · KEBERANGKATAN", "FROM · DEPARTURE")}</small>
         <strong>${esc(asal)}</strong>
       </div>
       <div class="arrow" aria-hidden="true"><i></i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
       <div class="stop to">
-        <small>KE · TUJUAN</small>
+        <small>${L("KE · TUJUAN", "TO · DESTINATION")}</small>
         <strong>${esc(t.tujuan || "-")}</strong>
       </div>
     </div>
 
     <div class="grid">
-      <div><small>Tanggal tugas</small><b>${esc(fmtDay(t.tanggal))}</b></div>
-      <div><small>Jenis pekerjaan</small><b>${esc(t.jenis_pekerjaan || "-")}</b></div>
-      <div><small>Status</small><b>${esc(STATUS_LABEL[t.status] ?? t.status)}</b>${times.length ? `<em>${esc(times.join(" · "))}</em>` : ""}</div>
+      <div><small>${L("Tanggal tugas", "Task date")}</small><b>${esc(fmtDay(t.tanggal, lang))}</b></div>
+      <div><small>${L("Jenis pekerjaan", "Job type")}</small><b>${esc(t.jenis_pekerjaan || "-")}</b></div>
+      <div><small>Status</small><b>${esc(STATUS_LABEL[lang][t.status] ?? t.status)}</b>${times.length ? `<em>${esc(times.join(" · "))}</em>` : ""}</div>
       <div><small>Driver</small><b>${esc(t.driver_nama || "-")}</b></div>
-      <div><small>Kendaraan</small><b>${kendaraan}</b></div>
+      <div><small>${L("Kendaraan", "Vehicle")}</small><b>${kendaraan}</b></div>
       <div><small>Requestor</small><b>${requestor}</b></div>
-      <div class="wide"><small>Perihal / catatan</small><b class="note">${esc(t.perihal || "-")}</b></div>
+      <div class="wide"><small>${L("Perihal / catatan", "Subject / notes")}</small><b class="note">${esc(t.perihal || "-")}</b></div>
     </div>
 
     <div class="log">
-      <div class="logTitle">Diisi saat tugas berjalan</div>
+      <div class="logTitle">${L("Diisi saat tugas berjalan", "To be filled in during the task")}</div>
       <div class="logRow">
-        <div><small>Jam keluar gate</small><span></span></div>
-        <div><small>Jam masuk gate</small><span></span></div>
-        <div><small>KM awal</small><span></span></div>
-        <div><small>KM akhir</small><span></span></div>
+        <div><small>${L("Jam keluar gate", "Gate-out time")}</small><span></span></div>
+        <div><small>${L("Jam masuk gate", "Gate-in time")}</small><span></span></div>
+        <div><small>${L("KM awal", "Start KM")}</small><span></span></div>
+        <div><small>${L("KM akhir", "End KM")}</small><span></span></div>
       </div>
     </div>
 
     <footer class="foot">
-      <span>Diterbitkan ${esc(fmtStamp(t.created_at))}</span>
-      <span>Dicetak ${esc(printedAt)}${printedBy ? ` oleh ${esc(printedBy)}` : ""}</span>
+      <span>${L("Diterbitkan", "Issued")} ${esc(fmtStamp(t.created_at, lang))}</span>
+      <span>${L("Dicetak", "Printed")} ${esc(printedAt)}${printedBy ? ` ${L("oleh", "by")} ${esc(printedBy)}` : ""}</span>
     </footer>
   </section>`;
 }
@@ -156,14 +157,16 @@ const CSS = `
 /** HTML lengkap berisi semua bukti, dua per halaman. */
 export function buildTaskSlipsHtml(
   tasks: TaskDetail[],
-  opts: { printedBy?: string; origin?: string } = {}
+  opts: { printedBy?: string; origin?: string; lang?: Lang } = {}
 ): string {
-  const printedAt = fmtStamp(new Date().toISOString());
+  const lang: Lang = opts.lang === "en" ? "en" : "id";
+  const printedAt = fmtStamp(new Date().toISOString(), lang);
   const pages: string[] = [];
   for (let i = 0; i < tasks.length; i += 2) {
-    const pair = tasks.slice(i, i + 2).map((t) => slip(t, printedAt, opts.printedBy ?? "")).join("");
+    const pair = tasks.slice(i, i + 2).map((t) => slip(t, printedAt, opts.printedBy ?? "", lang)).join("");
     pages.push(`<div class="page">${pair}</div>`);
   }
-  const title = tasks.length === 1 ? `Bukti Permintaan dan Penugasan ${taskRefNo(tasks[0])}` : `Bukti Permintaan dan Penugasan (${tasks.length} tugas)`;
-  return `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style></head><body>${pages.join("")}</body></html>`;
+  const base = lang === "en" ? "Driver Request and Assignment Slip" : "Bukti Permintaan dan Penugasan";
+  const title = tasks.length === 1 ? `${base} ${taskRefNo(tasks[0])}` : lang === "en" ? `${base} (${tasks.length} tasks)` : `${base} (${tasks.length} tugas)`;
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style></head><body>${pages.join("")}</body></html>`;
 }

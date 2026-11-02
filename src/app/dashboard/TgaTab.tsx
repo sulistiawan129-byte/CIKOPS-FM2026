@@ -19,7 +19,7 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import { useLang } from "@/lib/providers";
 import { notifyTgaTask } from "@/lib/push";
 import {
-  TGA_CATEGORIES, TGA_SOURCE_LABEL, tgaAdminAssignConfig, tgaAdminCancel, tgaAdminDeleteActivity, tgaAdminSaveActivity, tgaAdminSetAssignCode,
+  TGA_CATEGORIES, TGA_SOURCE_LABEL, tgaCatLabel, tgaAdminAssignConfig, tgaAdminCancel, tgaAdminDeleteActivity, tgaAdminSaveActivity, tgaAdminSetAssignCode,
   tgaAdminUsers, tgaAllActivities, tgaCategory, tgaPresence, tgaStatusLabel, subscribeTgaActivities,
   type TgaActivity, type TgaAssignConfig, type TgaStatus, type TgaUserRow,
 } from "@/lib/tga/api";
@@ -32,6 +32,7 @@ import TgaAccounts from "./TgaAccounts";
 import TgaReport, { perLabel } from "./TgaReport";
 import TgaTasks from "./TgaTasks";
 
+import { L } from "@/lib/i18n";
 type Lang = "id" | "en";
 type View = "board" | "jobs" | "techs" | "form" | "report";
 interface Emp { id: string; nama: string; departement: string | null }
@@ -326,7 +327,7 @@ function JobsTable({ lang, rows, periode, users, emps, onChanged }: {
                     <td style={{ whiteSpace: "nowrap" }}>{fmtD(x.tanggal, lang)}<br /><small className={a.mute}>{x.ref_no}{x.jam_mulai ? ` · ${x.jam_mulai}${x.jam_selesai ? `–${x.jam_selesai}` : ""}` : ""}</small></td>
                     <td>
                       <b className={t.act}>{cat.icon} {x.activity}</b>
-                      <small className={a.mute}>{[x.kategori, x.lokasi && `📍 ${x.lokasi}`, TGA_SOURCE_LABEL[x.sumber ?? "mandiri"] + (x.assigned_by && x.sumber !== "mandiri" ? ` · ${x.assigned_by}` : "")].filter(Boolean).join(" · ")}</small>
+                      <small className={a.mute}>{[tgaCatLabel(x.kategori), x.lokasi && `📍 ${x.lokasi}`, TGA_SOURCE_LABEL[x.sumber ?? "mandiri"] + (x.assigned_by && x.sumber !== "mandiri" ? ` · ${x.assigned_by}` : "")].filter(Boolean).join(" · ")}</small>
                       {x.catatan && <small className={a.mute}>📝 {x.catatan}</small>}
                     </td>
                     <td>{x.nama_tga ? <b>{x.nama_tga}</b> : <em className={a.mute}>{L("Belum ada", "None")}</em>}</td>
@@ -450,7 +451,7 @@ function JobModal({ lang, initial, users, emps, onClose, onSaved, onDeleted }: {
           <span>{L("Jenis pekerjaan", "Category")}</span>
           <div className={t.catPick}>
             {TGA_CATEGORIES.map((c) => (
-              <button key={c.id} type="button" className={d.kategori === c.id ? t.catOn : ""} onClick={() => set("kategori", d.kategori === c.id ? "" : c.id)}>{c.icon} {c.id}</button>
+              <button key={c.id} type="button" className={d.kategori === c.id ? t.catOn : ""} onClick={() => set("kategori", d.kategori === c.id ? "" : c.id)}>{c.icon} {c.label}</button>
             ))}
           </div>
         </div>

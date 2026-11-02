@@ -18,6 +18,7 @@ import { useCountUp, fmtRp, evalExpr, monthWeekBoundaries } from "./dashboardSha
 import { SkeletonRows } from "./TaskModals";
 import { weekOfMonth } from "./ClaimsTab";
 
+import { loc , L} from "@/lib/i18n";
 interface WeekBucket {
   key: string;   // e.g. "2026-08-W1" — unique across months
   label: string; // e.g. "M1 Agu"
@@ -51,7 +52,7 @@ function generateWeekBucketSequence(monthsBack: number): WeekBucket[] {
       if (endDate >= rangeStart && endDate <= today) {
         buckets.push({
           key: `${year}-${String(month + 1).padStart(2, "0")}-W${i + 1}`,
-          label: `M${i + 1} ${cursor.toLocaleDateString("id-ID", { month: "short" })}`,
+          label: `M${i + 1} ${cursor.toLocaleDateString(loc(), { month: "short" })}`,
           endDate,
         });
       }
@@ -129,7 +130,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       setTiers(t);
       setDrivers(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data tier");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data tier", "Failed to load tier data"));
     } finally {
       setLoading(false);
     }
@@ -160,8 +161,8 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       filename: "Laporan_Driver_Budget",
       summaryRows: [
         { label: "Total Driver Aktif / Total Active Drivers", value: totalDrivers },
-        { label: "Total Budget per Bulan / Total Monthly Budget (Rp)", value: totalBudget.toLocaleString("id-ID") },
-        { label: "Total Budget per Tahun / Total Yearly Budget (Rp)", value: (totalBudget * 12).toLocaleString("id-ID") },
+        { label: "Total Budget per Bulan / Total Monthly Budget (Rp)", value: totalBudget.toLocaleString(loc()) },
+        { label: "Total Budget per Tahun / Total Yearly Budget (Rp)", value: (totalBudget * 12).toLocaleString(loc()) },
       ],
     };
     if (format === "csv") exportGenericCsv(opts);
@@ -199,7 +200,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       setShowForm(false);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan tier");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan tier", "Failed to save the tier"));
     } finally {
       setSaving(false);
     }
@@ -212,7 +213,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus tier");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus tier", "Failed to delete the tier"));
     }
   }
 
@@ -221,7 +222,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
       await setDriverTier(driverId, tierId || null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal assign tier");
+      alert(e instanceof Error ? e.message : L("Gagal assign tier", "Failed to assign the tier"));
     }
   }
 
@@ -342,7 +343,7 @@ function DriverBudgetTab({ myProfile = null }: { myProfile?: MyProfile | null })
             <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{lang === "en" ? "Delete this tier?" : "Hapus tier ini?"}</div>
             <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              <strong style={{ color: "var(--t1)" }}>{confirmDelete.name}</strong> akan dihapus permanen.
+              <strong style={{ color: "var(--t1)" }}>{confirmDelete.name}</strong> {L("akan dihapus permanen.", "will be permanently deleted.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
@@ -544,7 +545,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
         setEUnsubmittedClaim(String(k.unsubmittedClaim));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat Dana Operasional");
+      setError(e instanceof Error ? e.message : L("Gagal memuat Dana Operasional", "Failed to load the Operational Fund"));
     } finally {
       setLoading(false);
     }
@@ -649,7 +650,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
       setInitBudget(""); setInitOpDriver(""); setInitEmergency(""); setInitCash("");
       await load(viewPlant);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal membuat data Dana Operasional");
+      alert(e instanceof Error ? e.message : L("Gagal membuat data Dana Operasional", "Failed to create the Operational Fund data"));
     } finally {
       setCreating(false);
     }
@@ -742,7 +743,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
       setShowEdit(false);
       await load(viewPlant);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan", "Failed to save"));
     } finally {
       setSaving(false);
     }
@@ -757,7 +758,7 @@ export function OpFundTab({ myProfile }: { myProfile: MyProfile | null }) {
       setShowResetConfirm(false);
       await load(viewPlant);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal reset periode");
+      alert(e instanceof Error ? e.message : L("Gagal reset periode", "Failed to reset the period"));
     }
   }
 
@@ -906,7 +907,7 @@ gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h
       {showEdit && (
         <ModalPortal onOverlayClick={() => setShowEdit(false)} maxWidth={420}>
           <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>Edit Dana Operasional — {viewPlant}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 18, color: "var(--t1)" }}>{L("Edit Dana Operasional", "Edit Operational Fund")} — {viewPlant}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><label>{t.fieldTotalCashOp}</label><input className={styles.formInput} value={eBudget} onChange={(e) => setEBudget(e.target.value)} /></div>
               <div><label>OP DRIVER (A1)</label><input className={styles.formInput} value={eOpDriver} onChange={(e) => setEOpDriver(e.target.value)} /></div>
@@ -928,13 +929,13 @@ gap: h.allocOpDriver + h.allocEmergency + h.cashAvailable + h.claimSubmitted + h
         <ModalPortal onOverlayClick={() => setShowResetConfirm(false)} maxWidth={360}>
           <div style={{ ...cardStyle, padding: 24, textAlign: "center" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔄</div>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>Reset Periode — {viewPlant}?</div>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}>{L("Reset Periode", "Reset Period")} — {viewPlant}?</div>
             <div style={{ fontSize: 13, color: "var(--t3)", marginBottom: 18 }}>
-              Claim Diajukan (A5) dan Claim Dibayar (A6) akan direset ke 0 untuk periode baru. Total cash dan alokasi tetap sama. Data periode lama tetap tersimpan.
+              {L("Claim Diajukan (A5) dan Claim Dibayar (A6) akan direset ke 0 untuk periode baru. Total cash dan alokasi tetap sama. Data periode lama tetap tersimpan.", "Claim Submitted (A5) and Claim Paid (A6) will be reset to 0 for the new period. Total cash and allocations stay the same. Old period data is kept.")}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setShowResetConfirm(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid var(--border2)", background: "var(--surface2)", color: "var(--t2)", fontWeight: 700, cursor: "pointer" }}>{t.actionCancel}</button>
-              <button onClick={handleReset} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Ya, Reset</button>
+              <button onClick={handleReset} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "var(--red)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{L("Ya, Reset", "Yes, Reset")}</button>
             </div>
           </div>
         </ModalPortal>

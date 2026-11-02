@@ -3,6 +3,7 @@
    memverifikasi (boleh mengedit) di menu Klaim → klaim resmi dibuat di tabel claims. */
 import { supabase } from "../supabaseClient";
 import type { ClaimItem, Plant } from "../types";
+import { L } from "@/lib/i18n";
 
 export type ClaimRequestStatus = "menunggu" | "disetujui" | "ditolak" | "dibatalkan";
 
@@ -88,7 +89,7 @@ function mapRow(r: Row): ClaimRequest {
 }
 
 function friendly(e: { message?: string; code?: string } | null): Error {
-  const m = e?.message ?? "Terjadi kesalahan.";
+  const m = e?.message ?? L("Terjadi kesalahan.", "Something went wrong.");
   if (/driver_claim|could not find the function|relation .* does not exist|schema cache/i.test(m)) {
     return new Error("Fitur Self-Claim belum aktif — admin perlu menjalankan supabase/04_aplikasi_lapangan.sql.");
   }

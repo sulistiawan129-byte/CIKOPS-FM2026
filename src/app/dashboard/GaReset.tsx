@@ -16,11 +16,12 @@ import { monthRange, shiftPeriode } from "@/lib/ga/model";
 import a from "./atk.module.css";
 import m from "./gamanage.module.css";
 
+import { loc } from "@/lib/i18n";
 type Lang = "id" | "en";
 const BLN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const perLabel = (p: number) => `${BLN[(p % 100) - 1]} ${Math.floor(p / 100)}`;
-const fmtD = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
-const fmtDT = (d: string) => new Date(d).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+const fmtD = (d: string) => new Date(d + "T00:00:00").toLocaleDateString(loc(), { day: "2-digit", month: "short" });
+const fmtDT = (d: string) => new Date(d).toLocaleString(loc(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export default function GaResetModal({ lang, periode: initPeriode, teams: teamsIn, onClose, onChanged }: {

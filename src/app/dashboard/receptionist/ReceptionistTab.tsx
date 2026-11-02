@@ -13,8 +13,7 @@ import type { MyProfile } from "@/lib/api";
 import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
 import {
   DEFAULT_SETTINGS, addDays, addMonths, fmtDate, fmtDateTime, grantActive, monthLabel, toMin, todayISO, usageByDeptMonth,
-  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant,
-} from "@/lib/receptionist/model";
+  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant, itemTypeLabel } from "@/lib/receptionist/model";
 import RcpWifi from "./RcpWifi";
 import RcpParcels from "./RcpParcels";
 import RcpRoom from "./RcpRoom";
@@ -22,6 +21,7 @@ import RcpData from "./RcpData";
 import { ExportButtons, col, type Directory } from "./shared";
 import r from "./receptionist.module.css";
 
+import { L } from "@/lib/i18n";
 type View = "dashboard" | "wifi" | "parcels" | "room" | "data" | "settings";
 
 export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | null }) {
@@ -64,7 +64,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
 
   const waiting = parcels.filter((p) => p.status === "waiting").length;
   const reloadEmployees = useCallback(async () => { setEmployees(await getRcpEmployees()); }, []);
-  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", "Barang & Surat", waiting], ["room", settings.roomName], ["data", "Data Master"], ["settings", "Pengaturan"]];
+  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", L("Pengaturan", "Settings")]];
 
   return (
     <div className={r.wrap}>
@@ -72,9 +72,9 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
         <div className={r.headText}>
           <span className={r.kicker}>Fasilitas · Receptionist</span>
           <h1>Receptionist</h1>
-          <p>Akses wifi tamu, barang &amp; surat, dan booking {settings.roomName} dalam satu tempat.</p>
+          <p>{L("Akses wifi tamu, barang & surat, dan booking", "Guest wifi access, items & mail, and booking of")} {settings.roomName} {L("dalam satu tempat.", "in one place.")}</p>
         </div>
-        <button type="button" className={r.ghost} onClick={loadAll} disabled={loading}>{loading ? "Memuat…" : "↻ Muat ulang"}</button>
+        <button type="button" className={r.ghost} onClick={loadAll} disabled={loading}>{loading ? L("Memuat…", "Loading…") : L("↻ Muat ulang", "↻ Reload")}</button>
       </header>
       <nav className={r.tabs} aria-label="Receptionist">
         {TABS.map(([k, l, n]) => (
@@ -121,45 +121,45 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
     <>
       <div className={r.kpis}>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: pctFree < 15 ? "var(--red)" : pctFree < 35 ? "var(--orange)" : "var(--green)" }} onClick={() => go("wifi")}>
-          <small>Slot wifi tersedia</small>
-          <b>{freeSlots} <em>dari {totalSlots}</em></b>
+          <small>{L("Slot wifi tersedia", "Wifi slots available")}</small>
+          <b>{freeSlots} <em>{L("dari", "of")} {totalSlots}</em></b>
           <span className={r.meter}><i style={{ width: `${pctFree}%` }} /></span>
-          <span>{activeGuests.length} tamu aktif · {usable.length} akun berlaku</span>
+          <span>{activeGuests.length} {L("tamu aktif", "active guests")} · {usable.length} {L("akun berlaku", "valid accounts")}</span>
         </button>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: expiring.length ? "var(--orange)" : "var(--green)" }} onClick={() => go("wifi")}>
-          <small>Akun habis ≤ 7 hari</small><b>{expiring.length}</b>
-          <span>{expiring[0] ? `terdekat ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}` : "tidak ada"}</span>
+          <small>{L("Akun habis ≤ 7 hari", "Accounts expiring ≤ 7 days")}</small><b>{expiring.length}</b>
+          <span>{expiring[0] ? L(`terdekat ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}`, `nearest ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}`) : L("tidak ada", "none")}</span>
         </button>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: waiting.some((p) => ageDays(p) >= 2) ? "var(--orange)" : "var(--brand)" }} onClick={() => go("parcels")}>
-          <small>Barang menunggu</small><b>{waiting.length}</b>
-          <span>{waitIn} masuk · {waiting.length - waitIn} keluar{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} > 2 hari` : ""}</span>
+          <small>{L("Barang menunggu", "Items waiting")}</small><b>{waiting.length}</b>
+          <span>{waitIn} {L("masuk", "incoming")} · {waiting.length - waitIn} {L("keluar", "outgoing")}{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} ${L("> 2 hari", "> 2 days")}` : ""}</span>
         </button>
         <button type="button" className={r.kpi} style={{ ["--c" as string]: "var(--green)" }} onClick={() => go("room")}>
-          <small>Booking {settings.roomName} hari ini</small><b>{today.length}</b>
-          <span>{nextBk ? `berikutnya ${nextBk.start} · ${nextBk.title}` : today.length ? "semua sudah selesai" : "ruangan kosong"}</span>
+          <small>{L("Booking", "Bookings for")} {settings.roomName} {L("hari ini", "today")}</small><b>{today.length}</b>
+          <span>{nextBk ? L(`berikutnya ${nextBk.start} · ${nextBk.title}`, `next ${nextBk.start} · ${nextBk.title}`) : today.length ? L("semua sudah selesai", "all finished") : L("ruangan kosong", "room is free")}</span>
         </button>
       </div>
 
       <div className={r.grid3}>
         <section className={r.card}>
-          <div className={r.cardHead}><h2>Barang menunggu diambil</h2><button type="button" className={r.link} onClick={() => go("parcels")}>Kelola →</button></div>
-          {waiting.length === 0 ? <p className={r.empty}>Tidak ada barang yang menunggu.</p> : (
+          <div className={r.cardHead}><h2>{L("Barang menunggu diambil", "Items waiting to be collected")}</h2><button type="button" className={r.link} onClick={() => go("parcels")}>{L("Kelola →", "Manage →")}</button></div>
+          {waiting.length === 0 ? <p className={r.empty}>{L("Tidak ada barang yang menunggu.", "No items waiting.")}</p> : (
             <div className={r.list}>
               {waiting.slice(0, 6).map((p) => (
                 <div key={p.id} className={r.item}>
                   <div><b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
-                    <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{p.itemType}</span><span>{fmtDateTime(p.createdAt)}</span></div></div>
-                  {ageDays(p) >= 2 ? <span className={`${r.pill} ${r.pOrange}`}>{ageDays(p)} hari</span> : <span className={`${r.pill} ${r.pBlue}`}>baru</span>}
+                    <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}</span><span>{fmtDateTime(p.createdAt)}</span></div></div>
+                  {ageDays(p) >= 2 ? <span className={`${r.pill} ${r.pOrange}`}>{ageDays(p)} {L("hari", "days")}</span> : <span className={`${r.pill} ${r.pBlue}`}>{L("baru", "new")}</span>}
                 </div>
               ))}
-              {waiting.length > 6 && <span className={r.mute}>+{waiting.length - 6} lainnya</span>}
+              {waiting.length > 6 && <span className={r.mute}>+{waiting.length - 6} {L("lainnya", "more")}</span>}
             </div>
           )}
         </section>
 
         <section className={r.card}>
-          <div className={r.cardHead}><h2>{settings.roomName} hari ini</h2><button type="button" className={r.link} onClick={() => go("room")}>Buka jadwal →</button></div>
-          {today.length === 0 ? <p className={r.empty}>Tidak ada booking hari ini.</p> : (
+          <div className={r.cardHead}><h2>{settings.roomName} {L("hari ini", "today")}</h2><button type="button" className={r.link} onClick={() => go("room")}>{L("Buka jadwal →", "Open schedule →")}</button></div>
+          {today.length === 0 ? <p className={r.empty}>{L("Tidak ada booking hari ini.", "No bookings today.")}</p> : (
             <div className={r.timeline}>
               {today.map((b) => (
                 <div key={b.id} className={`${r.tl} ${toMin(b.start) <= nowMin && nowMin < toMin(b.end) ? r.tlNow : ""}`} style={toMin(b.end) <= nowMin ? { opacity: 0.55 } : undefined}>
@@ -172,14 +172,14 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
         </section>
 
         <section className={r.card}>
-          <div className={r.cardHead}><h2>Akun wifi yang akan habis</h2><small>≤ 7 hari</small></div>
-          {expiring.length === 0 ? <p className={r.empty}>Tidak ada akun yang habis dalam 7 hari.</p> : (
+          <div className={r.cardHead}><h2>{L("Akun wifi yang akan habis", "Wifi accounts about to expire")}</h2><small>≤ 7 {L("hari", "days")}</small></div>
+          {expiring.length === 0 ? <p className={r.empty}>{L("Tidak ada akun yang habis dalam 7 hari.", "No accounts expire within 7 days.")}</p> : (
             <div className={r.tableBox}>
               <table className={r.table}>
-                <thead><tr><th>Akun</th><th>Berlaku sampai</th><th>Sisa</th><th>Slot terpakai</th></tr></thead>
+                <thead><tr><th>{L("Akun", "Account")}</th><th>{L("Berlaku sampai", "Valid until")}</th><th>{L("Sisa", "Left")}</th><th>{L("Slot terpakai", "Slots used")}</th></tr></thead>
                 <tbody>{expiring.map((a) => (
                   <tr key={a.id}><td className={r.mono}><b>{a.username}</b></td><td>{fmtDate(a.validUntil)}</td>
-                    <td><span className={`${r.pill} ${a.daysLeft <= 2 ? r.pRed : r.pOrange}`}>{a.daysLeft === 0 ? "hari ini" : `${a.daysLeft} hari`}</span></td><td>{a.used}/{a.slots}</td></tr>
+                    <td><span className={`${r.pill} ${a.daysLeft <= 2 ? r.pRed : r.pOrange}`}>{a.daysLeft === 0 ? L("hari ini", "today") : L(`${a.daysLeft} hari`, `${a.daysLeft} days`)}</span></td><td>{a.used}/{a.slots}</td></tr>
                 ))}</tbody>
               </table>
             </div>
@@ -188,16 +188,16 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
 
         <section className={r.card} style={{ gridColumn: "1 / -1" }}>
           <div className={r.cardHead}>
-            <h2>Pemakaian wifi per departemen</h2>
-            <ExportButtons rows={usage.rows} title="Pemakaian Wifi Tamu per Departemen" filename="Wifi_per_Departemen" columns={[
-              col<(typeof usage.rows)[number]>("d", "Departemen", (x) => x.dept),
+            <h2>{L("Pemakaian wifi per departemen", "Wifi usage per department")}</h2>
+            <ExportButtons rows={usage.rows} title={L("Pemakaian Wifi Tamu per Departemen", "Guest Wifi Usage per Department")} filename="Wifi_per_Departemen" columns={[
+              col<(typeof usage.rows)[number]>("d", L("Departemen", "Department"), (x) => x.dept),
               ...usage.months.map((m) => col<(typeof usage.rows)[number]>(m, monthLabel(m), (x) => x.byMonth[m] ?? 0, "right")),
               col<(typeof usage.rows)[number]>("t", "Total", (x) => usage.months.reduce((s, m) => s + (x.byMonth[m] ?? 0), 0), "right")]} />
           </div>
-          {usage.rows.length === 0 ? <p className={r.empty}>Belum ada pemakaian.</p> : (
+          {usage.rows.length === 0 ? <p className={r.empty}>{L("Belum ada pemakaian.", "No usage yet.")}</p> : (
             <div className={r.tableBox}>
               <table className={r.table}>
-                <thead><tr><th>Departemen</th>{usage.months.map((m) => <th key={m} className={r.num}>{monthLabel(m)}</th>)}</tr></thead>
+                <thead><tr><th>{L("Departemen", "Department")}</th>{usage.months.map((m) => <th key={m} className={r.num}>{monthLabel(m)}</th>)}</tr></thead>
                 <tbody>{usage.rows.map((x) => (
                   <tr key={x.dept}><td>{x.dept}</td>{usage.months.map((m) => (
                     <td key={m} className={r.num}><span className={r.heat} style={{ ["--h" as string]: Math.round(((x.byMonth[m] ?? 0) / maxCell) * 45) }}>{x.byMonth[m] ?? 0}</span></td>
@@ -206,7 +206,7 @@ function Dashboard({ accounts, grants, parcels, today, settings, go }: {
               </table>
             </div>
           )}
-          <p className={r.hint}>Jumlah tanda terima wifi per bulan (6 bulan terakhir).</p>
+          <p className={r.hint}>{L("Jumlah tanda terima wifi per bulan (6 bulan terakhir).", "Number of wifi receipts per month (last 6 months).")}</p>
         </section>
       </div>
     </>
@@ -218,7 +218,7 @@ function Settings({ settings, onSaved }: { settings: RcpSettings; onSaved: (s: R
   // Model CRUD standar: setiap nilai diubah lewat formulir sendiri dan langsung tersimpan.
   async function save(patch: Partial<RcpSettings>) {
     const next = { ...settings, ...patch, slotMinutes: Number(patch.slotMinutes ?? settings.slotMinutes) };
-    if (toMin(next.closeTime) <= toMin(next.openTime)) throw new Error("Jam tutup harus setelah jam buka.");
+    if (toMin(next.closeTime) <= toMin(next.openTime)) throw new Error(L("Jam tutup harus setelah jam buka.", "Closing time must be after opening time."));
     await saveRcpSettings(next);
     onSaved(next);
   }
@@ -227,21 +227,21 @@ function Settings({ settings, onSaved }: { settings: RcpSettings; onSaved: (s: R
   return (
     <SettingsPage>
       <SettingsGroup<V>
-        icon="🚪" title="Ruangan" values={values} onSave={save}
-        desc="Booking boleh lebih dari satu slot (mis. 08:00–11:30). Panjang slot hanya mengatur ketelitian pilihan jam."
+        icon="🚪" title={L("Ruangan", "Room")} values={values} onSave={save}
+        desc={L("Booking boleh lebih dari satu slot (mis. 08:00–11:30). Panjang slot hanya mengatur ketelitian pilihan jam.", "A booking may span more than one slot (e.g. 08:00–11:30). The slot length only sets the granularity of the time picker.")}
         items={[
-          { key: "roomName", label: "Nama ruangan", required: true },
-          { key: "openTime", label: "Jam buka", type: "time", required: true },
-          { key: "closeTime", label: "Jam tutup", type: "time", required: true },
+          { key: "roomName", label: L("Nama ruangan", "Room name"), required: true },
+          { key: "openTime", label: L("Jam buka", "Opening time"), type: "time", required: true },
+          { key: "closeTime", label: L("Jam tutup", "Closing time"), type: "time", required: true },
           { key: "slotMinutes", label: "Panjang slot", type: "chips", required: true,
             options: [15, 30, 60].map((m) => ({ value: String(m), label: `${m} menit` })), display: (v) => `${v} menit` },
         ]}
       />
       <SettingsGroup<V>
         icon="📶" title="Wifi Guest" values={values} onSave={save}
-        desc="Dicantumkan di email akses wifi untuk tamu."
+        desc={L("Dicantumkan di email akses wifi untuk tamu.", "Included in the guest wifi access email.")}
         items={[
-          { key: "wifiSsid", label: "Nama wifi (SSID)", placeholder: "mis. FFI-Guest" },
+          { key: "wifiSsid", label: L("Nama wifi (SSID)", "Wifi name (SSID)"), placeholder: "mis. FFI-Guest" },
           { key: "wifiTerms", label: "Ketentuan", type: "textarea", hint: "Satu baris satu poin" },
         ]}
       />

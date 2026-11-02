@@ -18,21 +18,24 @@ import OpsBoard from "./OpsBoard";
 import s from "./fm.module.css";
 import { plantFull, plantShort } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 const POLL_MS = 60000;
 const THEME_KEY = "cikops_cc_theme";
 const TABS = [
-  { id: "rapor", label: "Ringkasan hari ini", dot: "#5b8cff" },
+  { id: "rapor", get label() { return L("Ringkasan hari ini", "Today's summary"); }, dot: "#5b8cff" },
   { id: "ops", label: "Fleet live", dot: "#22d3ee" },
   { id: "fleet", label: "Fleet & Gate", dot: "#5b8cff" },
   { id: "tga", label: "TGA", dot: "#fb923c" },
-  { id: "canteen", label: "Kantin", dot: "#34d399" },
+  { id: "canteen", get label() { return L("Kantin", "Canteen"); }, dot: "#34d399" },
   { id: "atk", label: "ATK", dot: "#fbbf24" },
-  { id: "nc", label: "Pelanggaran / NC", dot: "#fb7185" },
+  { id: "nc", get label() { return L("Pelanggaran / NC", "Violations / NC"); }, dot: "#fb7185" },
   { id: "rcp", label: "Receptionist", dot: "#a78bfa" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-const STATUS_LABEL: Record<Status, string> = { baik: "Baik", perhatian: "Perhatian", kritis: "Kritis", na: "Belum ada data" };
+const STATUS_LABEL: Record<Status, string> = {
+  get baik() { return L("Baik", "Good"); }, get perhatian() { return L("Perhatian", "Attention"); }, get kritis() { return L("Kritis", "Critical"); }, get na() { return L("Belum ada data", "No data yet"); },
+};
 const STATUS_COLOR: Record<Status, string> = { baik: "var(--ok)", perhatian: "var(--warn)", kritis: "var(--bad)", na: "var(--na)" };
 const AREA_TAB: Record<string, TabId> = { fleet: "fleet", canteen: "canteen", atk: "atk", nc: "nc" };
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -74,7 +77,7 @@ export default function CommandCenterPage() {
     if (c.status === "fulfilled") setRcp(c.value);
     if (d.status === "fulfilled") setTga(d.value);
     if (a.status === "fulfilled") { setSnap(a.value); setError(null); setLoadedAt(Date.now()); }
-    else setError(a.reason instanceof Error ? a.reason.message : "Gagal memuat data");
+    else setError(a.reason instanceof Error ? a.reason.message : L("Gagal memuat data", "Failed to load data"));
     if (b.status === "fulfilled") setNc(b.value);
   }, []);
   useEffect(() => {
@@ -126,26 +129,26 @@ export default function CommandCenterPage() {
         </div>
         <span className={s.grow} />
         <div className={s.tools}>
-          <span className={s.live}><i />{ago === null ? "Live" : ago < 5 ? "Live · baru saja" : ago < 60 ? `Live · ${ago} dtk` : `Live · ${Math.round(ago / 60)} mnt`}</span>
-          <button type="button" className={`${s.iconBtn} ${auto ? s.iconOn : ""}`} onClick={() => { setAuto((a) => !a); setTick(0); }} aria-pressed={auto} title={auto ? "Jeda rotasi halaman" : "Putar halaman otomatis"}>
+          <span className={s.live}><i />{ago === null ? "Live" : ago < 5 ? L("Live · baru saja", "Live · just now") : ago < 60 ? L(`Live · ${ago} dtk`, `Live · ${ago}s`) : L(`Live · ${Math.round(ago / 60)} mnt`, `Live · ${Math.round(ago / 60)} min`)}</span>
+          <button type="button" className={`${s.iconBtn} ${auto ? s.iconOn : ""}`} onClick={() => { setAuto((a) => !a); setTick(0); }} aria-pressed={auto} title={auto ? L("Jeda rotasi halaman", "Pause page rotation") : L("Putar halaman otomatis", "Rotate pages automatically")}>
             <Icon name="clock" size={16} />
           </button>
-          <button type="button" className={s.iconBtn} onClick={toggleTheme} title={light ? "Tema gelap" : "Tema terang"}>
+          <button type="button" className={s.iconBtn} onClick={toggleTheme} title={light ? L("Tema gelap", "Dark theme") : L("Tema terang", "Light theme")}>
             <Icon name={light ? "moon" : "sun"} size={16} />
           </button>
-          <button type="button" className={`${s.iconBtn} ${s.hideSm}`} onClick={toggleFs} title={fs ? "Keluar layar penuh" : "Layar penuh"}>
+          <button type="button" className={`${s.iconBtn} ${s.hideSm}`} onClick={toggleFs} title={fs ? L("Keluar layar penuh", "Exit full screen") : L("Layar penuh", "Full screen")}>
             <Icon name={fs ? "shrink" : "expand"} size={16} />
           </button>
-          {!fs && <Link href="/dashboard" className={`${s.iconBtn} ${s.hideSm}`} title="Kembali ke dashboard"><Icon name="back" size={16} /></Link>}
+          {!fs && <Link href="/dashboard" className={`${s.iconBtn} ${s.hideSm}`} title={L("Kembali ke dashboard", "Back to dashboard")}><Icon name="back" size={16} /></Link>}
           <div className={s.clock}>
             <b>{now ? `${pad(now.getHours())}:${pad(now.getMinutes())}` : "--:--"}</b>
-            <small>{now ? now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }) : ""}</small>
+            <small>{now ? now.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long" }) : ""}</small>
           </div>
         </div>
       </header>
 
       <div className={s.nav}>
-        <nav className={s.tabs} aria-label="Halaman">
+        <nav className={s.tabs} aria-label={L("Halaman", "Pages")}>
           {TABS.map((t) => (
             <button key={t.id} type="button" className={`${s.tab} ${tab === t.id ? s.tabOn : ""}`} onClick={() => pick(t.id)} aria-current={tab === t.id ? "page" : undefined}>
               <i className={s.tabDot} style={{ background: t.dot }} />{t.label}
@@ -159,8 +162,8 @@ export default function CommandCenterPage() {
         <div className={s.body} style={{ padding: 0 }}><OpsBoard embedded light={light} /></div>
       ) : (
         <main className={s.body} key={tab}>
-          {error && <div className={s.note}>{error}{snap ? " — menampilkan data terakhir." : ""}</div>}
-          {!v ? <div className={s.empty}>{error ? "" : "Memuat data…"}</div> : (
+          {error && <div className={s.note}>{error}{snap ? L(" — menampilkan data terakhir.", " — showing the latest data.") : ""}</div>}
+          {!v ? <div className={s.empty}>{error ? "" : L("Memuat data…", "Loading data…")}</div> : (
             <>
               {tab === "rapor" && <Rapor v={v} onOpen={pick} />}
               {tab === "fleet" && <Fleet v={v} />}
@@ -311,7 +314,7 @@ function AreaTile({ a, onOpen, i }: { a: AreaCard; onOpen: (t: TabId) => void; i
     <div
       className={`${s.card} ${s.area} ${s.fade}`} style={{ ["--c" as string]: STATUS_COLOR[a.status], animationDelay: `${120 + i * 70}ms` }}
       role="button" tabIndex={0} onClick={open} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); } }}
-      aria-label={`${a.name}: ${a.hook}. Buka detail`}
+      aria-label={L(`${a.name}: ${a.hook}. Buka detail`, `${a.name}: ${a.hook}. Open details`)}
     >
       <div className={s.areaHead}><span className={s.title}>{a.name}</span><Pill st={a.status} /></div>
       <p className={s.hook}>{a.hook}</p>
@@ -339,7 +342,7 @@ function AreaTile({ a, onOpen, i }: { a: AreaCard; onOpen: (t: TabId) => void; i
   );
 }
 
-const LEVEL_LABEL = { kritis: "Kritis", perhatian: "Perhatian", info: "Info" } as const;
+const LEVEL_LABEL = { get kritis() { return L("Kritis", "Critical"); }, get perhatian() { return L("Perhatian", "Attention"); }, info: "Info" } as const;
 const LEVEL_ST = { kritis: "kritis", perhatian: "perhatian", info: "info" } as const;
 
 /** Perlu tindakan — dikelompokkan per masalah; klik untuk membuka rincian. */
@@ -348,14 +351,14 @@ function ActionList({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
   const listRef = useAutoScroll<HTMLUListElement>();
   return (
     <div className={`${s.card} ${s.actions} ${s.fade}`} style={{ animationDelay: "80ms" }}>
-      <div className={s.cardHead}><span className={s.title}>Perlu tindakan</span><small>{v.groups.length} masalah</small></div>
+      <div className={s.cardHead}><span className={s.title}>{L("Perlu tindakan", "Needs action")}</span><small>{v.groups.length} {L("masalah", "issues")}</small></div>
       <div className={s.levels}>
         {(["kritis", "perhatian", "info"] as const).map((k) => (
           <div key={k} className={`${s.level} ${s["s_" + LEVEL_ST[k]]}`}><b>{v.counts[k]}</b><span>{LEVEL_LABEL[k]}</span></div>
         ))}
       </div>
       {v.groups.length === 0 ? (
-        <div className={s.allGood}><Icon name="check" size={22} strokeWidth={2.6} /><div><b>Semua aman</b><small>Tidak ada yang perlu ditindaklanjuti.</small></div></div>
+        <div className={s.allGood}><Icon name="check" size={22} strokeWidth={2.6} /><div><b>{L("Semua aman", "All clear")}</b><small>{L("Tidak ada yang perlu ditindaklanjuti.", "Nothing needs follow-up.")}</small></div></div>
       ) : (
         <ul className={s.groups} ref={listRef}>
           {v.groups.map((g, i) => {
@@ -372,8 +375,8 @@ function ActionList({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
                 {isOpen && (
                   <div className={s.grpBody}>
                     <ul>{g.items.slice(0, 8).map((x) => <li key={x}>{x}</li>)}</ul>
-                    {g.items.length > 8 && <small className={s.muted}>+{g.items.length - 8} lainnya</small>}
-                    <button type="button" className={s.linkBtn} onClick={() => onOpen(g.tab as TabId)}>Buka halaman {g.area} →</button>
+                    {g.items.length > 8 && <small className={s.muted}>+{g.items.length - 8} {L("lainnya", "more")}</small>}
+                    <button type="button" className={s.linkBtn} onClick={() => onOpen(g.tab as TabId)}>{L("Buka halaman", "Open the")} {g.area} {L("", "page")}→</button>
                   </div>
                 )}
               </li>
@@ -396,15 +399,15 @@ function Rapor({ v, onOpen }: { v: FmView; onOpen: (t: TabId) => void }) {
     <div className={s.rapor}>
       <div className={s.col}>
         <div className={`${s.card} ${s.hero} ${s.fade}`} style={{ ["--c" as string]: col }}>
-          <svg className={s.heroRing} viewBox="0 0 110 110" role="img" aria-label={`Indeks FM ${v.health ?? "–"} dari 100`}>
+          <svg className={s.heroRing} viewBox="0 0 110 110" role="img" aria-label={L(`Indeks FM ${v.health ?? "–"} dari 100`, `FM index ${v.health ?? "–"} out of 100`)}>
             <circle cx="55" cy="55" r={R} fill="none" stroke="currentColor" strokeOpacity=".09" strokeWidth="8" />
             <circle cx="55" cy="55" r={R} fill="none" style={{ stroke: col }} strokeWidth="8" strokeLinecap="round"
               strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 55 55)" className={s.heroArc} />
             <text x="55" y="59" textAnchor="middle" className={s.heroVal}>{v.health ?? "–"}</text>
-            <text x="55" y="75" textAnchor="middle" className={s.heroSub}>indeks FM</text>
+            <text x="55" y="75" textAnchor="middle" className={s.heroSub}>{L("indeks FM", "FM index")}</text>
           </svg>
           <div className={s.heroText}>
-            <span className={s.lbl}>{v.todayLabel} · bulan berjalan {v.monthLabel}</span>
+            <span className={s.lbl}>{v.todayLabel} · {L("bulan berjalan", "month to date")} {v.monthLabel}</span>
             <h2 className={s.headline}>{v.headline}</h2>
             <p className={s.headlineSub}>{v.headlineSub}</p>
           </div>
@@ -437,28 +440,28 @@ function Fleet({ v }: { v: FmView }) {
   return (
     <>
       <KpiStrip items={[
-        { label: "Tugas driver hari ini", value: nf(f.today), sub: `${nf(f.doneToday)} selesai · ${nf(f.month)} tugas bulan ini`, c: C.blue },
-        { label: "Selesai di hari yang sama", value: pct(f.sameDayPct, 0), sub: `bulan ini · target ≥ ${TARGET.sameDayOk}%`, c: f.sameDayPct !== null && f.sameDayPct < TARGET.sameDayOk ? C.warn : C.ok },
-        { label: "Pergerakan gate hari ini", value: nf(g.today), sub: `${nf(g.month)} bulan ini · rata-rata trip ${fmtMin(g.avgTrip)}`, c: C.cyan },
-        { label: "Sedang di luar", value: nf(g.open), sub: g.longOpen.length ? `${g.longOpen.length} lebih dari ${TARGET.gateLongHours} jam` : `tidak ada yang > ${TARGET.gateLongHours} jam`, c: g.longOpen.length ? C.bad : C.ok },
+        { label: L("Tugas driver hari ini", "Driver tasks today"), value: nf(f.today), sub: L(`${nf(f.doneToday)} selesai · ${nf(f.month)} tugas bulan ini`, `${nf(f.doneToday)} done · ${nf(f.month)} tasks this month`), c: C.blue },
+        { label: L("Selesai di hari yang sama", "Completed the same day"), value: pct(f.sameDayPct, 0), sub: L(`bulan ini · target ≥ ${TARGET.sameDayOk}%`, `this month · target ≥ ${TARGET.sameDayOk}%`), c: f.sameDayPct !== null && f.sameDayPct < TARGET.sameDayOk ? C.warn : C.ok },
+        { label: L("Pergerakan gate hari ini", "Gate movements today"), value: nf(g.today), sub: L(`${nf(g.month)} bulan ini · rata-rata trip ${fmtMin(g.avgTrip)}`, `${nf(g.month)} this month · average trip ${fmtMin(g.avgTrip)}`), c: C.cyan },
+        { label: L("Sedang di luar", "Currently out"), value: nf(g.open), sub: g.longOpen.length ? L(`${g.longOpen.length} lebih dari ${TARGET.gateLongHours} jam`, `${g.longOpen.length} over ${TARGET.gateLongHours} hours`) : L(`tidak ada yang > ${TARGET.gateLongHours} jam`, `none over ${TARGET.gateLongHours} hours`), c: g.longOpen.length ? C.bad : C.ok },
       ]} />
-      <Chart title={`Tugas driver per hari · ${v.monthLabel}`} note={`total ${nf(f.month)} tugas`} bars={f.daily} />
+      <Chart title={L(`Tugas driver per hari · ${v.monthLabel}`, `Driver tasks per day · ${v.monthLabel}`)} note={L(`total ${nf(f.month)} tugas`, `total ${nf(f.month)} tasks`)} bars={f.daily} />
       <div className={s.grid3}>
         <div className={s.card}>
-          <div className={s.cardHead}><span className={s.title}>Gate per jam · hari ini</span></div>
+          <div className={s.cardHead}><span className={s.title}>{L("Gate per jam · hari ini", "Gate per hour · today")}</span></div>
           <div className={s.chartBody}><Bars bars={g.hours} height="100%" /></div>
-          {g.longOpen.length > 0 && <ul className={s.list}>{g.longOpen.slice(0, 3).map((x, i) => <li key={i} className={s.li}><Pill st="perhatian">{fmtMin(x.mins)}</Pill><span className={s.plate}>{x.nopol ?? "—"}</span><span className={s.muted}>{x.plant === "CIK" ? "di luar" : "di dalam CIK"}</span></li>)}</ul>}
+          {g.longOpen.length > 0 && <ul className={s.list}>{g.longOpen.slice(0, 3).map((x, i) => <li key={i} className={s.li}><Pill st="perhatian">{fmtMin(x.mins)}</Pill><span className={s.plate}>{x.nopol ?? "—"}</span><span className={s.muted}>{x.plant === "CIK" ? L("di luar", "out") : L("di dalam CIK", "inside CIK")}</span></li>)}</ul>}
         </div>
-        <Card title="Utilisasi kendaraan · bulan ini" note={`rata-rata ${pct(f.utilAvg, 0)}`}>
-          {f.util.length === 0 ? <div className={s.empty}>Belum ada data.</div> : (
-            <div className={s.meters}>{f.util.map((u) => <Meter key={u.nopol} name={u.nopol} value={`${pct(u.pct, 0)} · ${u.trips} tugas`} frac={u.pct / 100} color={u.pct < 40 ? C.warn : undefined} />)}</div>
+        <Card title={L("Utilisasi kendaraan · bulan ini", "Vehicle utilisation · this month")} note={L(`rata-rata ${pct(f.utilAvg, 0)}`, `average ${pct(f.utilAvg, 0)}`)}>
+          {f.util.length === 0 ? <div className={s.empty}>{L("Belum ada data.", "No data yet.")}</div> : (
+            <div className={s.meters}>{f.util.map((u) => <Meter key={u.nopol} name={u.nopol} value={`${pct(u.pct, 0)} · ${u.trips} ${L("tugas", "tasks")}`} frac={u.pct / 100} color={u.pct < 40 ? C.warn : undefined} />)}</div>
           )}
         </Card>
-        <Card title="Dokumen kendaraan · 60 hari ke depan">
-          {f.docs.length === 0 ? <div className={s.empty}>Tidak ada dokumen yang jatuh tempo.</div> : (
+        <Card title={L("Dokumen kendaraan · 60 hari ke depan", "Vehicle documents · next 60 days")}>
+          {f.docs.length === 0 ? <div className={s.empty}>{L("Tidak ada dokumen yang jatuh tempo.", "No documents due.")}</div> : (
             <table className={s.tbl}>
-              <thead><tr><th>Kendaraan</th><th>Dokumen</th><th>Sisa</th></tr></thead>
-              <tbody>{f.docs.map((d, i) => <tr key={i}><td className={s.plate}>{d.nopol}</td><td>{d.doc}</td><td><Pill st={d.days <= TARGET.docCritDays ? "kritis" : d.days <= TARGET.docWarnDays ? "perhatian" : "baik"}>{d.days < 0 ? `lewat ${-d.days} hr` : d.days === 0 ? "hari ini" : `${d.days} hari`}</Pill></td></tr>)}</tbody>
+              <thead><tr><th>{L("Kendaraan", "Vehicle")}</th><th>{L("Dokumen", "Document")}</th><th>{L("Sisa", "Left")}</th></tr></thead>
+              <tbody>{f.docs.map((d, i) => <tr key={i}><td className={s.plate}>{d.nopol}</td><td>{d.doc}</td><td><Pill st={d.days <= TARGET.docCritDays ? "kritis" : d.days <= TARGET.docWarnDays ? "perhatian" : "baik"}>{d.days < 0 ? L(`lewat ${-d.days} hr`, `${-d.days}d overdue`) : d.days === 0 ? L("hari ini", "today") : L(`${d.days} hari`, `${d.days} days`)}</Pill></td></tr>)}</tbody>
             </table>
           )}
         </Card>
@@ -471,36 +474,36 @@ function Fleet({ v }: { v: FmView }) {
 /** Ringkasan grafik efisiensi: rata-rata & hari terendah (angka per batang sering tidak muat). */
 function effNote(bars: Bar[]) {
   const vals = bars.filter((b) => b.value > 0);
-  if (!vals.length) return `target ≥ ${TARGET.canteenOk}%`;
+  if (!vals.length) return L(`target ≥ ${TARGET.canteenOk}%`, `target ≥ ${TARGET.canteenOk}%`);
   const avg = vals.reduce((a, b) => a + b.value, 0) / vals.length;
   const low = vals.reduce((a, b) => (b.value < a.value ? b : a));
-  return `rata-rata ${pct(avg, 1)} · terendah ${low.display} (tgl ${low.label})`;
+  return L(`rata-rata ${pct(avg, 1)} · terendah ${low.display} (tgl ${low.label})`, `average ${pct(avg, 1)} · lowest ${low.display} (${low.label})`);
 }
 function Canteen({ v }: { v: FmView }) {
   const c = v.canteen;
   const effC = (e: number | null) => (e === null ? "var(--na)" : e >= TARGET.canteenOk ? C.ok : e >= TARGET.canteenWarn ? C.warn : C.bad);
-  const lastLbl = c.lastDate ? new Date(c.lastDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "";
-  const sub = (order: number, left: number, eff: number | null) => (order ? `sisa ${nf(left)} · efisiensi ${pct(eff, 1)}` : "belum ada order");
+  const lastLbl = c.lastDate ? new Date(c.lastDate + "T00:00:00").toLocaleDateString(loc(), { day: "numeric", month: "short" }) : "";
+  const sub = (order: number, left: number, eff: number | null) => (order ? L(`sisa ${nf(left)} · efisiensi ${pct(eff, 1)}`, `${nf(left)} left · efficiency ${pct(eff, 1)}`) : L("belum ada order", "no orders yet"));
   return (
     <>
       <KpiStrip items={[
-        { label: "Snack hari ini", value: c.hasToday ? nf(c.snack.orderToday) : "–", sub: c.hasToday ? sub(c.snack.orderToday, c.snack.leftToday, c.snack.effToday) : "laporan hari ini belum diinput", c: effC(c.snack.effToday) },
-        { label: "Makan hari ini", value: c.hasToday ? nf(c.meal.orderToday) : "–", sub: c.hasToday ? sub(c.meal.orderToday, c.meal.leftToday, c.meal.effToday) : "laporan hari ini belum diinput", c: effC(c.meal.effToday) },
-        { label: "Snack bulan ini", value: nf(c.snack.orderMonth), sub: sub(c.snack.orderMonth, c.snack.leftMonth, c.snack.effMonth), c: effC(c.snack.effMonth) },
-        { label: "Makan bulan ini", value: nf(c.meal.orderMonth), sub: sub(c.meal.orderMonth, c.meal.leftMonth, c.meal.effMonth), c: effC(c.meal.effMonth) },
+        { label: L("Snack hari ini", "Snacks today"), value: c.hasToday ? nf(c.snack.orderToday) : "–", sub: c.hasToday ? sub(c.snack.orderToday, c.snack.leftToday, c.snack.effToday) : L("laporan hari ini belum diinput", "today's report has not been entered"), c: effC(c.snack.effToday) },
+        { label: L("Makan hari ini", "Meals today"), value: c.hasToday ? nf(c.meal.orderToday) : "–", sub: c.hasToday ? sub(c.meal.orderToday, c.meal.leftToday, c.meal.effToday) : L("laporan hari ini belum diinput", "today's report has not been entered"), c: effC(c.meal.effToday) },
+        { label: L("Snack bulan ini", "Snacks this month"), value: nf(c.snack.orderMonth), sub: sub(c.snack.orderMonth, c.snack.leftMonth, c.snack.effMonth), c: effC(c.snack.effMonth) },
+        { label: L("Makan bulan ini", "Meals this month"), value: nf(c.meal.orderMonth), sub: sub(c.meal.orderMonth, c.meal.leftMonth, c.meal.effMonth), c: effC(c.meal.effMonth) },
       ]} />
-      {!c.split && <div className={s.note}>Data snack &amp; makan terpisah belum tersedia — jalankan supabase/01_dasar.sql (bagian 029).</div>}
+      {!c.split && <div className={s.note}>{L("Data snack & makan terpisah belum tersedia — jalankan supabase/01_dasar.sql (bagian 029).", "Separate snack & meal data is not available yet — run supabase/01_dasar.sql (section 029).")}</div>}
       <div className={s.grid3}>
-        <Chart title="Efisiensi snack per hari" note={effNote(c.snack.daily)} bars={c.snack.daily} />
-        <Chart title="Efisiensi makan per hari" note={effNote(c.meal.daily)} bars={c.meal.daily} />
-        <Card title="Per shift" note={c.hasToday ? "hari ini" : lastLbl ? `laporan ${lastLbl}` : "—"}>
+        <Chart title={L("Efisiensi snack per hari", "Snack efficiency per day")} note={effNote(c.snack.daily)} bars={c.snack.daily} />
+        <Chart title={L("Efisiensi makan per hari", "Meal efficiency per day")} note={effNote(c.meal.daily)} bars={c.meal.daily} />
+        <Card title={L("Per shift", "Per shift")} note={c.hasToday ? L("hari ini", "today") : lastLbl ? L(`laporan ${lastLbl}`, `report ${lastLbl}`) : "—"}>
           {[0, 1, 2].map((i) => (
             <div key={i} className={s.shift}>
               <b>Shift {i + 1}</b>
-              <span><small>Snack</small>{nf(c.snack.shifts[i].order)}</span>
-              <span><small>Sisa</small>{nf(c.snack.shifts[i].left)}</span>
-              <span><small>Makan</small>{nf(c.meal.shifts[i].order)}</span>
-              <span><small>Sisa</small>{nf(c.meal.shifts[i].left)}</span>
+              <span><small>{L("Snack", "Snacks")}</small>{nf(c.snack.shifts[i].order)}</span>
+              <span><small>{L("Sisa", "Left")}</small>{nf(c.snack.shifts[i].left)}</span>
+              <span><small>{L("Makan", "Meals")}</small>{nf(c.meal.shifts[i].order)}</span>
+              <span><small>{L("Sisa", "Left")}</small>{nf(c.meal.shifts[i].left)}</span>
             </div>
           ))}
         </Card>
@@ -516,29 +519,29 @@ function Atk({ v }: { v: FmView }) {
   return (
     <>
       <KpiStrip items={[
-        { label: "Keluar hari ini", value: nf(a.today), sub: "unit", c: C.warn },
-        { label: "Keluar bulan ini", value: nf(a.month), sub: `unit · ${v.monthLabel}`, c: C.blue },
-        { label: "Stok kritis", value: nf(a.critical.length), sub: `cukup < ${TARGET.atkCoverDays} hari`, c: a.critical.length ? C.warn : C.ok },
-        { label: "Stok habis", value: nf(out), sub: "perlu pengadaan", c: out ? C.bad : C.ok },
+        { label: L("Keluar hari ini", "Issued today"), value: nf(a.today), sub: L("unit", "units"), c: C.warn },
+        { label: L("Keluar bulan ini", "Issued this month"), value: nf(a.month), sub: L(`unit · ${v.monthLabel}`, `units · ${v.monthLabel}`), c: C.blue },
+        { label: L("Stok kritis", "Critical stock"), value: nf(a.critical.length), sub: L(`cukup < ${TARGET.atkCoverDays} hari`, `< ${TARGET.atkCoverDays} days of cover`), c: a.critical.length ? C.warn : C.ok },
+        { label: L("Stok habis", "Out of stock"), value: nf(out), sub: L("perlu pengadaan", "needs procurement"), c: out ? C.bad : C.ok },
       ]} />
-      <Chart title={`ATK keluar per hari · ${v.monthLabel}`} note={`total ${nf(a.month)} unit`} bars={a.daily} />
+      <Chart title={L(`ATK keluar per hari · ${v.monthLabel}`, `ATK issued per day · ${v.monthLabel}`)} note={L(`total ${nf(a.month)} unit`, `total ${nf(a.month)} units`)} bars={a.daily} />
       <div className={s.grid3}>
-        <Card title="Stok kritis" note={a.critical.length ? `${a.critical.length} item` : undefined}>
-          {a.critical.length === 0 ? <div className={s.empty}>Semua item aman.</div> : (
+        <Card title={L("Stok kritis", "Critical stock")} note={a.critical.length ? `${a.critical.length} ${L("item", "items")}` : undefined}>
+          {a.critical.length === 0 ? <div className={s.empty}>{L("Semua item aman.", "All items are safe.")}</div> : (
             <table className={s.tbl}>
-              <thead><tr><th>Item</th><th>Stok</th><th>Cukup</th></tr></thead>
-              <tbody>{a.critical.map((r, i) => <tr key={i}><td>{r.nama}</td><td>{nf(Number(r.stok))} {r.satuan}</td><td><Pill st={Number(r.stok) <= 0 ? "kritis" : "perhatian"}>{Number(r.stok) <= 0 ? "habis" : r.cover === null ? "–" : `${nf(Number(r.cover), 0)} hari`}</Pill></td></tr>)}</tbody>
+              <thead><tr><th>Item</th><th>{L("Stok", "Stock")}</th><th>{L("Cukup", "Cover")}</th></tr></thead>
+              <tbody>{a.critical.map((r, i) => <tr key={i}><td>{r.nama}</td><td>{nf(Number(r.stok))} {r.satuan}</td><td><Pill st={Number(r.stok) <= 0 ? "kritis" : "perhatian"}>{Number(r.stok) <= 0 ? L("habis", "out") : r.cover === null ? "–" : L(`${nf(Number(r.cover), 0)} hari`, `${nf(Number(r.cover), 0)} days`)}</Pill></td></tr>)}</tbody>
             </table>
           )}
         </Card>
-        <Card title="Item keluar hari ini">
-          {a.todayItems.length === 0 ? <div className={s.empty}>Belum ada pengambilan hari ini.</div> : (
-            <div className={s.meters}>{a.todayItems.map((d) => <Meter key={d.k} name={d.k} value={`${nf(Number(d.n))} unit`} frac={Number(d.n) / Math.max(1, Number(a.todayItems[0].n))} color={C.warn} />)}</div>
+        <Card title={L("Item keluar hari ini", "Items issued today")}>
+          {a.todayItems.length === 0 ? <div className={s.empty}>{L("Belum ada pengambilan hari ini.", "Nothing collected today.")}</div> : (
+            <div className={s.meters}>{a.todayItems.map((d) => <Meter key={d.k} name={d.k} value={`${nf(Number(d.n))} ${L("unit", "units")}`} frac={Number(d.n) / Math.max(1, Number(a.todayItems[0].n))} color={C.warn} />)}</div>
           )}
         </Card>
-        <Card title="Per departemen · bulan ini">
-          {a.depts.length === 0 ? <div className={s.empty}>Belum ada pemakaian bulan ini.</div> : (
-            <div className={s.meters}>{a.depts.map((d) => <Meter key={d.k} name={d.k} value={`${nf(Number(d.n))} unit`} frac={Number(d.n) / Math.max(1, Number(a.depts[0].n))} />)}</div>
+        <Card title={L("Per departemen · bulan ini", "Per department · this month")}>
+          {a.depts.length === 0 ? <div className={s.empty}>{L("Belum ada pemakaian bulan ini.", "No usage this month.")}</div> : (
+            <div className={s.meters}>{a.depts.map((d) => <Meter key={d.k} name={d.k} value={`${nf(Number(d.n))} ${L("unit", "units")}`} frac={Number(d.n) / Math.max(1, Number(a.depts[0].n))} />)}</div>
           )}
         </Card>
       </div>
@@ -549,42 +552,42 @@ function Atk({ v }: { v: FmView }) {
 /* ════════════════ 7 · RECEPTIONIST ════════════════ */
 function Rcp({ v }: { v: FmView }) {
   const r = v.rcp;
-  if (!r) return <div className={s.empty}>Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031).</div>;
+  if (!r) return <div className={s.empty}>{L("Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031).", "The Receptionist module is not active yet — run supabase/01_dasar.sql (section 031).")}</div>;
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const freePct = r.wifi.slots ? (r.free / r.wifi.slots) * 100 : 0;
   return (
     <>
       <KpiStrip items={[
-        { label: "Slot wifi tamu tersedia", value: `${nf(r.free)} / ${nf(r.wifi.slots)}`, sub: `${nf(r.wifi.accounts)} akun berlaku · ${nf(r.wifi.expiring7)} habis ≤ 7 hari`, c: freePct < 15 ? C.bad : freePct < 35 ? C.warn : C.ok },
-        { label: "Tamu wifi hari ini", value: nf(r.wifi.guests_today), sub: `${nf(r.wifi.used)} slot sedang dipakai`, c: C.blue },
-        { label: "Barang menunggu", value: nf(r.parcels.waiting), sub: `${nf(r.parcels.waiting_in)} masuk · ${nf(r.parcels.waiting_out)} keluar${r.parcels.waiting_old ? ` · ${nf(r.parcels.waiting_old)} > 2 hari` : ""}`, c: r.parcels.waiting_old ? C.warn : C.violet },
-        { label: "Booking Induction Room", value: nf(r.bookings.length), sub: `hari ini · ${nf(r.bookings_week)} dalam 7 hari`, c: C.ok },
+        { label: L("Slot wifi tamu tersedia", "Guest wifi slots available"), value: `${nf(r.free)} / ${nf(r.wifi.slots)}`, sub: L(`${nf(r.wifi.accounts)} akun berlaku · ${nf(r.wifi.expiring7)} habis ≤ 7 hari`, `${nf(r.wifi.accounts)} valid accounts · ${nf(r.wifi.expiring7)} expiring ≤ 7 days`), c: freePct < 15 ? C.bad : freePct < 35 ? C.warn : C.ok },
+        { label: L("Tamu wifi hari ini", "Wifi guests today"), value: nf(r.wifi.guests_today), sub: L(`${nf(r.wifi.used)} slot sedang dipakai`, `${nf(r.wifi.used)} slot(s) in use`), c: C.blue },
+        { label: L("Barang menunggu", "Items waiting"), value: nf(r.parcels.waiting), sub: L(`${nf(r.parcels.waiting_in)} masuk · ${nf(r.parcels.waiting_out)} keluar${r.parcels.waiting_old ? ` · ${nf(r.parcels.waiting_old)} > 2 hari` : ""}`, `${nf(r.parcels.waiting_in)} incoming · ${nf(r.parcels.waiting_out)} outgoing${r.parcels.waiting_old ? ` · ${nf(r.parcels.waiting_old)} > 2 days` : ""}`), c: r.parcels.waiting_old ? C.warn : C.violet },
+        { label: L("Booking Induction Room", "Induction Room bookings"), value: nf(r.bookings.length), sub: L(`hari ini · ${nf(r.bookings_week)} dalam 7 hari`, `today · ${nf(r.bookings_week)} in 7 days`), c: C.ok },
       ]} />
       <div className={s.grid2}>
-        <Card title="Jadwal Induction Room hari ini">
-          {r.bookings.length === 0 ? <div className={s.empty}>Ruangan kosong hari ini.</div> : (
+        <Card title={L("Jadwal Induction Room hari ini", "Induction Room schedule today")}>
+          {r.bookings.length === 0 ? <div className={s.empty}>{L("Ruangan kosong hari ini.", "The room is free today.")}</div> : (
             <ul className={s.list}>
               {r.bookings.map((b, i) => {
                 const live = toMin(b.start) <= nowMin && nowMin < toMin(b.end), past = toMin(b.end) <= nowMin;
                 return (
                   <li key={i} className={s.li} style={{ opacity: past ? 0.5 : 1 }}>
                     <span className={s.liTime} style={{ minWidth: "6.6rem" }}>{b.start}–{b.end}</span>
-                    <span style={{ flex: 1 }}>{b.title}{b.attendees ? <span className={s.muted}> · {b.attendees} orang</span> : null}</span>
-                    {live && <Pill st="baik">Berlangsung</Pill>}
+                    <span style={{ flex: 1 }}>{b.title}{b.attendees ? <span className={s.muted}> · {b.attendees} {L("orang", "people")}</span> : null}</span>
+                    {live && <Pill st="baik">{L("Berlangsung", "In progress")}</Pill>}
                   </li>
                 );
               })}
             </ul>
           )}
         </Card>
-        <Card title="Barang & surat hari ini">
+        <Card title={L("Barang & surat hari ini", "Items & mail today")}>
           <div className={s.duo}>
-            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.in_today)}</div><div className={s.areaUnit}>dicatat hari ini</div></div>
-            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.handed_today)}</div><div className={s.areaUnit}>diserahkan hari ini</div></div>
+            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.in_today)}</div><div className={s.areaUnit}>{L("dicatat hari ini", "logged today")}</div></div>
+            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.handed_today)}</div><div className={s.areaUnit}>{L("diserahkan hari ini", "handed over today")}</div></div>
           </div>
           <div style={{ marginTop: "1.4rem" }}>
-            <Meter name="Slot wifi terpakai" value={`${nf(r.wifi.used)} dari ${nf(r.wifi.slots)}`} frac={r.wifi.slots ? r.wifi.used / r.wifi.slots : 0} color={freePct < 15 ? C.bad : undefined} />
+            <Meter name={L("Slot wifi terpakai", "Wifi slots used")} value={L(`${nf(r.wifi.used)} dari ${nf(r.wifi.slots)}`, `${nf(r.wifi.used)} of ${nf(r.wifi.slots)}`)} frac={r.wifi.slots ? r.wifi.used / r.wifi.slots : 0} color={freePct < 15 ? C.bad : undefined} />
           </div>
         </Card>
       </div>
@@ -594,14 +597,14 @@ function Rcp({ v }: { v: FmView }) {
 
 /* ════════════════ 4 · TGA (teknisi GA) ════════════════ */
 const TGA_ST: Record<string, { label: string; st: Status | "info" }> = {
-  baru: { label: "Menunggu", st: "perhatian" }, proses: { label: "Dikerjakan", st: "info" },
-  pending: { label: "Pending", st: "na" }, butuh_part: { label: "Butuh part", st: "kritis" },
+  baru: { get label() { return L("Menunggu", "Waiting"); }, st: "perhatian" }, proses: { get label() { return L("Dikerjakan", "In progress"); }, st: "info" },
+  pending: { label: "Pending", st: "na" }, butuh_part: { get label() { return L("Butuh part", "Needs parts"); }, st: "kritis" },
 };
 const sinceMin = (iso: string | null) => (iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)) : 0);
 
 function Tga({ v }: { v: FmView }) {
   const t = v.tga;
-  if (!t) return <div className={s.empty}>Ringkasan TGA belum aktif — jalankan supabase/04_aplikasi_lapangan.sql (bagian 048).</div>;
+  if (!t) return <div className={s.empty}>{L("Ringkasan TGA belum aktif — jalankan supabase/04_aplikasi_lapangan.sql (bagian 048).", "The TGA summary is not active yet — run supabase/04_aplikasi_lapangan.sql (section 048).")}</div>;
   const pool = t.open.filter((x) => x.status === "baru" && x.pool).length;
   const work = t.open.filter((x) => x.status !== "baru").length;
   const maxCat = Math.max(1, ...t.cats.map((c) => c.n));
@@ -609,14 +612,14 @@ function Tga({ v }: { v: FmView }) {
   return (
     <>
       <KpiStrip items={[
-        { label: "Pekerjaan terbuka", value: nf(t.open.length), sub: `${nf(pool)} belum diambil · ${nf(work)} dikerjakan`, c: t.urgent ? C.bad : t.waiting ? C.warn : C.blue },
-        { label: "Teknisi available", value: `${nf(t.free)} / ${nf(t.technicians.length)}`, sub: `${nf(t.busy)} sedang busy`, c: t.free ? C.ok : C.warn },
-        { label: "Selesai hari ini", value: nf(t.done_today), sub: `${nf(t.in_today)} pekerjaan tercatat hari ini`, c: C.cyan },
-        { label: "Selesai bulan ini", value: nf(t.month_done), sub: `dari ${nf(t.month_total)} · rata-rata ${t.avg_min !== null ? fmtMin(t.avg_min) : "–"} / pekerjaan`, c: C.violet },
+        { label: L("Pekerjaan terbuka", "Open jobs"), value: nf(t.open.length), sub: L(`${nf(pool)} belum diambil · ${nf(work)} dikerjakan`, `${nf(pool)} not picked up · ${nf(work)} in progress`), c: t.urgent ? C.bad : t.waiting ? C.warn : C.blue },
+        { label: L("Teknisi available", "Technicians available"), value: `${nf(t.free)} / ${nf(t.technicians.length)}`, sub: L(`${nf(t.busy)} sedang busy`, `${nf(t.busy)} busy`), c: t.free ? C.ok : C.warn },
+        { label: L("Selesai hari ini", "Completed today"), value: nf(t.done_today), sub: L(`${nf(t.in_today)} pekerjaan tercatat hari ini`, `${nf(t.in_today)} job(s) logged today`), c: C.cyan },
+        { label: L("Selesai bulan ini", "Completed this month"), value: nf(t.month_done), sub: L(`dari ${nf(t.month_total)} · rata-rata ${t.avg_min !== null ? fmtMin(t.avg_min) : "–"} / pekerjaan`, `of ${nf(t.month_total)} · average ${t.avg_min !== null ? fmtMin(t.avg_min) : "–"} / job`), c: C.violet },
       ]} />
       <div className={s.grid3}>
-        <Card title="Status teknisi" note={`${nf(t.free)} available · ${nf(t.busy)} busy`}>
-          {t.technicians.length === 0 ? <div className={s.empty}>Belum ada akun teknisi.</div> : (
+        <Card title={L("Status teknisi", "Technician status")} note={`${nf(t.free)} available · ${nf(t.busy)} busy`}>
+          {t.technicians.length === 0 ? <div className={s.empty}>{L("Belum ada akun teknisi.", "No technician accounts yet.")}</div> : (
             <ul className={s.list}>
               {t.technicians.map((x) => (
                 <li key={x.nama} className={s.li} style={{ alignItems: "flex-start" }}>
@@ -624,7 +627,7 @@ function Tga({ v }: { v: FmView }) {
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <b>{x.nama}</b>
                     <span className={s.muted} style={{ display: "block" }}>
-                      {x.busy ? `${x.ref} · ${x.activity ?? ""}${x.lokasi ? ` · ${x.lokasi}` : ""} · ${fmtMin(sinceMin(x.since))}` : `${nf(x.done_today)} selesai hari ini${x.open ? ` · ${nf(x.open)} antre` : ""}`}
+                      {x.busy ? `${x.ref} · ${x.activity ?? ""}${x.lokasi ? ` · ${x.lokasi}` : ""} · ${fmtMin(sinceMin(x.since))}` : L(`${nf(x.done_today)} selesai hari ini${x.open ? ` · ${nf(x.open)} antre` : ""}`, `${nf(x.done_today)} done today${x.open ? ` · ${nf(x.open)} queued` : ""}`)}
                     </span>
                   </span>
                 </li>
@@ -632,8 +635,8 @@ function Tga({ v }: { v: FmView }) {
             </ul>
           )}
         </Card>
-        <Card title="Pekerjaan terbuka" note={t.open.length ? `${nf(t.open.length)} pekerjaan` : undefined}>
-          {t.open.length === 0 ? <div className={s.empty}>Tidak ada pekerjaan terbuka. 👍</div> : (
+        <Card title={L("Pekerjaan terbuka", "Open jobs")} note={t.open.length ? `${nf(t.open.length)} ${L("pekerjaan", "jobs")}` : undefined}>
+          {t.open.length === 0 ? <div className={s.empty}>{L("Tidak ada pekerjaan terbuka. 👍", "No open jobs. 👍")}</div> : (
             <ul className={s.list}>
               {t.open.map((x) => (
                 <li key={x.ref} className={s.li} style={{ alignItems: "flex-start" }}>
@@ -641,7 +644,7 @@ function Tga({ v }: { v: FmView }) {
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <b>{x.activity}</b>
                     <span className={s.muted} style={{ display: "block" }}>
-                      {[x.ref, x.lokasi, x.dept, x.status === "baru" ? (x.pool ? "belum diambil" : `menunggu ${x.tga || "teknisi"}`) : x.tga].filter(Boolean).join(" · ")} · {fmtMin(sinceMin(x.status === "baru" ? x.at : x.accepted ?? x.at))}
+                      {[x.ref, x.lokasi, x.dept, x.status === "baru" ? (x.pool ? L("belum diambil", "not picked up") : L(`menunggu ${x.tga || "teknisi"}`, `waiting for ${x.tga || "a technician"}`)) : x.tga].filter(Boolean).join(" · ")} · {fmtMin(sinceMin(x.status === "baru" ? x.at : x.accepted ?? x.at))}
                     </span>
                   </span>
                 </li>
@@ -649,17 +652,17 @@ function Tga({ v }: { v: FmView }) {
             </ul>
           )}
         </Card>
-        <Card title={`Jenis pekerjaan · ${v.monthLabel}`}>
-          {t.cats.length === 0 ? <div className={s.empty}>Belum ada pekerjaan bulan ini.</div> : (
+        <Card title={L(`Jenis pekerjaan · ${v.monthLabel}`, `Job types · ${v.monthLabel}`)}>
+          {t.cats.length === 0 ? <div className={s.empty}>{L("Belum ada pekerjaan bulan ini.", "No jobs this month.")}</div> : (
             <div className={s.meters}>
-              {t.cats.map((c) => <Meter key={c.k} name={c.k} value={`${nf(c.n)} pekerjaan`} frac={c.n / maxCat} />)}
-              {t.techs_month.length > 0 && <div className={s.lbl} style={{ marginTop: ".6rem" }}>Selesai per teknisi</div>}
+              {t.cats.map((c) => <Meter key={c.k} name={c.k} value={`${nf(c.n)} ${L("pekerjaan", "jobs")}`} frac={c.n / maxCat} />)}
+              {t.techs_month.length > 0 && <div className={s.lbl} style={{ marginTop: ".6rem" }}>{L("Selesai per teknisi", "Completed per technician")}</div>}
               {t.techs_month.map((c) => <Meter key={`t-${c.k}`} name={c.k} value={nf(c.n)} frac={c.n / maxTech} color="var(--acc2)" />)}
             </div>
           )}
         </Card>
       </div>
-      <Chart title={`Pekerjaan TGA selesai per hari · ${v.monthLabel}`} note={`total ${nf(t.month_done)} selesai`} bars={t.daily} flex={0.6} />
+      <Chart title={L(`Pekerjaan TGA selesai per hari · ${v.monthLabel}`, `TGA jobs completed per day · ${v.monthLabel}`)} note={L(`total ${nf(t.month_done)} selesai`, `total ${nf(t.month_done)} completed`)} bars={t.daily} flex={0.6} />
     </>
   );
 }
@@ -667,34 +670,34 @@ function Tga({ v }: { v: FmView }) {
 /* ════════════════ 6 · PELANGGARAN / NC ════════════════ */
 function Nc({ v }: { v: FmView }) {
   const n = v.nc;
-  if (!n.connected) return <Card title="Pelanggaran / NC"><div className={s.empty}>Data pelanggaran dari G-C (Security Desk) belum tersambung. Pastikan environment variable GC_* sudah diisi di Vercel.</div></Card>;
+  if (!n.connected) return <Card title={L("Pelanggaran / NC", "Violations / NC")}><div className={s.empty}>{L("Data pelanggaran dari G-C (Security Desk) belum tersambung. Pastikan environment variable GC_* sudah diisi di Vercel.", "Violation data from G-C (Security Desk) is not connected yet. Make sure the GC_* environment variables are set in Vercel.")}</div></Card>;
   return (
     <>
       <KpiStrip items={[
-        { label: "NC hari ini", value: nf(n.today), sub: "laporan diterima (Accept)", c: n.today >= TARGET.ncTodayCrit ? C.bad : n.today ? C.warn : C.ok },
-        { label: "NC bulan ini", value: nf(n.month), sub: v.monthLabel, c: C.bad },
-        { label: "Total temuan", value: nf(n.temuan), sub: "satu laporan bisa > 1 temuan", c: C.violet },
-        { label: "Transporter terlibat", value: nf(n.transCount), sub: "bulan ini", c: C.blue },
+        { label: L("NC hari ini", "NC today"), value: nf(n.today), sub: L("laporan diterima (Accept)", "accepted reports"), c: n.today >= TARGET.ncTodayCrit ? C.bad : n.today ? C.warn : C.ok },
+        { label: L("NC bulan ini", "NC this month"), value: nf(n.month), sub: v.monthLabel, c: C.bad },
+        { label: L("Total temuan", "Total findings"), value: nf(n.temuan), sub: L("satu laporan bisa > 1 temuan", "one report can have > 1 finding"), c: C.violet },
+        { label: L("Transporter terlibat", "Transporters involved"), value: nf(n.transCount), sub: L("bulan ini", "this month"), c: C.blue },
       ]} />
-      <Chart title={`NC per hari · ${v.monthLabel}`} note={`total ${nf(n.month)} laporan`} bars={n.daily} />
+      <Chart title={L(`NC per hari · ${v.monthLabel}`, `NC per day · ${v.monthLabel}`)} note={L(`total ${nf(n.month)} laporan`, `total ${nf(n.month)} reports`)} bars={n.daily} />
       <div className={s.grid3}>
-        <Card title="Terbaru">
-          {n.recent.length === 0 ? <div className={s.empty}>Tidak ada pelanggaran bulan ini.</div> : (
+        <Card title={L("Terbaru", "Latest")}>
+          {n.recent.length === 0 ? <div className={s.empty}>{L("Tidak ada pelanggaran bulan ini.", "No violations this month.")}</div> : (
             <ul className={s.list}>
               {n.recent.map((x, i) => (
                 <li key={i} className={s.li}>
-                  <span className={s.liTime}>{x.d === v.today ? (x.jam ?? "Hari ini") : new Date(x.d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+                  <span className={s.liTime}>{x.d === v.today ? (x.jam ?? L("Hari ini", "Today")) : new Date(x.d + "T00:00:00").toLocaleDateString(loc(), { day: "numeric", month: "short" })}</span>
                   <span><b>{x.transporter}</b><br /><span className={s.muted}>{x.jenis.join(", ") || "—"}</span></span>
                 </li>
               ))}
             </ul>
           )}
         </Card>
-        <Card title="Jenis temuan · bulan ini">
+        <Card title={L("Jenis temuan · bulan ini", "Finding types · this month")}>
           {n.jenis.length === 0 ? <div className={s.empty}>—</div> : <div className={s.meters}>{n.jenis.map((j) => <Meter key={j.k} name={j.k} value={`${j.n}`} frac={j.n / Math.max(1, n.jenis[0].n)} color={C.bad} />)}</div>}
         </Card>
-        <Card title="Transporter · bulan ini">
-          {n.trans.length === 0 ? <div className={s.empty}>—</div> : <div className={s.meters}>{n.trans.map((j) => <Meter key={j.k} name={j.k} value={`${j.n} laporan`} frac={j.n / Math.max(1, n.trans[0].n)} color={j.n >= 3 ? C.warn : undefined} />)}</div>}
+        <Card title={L("Transporter · bulan ini", "Transporters · this month")}>
+          {n.trans.length === 0 ? <div className={s.empty}>—</div> : <div className={s.meters}>{n.trans.map((j) => <Meter key={j.k} name={j.k} value={`${j.n} ${L("laporan", "reports")}`} frac={j.n / Math.max(1, n.trans[0].n)} color={j.n >= 3 ? C.warn : undefined} />)}</div>}
         </Card>
       </div>
     </>

@@ -1042,6 +1042,20 @@ Setiap modul berisi 4 angka utama, 2 grafik, temuan, dan rekomendasi; ringkasan 
 memuat butir "perlu perhatian manajemen". Unduh sebagai Excel, PowerPoint, atau PDF (Indonesia / English).
 Modul yang tampil mengikuti role (mis. Admin ISS hanya Cleaning & Gardening dan TGA).
 
+## Bahasa Indonesia / English
+
+Seluruh sistem (dashboard, Command Center, TV display, aplikasi Driver & TGA, form publik, halaman bukti/QR)
+punya dua bahasa. Pilih dengan tombol **ID / EN** (pojok layar, `LangSwitch`) atau tombol bahasa di halaman
+login/driver; pilihan tersimpan di browser (`cikops_lang`) dan diterapkan seketika tanpa muat ulang.
+
+- **Ikut berganti:** semua label, tombol, pesan galat, tooltip, tanggal & angka (locale `en-GB` / `id-ID`),
+  Laporan Manajemen (pratinjau + Excel/PPT/PDF), tanda terima, slip tugas, rekap klaim/kantin.
+- **Tidak ikut berganti (sengaja):** *isi data* yang diketik pengguna atau berasal dari database
+  (nama pekerjaan, catatan, nama pelanggar, data demo), nilai status di database (mis. "Terisi", "Paket"),
+  judul notifikasi push & email dari Edge Function.
+- **Menambah teks baru:** pakai `L("Indonesia", "English")` dari `src/lib/i18n.ts`. Tabel label tingkat modul
+  harus memakai getter/fungsi agar bahasa tidak "membeku" saat impor.
+
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
 menyimpan backup harian 7 hari). Karena itu ada workflow GitHub **Backup database**

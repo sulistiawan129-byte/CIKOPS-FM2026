@@ -7,6 +7,7 @@ import { useLang } from "@/lib/providers";
 import of from "./opfund.module.css";
 import { ModuleHeader, ModulePage } from "./ModuleShell";
 
+import { L } from "@/lib/i18n";
 export function ActivityLogTab() {
   const { lang } = useLang();
   const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
@@ -38,7 +39,7 @@ export function ActivityLogTab() {
       });
       setLogs(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat log aktivitas");
+      setError(e instanceof Error ? e.message : L("Gagal memuat log aktivitas", "Failed to load the activity log"));
     } finally {
       setLoading(false);
     }

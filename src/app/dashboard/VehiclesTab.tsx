@@ -17,6 +17,7 @@ import { ModuleHeader, ModulePage } from "./ModuleShell";
 import { formatDateLabel, fmtRp, PLANT_COLOR } from "./dashboardShared";
 import { daysUntil, nextDocDate } from "./HomeTab";
 
+import { L } from "@/lib/i18n";
 const FUEL_OPTIONS = ["Pertalite", "Pertamax", "Pertamax Turbo", "Solar", "Dexlite"];
 
 type VehicleFormState = {
@@ -78,7 +79,7 @@ export function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
       });
       setGateLogs(logs);
     } catch (e) {
-      console.warn("Gagal memuat gate log:", e);
+      console.warn(L("Gagal memuat gate log:", "Failed to load the gate log:"), e);
     } finally {
       setLoadingGateLogs(false);
     }
@@ -92,7 +93,7 @@ export function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
       await forceCloseGateLog(log);
       await loadGateLogs();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menutup catatan");
+      alert(e instanceof Error ? e.message : L("Gagal menutup catatan", "Failed to close the record"));
     } finally {
       setBusyGateLogId(null);
     }
@@ -105,7 +106,7 @@ export function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
       setConfirmDeleteGateLog(null);
       await loadGateLogs();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus catatan");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus catatan", "Failed to delete the record"));
     }
   }
 
@@ -219,7 +220,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       setVehicles(v);
       setDrivers(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data kendaraan");
+      setError(e instanceof Error ? e.message : L("Gagal memuat data kendaraan", "Failed to load vehicle data"));
     } finally {
       setLoading(false);
     }
@@ -290,7 +291,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       setShowForm(false);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menyimpan kendaraan");
+      alert(e instanceof Error ? e.message : L("Gagal menyimpan kendaraan", "Failed to save the vehicle"));
     } finally {
       setSaving(false);
     }
@@ -303,7 +304,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       setConfirmDelete(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Gagal menghapus kendaraan");
+      alert(e instanceof Error ? e.message : L("Gagal menghapus kendaraan", "Failed to delete the vehicle"));
     }
   }
 
@@ -606,7 +607,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                     value={form.aktif ? "active" : "maintenance"}
                     onChange={(e) => setForm({ ...form, aktif: e.target.value === "active" })}
                   >
-                    <option value="active">Aktif</option>
+                    <option value="active">{L("Aktif", "Active")}</option>
                     <option value="maintenance">Maintenance</option>
                   </select>
                 </div>

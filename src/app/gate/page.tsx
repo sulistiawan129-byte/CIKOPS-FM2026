@@ -15,6 +15,7 @@ import type { GateDriverOption, GateVehicleOption, Plant, VehicleGateLog } from 
 import s from "./gate.module.css";
 import { plantFull, plantShort } from "@/lib/brand";
 
+import { loc , L} from "@/lib/i18n";
 type Mode = "light" | "dark";
 type Tab = "active" | "done" | "all";
 type PlantF = "all" | Plant;
@@ -32,8 +33,8 @@ const minsBetween = (a: string | null, b: string | number | null) => (a && b ? M
 /** kejadian pertama & kedua sesuai plant */
 function ev(l: VehicleGateLog) {
   return l.plant === "CIK"
-    ? { first: l.timeOut, second: l.timeIn, firstLbl: "Keluar", secondLbl: "Kembali", act: "Catat Kembali", running: "Di luar", doneLbl: "Sudah kembali" }
-    : { first: l.timeIn, second: l.timeOut, firstLbl: "Masuk CIK", secondLbl: "Keluar CIK", act: "Catat Keluar CIK", running: "Di dalam", doneLbl: "Sudah keluar" };
+    ? { first: l.timeOut, second: l.timeIn, firstLbl: L("Keluar", "Out"), secondLbl: L("Kembali", "Back"), act: L("Catat Kembali", "Log Return"), running: L("Di luar", "Outside"), doneLbl: L("Sudah kembali", "Returned") }
+    : { first: l.timeIn, second: l.timeOut, firstLbl: L("Masuk CIK", "Entered CIK"), secondLbl: L("Keluar CIK", "Left CIK"), act: L("Catat Keluar CIK", "Log Exit from CIK"), running: L("Di dalam", "Inside"), doneLbl: L("Sudah keluar", "Left") };
 }
 const pVar = (p: Plant) => ({ ["--p" as string]: p === "PRB" ? "var(--g-prb)" : "var(--g-cik)" });
 
@@ -102,12 +103,12 @@ export default function GatePage() {
     if (!tanggal) return;
     if (!silent) setLoading(true);
     try { setLogs(await getGateLogsPublic(tanggal)); setError(""); }
-    catch (e) { setError(e instanceof Error ? e.message : "Gagal memuat aktivitas gate"); }
+    catch (e) { setError(e instanceof Error ? e.message : L("Gagal memuat aktivitas gate", "Failed to load gate activity")); }
     finally { setLoading(false); }
   }, [tanggal]);
 
   useEffect(() => {
-    getActiveVehiclesForGate().then(setVehicles).catch(() => setError("Gagal memuat daftar kendaraan"));
+    getActiveVehiclesForGate().then(setVehicles).catch(() => setError(L("Gagal memuat daftar kendaraan", "Failed to load the vehicle list")));
     getActiveDriversForGate().then(setDrivers).catch(() => {});
   }, []);
   useEffect(() => {
@@ -125,7 +126,7 @@ export default function GatePage() {
     try { localStorage.setItem("gate-theme", m); } catch { /* abaikan */ }
   }
   function editOfficer() {
-    const n = window.prompt("Nama petugas gate yang sedang bertugas:", officer);
+    const n = window.prompt(L("Nama petugas gate yang sedang bertugas:", "Name of the gate officer on duty:"), officer);
     if (n === null) return;
     setOfficer(n.trim());
     try { localStorage.setItem("gate-officer-name", n.trim()); } catch { /* abaikan */ }
@@ -206,7 +207,7 @@ export default function GatePage() {
         vehicleId: selected.id, driverId: manual ? null : driverId, driverNameManual: manual ? driverManual.trim() : null,
         tujuan: tujuan.trim(), keterangan: ket.trim(), timestamp: ts,
       });
-      setToast({ plate: selected.nopol, text: `${selected.plant === "PRB" ? "tercatat MASUK CIK" : "tercatat KELUAR"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
+      setToast({ plate: selected.nopol, text: `${selected.plant === "PRB" ? L("tercatat MASUK CIK", "logged ENTRY to CIK") : L("tercatat KELUAR", "logged EXIT")} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
       const vid = selected.id;
       setVehicleId(""); setPlateQ(""); setDriverId(""); setManual(false); setDriverManual(""); setTujuan(""); setKet(""); setAutoDriver("");
       setTab("active");
@@ -215,7 +216,7 @@ export default function GatePage() {
       const nl = fresh.filter((l) => l.vehicleId === vid && l.status !== "DONE")[0];
       if (nl) { setFlashId(nl.id); setTimeout(() => setFlashId(null), 1800); }
       plateRef.current?.focus();
-    } catch (e) { setError(e instanceof Error ? e.message : "Gagal mencatat kendaraan"); }
+    } catch (e) { setError(e instanceof Error ? e.message : L("Gagal mencatat kendaraan", "Failed to record the vehicle")); }
     finally { setSubmitting(false); }
   }
 
@@ -225,9 +226,9 @@ export default function GatePage() {
     try {
       await closeGateCheckpoint(l.vehicleId);
       const n = new Date();
-      setToast({ plate: l.nopol, text: `${l.plant === "PRB" ? "tercatat KELUAR CIK" : "tercatat KEMBALI"} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
+      setToast({ plate: l.nopol, text: `${l.plant === "PRB" ? L("tercatat KELUAR CIK", "logged EXIT from CIK") : L("tercatat KEMBALI", "logged RETURN")} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
       await loadLogs(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Gagal mencatat data"); }
+    } catch (e) { setError(e instanceof Error ? e.message : L("Gagal mencatat data", "Failed to record the data")); }
     finally { setBusyId(null); }
   }
 
@@ -250,22 +251,22 @@ export default function GatePage() {
         <div className={s.clock} aria-live="off"><b>{now ? `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : "--:--:--"}</b><span>WIB</span></div>
         {now && (
           <div className={s.dateChip}>
-            <b>{now.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</b>
-            <small>{now.toLocaleDateString("id-ID", { weekday: "long" })}</small>
+            <b>{now.toLocaleDateString(loc(), { day: "2-digit", month: "short", year: "numeric" })}</b>
+            <small>{now.toLocaleDateString(loc(), { weekday: "long" })}</small>
           </div>
         )}
         <button type="button" className={s.iconBtn} onClick={toggleMode} aria-label={mode === "light" ? "Mode gelap" : "Mode terang"} title={mode === "light" ? "Mode gelap" : "Mode terang"}>{mode === "light" ? I.moon : I.sun}</button>
-        <button type="button" className={s.officer} onClick={editOfficer} title="Ganti nama petugas">
+        <button type="button" className={s.officer} onClick={editOfficer} title={L("Ganti nama petugas", "Change the officer name")}>
           <i>{officer ? officer.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() : "SC"}</i>
-          <span><small>Petugas</small><b>{officer || "Atur nama"}</b></span>
+          <span><small>{L("Petugas", "Officer")}</small><b>{officer || L("Atur nama", "Set name")}</b></span>
         </button>
       </header>
 
       <main className={s.main}>
         {tanggal && !isToday && (
           <div className={s.banner}>
-            Melihat & mencatat untuk tanggal {tglObj?.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-            <button type="button" onClick={() => setTanggal(today)}>Kembali ke hari ini</button>
+            {L("Melihat & mencatat untuk tanggal", "Viewing & logging for")} {tglObj?.toLocaleDateString(loc(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            <button type="button" onClick={() => setTanggal(today)}>{L("Kembali ke hari ini", "Back to today")}</button>
           </div>
         )}
         {error && <div className={s.err} role="alert">⚠ {error}</div>}
@@ -273,32 +274,32 @@ export default function GatePage() {
         {/* ── KPI ── */}
         <section className={s.kpis}>
           <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "CIK" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-cik)" }} onClick={() => kpiSet("active", "CIK")}>
-            <small>{cikOut > 0 && <span className={s.pulse} />}CIK di luar</small><b>{cikOut}</b><em>kendaraan sedang trip</em>
+            <small>{cikOut > 0 && <span className={s.pulse} />}{L("CIK di luar", "CIK outside")}</small><b>{cikOut}</b><em>{L("kendaraan sedang trip", "vehicles on a trip")}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "active" && plantF === "PRB" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-prb)" }} onClick={() => kpiSet("active", "PRB")}>
-            <small>{prbIn > 0 && <span className={s.pulse} />}PRB di dalam</small><b>{prbIn}</b><em>kendaraan {plantShort("PRB")} di CIK</em>
+            <small>{prbIn > 0 && <span className={s.pulse} />}{L("PRB di dalam", "PRB inside")}</small><b>{prbIn}</b><em>{L("kendaraan", "vehicles from")} {plantShort("PRB")} {L("di CIK", "at CIK")}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "done" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-green)" }} onClick={() => kpiSet("done", "all")}>
-            <small>Selesai</small><b>{done.length}</b><em>trip tuntas {isToday ? "hari ini" : ""}</em>
+            <small>{L("Selesai", "Completed")}</small><b>{done.length}</b><em>{L("trip tuntas", "trips completed")} {isToday ? L("hari ini", "today") : ""}</em>
           </button>
           <button type="button" className={`${s.kpi} ${tab === "all" && plantF === "all" ? s.kpiOn : ""}`} style={{ ["--k" as string]: "var(--g-brand)" }} onClick={() => kpiSet("all", "all")}>
-            <small>Total tercatat</small><b>{logs.length}</b><em>{vehicles.length} kendaraan terdaftar</em>
+            <small>{L("Total tercatat", "Total logged")}</small><b>{logs.length}</b><em>{vehicles.length} {L("kendaraan terdaftar", "registered vehicles")}</em>
           </button>
           <div className={`${s.kpi} ${s.kpiStatic}`} style={{ ["--k" as string]: "#8b6cff" }}>
-            <small>Rata-rata durasi</small><b>{avgDur === null ? "–" : fmtDur(avgDur)}</b><em>dari trip yang selesai</em>
+            <small>{L("Rata-rata durasi", "Average duration")}</small><b>{avgDur === null ? "–" : fmtDur(avgDur)}</b><em>{L("dari trip yang selesai", "from completed trips")}</em>
           </div>
         </section>
 
         <div className={s.grid}>
           {/* ── FORM ── */}
-          <section className={`${s.card} ${s.form} ${selected ? (selected.plant === "PRB" ? s.formPrb : s.formCik) : ""}`} aria-label="Catat kendaraan">
+          <section className={`${s.card} ${s.form} ${selected ? (selected.plant === "PRB" ? s.formPrb : s.formCik) : ""}`} aria-label={L("Catat kendaraan", "Log a vehicle")}>
             <div className={s.cardHead}>
               <i>{I.car}</i>
-              <div className={s.grow}><b>Catat Kendaraan</b><small>Pilih kendaraan, driver, lalu simpan.</small></div>
+              <div className={s.grow}><b>{L("Catat Kendaraan", "Log a Vehicle")}</b><small>{L("Pilih kendaraan, driver, lalu simpan.", "Select the vehicle, the driver, then save.")}</small></div>
             </div>
 
             <div className={s.step}>
-              <div className={s.label}><span><em>1</em>Kendaraan</span>{selected && <button type="button" className={s.link} onClick={clearVehicle}>Ganti</button>}</div>
+              <div className={s.label}><span><em>1</em>{L("Kendaraan", "Vehicle")}</span>{selected && <button type="button" className={s.link} onClick={clearVehicle}>{L("Ganti", "Change")}</button>}</div>
               <div className={s.plateWrap}>
                 <input
                   ref={plateRef}
@@ -306,21 +307,21 @@ export default function GatePage() {
                   value={plateQ}
                   onChange={(e) => { setPlateQ(e.target.value.toUpperCase()); setVehicleId(""); setAutoDriver(""); }}
                   onKeyDown={(e) => { if (e.key === "Enter") { const f = vList.find((v) => !busyVehicle.has(v.id)); if (f && !selected) { e.preventDefault(); pick(f); } } }}
-                  placeholder="Ketik / pilih plat nomor"
-                  aria-label="Plat nomor"
+                  placeholder={L("Ketik / pilih plat nomor", "Type / pick a plate number")}
+                  aria-label={L("Plat nomor", "Plate number")}
                   autoComplete="off"
                 />
-                {plateQ && <button type="button" className={s.plateClear} onClick={clearVehicle} aria-label="Hapus">×</button>}
+                {plateQ && <button type="button" className={s.plateClear} onClick={clearVehicle} aria-label={L("Hapus", "Clear")}>×</button>}
               </div>
               {!selected && (
                 <div className={s.vgrid}>
-                  {vList.length === 0 && <div className={s.vempty}>Plat tidak ditemukan</div>}
+                  {vList.length === 0 && <div className={s.vempty}>{L("Plat tidak ditemukan", "Plate not found")}</div>}
                   {vList.slice(0, 60).map((v) => {
                     const b = busyVehicle.get(v.id);
                     return (
-                      <button key={v.id} type="button" className={s.vchip} style={pVar(v.plant)} disabled={!!b} onClick={() => pick(v)} title={b ? `${ev(b).running} sejak ${hhmm(ev(b).first)}` : `${v.nopol} · ${v.jenis}`}>
+                      <button key={v.id} type="button" className={s.vchip} style={pVar(v.plant)} disabled={!!b} onClick={() => pick(v)} title={b ? `${ev(b).running} ${L("sejak", "since")} ${hhmm(ev(b).first)}` : `${v.nopol} · ${v.jenis}`}>
                         <b>{v.nopol}</b>
-                        {b ? <small style={{ color: "var(--g-prb-text)", fontWeight: 700 }}>{v.plant === "CIK" ? "Di luar" : "Di dalam"} · {hhmm(ev(b).first)}</small> : <small>{v.plant} · {v.jenis}</small>}
+                        {b ? <small style={{ color: "var(--g-prb-text)", fontWeight: 700 }}>{v.plant === "CIK" ? L("Di luar", "Outside") : L("Di dalam", "Inside")} · {hhmm(ev(b).first)}</small> : <small>{v.plant} · {v.jenis}</small>}
                       </button>
                     );
                   })}
@@ -331,28 +332,28 @@ export default function GatePage() {
             {selected && (
               <div className={`${s.dir} ${selected.plant === "PRB" ? s.dirPrb : s.dirCik}`}>
                 <i>{selected.plant === "PRB" ? I.in : I.out}</i>
-                <div><b>{selected.plant === "PRB" ? "MASUK CIK" : "KELUAR PLANT"}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · Kendaraan {plantShort(selected.plant)}</small></div>
+                <div><b>{selected.plant === "PRB" ? L("MASUK CIK", "ENTER CIK") : L("KELUAR PLANT", "LEAVE PLANT")}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · {L("Kendaraan", "Vehicle")} {plantShort(selected.plant)}</small></div>
                 <span className={s.plate} style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)", fontWeight: 800, fontSize: 15, padding: "6px 10px", borderRadius: 8, border: "2px solid currentColor", whiteSpace: "nowrap" }}>{selected.nopol}</span>
               </div>
             )}
 
             <div className={s.step}>
               <div className={s.label}><span><em>2</em>Driver</span>
-                <button type="button" className={s.link} onClick={() => { setManual((v) => !v); setAutoDriver(""); }}>{manual ? "Pilih dari daftar" : "Ketik manual"}</button>
+                <button type="button" className={s.link} onClick={() => { setManual((v) => !v); setAutoDriver(""); }}>{manual ? L("Pilih dari daftar", "Pick from the list") : L("Ketik manual", "Type manually")}</button>
               </div>
               {manual ? (
-                <input className={s.input} value={driverManual} onChange={(e) => setDriverManual(e.target.value)} placeholder="Nama driver / pengemudi" />
+                <input className={s.input} value={driverManual} onChange={(e) => setDriverManual(e.target.value)} placeholder={L("Nama driver / pengemudi", "Driver name")} />
               ) : (
                 <select className={s.select} value={driverId} onChange={(e) => { setDriverId(e.target.value); setAutoDriver(""); }}>
-                  <option value="">— Pilih driver —</option>
+                  <option value="">{L("— Pilih driver —", "— Select driver —")}</option>
                   {drivers.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
                 </select>
               )}
-              {autoDriver && <div className={s.hint}>✓ Terisi otomatis: <b>{autoDriver}</b> (driver terakhir kendaraan ini)</div>}
+              {autoDriver && <div className={s.hint}>{L("✓ Terisi otomatis", "✓ Filled automatically")}: <b>{autoDriver}</b> {L("(driver terakhir kendaraan ini)", "(this vehicle's last driver)")}</div>}
             </div>
 
             <div className={s.step}>
-              <div className={s.label}><span><em>3</em>Tujuan</span></div>
+              <div className={s.label}><span><em>3</em>{L("Tujuan", "Destination")}</span></div>
               <input className={s.input} value={tujuan} onChange={(e) => setTujuan(e.target.value)} placeholder="Contoh: Antar dokumen ke PRB" />
               <div className={s.chips}>
                 {tujuanChips.map((t) => <button key={t} type="button" className={`${s.chip} ${tujuan === t ? s.chipOn : ""}`} onClick={() => setTujuan(tujuan === t ? "" : t)}>{t}</button>)}
@@ -360,27 +361,27 @@ export default function GatePage() {
             </div>
 
             <div className={s.step}>
-              <div className={s.label}><span><em>4</em>Keperluan / catatan</span><span style={{ letterSpacing: 0, textTransform: "none", fontWeight: 600 }}>opsional</span></div>
-              <textarea className={s.textarea} rows={2} value={ket} onChange={(e) => setKet(e.target.value)} placeholder="Keperluan perjalanan, barang bawaan, dll." />
+              <div className={s.label}><span><em>4</em>{L("Keperluan / catatan", "Purpose / notes")}</span><span style={{ letterSpacing: 0, textTransform: "none", fontWeight: 600 }}>{L("opsional", "optional")}</span></div>
+              <textarea className={s.textarea} rows={2} value={ket} onChange={(e) => setKet(e.target.value)} placeholder={L("Keperluan perjalanan, barang bawaan, dll.", "Purpose of the trip, cargo, etc.")} />
             </div>
 
             <div className={s.step} style={{ marginBottom: 20 }}>
-              <div className={s.label}><span>Tanggal pencatatan</span></div>
+              <div className={s.label}><span>{L("Tanggal pencatatan", "Logging date")}</span></div>
               <input type="date" className={s.input} value={tanggal} max={today || undefined} onChange={(e) => setTanggal(e.target.value)} />
             </div>
 
             <button type="button" className={`${s.submit} ${selected?.plant === "PRB" ? s.submitPrb : ""}`} disabled={!canSubmit} onClick={submit}>
-              {submitting ? "Menyimpan…" : !selected ? "Pilih kendaraan dulu" : !driverOk ? "Pilih driver" : <>{selected.plant === "PRB" ? I.in : I.out} {selected.plant === "PRB" ? "CATAT MASUK CIK" : "CATAT KELUAR"} · {selected.nopol}</>}
+              {submitting ? L("Menyimpan…", "Saving…") : !selected ? L("Pilih kendaraan dulu", "Select a vehicle first") : !driverOk ? L("Pilih driver", "Select a driver") : <>{selected.plant === "PRB" ? I.in : I.out} {selected.plant === "PRB" ? L("CATAT MASUK CIK", "LOG ENTRY TO CIK") : L("CATAT KELUAR", "LOG EXIT")} · {selected.nopol}</>}
             </button>
-            <div className={s.kbd}>Tips: ketik plat lalu tekan Enter untuk memilih kendaraan teratas.</div>
+            <div className={s.kbd}>{L("Tips: ketik plat lalu tekan Enter untuk memilih kendaraan teratas.", "Tip: type the plate then press Enter to pick the top vehicle.")}</div>
           </section>
 
           <div className={s.side}>
             {/* ── GRAFIK PER JAM ── */}
             <section className={`${s.card} ${s.chart}`}>
               <div className={s.chartHead}>
-                <div><b>Pergerakan per jam</b> <small>· {tglObj?.toLocaleDateString("id-ID", { day: "numeric", month: "long" })}</small></div>
-                <div className={s.legend}><span><i style={{ background: "var(--g-cik)" }} />Keluar</span><span><i style={{ background: "var(--g-green)" }} />Masuk / kembali</span></div>
+                <div><b>{L("Pergerakan per jam", "Movements per hour")}</b> <small>· {tglObj?.toLocaleDateString(loc(), { day: "numeric", month: "long" })}</small></div>
+                <div className={s.legend}><span><i style={{ background: "var(--g-cik)" }} />{L("Keluar", "Out")}</span><span><i style={{ background: "var(--g-green)" }} />{L("Masuk / kembali", "In / returned")}</span></div>
               </div>
               <div className={s.bars}>
                 {hourly.map((x, hi) => {
@@ -403,22 +404,22 @@ export default function GatePage() {
             {/* ── DAFTAR AKTIVITAS ── */}
             <section className={`${s.card} ${s.list}`}>
               <div className={s.listHead}>
-                <div><b>Aktivitas Gate</b><small>Diperbarui otomatis tiap 15 detik</small></div>
+                <div><b>{L("Aktivitas Gate", "Gate Activity")}</b><small>{L("Diperbarui otomatis tiap 15 detik", "Updated automatically every 15 seconds")}</small></div>
                 <span className={s.grow} />
                 <label className={s.search}>
                   {I.search}
-                  <input className={s.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari plat, driver, tujuan…" aria-label="Cari" />
+                  <input className={s.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari plat, driver, tujuan…", "Search plate, driver, destination…")} aria-label={L("Cari", "Search")} />
                 </label>
-                <input type="date" className={`${s.input} ${s.dateIn}`} value={tanggal} max={today || undefined} onChange={(e) => setTanggal(e.target.value)} aria-label="Tanggal" />
+                <input type="date" className={`${s.input} ${s.dateIn}`} value={tanggal} max={today || undefined} onChange={(e) => setTanggal(e.target.value)} aria-label={L("Tanggal", "Date")} />
               </div>
               <div className={s.toolbar}>
                 <div className={s.seg} role="tablist">
-                  {([["active", "Sedang berjalan", active.length], ["done", "Selesai", done.length], ["all", "Semua", logs.length]] as [Tab, string, number][]).map(([k, lbl, n]) => (
+                  {([["active", L("Sedang berjalan", "In progress"), active.length], ["done", L("Selesai", "Done"), done.length], ["all", L("Semua", "All"), logs.length]] as [Tab, string, number][]).map(([k, lbl, n]) => (
                     <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? s.segOn : ""} onClick={() => setTab(k)}>{lbl}<span>{n}</span></button>
                   ))}
                 </div>
                 <div className={s.seg}>
-                  {([["all", "Semua plant"], ["CIK", "CIK"], ["PRB", "PRB"]] as [PlantF, string][]).map(([k, lbl]) => (
+                  {([["all", L("Semua plant", "All plants")], ["CIK", "CIK"], ["PRB", "PRB"]] as [PlantF, string][]).map(([k, lbl]) => (
                     <button key={k} type="button" aria-pressed={plantF === k} className={plantF === k ? s.segOn : ""} onClick={() => setPlantF(k)}>{lbl}</button>
                   ))}
                 </div>
@@ -429,8 +430,8 @@ export default function GatePage() {
               ) : list.length === 0 ? (
                 <div className={s.empty}>
                   {I.empty}
-                  <b>{tab === "active" ? "Tidak ada kendaraan yang sedang berjalan" : "Belum ada data"}</b>
-                  {q ? "Coba kata kunci lain." : tab === "active" ? "Semua kendaraan sudah di tempatnya." : "Belum ada pergerakan tercatat pada tanggal ini."}
+                  <b>{tab === "active" ? L("Tidak ada kendaraan yang sedang berjalan", "No vehicles in progress") : L("Belum ada data", "No data yet")}</b>
+                  {q ? L("Coba kata kunci lain.", "Try another keyword.") : tab === "active" ? L("Semua kendaraan sudah di tempatnya.", "All vehicles are in place.") : L("Belum ada pergerakan tercatat pada tanggal ini.", "No movements logged on this date.")}
                 </div>
               ) : tab === "active" ? (
                 <div className={s.cards}>
@@ -450,13 +451,13 @@ export default function GatePage() {
                           <span className={`${s.ptag} ${l.plant === "PRB" ? s.ptagPrb : s.ptagCik}`}>{l.plant}</span>
                         </div>
                         <div className={s.tripMeta}>
-                          <div>{I.pin}<span>{l.tujuan || "Tujuan tidak diisi"}{l.keterangan ? <><br /><em>{l.keterangan}</em></> : null}</span></div>
+                          <div>{I.pin}<span>{l.tujuan || L("Tujuan tidak diisi", "Destination not filled in")}{l.keterangan ? <><br /><em>{l.keterangan}</em></> : null}</span></div>
                           <div>{I.clock}<span>{e.firstLbl} {hhmm(e.first)} WIB</span></div>
                         </div>
                         <div className={s.tripFoot}>
                           <div className={`${s.timer} ${tone}`}><small>{e.running}</small><b>{fmtDur(m)}</b></div>
                           <button type="button" className={`${s.act} ${conf ? s.actConfirm : ""}`} disabled={busyId === l.id} onClick={() => closeTrip(l)}>
-                            {busyId === l.id ? "Menyimpan…" : conf ? <>{I.check} Ketuk lagi untuk konfirmasi</> : <>{l.plant === "PRB" ? I.out : I.in} {e.act}</>}
+                            {busyId === l.id ? L("Menyimpan…", "Saving…") : conf ? <>{I.check} {L("Ketuk lagi untuk konfirmasi", "Tap again to confirm")}</> : <>{l.plant === "PRB" ? I.out : I.in} {e.act}</>}
                           </button>
                         </div>
                       </article>
@@ -472,7 +473,7 @@ export default function GatePage() {
                     return (
                       <div key={l.id} className={s.doneRow} style={pVar(l.plant)}>
                         <div><span className={s.plate} style={{ fontFamily: "var(--mono, monospace)", fontWeight: 800, fontSize: 14 }}>{l.nopol}</span><small style={{ display: "block", fontSize: 11.5, color: "var(--g-t3)" }}>{l.plant} · {l.jenis}</small></div>
-                        <div style={{ minWidth: 0 }}><b style={{ fontSize: 13.5 }}>{l.driverName}</b><small style={{ display: "block", fontSize: 11.5, color: fin ? "var(--g-green-text)" : "var(--g-prb-text)", fontWeight: 700 }}>{fin ? e.doneLbl : e.running.toLowerCase() === "di luar" ? "Sedang keluar" : "Sedang di CIK"}</small></div>
+                        <div style={{ minWidth: 0 }}><b style={{ fontSize: 13.5 }}>{l.driverName}</b><small style={{ display: "block", fontSize: 11.5, color: fin ? "var(--g-green-text)" : "var(--g-prb-text)", fontWeight: 700 }}>{fin ? e.doneLbl : l.plant === "CIK" ? L("Sedang keluar", "Currently out") : L("Sedang di CIK", "Currently at CIK")}</small></div>
                         <div style={{ color: "var(--g-t2)", minWidth: 0 }}>{l.tujuan || "–"}{l.keterangan ? <small style={{ display: "block", fontSize: 11.5, color: "var(--g-t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.keterangan}</small> : null}</div>
                         <div className={s.flow}>
                           <span>{hhmm(e.first)}<small style={{ display: "block" }}>{e.firstLbl}</small></span>
@@ -485,7 +486,7 @@ export default function GatePage() {
                   })}
                 </div>
               )}
-              {list.length > shown && <button type="button" className={s.more} onClick={() => setShown((n) => n + PAGE)}>Tampilkan {Math.min(PAGE, list.length - shown)} lagi · {list.length - shown} tersisa</button>}
+              {list.length > shown && <button type="button" className={s.more} onClick={() => setShown((n) => n + PAGE)}>{L("Tampilkan", "Show")} {Math.min(PAGE, list.length - shown)} {L("lagi", "more")} · {list.length - shown} {L("tersisa", "left")}</button>}
             </section>
           </div>
         </div>

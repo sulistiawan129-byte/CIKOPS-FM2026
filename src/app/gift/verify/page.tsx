@@ -3,6 +3,7 @@ import { useState } from "react";
 import { verifyGiftPasscode, claimGift } from "@/lib/api";
 import type { GiftRegistration } from "@/lib/types";
 
+import { loc , L} from "@/lib/i18n";
 export default function GiftVerifyPage() {
   const [passcode, setPasscode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,12 +22,12 @@ export default function GiftVerifyPage() {
     setReg(null);
     try {
       const result = await verifyGiftPasscode(code);
-      if (!result) { setError("Passcode tidak ditemukan atau sudah tidak berlaku."); return; }
+      if (!result) { setError(L("Passcode tidak ditemukan atau sudah tidak berlaku.", "Passcode not found or no longer valid.")); return; }
       setReg(result);
     } catch (e) {
       // tampilkan pesan dari server (mis. batas percobaan passcode), selain itu pesan umum
       const m = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "";
-      setError(m && !/fetch|network/i.test(m) ? m : "Gagal memverifikasi. Periksa koneksi internet.");
+      setError(m && !/fetch|network/i.test(m) ? m : L("Gagal memverifikasi. Periksa koneksi internet.", "Failed to verify. Check your internet connection."));
     } finally {
       setLoading(false);
     }
@@ -40,7 +41,7 @@ export default function GiftVerifyPage() {
       setClaimed(true);
       setReg(prev => prev ? { ...prev, claimed: true } : prev);
     } catch {
-      alert("Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.");
+      alert(L("Gagal menandai pengambilan. Mungkin sudah diklaim sebelumnya.", "Failed to mark the pickup. It may have been claimed already."));
     } finally {
       setClaiming(false);
     }
@@ -57,7 +58,7 @@ export default function GiftVerifyPage() {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <img src="/logo.png" alt="CIKOPS" style={{ width: 56, height: 56, borderRadius: "50%", marginBottom: 14 }} />
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#1c3e82", margin: "0 0 4px" }}>Verifikasi Pengambilan</h1>
-          <p style={{ color: "#7a86aa", fontSize: 13, margin: 0 }}>Masukkan passcode 8 digit dari karyawan</p>
+          <p style={{ color: "#7a86aa", fontSize: 13, margin: 0 }}>{L("Masukkan passcode 8 digit dari karyawan", "Enter the 8-digit passcode from the employee")}</p>
         </div>
 
         {/* Passcode input */}
@@ -86,7 +87,7 @@ export default function GiftVerifyPage() {
             color: passcode.length === 8 ? "#fff" : "#9ca3af",
             fontWeight: 700, fontSize: 15, cursor: passcode.length === 8 ? "pointer" : "default",
           }}>
-            {loading ? "Memeriksa..." : "Cek Passcode"}
+            {loading ? L("Memeriksa...", "Checking...") : L("Cek Passcode", "Check Passcode")}
           </button>
         </form>
 
@@ -98,26 +99,26 @@ export default function GiftVerifyPage() {
               <span style={{ fontSize: 24 }}>{reg.claimed ? "✅" : "🎁"}</span>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 15, color: reg.claimed ? "#166534" : "#fff" }}>
-                  {reg.claimed ? "Sudah Diambil" : "Belum Diambil"}
+                  {reg.claimed ? L("Sudah Diambil", "Collected") : L("Belum Diambil", "Not Collected")}
                 </div>
                 <div style={{ fontSize: 12, color: reg.claimed ? "#4ade80" : "rgba(255,255,255,0.7)" }}>
-                  {reg.claimed ? `Diproses oleh ${reg.claimedBy}` : reg.eventName}
+                  {reg.claimed ? L(`Diproses oleh ${reg.claimedBy}`, `Processed by ${reg.claimedBy}`) : reg.eventName}
                 </div>
               </div>
             </div>
 
             {/* Data karyawan */}
             <div style={{ padding: "20px 24px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#7a86aa", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>Data Karyawan</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7a86aa", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 14 }}>{L("Data Karyawan", "Employee Data")}</div>
               <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20 }}>
                 <tbody>
                   {[
                     ["NIK", reg.nik],
-                    ["Nama", reg.nama],
-                    ["Departemen", reg.departemen],
+                    [L("Nama", "Name"), reg.nama],
+                    [L("Departemen", "Department"), reg.departemen],
                     ["Email", reg.email],
                     ["Program", reg.eventName],
-                    ["Terdaftar", new Date(reg.registeredAt).toLocaleString("id-ID")],
+                    ["Terdaftar", new Date(reg.registeredAt).toLocaleString(loc())],
                   ].map(([k, v]) => (
                     <tr key={k} style={{ borderBottom: "1px solid #edf0f7" }}>
                       <td style={{ padding: "9px 0", fontSize: 13, color: "#7a86aa", width: "40%" }}>{k}</td>
@@ -128,7 +129,7 @@ export default function GiftVerifyPage() {
               </table>
 
               {/* Pilihan item */}
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#7a86aa", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>Item yang Diambil</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7a86aa", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>{L("Item yang Diambil", "Items Collected")}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
                 {reg.selections.map(s => (
                   <div key={s.item} style={{ background: "#eef2fb", borderRadius: 10, padding: "8px 16px", fontSize: 13 }}>
@@ -146,7 +147,7 @@ export default function GiftVerifyPage() {
                     type="text"
                     value={petugas}
                     onChange={e => setPetugas(e.target.value)}
-                    placeholder="Nama petugas yang memproses"
+                    placeholder={L("Nama petugas yang memproses", "Name of the officer processing")}
                     style={{ width: "100%", padding: "12px 15px", borderRadius: 12, border: "1.5px solid #dfe6f3", fontSize: 14, color: "#1a2540", outline: "none", boxSizing: "border-box", marginBottom: 12 }}
                   />
                   <button onClick={handleClaim} disabled={!petugas.trim() || claiming} style={{
@@ -155,26 +156,26 @@ export default function GiftVerifyPage() {
                     color: petugas.trim() ? "#fff" : "#9ca3af",
                     fontWeight: 800, fontSize: 15, cursor: petugas.trim() ? "pointer" : "default",
                   }}>
-                    {claiming ? "Memproses..." : "✅ Tandai Sudah Diambil"}
+                    {claiming ? L("Memproses...", "Processing...") : L("✅ Tandai Sudah Diambil", "✅ Mark as Collected")}
                   </button>
                 </div>
               ) : (
                 <div style={{ background: "#dcfce7", borderRadius: 14, padding: "16px 18px", textAlign: "center" }}>
                   <div style={{ fontSize: 22, marginBottom: 6 }}>🎉</div>
-                  <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>Pengambilan berhasil dicatat!</div>
-                  <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>Passcode ini tidak dapat digunakan lagi.</div>
+                  <div style={{ fontWeight: 800, color: "#166534", fontSize: 15 }}>{L("Pengambilan berhasil dicatat!", "Collection recorded successfully!")}</div>
+                  <div style={{ color: "#4ade80", fontSize: 12, marginTop: 4 }}>{L("Passcode ini tidak dapat digunakan lagi.", "This passcode can no longer be used.")}</div>
                 </div>
               )}
 
               <button onClick={reset} style={{ width: "100%", marginTop: 12, padding: 12, borderRadius: 12, border: "1.5px solid #dfe6f3", background: "#f8faff", color: "#7a86aa", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-                Cek Passcode Lain
+                {L("Cek Passcode Lain", "Check Another Passcode")}
               </button>
             </div>
           </div>
         )}
 
         <div style={{ textAlign: "center", marginTop: 32, fontSize: 11, color: "#a0aac0" }}>
-          CIKOPS-FM SYSTEM — Hanya untuk petugas yang berwenang
+          {L("CIKOPS-FM SYSTEM — Hanya untuk petugas yang berwenang", "CIKOPS-FM SYSTEM — Authorised officers only")}
         </div>
       </div>
     </div>

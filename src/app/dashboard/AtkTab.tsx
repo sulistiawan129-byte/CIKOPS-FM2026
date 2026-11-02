@@ -22,6 +22,7 @@ import { exportGenericCsv, exportGenericExcel, exportGenericPdf } from "@/lib/re
 import type { ReportColumn, ReportLang } from "@/lib/reportEngine";
 import s from "./atk.module.css";
 
+import { loc } from "@/lib/i18n";
 type Lang = "id" | "en";
 type View = "dashboard" | "request" | "restock" | "stock" | "history" | "sync";
 type Preset = "thisMonth" | "lastMonth" | "d30" | "m3" | "year" | "custom";
@@ -136,8 +137,8 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
     if (!quiet) setLoading(true);
     const errs: string[] = [];
     await Promise.all([
-      getAtkItems().then(setItems).catch((e) => errs.push(`Stok: ${e.message ?? e}`)),
-      getAtkRequests({ dateFrom: prev.from, dateTo: range.to }).then(setRequests).catch((e) => errs.push(`Permintaan: ${e.message ?? e}`)),
+      getAtkItems().then(setItems).catch((e) => errs.push(`${L("Stok", "Stock")}: ${e.message ?? e}`)),
+      getAtkRequests({ dateFrom: prev.from, dateTo: range.to }).then(setRequests).catch((e) => errs.push(`${L("Permintaan", "Requests")}: ${e.message ?? e}`)),
       getAtkRestocks({ dateFrom: prev.from, dateTo: range.to }).then(setRestocks).catch((e) => errs.push(`Restock: ${e.message ?? e}`)),
       getAtkSyncStatus().then((v) => { setSync(v); setSyncErr(null); }).catch((e) => setSyncErr(e.message ?? String(e))),
     ]);
@@ -185,7 +186,7 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
         </div>
         <div className={s.headSide}>
           <SyncPill sync={sync} err={syncErr} lang={lang} onClick={() => setView("sync")} />
-          <button type="button" className={s.ghostBtn} onClick={() => load()} disabled={loading} title={updatedAt ? `${L("Diperbarui", "Updated")} ${updatedAt.toLocaleTimeString("id-ID")}` : undefined}>
+          <button type="button" className={s.ghostBtn} onClick={() => load()} disabled={loading} title={updatedAt ? `${L("Diperbarui", "Updated")} ${updatedAt.toLocaleTimeString(loc())}` : undefined}>
             {loading ? "…" : "↻"} {L("Muat ulang", "Refresh")}
           </button>
         </div>
@@ -997,7 +998,7 @@ function HistoryView({ lang, requests, restocks, range, loading, onChanged, onEr
   function exportRows(fmt: "csv" | "excel" | "pdf") {
     const run = fmt === "csv" ? exportGenericCsv : fmt === "excel" ? exportGenericExcel : exportGenericPdf;
     const periodLabel = `${fmtDate(range.from, lang)} – ${fmtDate(range.to, lang)}`;
-    const srcLabel = (r: { source: string; pulled: boolean }) => r.source === "excel" ? "Excel" : r.pulled ? "CIKOPS (sudah di Excel)" : "CIKOPS (menunggu Excel)";
+    const srcLabel = (r: { source: string; pulled: boolean }) => r.source === "excel" ? "Excel" : r.pulled ? L("CIKOPS (sudah di Excel)", "CIKOPS (already in Excel)") : L("CIKOPS (menunggu Excel)", "CIKOPS (waiting for Excel)");
     if (kind !== "restock") {
       const cols: ReportColumn<AtkRequest>[] = [
         { key: "id", labelId: "No. Request", labelEn: "Request No.", get: (r) => r.requestId },
