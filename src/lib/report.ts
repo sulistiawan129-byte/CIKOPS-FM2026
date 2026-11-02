@@ -30,16 +30,21 @@ function formatDateOnly(isoDate: string): string {
    laporan klaim reguler karena bukan pengeluaran per-driver.
 ════════════════════════════════════════════════════════════ */
 
+type Lang = "id" | "en";
+const pick = (lang: Lang) => (id: string, en: string) => (lang === "en" ? en : id);
+
 export function exportWreathsToCsv(
   wreaths: Wreath[],
-  plantLabel: string
+  plantLabel: string,
+  lang: Lang = "id"
 ): void {
-  const headers = ["Tanggal", "Atas Nama", "Status Klaim", "Keterangan"];
+  const L = pick(lang);
+  const headers = [L("Tanggal", "Date"), L("Atas Nama", "On Behalf Of"), L("Status Klaim", "Claim Status"), L("Keterangan", "Notes")];
 
   const rows = wreaths.map((w) => [
     formatDateOnly(w.tanggal),
     w.atasNama,
-    w.claimed ? "Sudah Diajukan" : "Belum Diajukan",
+    w.claimed ? L("Sudah Diajukan", "Submitted") : L("Belum Diajukan", "Not Submitted"),
     w.keterangan || "-",
   ]);
 
@@ -76,31 +81,34 @@ function todayForFilename(): string {
    jam_out, jam_in, status, Durasi
 ════════════════════════════════════════════════════════════ */
 
-function fmtJam(iso: string | null): string {
+function fmtJam(iso: string | null, lang: Lang = "id"): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return d.toLocaleTimeString(lang === "en" ? "en-GB" : "id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function fmtDurasi(timeOut: string | null, timeIn: string | null): string {
+function fmtDurasi(timeOut: string | null, timeIn: string | null, lang: Lang = "id"): string {
   if (!timeOut || !timeIn) return "";
   const ms = Math.abs(new Date(timeIn).getTime() - new Date(timeOut).getTime());
   const totalMinutes = Math.round(ms / 60000);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   if (h === 0) return `${m}m`;
-  return `${h}j ${m}m`;
+  return `${h}${lang === "en" ? "h" : "j"} ${m}m`;
 }
 
-function statusLabelGate(log: VehicleGateLog): string {
+function statusLabelGate(log: VehicleGateLog, lang: Lang = "id"): string {
+  const L = pick(lang);
   if (log.plant === "CIK") {
-    return log.status === "DONE" ? "Sudah Kembali" : "Sedang Keluar";
+    return log.status === "DONE" ? L("Sudah Kembali", "Returned") : L("Sedang Keluar", "Currently Out");
   }
-  return log.status === "DONE" ? "Sudah Check-Out" : "Sedang Check-In";
+  return log.status === "DONE" ? L("Sudah Check-Out", "Checked Out") : L("Sedang Check-In", "Checked In");
 }
 
-export function exportGateLogsToCsv(logs: VehicleGateLog[]): void {
-  const headers = ["log_id", "tanggal", "driver_id", "nama_driver", "plat_mobil", "tujuan", "jam_out", "jam_in", "status", "Durasi"];
+export function exportGateLogsToCsv(logs: VehicleGateLog[], lang: Lang = "id"): void {
+  const headers = lang === "en"
+    ? ["log_id", "date", "driver_id", "driver_name", "vehicle_plate", "destination", "time_out", "time_in", "status", "Duration"]
+    : ["log_id", "tanggal", "driver_id", "nama_driver", "plat_mobil", "tujuan", "jam_out", "jam_in", "status", "Durasi"];
 
   const rows = logs.map((l) => [
     l.id,
@@ -109,10 +117,10 @@ export function exportGateLogsToCsv(logs: VehicleGateLog[]): void {
     l.driverName,
     l.nopol,
     l.tujuan,
-    fmtJam(l.timeOut),
-    fmtJam(l.timeIn),
-    statusLabelGate(l),
-    fmtDurasi(l.timeOut, l.timeIn),
+    fmtJam(l.timeOut, lang),
+    fmtJam(l.timeIn, lang),
+    statusLabelGate(l, lang),
+    fmtDurasi(l.timeOut, l.timeIn, lang),
   ]);
 
   const csvLines = [
@@ -137,20 +145,22 @@ export function exportGateLogsToCsv(logs: VehicleGateLog[]): void {
    kuota, ambil toner).
 ════════════════════════════════════════════════════════════ */
 
-function printerRequestTypeLabel(t: PrinterRequest["requestType"]): string {
-  if (t === "RESET_KUOTA") return "Reset Kuota";
-  if (t === "TAMBAH_KUOTA") return "Tambah Kuota";
-  return "Pengambilan Toner";
+function printerRequestTypeLabel(t: PrinterRequest["requestType"], lang: Lang = "id"): string {
+  const L = pick(lang);
+  if (t === "RESET_KUOTA") return L("Reset Kuota", "Quota Reset");
+  if (t === "TAMBAH_KUOTA") return L("Tambah Kuota", "Add Quota");
+  return L("Pengambilan Toner", "Toner Pickup");
 }
 
-export function exportPrinterRequestsToCsv(requests: PrinterRequest[]): void {
-  const headers = ["Tanggal", "No EQ Printer", "Lokasi", "Jenis Permintaan", "Nama Karyawan", "Departemen", "Jumlah Kuota", "Catatan"];
+export function exportPrinterRequestsToCsv(requests: PrinterRequest[], lang: Lang = "id"): void {
+  const L = pick(lang);
+  const headers = [L("Tanggal", "Date"), L("No EQ Printer", "Printer EQ No."), L("Lokasi", "Location"), L("Jenis Permintaan", "Request Type"), L("Nama Karyawan", "Employee Name"), L("Departemen", "Department"), L("Jumlah Kuota", "Quota Amount"), L("Catatan", "Notes")];
 
   const rows = requests.map((r) => [
     formatDateOnly(r.createdAt),
     r.printerNoEq,
     r.printerLocation,
-    printerRequestTypeLabel(r.requestType),
+    printerRequestTypeLabel(r.requestType, lang),
     r.employeeName,
     r.department,
     r.quotaAmount ?? "",

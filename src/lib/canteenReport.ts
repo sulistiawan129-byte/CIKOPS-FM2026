@@ -43,8 +43,10 @@ export async function exportCanteenToPdf(
   periodLabel: string,
   autoAnalysis: string,
   rangeFrom: string,
-  rangeTo: string
+  rangeTo: string,
+  lang: "id" | "en" = "id"
 ): Promise<void> {
+  const L = (id: string, en: string) => (lang === "en" ? en : id);
   const { default: jsPDF } = await import("jspdf");
   const autoTableModule = await import("jspdf-autotable");
   const autoTable = autoTableModule.default;
@@ -55,7 +57,7 @@ export async function exportCanteenToPdf(
   const marginX = 40;
   const contentWidth = pageWidth - marginX * 2;
 
-  const generatedAt = new Date().toLocaleString("id-ID", {
+  const generatedAt = new Date().toLocaleString(lang === "en" ? "en-GB" : "id-ID", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 
@@ -68,9 +70,9 @@ export async function exportCanteenToPdf(
     doc.text("CIKOPS-FM — CANTEEN REPORT", marginX, 27);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Periode: ${periodLabel}`, marginX, 44);
+    doc.text(`${L("Periode", "Period")}: ${periodLabel}`, marginX, 44);
     doc.setFontSize(8);
-    doc.text(`Dibuat ${generatedAt}`, pageWidth - marginX, 27, { align: "right" });
+    doc.text(`${L("Dibuat", "Generated")} ${generatedAt}`, pageWidth - marginX, 27, { align: "right" });
   }
 
   function drawStatCard(x: number, y: number, w: number, h: number, label: string, value: string, accent: RGB) {
@@ -102,33 +104,33 @@ export async function exportCanteenToPdf(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...COLOR_GRAY);
-    doc.text("CIKOPS-FM — Laporan dibuat otomatis dari data sistem", marginX, pageHeight - 16);
+    doc.text(L("CIKOPS-FM — Laporan dibuat otomatis dari data sistem", "CIKOPS-FM — Report generated automatically from system data"), marginX, pageHeight - 16);
   }
 
   drawHeader();
   let y = 96;
-  drawSectionTitle(marginX, y, "Ringkasan Snack");
+  drawSectionTitle(marginX, y, L("Ringkasan Snack", "Snack Summary"));
   y += 16;
 
   const gap = 10;
   const snackCards: Array<[string, string, RGB]> = [
-    ["Total Order", fmtRp(totals.snackOrder), COLOR_GRAY],
-    ["Terpakai", fmtRp(totals.snackConsumed), COLOR_GREEN],
-    ["Total Sisa", fmtRp(totals.snackLeftover), COLOR_RED],
-    ["Efisiensi", `${totals.snackEff.toFixed(2)}%`, COLOR_GREEN],
+    [L("Total Order", "Total Ordered"), fmtRp(totals.snackOrder), COLOR_GRAY],
+    [L("Terpakai", "Consumed"), fmtRp(totals.snackConsumed), COLOR_GREEN],
+    [L("Total Sisa", "Total Leftover"), fmtRp(totals.snackLeftover), COLOR_RED],
+    [L("Efisiensi", "Efficiency"), `${totals.snackEff.toFixed(2)}%`, COLOR_GREEN],
   ];
   const cardW = (contentWidth - gap * (snackCards.length - 1)) / snackCards.length;
   const cardH = 50;
   snackCards.forEach(([label, value, accent], i) => drawStatCard(marginX + i * (cardW + gap), y, cardW, cardH, label, value, accent));
   y += cardH + 24;
 
-  drawSectionTitle(marginX, y, "Ringkasan Meal");
+  drawSectionTitle(marginX, y, L("Ringkasan Makan", "Meal Summary"));
   y += 16;
   const mealCards: Array<[string, string, RGB]> = [
-    ["Total Order", fmtRp(totals.mealOrder), COLOR_GRAY],
-    ["Terpakai", fmtRp(totals.mealConsumed), COLOR_BRAND],
-    ["Total Sisa", fmtRp(totals.mealLeftover), COLOR_RED],
-    ["Efisiensi", `${totals.mealEff.toFixed(2)}%`, COLOR_BRAND],
+    [L("Total Order", "Total Ordered"), fmtRp(totals.mealOrder), COLOR_GRAY],
+    [L("Terpakai", "Consumed"), fmtRp(totals.mealConsumed), COLOR_BRAND],
+    [L("Total Sisa", "Total Leftover"), fmtRp(totals.mealLeftover), COLOR_RED],
+    [L("Efisiensi", "Efficiency"), `${totals.mealEff.toFixed(2)}%`, COLOR_BRAND],
   ];
   mealCards.forEach(([label, value, accent], i) => drawStatCard(marginX + i * (cardW + gap), y, cardW, cardH, label, value, accent));
   y += cardH + 24;
@@ -136,7 +138,7 @@ export async function exportCanteenToPdf(
   doc.setFont("helvetica", "italic");
   doc.setFontSize(9);
   doc.setTextColor(...COLOR_GRAY);
-  const analysisLines = doc.splitTextToSize(`Analisis: ${autoAnalysis}`, contentWidth);
+  const analysisLines = doc.splitTextToSize(`${L("Analisis", "Analysis")}: ${autoAnalysis}`, contentWidth);
   doc.text(analysisLines, marginX, y);
 
   drawFooter();
@@ -144,8 +146,8 @@ export async function exportCanteenToPdf(
   // ── Detail harian — dua bagian terpisah: Snack, lalu Meal (masing-masing dengan total sendiri) ──
   const effTxt = (used: number, order: number) => (order > 0 ? `${((used / order) * 100).toFixed(2)}%` : "-");
   const sections: Array<{ title: string; accent: RGB; pick: (d: CanteenDayAgg) => [number, number, number]; total: [number, number, number] }> = [
-    { title: "Detail Harian — Snack", accent: COLOR_GREEN, pick: (d) => [d.snackOrder, d.snackConsumed, d.snackLeftover], total: [totals.snackOrder, totals.snackConsumed, totals.snackLeftover] },
-    { title: "Detail Harian — Meal", accent: COLOR_BRAND, pick: (d) => [d.mealOrder, d.mealConsumed, d.mealLeftover], total: [totals.mealOrder, totals.mealConsumed, totals.mealLeftover] },
+    { title: L("Detail Harian — Snack", "Daily Detail — Snack"), accent: COLOR_GREEN, pick: (d) => [d.snackOrder, d.snackConsumed, d.snackLeftover], total: [totals.snackOrder, totals.snackConsumed, totals.snackLeftover] },
+    { title: L("Detail Harian — Makan", "Daily Detail — Meal"), accent: COLOR_BRAND, pick: (d) => [d.mealOrder, d.mealConsumed, d.mealLeftover], total: [totals.mealOrder, totals.mealConsumed, totals.mealLeftover] },
   ];
   sections.forEach((sec) => {
     doc.addPage();
@@ -160,9 +162,9 @@ export async function exportCanteenToPdf(
     autoTable(doc, {
       startY: y + 14,
       margin: { left: marginX, right: marginX },
-      head: [["Tanggal", "Order", "Terpakai", "Sisa", "Efisiensi"]],
-      body: rows.length > 0 ? rows : [["Tidak ada data pada periode ini", "", "", "", ""]],
-      foot: rows.length > 0 ? [["TOTAL", fmtRp(to), fmtRp(tu), fmtRp(tl), effTxt(tu, to)]] : undefined,
+      head: [[L("Tanggal", "Date"), L("Order", "Ordered"), L("Terpakai", "Consumed"), L("Sisa", "Leftover"), L("Efisiensi", "Efficiency")]],
+      body: rows.length > 0 ? rows : [[L("Tidak ada data pada periode ini", "No data for this period"), "", "", "", ""]],
+      foot: rows.length > 0 ? [[L("TOTAL", "TOTAL"), fmtRp(to), fmtRp(tu), fmtRp(tl), effTxt(tu, to)]] : undefined,
       theme: "grid",
       headStyles: { fillColor: sec.accent, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
       bodyStyles: { fontSize: 8.5, textColor: [20, 26, 50] },
@@ -179,7 +181,7 @@ export async function exportCanteenToPdf(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...COLOR_GRAY);
-    doc.text(`Halaman ${i} dari ${pageCount}`, pageWidth - marginX, pageHeight - 16, { align: "right" });
+    doc.text(L(`Halaman ${i} dari ${pageCount}`, `Page ${i} of ${pageCount}`), pageWidth - marginX, pageHeight - 16, { align: "right" });
   }
 
   doc.save(`Canteen_Report_${rangeFrom}_to_${rangeTo}.pdf`);

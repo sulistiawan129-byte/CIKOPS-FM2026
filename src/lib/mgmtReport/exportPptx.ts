@@ -171,7 +171,7 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
     header(s, tr("Catatan metodologi", "Methodology notes"), "#4D8DFF", RPT);
     const notes = report.lang === "en" ? [
       `Reporting period ${report.periodLabel}; compared with ${report.prevLabel} (previous calendar period for full months, quarters or years; otherwise the same-length period immediately before).`,
-      "Data source: CIKOPS-FM app (driver assignments, fleet & gate, driver claims, daily canteen reports, office supplies transactions, ISS GA Excel sync (cleaning, gardening, TGA), monthly security input).",
+      "Data source: CIKOPS-FM app (driver assignments, fleet & gate, driver claims, daily canteen reports, office supplies transactions, ISS GA Excel sync (cleaning, gardening), TGA technician app, monthly security input).",
       "Fleet utilisation = active vehicles used at least once ÷ total active vehicles.",
       "Canteen efficiency = (portions ordered − leftover) ÷ portions ordered, calculated separately for snacks and meals (never combined).",
       "Critical supplies stock = out of stock or under 14 days' cover based on this period's average usage.",
@@ -179,7 +179,7 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
       "Security: transporter violations read directly from G-C (Accept cases; cases counted per report, types per finding).",
     ] : [
       `Periode laporan ${report.periodLabel}; pembanding ${report.prevLabel} (periode kalender sebelumnya untuk bulan/kuartal/tahun penuh; selain itu rentang sama panjang tepat sebelumnya).`,
-      "Sumber data: aplikasi CIKOPS-FM (penugasan driver, armada & gate, klaim driver, laporan kantin harian, transaksi ATK, sinkron Excel ISS GA (cleaning, gardening, TGA), input bulanan security).",
+      "Sumber data: aplikasi CIKOPS-FM (penugasan driver, armada & gate, klaim driver, laporan kantin harian, transaksi ATK, sinkron Excel ISS GA (cleaning, gardening), aplikasi teknisi TGA, input bulanan security).",
       "Utilisasi armada = kendaraan aktif yang dipakai minimal sekali ÷ total kendaraan aktif.",
       "Efisiensi kantin = (porsi dipesan − sisa) ÷ porsi dipesan, dihitung terpisah untuk snack dan makan (tidak digabung).",
       "Stok ATK kritis = stok habis atau hanya cukup < 14 hari berdasarkan pemakaian rata-rata periode ini.",
