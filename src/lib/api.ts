@@ -2048,7 +2048,7 @@ export async function getMyProfile(userId: string): Promise<MyProfile | null> {
    Database ikut menjaga hak TULIS per modul; di sini menu & tampilan.
 ════════════════════════════════════════════════════════════ */
 export type StaffRole = "master" | "admin_ga_cik" | "admin_ga_prb" | "admin_iss" | "admin_security" | "receptionist" | "management";
-export type ReportModule = "fleet" | "claims" | "canteen" | "atk" | "ga" | "tga" | "security";
+export type ReportModule = "fleet" | "claims" | "canteen" | "atk" | "ga" | "tga" | "receptionist" | "security";
 
 export interface RoleInfo {
   id: string; en: string; descId: string; descEn: string;
@@ -2063,7 +2063,7 @@ export interface RoleInfo {
   calendarTasks: boolean;
 }
 
-const ALL_REPORTS: ReportModule[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "security"];
+const ALL_REPORTS: ReportModule[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "receptionist", "security"];
 export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   master: {
     id: "Master Admin", en: "Master Admin", descId: "Semua modul, semua akun & log aktivitas", descEn: "All modules, all accounts & activity log",
@@ -2072,7 +2072,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   admin_ga_cik: {
     id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
     tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "gift", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
-    home: true, plant: "CIK", reports: ["fleet", "claims", "atk"], calendarTasks: true,
+    home: true, plant: "CIK", reports: ["fleet", "claims", "atk", "receptionist"], calendarTasks: true,
   },
   admin_ga_prb: {
     id: "Admin GA PRB", en: "GA Admin PRB", descId: "Fleet PRB: penugasan, armada, driver, pegawai, report", descEn: "Fleet PRB: tasks, vehicles, drivers, employees, reports",

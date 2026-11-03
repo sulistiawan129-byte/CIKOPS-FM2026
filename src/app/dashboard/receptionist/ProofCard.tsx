@@ -108,7 +108,7 @@ function ParcelBody({ d }: { d: ReceiptData }) {
         <div className={p.party}><span className={p.lbl}>{L("Untuk", "To")}</span><b>{d.recipient || "–"}</b>{isIn && d.department ? <small>{d.department}</small> : null}</div>
       </div>
       <div className={p.grid}>
-        <div><span className={p.lbl}>{L("Jenis", "Type")}</span><div className={p.val}>{itemTypeLabel(d.item_type ?? "")}</div></div>
+        <div><span className={p.lbl}>{L("Jenis", "Type")}</span><div className={p.val}>{itemTypeLabel(d.item_type ?? "")}{(d.qty ?? 1) > 1 ? ` × ${d.qty}` : ""}</div></div>
         <div><span className={p.lbl}>{L("Kurir / ekspedisi", "Courier / carrier")}</span><div className={p.val}>{d.courier || "–"}</div></div>
         {d.description ? <div className={p.full}><span className={p.lbl}>{L("Keterangan", "Description")}</span><div className={p.val}>{d.description}</div></div> : null}
       </div>

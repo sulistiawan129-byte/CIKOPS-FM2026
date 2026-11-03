@@ -22,6 +22,54 @@ export interface WifiAccount {
   status: WifiStatus; batch: string; notes: string; active: boolean; createdAt: string;
 }
 
+/** Satu kandidat akun wifi untuk pemberian akses. */
+export interface WifiCandidate {
+  account: WifiAccount;
+  /** Masa berlaku akun cukup sampai tanggal selesai yang diminta */
+  covers: boolean;
+  /** Bila tidak cukup: berapa hari akun habis lebih cepat dari tanggal selesai */
+  shortBy: number;
+  /** Panjang "tipe" akun (hari) = durasi sejak mulai berlaku sampai habis, mis. 7 / 30 / 60 */
+  tier: number;
+}
+
+/** Panjang nominal tiap pilihan durasi (hari) — dipakai mencocokkan "tipe" akun. */
+const NOMINAL_DAYS: Partial<Record<WifiDuration, number>> = { w1: 7, m1: 30, m3: 90 };
+
+/**
+ * Urutan akun yang disarankan.
+ *  • Mode "sesuai durasi" (preferTier) — hanya untuk 1 minggu / 1 bulan / 3 bulan: akun bertipe terkecil yang cukup panjang untuk durasi itu
+ *    dipilih lebih dulu (sebulan → akun 30 hari; bila tak ada akun sepanjang itu → tipe terpanjang), walau sudah berjalan beberapa hari dan habis sedikit lebih cepat.
+ *    Tanggal selesai lalu disesuaikan ke masa berlaku akun (lihat `effectiveEnd`) supaya tamu tidak pernah diberi akun yang
+ *    habis sebelum tanggal yang tertulis di tanda terima.
+ *  • Selain itu (harian, 3 hari, tanggal bebas, atau mode ketat): hanya akun yang cukup sampai tanggal selesai, yang paling cepat habis dulu.
+ */
+export function rankWifi(accounts: WifiAccount[], o: { start: string; end: string; slots: number; dur: WifiDuration; preferTier: boolean }): WifiCandidate[] {
+  const need = Math.max(1, o.slots);
+  const tierMode = o.preferTier && NOMINAL_DAYS[o.dur] != null;
+  const want = NOMINAL_DAYS[o.dur] ?? 0;
+  const from = o.start > todayISO() ? o.start : todayISO();
+  const list: WifiCandidate[] = accounts
+    .filter((a) => a.active && (a.status === "available" || a.status === "partial") && a.free >= need && a.validUntil >= from)
+    .map((a) => ({ account: a, covers: a.validUntil >= o.end, shortBy: a.validUntil >= o.end ? 0 : daysBetween(a.validUntil, o.end), tier: a.durationDays + 1 }));
+  const pool = tierMode ? list : list.filter((c) => c.covers);
+  // tipe sasaran: tipe terkecil yang cukup panjang untuk durasi (toleransi 10%, mis. akun 28 hari masih "sebulan"); bila tidak ada, tipe terpanjang
+  const tiers = [...new Set(pool.map((c) => c.tier))].sort((x, y) => x - y);
+  const target = tierMode ? (tiers.find((t) => t >= want * 0.9) ?? tiers[tiers.length - 1] ?? want) : 0;
+  pool.sort((x, y) => {
+    if (tierMode) {
+      const d = Math.abs(x.tier - target) - Math.abs(y.tier - target);
+      if (d !== 0) return d;
+      if (x.covers !== y.covers) return x.covers ? -1 : 1;
+    }
+    return x.account.validUntil.localeCompare(y.account.validUntil) || x.account.free - y.account.free || x.account.username.localeCompare(y.account.username);
+  });
+  return pool.slice(0, 10);
+}
+
+/** Tanggal selesai yang benar-benar dipakai bila akun ini dipilih (tidak boleh melewati masa berlaku akun). */
+export const effectiveEnd = (c: WifiCandidate | undefined, end: string): string => (c && !c.covers ? c.account.validUntil : end);
+
 export interface WifiSuggestion { id: string; username: string; validUntil: string; free: number; daysLeft: number; durationDays: number }
 
 export interface WifiGrant {
@@ -29,6 +77,8 @@ export interface WifiGrant {
   guestName: string; guestCompany: string; requestorName: string; requestorEmail: string; department: string;
   lineManager: string; purpose: string; startDate: string; endDate: string; returnedAt: string | null; returnNote: string;
   emailSentAt: string | null; createdBy: string; createdAt: string; shareToken: string;
+  /** jejak koreksi terakhir (SQL 052) */
+  updatedAt?: string | null; updatedBy?: string;
 }
 
 export interface WifiGrantResult { id: string; receiptNo: string; username: string; password: string; startDate: string; endDate: string; accountValidUntil: string; shareToken: string; createdAt: string }
@@ -39,6 +89,10 @@ export interface Parcel {
   sender: string; recipient: string; department: string; email: string; courier: string;
   status: "waiting" | "handed"; handedTo: string; handedAt: string | null; handedBy: string;
   notifiedAt: string | null; createdBy: string; createdAt: string; shareToken: string;
+  /** jumlah barang / surat (SQL 052; data lama = 1) */
+  qty: number;
+  /** jejak koreksi terakhir (SQL 052) */
+  updatedAt?: string | null; updatedBy?: string;
 }
 
 export interface RoomBooking {
@@ -58,7 +112,7 @@ export interface ReceiptData {
   guest_name?: string; guest_company?: string; requestor_name?: string; department?: string; purpose?: string; slots?: number;
   start_date?: string; end_date?: string; returned_at?: string | null; username?: string; password?: string | null; ssid?: string; terms?: string;
   // barang
-  direction?: "in" | "out"; item_type?: string; description?: string; sender?: string; recipient?: string; courier?: string; handed_to?: string; handed_at?: string | null;
+  direction?: "in" | "out"; item_type?: string; qty?: number; description?: string; sender?: string; recipient?: string; courier?: string; handed_to?: string; handed_at?: string | null;
   // booking
   room?: string; date?: string; start?: string; end?: string; title?: string; pic?: string; attendees?: number | null; notes?: string;
   series?: { count: number; first: string; last: string } | null;
@@ -78,7 +132,7 @@ export function receiptFromGrant(g: WifiGrant, s: RcpSettings): ReceiptData {
     start_date: g.startDate, end_date: g.endDate, returned_at: g.returnedAt, username: g.username, password: active ? g.password : null, ssid: s.wifiSsid, terms: s.wifiTerms };
 }
 export function receiptFromParcel(p: Parcel): ReceiptData {
-  return { kind: "parcel", receipt_no: p.receiptNo, created_at: p.createdAt, created_by: p.createdBy, status: p.status, direction: p.direction, item_type: p.itemType,
+  return { kind: "parcel", receipt_no: p.receiptNo, created_at: p.createdAt, created_by: p.createdBy, status: p.status, direction: p.direction, item_type: p.itemType, qty: p.qty,
     description: p.description, sender: p.sender, recipient: p.recipient, department: p.department, courier: p.courier, handed_to: p.handedTo, handed_at: p.handedAt };
 }
 export function receiptFromBooking(b: RoomBooking, series?: RoomBooking[]): ReceiptData {

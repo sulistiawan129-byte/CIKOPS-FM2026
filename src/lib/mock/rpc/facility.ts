@@ -561,12 +561,15 @@ const RECEPTIONIST: Record<string, RpcHandler> = {
     const dir = s(a.p_direction);
     if (dir !== "in" && dir !== "out") fail("Arah barang tidak valid.");
     if (!s(a.p_recipient) && !s(a.p_sender)) fail("Isi dari / untuk siapa.");
+    const qty = a.p_qty == null ? 1 : num(a.p_qty, 0);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 9999) fail("Jumlah harus 1–9999.");
     const no = rcpNextNo(ctx, dir === "in" ? "IN" : "OUT");
     const id = uuid();
     table(ctx.db, "rcp_parcels").push({
       id, receipt_no: no, direction: dir, item_type: s(a.p_item_type) || "Paket", description: s(a.p_description), sender: s(a.p_sender),
       recipient: s(a.p_recipient), department: s(a.p_department), email: s(a.p_email).toLowerCase(), courier: s(a.p_courier),
       status: "waiting", handed_to: "", handed_at: null, handed_by: "", notified_at: null, created_by: by, created_at: nowIso(), share_token: rcpToken(),
+      qty, updated_at: null, updated_by: "",
     });
     rcpRememberContact(ctx, dir === "in" ? a.p_recipient : a.p_sender, a.p_email, a.p_department);
     return { id, receipt_no: no };
@@ -577,6 +580,68 @@ const RECEPTIONIST: Record<string, RpcHandler> = {
     const p = table(ctx.db, "rcp_parcels").find((x) => x.id === a.p_id && x.status === "waiting");
     if (!p) fail("Barang sudah diserahkan atau tidak ditemukan.");
     Object.assign(p!, { status: "handed", handed_to: s(a.p_handed_to), handed_at: nowIso(), handed_by: by });
+    return null;
+  },
+  /* SQL 052 */
+  rcp_wifi_capacity(_a, ctx) {
+    const today = todayWib();
+    return table(ctx.db, "rcp_wifi_accounts").map((acc) => {
+      const used = wifiUsed(ctx, acc.id), slots = num(acc.slots, 2);
+      const vu = s(acc.valid_until), vf = s(acc.valid_from);
+      return {
+        id: acc.id, username: acc.username, valid_from: vf, valid_until: vu, slots, used, free: Math.max(slots - used, 0),
+        days_left: Math.round((new Date(`${vu}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86400000),
+        duration_days: Math.round((new Date(`${vu}T00:00:00Z`).getTime() - new Date(`${vf}T00:00:00Z`).getTime()) / 86400000),
+        status: acc.active === false ? "inactive" : vu < today ? "expired" : used >= slots ? "full" : used > 0 ? "partial" : "available", active: acc.active !== false,
+      };
+    }).sort((x, y) => (x.valid_until < y.valid_until ? -1 : 1));
+  },
+  rcp_parcel_update(a, ctx) {
+    const by = rcpStaff(ctx);
+    const p = table(ctx.db, "rcp_parcels").find((x) => x.id === a.p_id);
+    if (!p) fail("Barang tidak ditemukan.");
+    if (!s(a.p_recipient) && !s(a.p_sender)) fail("Isi dari / untuk siapa.");
+    const qty = num(a.p_qty, 0);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 9999) fail("Jumlah harus 1–9999.");
+    if (p!.status === "handed") {
+      if (!s(a.p_handed_to)) fail("Nama pengambil wajib diisi.");
+      if (a.p_handed_at && new Date(s(a.p_handed_at)).getTime() > Date.now() + 3600_000) fail("Waktu serah terima tidak boleh di masa depan.");
+    }
+    Object.assign(p!, {
+      item_type: s(a.p_item_type) || p!.item_type, description: s(a.p_description), sender: s(a.p_sender), recipient: s(a.p_recipient),
+      department: s(a.p_department), email: s(a.p_email).toLowerCase(), courier: s(a.p_courier), qty, updated_at: nowIso(), updated_by: by,
+    });
+    if (p!.status === "handed") { p!.handed_to = s(a.p_handed_to); if (a.p_handed_at) p!.handed_at = s(a.p_handed_at); }
+    return null;
+  },
+  rcp_parcel_unhandover(a, ctx) {
+    const by = rcpStaff(ctx);
+    const p = table(ctx.db, "rcp_parcels").find((x) => x.id === a.p_id && x.status === "handed");
+    if (!p) fail("Barang belum diserahkan atau tidak ditemukan.");
+    Object.assign(p!, { status: "waiting", handed_to: "", handed_at: null, handed_by: "", updated_at: nowIso(), updated_by: by });
+    return null;
+  },
+  rcp_wifi_grant_update(a, ctx) {
+    const by = rcpStaff(ctx);
+    const g = table(ctx.db, "rcp_wifi_grants").find((x) => x.id === a.p_id);
+    if (!g) fail("Data pemberian wifi tidak ditemukan.");
+    if (!s(a.p_guest_name)) fail("Nama tamu wajib diisi.");
+    if (!s(a.p_requestor_name)) fail("Nama requestor wajib diisi.");
+    if (!g!.returned_at) {
+      const acc = table(ctx.db, "rcp_wifi_accounts").find((x) => x.id === g!.account_id)!;
+      const end = s(a.p_end);
+      if (!end || end < s(g!.start_date)) fail("Tanggal selesai tidak boleh sebelum tanggal mulai.");
+      if (end > s(acc.valid_until)) fail(`Akun ${acc.username} hanya berlaku sampai ${fmtDate(s(acc.valid_until))} — tanggal selesai tidak boleh melewatinya.`);
+      const slots = num(a.p_slots, 0);
+      if (slots < 1) fail("Slot minimal 1.");
+      const other = table(ctx.db, "rcp_wifi_grants").filter((x) => x.account_id === g!.account_id && x.id !== g!.id && !x.returned_at && s(x.end_date) >= todayWib()).reduce((n, x) => n + num(x.slots, 1), 0);
+      if (other + slots > num(acc.slots, 2)) fail(`Slot akun ${acc.username} tidak cukup (tersisa ${Math.max(num(acc.slots, 2) - other, 0)}).`);
+      g!.slots = slots; g!.end_date = end;
+    }
+    Object.assign(g!, {
+      guest_name: s(a.p_guest_name), guest_company: s(a.p_guest_company), requestor_name: s(a.p_requestor_name), requestor_email: s(a.p_requestor_email).toLowerCase(),
+      department: s(a.p_department), line_manager: s(a.p_line_manager), purpose: s(a.p_purpose), updated_at: nowIso(), updated_by: by,
+    });
     return null;
   },
   rcp_room_book(a, ctx) {
@@ -652,7 +717,7 @@ const RECEPTIONIST: Record<string, RpcHandler> = {
       return {
         kind: "parcel", receipt_no: p.receipt_no, created_at: p.created_at, created_by: p.created_by, direction: p.direction, item_type: p.item_type,
         description: p.description, sender: p.sender, recipient: p.recipient, department: p.department, courier: p.courier,
-        status: p.status, handed_to: p.handed_to, handed_at: p.handed_at ?? null,
+        qty: p.qty ?? 1, status: p.status, handed_to: p.handed_to, handed_at: p.handed_at ?? null,
       };
     }
     const b = table(ctx.db, "rcp_room_bookings").find((x) => x.share_token === tk);

@@ -15,6 +15,14 @@ function friendly(error: { code?: string; message?: string } | null): Error {
   }
   return new Error(error.message ?? String(error));
 }
+const MIGRATION_052 = "Fitur koreksi data Receptionist belum aktif — jalankan supabase/04_aplikasi_lapangan.sql (bagian 052) di Supabase SQL Editor.";
+/** Seperti friendly(), tapi bila fungsi/kolom bagian 052 belum ada, tunjukkan langkah yang tepat. */
+function friendly052(error: { code?: string; message?: string } | null): Error {
+  if (error && (error.code === "42703" || error.code === "PGRST202" || error.code === "42883" || error.code === "PGRST204" || /Could not find the function|column .* does not exist|schema cache/i.test(error.message ?? ""))) {
+    return new Error(L(MIGRATION_052, "The Receptionist correction feature is not active yet — run supabase/04_aplikasi_lapangan.sql (section 052) in the Supabase SQL Editor."));
+  }
+  return friendly(error);
+}
 const hm = (t: string | null | undefined) => (t ?? "").slice(0, 5);
 
 /* ── Pengaturan ── */
@@ -53,6 +61,13 @@ export async function getWifiAccounts(): Promise<WifiAccount[]> {
     notes: r.notes ?? "", active: r.active, createdAt: r.created_at,
   }));
 }
+/** Kapasitas & masa berlaku akun wifi TANPA kata sandi — untuk Laporan Manajemen (boleh dibaca semua staf, termasuk Management). */
+export async function getWifiCapacity(): Promise<WifiAccount[]> {
+  const { data, error } = await supabase.rpc("rcp_wifi_capacity");
+  if (error) throw friendly052(error);
+  return ((data ?? []) as { id: string; username: string; valid_from: string; valid_until: string; slots: number; used: number; free: number; days_left: number; duration_days: number; status: WifiAccount["status"]; active: boolean }[])
+    .map((r) => ({ id: r.id, username: r.username, password: "", validFrom: r.valid_from, validUntil: r.valid_until, slots: r.slots, used: r.used, free: r.free, daysLeft: r.days_left, durationDays: r.duration_days, status: r.status, batch: "", notes: "", active: r.active, createdAt: "" }));
+}
 export async function suggestWifi(endDate: string, slots: number): Promise<WifiSuggestion[]> {
   const { data, error } = await supabase.rpc("rcp_wifi_suggest", { p_end: endDate, p_slots: slots });
   if (error) throw friendly(error);
@@ -78,6 +93,7 @@ interface GrantRow {
   id: string; receipt_no: string; account_id: string; slots: number; guest_name: string; guest_company: string; requestor_name: string;
   requestor_email: string; department: string; line_manager: string; purpose: string; start_date: string; end_date: string;
   returned_at: string | null; return_note: string; email_sent_at: string | null; created_by: string; created_at: string; share_token: string | null;
+  updated_at?: string | null; updated_by?: string | null;
   rcp_wifi_accounts?: { username: string; password: string } | null;
 }
 export async function getWifiGrants(sinceISO?: string): Promise<WifiGrant[]> {
@@ -90,7 +106,7 @@ export async function getWifiGrants(sinceISO?: string): Promise<WifiGrant[]> {
     slots: r.slots, guestName: r.guest_name, guestCompany: r.guest_company ?? "", requestorName: r.requestor_name, requestorEmail: r.requestor_email ?? "",
     department: r.department ?? "", lineManager: r.line_manager ?? "", purpose: r.purpose ?? "", startDate: r.start_date, endDate: r.end_date,
     returnedAt: r.returned_at, returnNote: r.return_note ?? "", emailSentAt: r.email_sent_at, createdBy: r.created_by ?? "", createdAt: r.created_at,
-    shareToken: r.share_token ?? "",
+    shareToken: r.share_token ?? "", updatedAt: r.updated_at ?? null, updatedBy: r.updated_by ?? "",
   }));
 }
 export interface WifiGrantInput {
@@ -113,6 +129,20 @@ export async function grantWifi(i: WifiGrantInput): Promise<WifiGrantResult> {
 }
 export async function returnWifi(grantId: string, note = ""): Promise<void> {
   const { error } = await supabase.rpc("rcp_wifi_return", { p_grant_id: grantId, p_note: note });
+  if (error) throw friendly(error);
+}
+export interface WifiGrantEdit { guestName: string; guestCompany: string; requestorName: string; requestorEmail: string; department: string; lineManager: string; purpose: string; slots: number; endDate: string }
+/** Koreksi data pemberian wifi (tanggal selesai ≤ masa berlaku akun; slot ≤ kapasitas akun — dicek di database). */
+export async function updateWifiGrant(id: string, e: WifiGrantEdit): Promise<void> {
+  const { error } = await supabase.rpc("rcp_wifi_grant_update", {
+    p_id: id, p_guest_name: e.guestName, p_guest_company: e.guestCompany, p_requestor_name: e.requestorName, p_requestor_email: e.requestorEmail,
+    p_department: e.department, p_line_manager: e.lineManager, p_purpose: e.purpose, p_slots: e.slots, p_end: e.endDate,
+  });
+  if (error) throw friendly052(error);
+}
+/** Hapus pemberian wifi yang salah input (slot akun kembali kosong). */
+export async function deleteWifiGrant(id: string): Promise<void> {
+  const { error } = await supabase.from("rcp_wifi_grants").delete().eq("id", id);
   if (error) throw friendly(error);
 }
 
@@ -218,12 +248,13 @@ interface ParcelRow {
   id: string; receipt_no: string; direction: ParcelDirection; item_type: string; description: string; sender: string; recipient: string;
   department: string; email: string; courier: string; status: "waiting" | "handed"; handed_to: string; handed_at: string | null; handed_by: string;
   notified_at: string | null; created_by: string; created_at: string; share_token: string | null;
+  qty?: number | null; updated_at?: string | null; updated_by?: string | null;
 }
 const mapParcel = (r: ParcelRow): Parcel => ({
   id: r.id, receiptNo: r.receipt_no, direction: r.direction, itemType: r.item_type, description: r.description ?? "", sender: r.sender ?? "",
   recipient: r.recipient ?? "", department: r.department ?? "", email: r.email ?? "", courier: r.courier ?? "", status: r.status,
   handedTo: r.handed_to ?? "", handedAt: r.handed_at, handedBy: r.handed_by ?? "", notifiedAt: r.notified_at, createdBy: r.created_by ?? "", createdAt: r.created_at,
-  shareToken: r.share_token ?? "",
+  shareToken: r.share_token ?? "", qty: r.qty ?? 1, updatedAt: r.updated_at ?? null, updatedBy: r.updated_by ?? "",
 });
 /** Semua yang masih menunggu + riwayat sejak `sinceISO`. */
 export async function getParcels(sinceISO: string): Promise<Parcel[]> {
@@ -231,13 +262,13 @@ export async function getParcels(sinceISO: string): Promise<Parcel[]> {
   if (error) throw friendly(error);
   return ((data ?? []) as ParcelRow[]).map(mapParcel);
 }
-export interface ParcelInput { direction: ParcelDirection; itemType: string; description: string; sender: string; recipient: string; department: string; email: string; courier: string }
+export interface ParcelInput { direction: ParcelDirection; itemType: string; description: string; sender: string; recipient: string; department: string; email: string; courier: string; qty: number }
 export async function createParcel(i: ParcelInput): Promise<Parcel> {
   const { data, error } = await supabase.rpc("rcp_parcel_create", {
     p_direction: i.direction, p_item_type: i.itemType, p_description: i.description, p_sender: i.sender, p_recipient: i.recipient,
-    p_department: i.department, p_email: i.email, p_courier: i.courier,
+    p_department: i.department, p_email: i.email, p_courier: i.courier, p_qty: i.qty,
   });
-  if (error) throw friendly(error);
+  if (error) throw friendly052(error);
   const id = (data as { id: string }).id;
   const { data: row, error: e2 } = await supabase.from("rcp_parcels").select("*").eq("id", id).single();
   if (e2) throw friendly(e2);
@@ -249,6 +280,23 @@ export async function handoverParcel(id: string, handedTo: string): Promise<Parc
   const { data, error: e2 } = await supabase.from("rcp_parcels").select("*").eq("id", id).single();
   if (e2) throw friendly(e2);
   return mapParcel(data as ParcelRow);
+}
+export interface ParcelEdit { itemType: string; description: string; sender: string; recipient: string; department: string; email: string; courier: string; qty: number; handedTo?: string; handedAt?: string | null }
+/** Koreksi isian barang (arah & nomor bukti tetap). Untuk barang yang sudah diserahkan: nama pengambil & waktu serah terima ikut bisa dikoreksi. */
+export async function updateParcel(id: string, e: ParcelEdit): Promise<Parcel> {
+  const { error } = await supabase.rpc("rcp_parcel_update", {
+    p_id: id, p_item_type: e.itemType, p_description: e.description, p_sender: e.sender, p_recipient: e.recipient, p_department: e.department,
+    p_email: e.email, p_courier: e.courier, p_qty: e.qty, p_handed_to: e.handedTo ?? null, p_handed_at: e.handedAt ?? null,
+  });
+  if (error) throw friendly052(error);
+  const { data, error: e2 } = await supabase.from("rcp_parcels").select("*").eq("id", id).single();
+  if (e2) throw friendly(e2);
+  return mapParcel(data as ParcelRow);
+}
+/** Batalkan serah terima yang salah → barang kembali "menunggu". */
+export async function unhandoverParcel(id: string): Promise<void> {
+  const { error } = await supabase.rpc("rcp_parcel_unhandover", { p_id: id });
+  if (error) throw friendly052(error);
 }
 export async function deleteParcel(id: string): Promise<void> {
   const { error } = await supabase.from("rcp_parcels").delete().eq("id", id);

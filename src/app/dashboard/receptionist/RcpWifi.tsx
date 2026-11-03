@@ -2,13 +2,13 @@
 
 /* Wifi Guest — beri akses (saran akun otomatis), tamu aktif, akun dari IT (impor), riwayat. */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import {
-  deleteWifiAccount, emailWifiReceipt, grantWifi, importWifiAccounts, returnWifi, saveWifiAccount, setWifiAccountActive, suggestWifi,
+  deleteWifiAccount, deleteWifiGrant, updateWifiGrant, emailWifiReceipt, grantWifi, importWifiAccounts, returnWifi, saveWifiAccount, setWifiAccountActive,
 } from "@/lib/receptionist/api";
 import {
-  WIFI_DURATIONS, WIFI_STATUS_LABEL, daysBetween, monthOf, durationEnd, fmtDate, fmtDateTime, grantActive, parseAccountsText, todayISO,
+  WIFI_DURATIONS, WIFI_STATUS_LABEL, daysBetween, monthOf, durationEnd, fmtDate, fmtDateTime, grantActive, parseAccountsText, todayISO, rankWifi, effectiveEnd,
   addDays, receiptFromGrant, type ImportRow, type RcpSettings, type WifiAccount, type WifiDuration, type WifiGrant, type WifiGrantResult, type WifiStatus, type WifiSuggestion,
 } from "@/lib/receptionist/model";
 import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./shared";
@@ -34,8 +34,8 @@ export default function RcpWifi({ settings, accounts, grants, dir, reload }: {
         ))}
       </div>
       {sub === "grant" && <GrantForm settings={settings} accounts={accounts} dir={dir} reload={reload} onProof={setProof} />}
-      {sub === "active" && <ActiveList grants={active} reload={reload} onProof={setProof} />}
-      {sub === "history" && <History grants={grants} onProof={setProof} />}
+      {sub === "active" && <ActiveList grants={active} accounts={accounts} reload={reload} onProof={setProof} />}
+      {sub === "history" && <History grants={grants} accounts={accounts} reload={reload} onProof={setProof} />}
       {proof && (
         <ProofModal data={receiptFromGrant(proof, settings)} token={proof.shareToken || undefined} email={proof.requestorEmail} phone={person?.phone}
           onEmail={proof.requestorEmail ? () => emailWifiReceipt({ id: proof.id, receiptNo: proof.receiptNo, shareToken: proof.shareToken, toEmail: proof.requestorEmail, requestorName: proof.requestorName, guestName: proof.guestName, guestCompany: proof.guestCompany, username: proof.username, password: proof.password, slots: proof.slots, startDate: proof.startDate, endDate: proof.endDate }, settings) : undefined}
@@ -55,29 +55,32 @@ function GrantForm({ settings, accounts, dir, reload, onProof }: { settings: Rcp
   const [dur, setDur] = useState<WifiDuration>("today");
   const [customEnd, setCustomEnd] = useState(today);
   const end = durationEnd(start, dur, customEnd);
-  const [sugs, setSugs] = useState<WifiSuggestion[] | null>(null);
+  const [fit, setFit] = useState(true); // utamakan akun yang tipenya sesuai durasi (1 minggu / 1 bulan / 3 bulan)
   const [pick, setPick] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<{ res: WifiGrantResult; email: string; emailErr: string; guest: string; slots: number; grant: WifiGrant } | null>(null);
   const set = (k: keyof typeof blank, v: string) => setF((x) => ({ ...x, [k]: v }));
 
+  const cands = useMemo(() => (end < start ? [] : rankWifi(accounts, { start, end, slots, dur, preferTier: fit })), [accounts, start, end, slots, dur, fit]);
+  // ganti durasi / mulai / slot / mode → pilih ulang yang paling pas; muat ulang daftar akun → pertahankan pilihan bila masih ada
+  const paramKey = `${start}|${end}|${slots}|${dur}|${fit}`;
+  const lastKey = useRef("");
   useEffect(() => {
-    let off = false;
-    setSugs(null);
-    if (end < start) return;
-    suggestWifi(end, slots).then((s) => { if (!off) { setSugs(s); setPick(s[0]?.id ?? ""); } }).catch((e) => { if (!off) { setSugs([]); setErr(e instanceof Error ? e.message : String(e)); } });
-    return () => { off = true; };
-  }, [end, start, slots, accounts]);
+    setPick((p) => (lastKey.current === paramKey && cands.some((c) => c.account.id === p) ? p : cands[0]?.account.id ?? ""));
+    lastKey.current = paramKey;
+  }, [paramKey, cands]);
+  const picked = cands.find((c) => c.account.id === pick);
+  const endEff = effectiveEnd(picked, end); // tidak pernah melewati masa berlaku akun yang dipilih
 
   const days = daysBetween(start, end) + 1;
-  const canSave = !!pick && f.guestName.trim() && f.requestorName.trim() && end >= start && end >= today && !busy;
+  const canSave = !!pick && f.guestName.trim() && f.requestorName.trim() && endEff >= start && endEff >= today && !busy;
 
   async function submit() {
     if (!canSave) return;
     setBusy(true); setErr("");
     try {
-      const res = await grantWifi({ accountId: pick, slots, guestName: f.guestName, guestCompany: f.guestCompany, requestorName: f.requestorName, requestorEmail: f.requestorEmail, department: f.department, lineManager: f.lineManager, purpose: f.purpose, startDate: start, endDate: end });
+      const res = await grantWifi({ accountId: pick, slots, guestName: f.guestName, guestCompany: f.guestCompany, requestorName: f.requestorName, requestorEmail: f.requestorEmail, department: f.department, lineManager: f.lineManager, purpose: f.purpose, startDate: start, endDate: endEff });
       let emailErr = "";
       if (f.requestorEmail.trim()) {
         try { await emailWifiReceipt({ id: res.id, receiptNo: res.receiptNo, shareToken: res.shareToken, toEmail: f.requestorEmail.trim(), requestorName: f.requestorName, guestName: f.guestName, guestCompany: f.guestCompany, username: res.username, password: res.password, slots, startDate: res.startDate, endDate: res.endDate }, settings); }
@@ -135,20 +138,34 @@ function GrantForm({ settings, accounts, dir, reload, onProof }: { settings: Rcp
       </section>
 
       <section className={r.card}>
-        <div className={r.cardHead}><div><h2>{L("Akun yang disarankan", "Suggested accounts")}</h2><p>{L("Berlaku sampai ≥", "Valid until ≥")} {fmtDate(end)} · {L(`butuh ${slots} slot`, `needs ${slots} slots`)}</p></div></div>
-        <p className={r.hint}>{L("Hanya akun yang masa berlakunya cukup. Teratas = paling pas (paling cepat habis), jadi tamu harian memakai akun 30 hari dan pemakaian panjang otomatis ke akun berdurasi panjang.", "Only accounts with enough validity. The top one is the best fit (expires soonest), so daily guests use 30-day accounts and long stays automatically go to long-validity accounts.")}</p>
-        {sugs === null ? <p className={r.empty}>{L("Mencari akun…", "Looking for accounts…")}</p> : sugs.length === 0 ? (
-          <div className={r.warn}>{L(`Tidak ada akun yang cukup sampai ${fmtDate(end)} dengan ${slots} slot kosong. Tambah atau impor akun baru di Data Master → Data Akun Wifi, atau kurangi durasi.`, `No account is valid until ${fmtDate(end)} with ${slots} free slot(s). Add or import new accounts in Master Data → Wifi Account Data, or shorten the duration.`)}</div>
+        <div className={r.cardHead}><div><h2>{L("Akun yang disarankan", "Suggested accounts")}</h2><p>{L(`Permintaan: ${fmtDate(start)} – ${fmtDate(end)} · butuh ${slots} slot`, `Request: ${fmtDate(start)} – ${fmtDate(end)} · needs ${slots} slot(s)`)}</p></div></div>
+        {["w1", "m1", "m3"].includes(dur) && (
+          <label className={r.check} style={{ marginBottom: 8, alignItems: "flex-start", gap: 10 }}>
+            <button type="button" role="switch" aria-checked={fit} className={r.switch} onClick={() => setFit((v) => !v)} />
+            <span><b>{L("Utamakan akun yang sesuai durasi", "Prefer the account type that matches the duration")}</b><br /><small className={r.mute}>{L("1 minggu → akun 7 hari, 1 bulan → akun 30 hari, 3 bulan → akun 90 hari. Bila akun itu habis lebih cepat dari permintaan, tanggal selesai otomatis disesuaikan ke tanggal habis akun.", "1 week → 7-day account, 1 month → 30-day account, 3 months → 90-day account. If that account expires sooner than requested, the end date is set to the account's expiry automatically.")}</small></span>
+          </label>
+        )}
+        <p className={r.hint}>{fit && ["w1", "m1", "m3"].includes(dur)
+          ? L("Teratas = tipe akun paling sesuai dengan durasi. Akun yang berlaku penuh sampai tanggal selesai diutamakan di antara tipe yang sama.", "Top = the account type closest to the chosen duration. Among the same type, accounts valid through the end date come first.")
+          : L("Hanya akun yang masa berlakunya cukup. Teratas = paling pas (paling cepat habis), jadi pemakaian pendek memakai akun berdurasi pendek dan pemakaian panjang otomatis ke akun berdurasi panjang.", "Only accounts with enough validity. The top one is the best fit (expires soonest), so short stays use short accounts and long stays move to longer ones.")}</p>
+        {cands.length === 0 ? (
+          <div className={r.warn}>{L(`Tidak ada akun yang ${fit && ["w1", "m1", "m3"].includes(dur) ? "tersedia" : `cukup sampai ${fmtDate(end)}`} dengan ${slots} slot kosong. Tambah atau impor akun baru di Data Master → Data Akun Wifi, atau kurangi durasi.`, `No account is ${fit && ["w1", "m1", "m3"].includes(dur) ? "available" : `valid until ${fmtDate(end)}`} with ${slots} free slot(s). Add or import new accounts in Master Data → Wifi Account Data, or shorten the duration.`)}</div>
         ) : (
           <div className={r.sugs}>
-            {sugs.map((s, i) => (
-              <button key={s.id} type="button" className={r.sug} aria-pressed={pick === s.id} onClick={() => setPick(s.id)}>
+            {cands.map((c, i) => (
+              <button key={c.account.id} type="button" className={r.sug} aria-pressed={pick === c.account.id} onClick={() => setPick(c.account.id)}>
                 <span className={r.radio} />
-                <span><b>{s.username}</b>{i === 0 && <span className={r.tagBest}>{L("paling pas", "best fit")}</span>}<small>{L(`akun ${s.durationDays + 1} hari · berlaku s/d ${fmtDate(s.validUntil)} (${s.daysLeft} hari lagi)`, `${s.durationDays + 1}-day account · valid until ${fmtDate(s.validUntil)} (${s.daysLeft} days left)`)}</small></span>
-                <span className={r.slotDots} title={L(`${s.free} slot kosong`, `${s.free} free slots`)}>{Array.from({ length: Math.max(s.free, 0) }, (_, i) => <i key={i} />)}</span>
+                <span><b>{c.account.username}</b>{i === 0 && <span className={r.tagBest}>{L("paling pas", "best fit")}</span>}
+                  <small>{L(`akun ${c.tier} hari · berlaku s/d ${fmtDate(c.account.validUntil)} (${c.account.daysLeft} hari lagi)`, `${c.tier}-day account · valid until ${fmtDate(c.account.validUntil)} (${c.account.daysLeft} days left)`)}</small>
+                  {!c.covers && <small style={{ color: "var(--orange-text, #a35f00)", fontWeight: 700 }}>{L(`⚠ habis ${c.shortBy} hari lebih cepat — selesai disesuaikan ke ${fmtDate(c.account.validUntil)}`, `⚠ expires ${c.shortBy} day(s) earlier — end date set to ${fmtDate(c.account.validUntil)}`)}</small>}
+                </span>
+                <span className={r.slotDots} title={L(`${c.account.free} slot kosong`, `${c.account.free} free slots`)}>{Array.from({ length: Math.max(c.account.free, 0) }, (_, k) => <i key={k} />)}</span>
               </button>
             ))}
           </div>
+        )}
+        {picked && !picked.covers && (
+          <div className={r.warn}>{L(`Tamu akan mendapat akses ${fmtDate(start)} – ${fmtDate(endEff)} (${daysBetween(start, endEff) + 1} hari), bukan sampai ${fmtDate(end)}. Tanggal ini yang tercetak di tanda terima.`, `The guest will get access ${fmtDate(start)} – ${fmtDate(endEff)} (${daysBetween(start, endEff) + 1} days), not until ${fmtDate(end)}. This date is printed on the receipt.`)}</div>
         )}
         {err && <div className={r.err}>{err}</div>}
         <div className={r.formFoot}>
@@ -175,7 +192,8 @@ function Receipt({ done, onClose, onProof }: { done: { res: WifiGrantResult; ema
 }
 
 /* ── Tamu aktif ── */
-function ActiveList({ grants, reload, onProof }: { grants: WifiGrant[]; reload: () => Promise<void>; onProof: (g: WifiGrant) => void }) {
+function ActiveList({ grants, accounts, reload, onProof }: { grants: WifiGrant[]; accounts: WifiAccount[]; reload: () => Promise<void>; onProof: (g: WifiGrant) => void }) {
+  const [edit, setEdit] = useState<WifiGrant | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const today = todayISO();
@@ -199,17 +217,77 @@ function ActiveList({ grants, reload, onProof }: { grants: WifiGrant[]; reload: 
                   <span className={r.mono}>{g.username}</span><span>{g.slots} slot</span>
                   <span>{L("s/d", "to")} {fmtDate(g.endDate)}{g.endDate === today ? ` (${L("hari ini", "today")})` : ""}</span>
                   <span>{g.requestorName}{g.department ? ` · ${g.department}` : ""}</span><span className={r.mute}>{g.receiptNo}</span>
+                  {g.updatedAt && <span className={r.mute}>{L("✎ diubah", "✎ edited")} {g.updatedBy ? `${L("oleh", "by")} ${g.updatedBy} ` : ""}· {fmtDateTime(g.updatedAt)}</span>}
                 </div>
               </div>
               <div className={r.itemSide}>
                 <button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 {L("Bukti", "Receipt")}</button>
                 <button type="button" className={r.ghost} disabled={busy === g.id} onClick={() => back(g)}>{busy === g.id ? "…" : "Kembalikan"}</button>
+                <button type="button" className={r.link} onClick={() => setEdit(g)}>{L("✎ Ubah", "✎ Edit")}</button>
+                <button type="button" className={`${r.link} ${r.danger}`} onClick={() => removeGrant(g, reload)}>{L("Hapus", "Delete")}</button>
               </div>
             </div>
           ))}
         </div>
       )}
+      {edit && <EditGrant g={edit} account={accounts.find((a) => a.id === edit.accountId)} onClose={() => setEdit(null)} onSaved={async () => { setEdit(null); await reload(); }} />}
     </section>
+  );
+}
+
+/** Hapus pemberian wifi yang salah input (slot akun kembali kosong). */
+async function removeGrant(g: WifiGrant, reload: () => Promise<void>) {
+  if (!confirm(L(`Hapus ${g.receiptNo} (tamu ${g.guestName})?\nHanya untuk data yang salah catat — slot akun ${g.username} kembali kosong dan tanda terimanya tidak berlaku lagi. Tidak bisa dibatalkan.\n\nBila tamu hanya pulang lebih awal, pakai Kembalikan.`, `Delete ${g.receiptNo} (guest ${g.guestName})?\nOnly for entries made by mistake — the slot on ${g.username} is freed and the receipt stops working. This cannot be undone.\n\nIf the guest just left early, use Return instead.`))) return;
+  try { await deleteWifiGrant(g.id); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+}
+
+/** Koreksi data pemberian wifi. Akun & tanggal mulai tetap; tanggal selesai ≤ masa berlaku akun; slot ≤ kapasitas akun. */
+function EditGrant({ g, account, onClose, onSaved }: { g: WifiGrant; account: WifiAccount | undefined; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [f, setF] = useState({ guestName: g.guestName, guestCompany: g.guestCompany, requestorName: g.requestorName, requestorEmail: g.requestorEmail, department: g.department, lineManager: g.lineManager, purpose: g.purpose, slots: g.slots, endDate: g.endDate });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k: keyof typeof f, v: string | number) => setF((x) => ({ ...x, [k]: v }));
+  const live = !g.returnedAt;
+  const maxEnd = account?.validUntil;
+  const canSave = f.guestName.trim() && f.requestorName.trim() && (!live || (f.endDate >= g.startDate && (!maxEnd || f.endDate <= maxEnd))) && !busy;
+  async function save() {
+    if (!canSave) return;
+    setBusy(true); setErr("");
+    try { await updateWifiGrant(g.id, f); await onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); }
+  }
+  return (
+    <ModalPortal onOverlayClick={busy ? undefined : onClose} maxWidth={600}>
+      <form className={r.modal} onSubmit={(e) => { e.preventDefault(); void save(); }} role="dialog" aria-modal="true" aria-labelledby="rcp-grant-edit">
+        <div className={r.modalHead}>
+          <div><h2 id="rcp-grant-edit">{L("Ubah data akses wifi", "Edit wifi access")} · <span className={r.mono}>{g.receiptNo}</span></h2>
+            <p>{L(`Akun ${g.username} dan tanggal mulai tidak bisa diubah. ${live ? "" : "Akses sudah dikembalikan — hanya identitas yang bisa dikoreksi."}`, `Account ${g.username} and the start date cannot change. ${live ? "" : "Access was already returned — only the details can be corrected."}`)}</p></div>
+          <button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
+        </div>
+        <div className={r.form}>
+          <label className={r.field}><span>{L("Nama tamu *", "Guest name *")}</span><input className={r.input} value={f.guestName} onChange={(e) => set("guestName", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Perusahaan tamu", "Guest company")}</span><input className={r.input} value={f.guestCompany} onChange={(e) => set("guestCompany", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Nama requestor *", "Requestor name *")}</span><input className={r.input} value={f.requestorName} onChange={(e) => set("requestorName", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Email requestor", "Requestor email")}</span><input className={r.input} type="email" value={f.requestorEmail} onChange={(e) => set("requestorEmail", e.target.value)} /></label>
+          <label className={r.field}><span>{L("Departemen", "Department")}</span><input className={r.input} value={f.department} onChange={(e) => set("department", e.target.value)} /></label>
+          <label className={r.field}><span>Line manager</span><input className={r.input} value={f.lineManager} onChange={(e) => set("lineManager", e.target.value)} /></label>
+          <label className={`${r.field} ${r.full}`}><span>{L("Keperluan", "Purpose")}</span><input className={r.input} value={f.purpose} onChange={(e) => set("purpose", e.target.value)} /></label>
+          {live && (
+            <>
+              <div className={`${r.field}`}><span>{L("Slot", "Slots")}{account ? <em> ({L(`akun ${account.slots} slot`, `account has ${account.slots}`)})</em> : null}</span>
+                <div className={r.chips}>{[1, 2].map((n) => <button key={n} type="button" className={r.chip} aria-pressed={f.slots === n} onClick={() => set("slots", n)}>{n}</button>)}</div></div>
+              <label className={r.field}><span>{L("Berlaku sampai", "Valid until")}{maxEnd ? <em> ({L(`maks. ${fmtDate(maxEnd)}`, `max ${fmtDate(maxEnd)}`)})</em> : null}</span>
+                <input className={r.input} type="date" value={f.endDate} min={g.startDate} max={maxEnd} onChange={(e) => e.target.value && set("endDate", e.target.value)} /></label>
+            </>
+          )}
+        </div>
+        {err && <div className={r.err} style={{ margin: "0 20px" }}>{err}</div>}
+        <div className={r.modalFoot}>
+          <span style={{ flex: 1 }} />
+          <button type="button" className={r.ghost} onClick={onClose} disabled={busy}>{L("Batal", "Cancel")}</button>
+          <button type="submit" className={r.btn} disabled={!canSave}>{busy ? L("Menyimpan…", "Saving…") : L("Simpan perubahan", "Save changes")}</button>
+        </div>
+      </form>
+    </ModalPortal>
   );
 }
 
@@ -419,7 +497,8 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
 }
 
 /* ── Riwayat ── */
-function History({ grants, onProof }: { grants: WifiGrant[]; onProof: (g: WifiGrant) => void }) {
+function History({ grants, accounts, reload, onProof }: { grants: WifiGrant[]; accounts: WifiAccount[]; reload: () => Promise<void>; onProof: (g: WifiGrant) => void }) {
+  const [edit, setEdit] = useState<WifiGrant | null>(null);
   const [q, setQ] = useState("");
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const list = grants.filter((g) => (!month || monthOf(g.createdAt) === month) && (!q || [g.guestName, g.guestCompany, g.requestorName, g.username, g.receiptNo, g.department, g.lineManager].join(" ").toLowerCase().includes(q.toLowerCase())));
@@ -453,12 +532,13 @@ function History({ grants, onProof }: { grants: WifiGrant[]; onProof: (g: WifiGr
                 <td className={r.nowrap}>{fmtDate(g.startDate)} – {fmtDate(g.endDate)}</td>
                 <td><span className={`${r.pill} ${g.returnedAt ? r.pGray : g.endDate < today ? r.pGray : r.pGreen}`}>{status(g)}</span></td>
                 <td>{g.emailSentAt ? <span className={`${r.pill} ${r.pBlue}`}>{L("Terkirim", "Sent")}</span> : <span className={r.mute}>–</span>}</td>
-                <td className={r.num}><button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 {L("Bukti", "Receipt")}</button></td>
+                <td className={`${r.num} ${r.nowrap}`}><button type="button" className={r.proofBtn} onClick={() => onProof(g)}>🧾 {L("Bukti", "Receipt")}</button>{" "}<button type="button" className={r.link} onClick={() => setEdit(g)}>{L("✎ Ubah", "✎ Edit")}</button>{" "}<button type="button" className={`${r.link} ${r.danger}`} onClick={() => removeGrant(g, reload)}>{L("Hapus", "Delete")}</button></td>
               </tr>
             ))}</tbody>
           </table>
         </div>
       )}
+      {edit && <EditGrant g={edit} account={accounts.find((a) => a.id === edit.accountId)} onClose={() => setEdit(null)} onSaved={async () => { setEdit(null); await reload(); }} />}
     </section>
   );
 }

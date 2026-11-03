@@ -3,14 +3,14 @@
    dan pratinjau di aplikasi. Satu sumber angka, tiga format keluaran.
 ════════════════════════════════════════════════════════════ */
 
-export type ModuleKey = "fleet" | "claims" | "canteen" | "atk" | "ga" | "tga" | "security";
+export type ModuleKey = "fleet" | "claims" | "canteen" | "atk" | "ga" | "tga" | "receptionist" | "security";
 
 /** Kelompok laporan — sama dengan kategori menu dashboard. */
 export type CategoryKey = "fleet" | "finance" | "facility" | "security";
 export const CATEGORIES: { key: CategoryKey; id: string; en: string; modules: ModuleKey[] }[] = [
   { key: "fleet", id: "Fleet & Kendaraan", en: "Fleet & Vehicles", modules: ["fleet"] },
   { key: "finance", id: "Finance", en: "Finance", modules: ["claims"] },
-  { key: "facility", id: "Fasilitas", en: "Facility", modules: ["canteen", "atk", "ga", "tga"] },
+  { key: "facility", id: "Fasilitas", en: "Facility", modules: ["canteen", "atk", "ga", "tga", "receptionist"] },
   { key: "security", id: "Security", en: "Security", modules: ["security"] },
 ];
 export const categoryOf = (k: ModuleKey): CategoryKey => CATEGORIES.find((c) => c.modules.includes(k))?.key ?? "facility";
@@ -40,6 +40,7 @@ const META_ID: Record<ModuleKey, { title: string; short: string; accent: string;
   atk: { title: "Alat Tulis Kantor (ATK)", short: "ATK", accent: "#7A5AF0", desc: "Pemakaian, departemen, dan stok kritis" },
   ga: { title: "Cleaning & Gardening", short: "C&G", accent: "#0EA5B7", desc: "Achievement plan vs actual ISS, event & improvement" },
   tga: { title: "TGA — Teknisi GA", short: "TGA", accent: "#DB2777", desc: "Pekerjaan teknisi: selesai, tertunda, urgent, per teknisi" },
+  receptionist: { title: "Receptionist", short: "Receptionist", accent: "#0D9488", desc: "Wifi tamu, barang & surat, pemakaian Induction Room" },
   security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Kendaraan & visitor, transporter, pelanggaran, kejadian, patroli" },
 };
 const META_EN: Record<ModuleKey, { title: string; short: string; accent: string; desc: string }> = {
@@ -49,6 +50,7 @@ const META_EN: Record<ModuleKey, { title: string; short: string; accent: string;
   atk: { title: "Office Supplies (ATK)", short: "Supplies", accent: "#7A5AF0", desc: "Usage, departments and critical stock" },
   ga: { title: "Cleaning & Gardening", short: "C&G", accent: "#0EA5B7", desc: "ISS plan vs actual achievement, events & improvements" },
   tga: { title: "TGA — GA Technicians", short: "TGA", accent: "#DB2777", desc: "Technician jobs: completed, pending, urgent, per technician" },
+  receptionist: { title: "Receptionist", short: "Receptionist", accent: "#0D9488", desc: "Guest wifi, items & mail, Induction Room usage" },
   security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Vehicles & visitors, transporters, violations, incidents, patrol" },
 };
 /** Metadata modul dalam bahasa yang diminta (default: bahasa aktif). */
