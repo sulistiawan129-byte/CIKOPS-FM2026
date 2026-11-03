@@ -13,7 +13,7 @@ import { tgaAllActivities } from "../tga/api";
 import { computeTga } from "./tga";
 import { computeReceptionist } from "./receptionist";
 import { getBookings, getParcels, getRcpSettings, getWifiCapacity, getWifiGrants } from "../receptionist/api";
-import { DEFAULT_SETTINGS, toMin } from "../receptionist/model";
+import { DEFAULT_SETTINGS, toMin, todayISO as todayWIB } from "../receptionist/model";
 import { atkTrend, canteenTrend, claimsTrend, fleetTrend } from "./trend";
 import { fetchGcCases, getSecurityConfig, getSecurityMonths } from "../security/api";
 import { DEFAULT_KHUSUS, monthKeyOf } from "../security/model";
@@ -119,8 +119,7 @@ export async function buildMgmtReport(p: {
         safe(() => getRcpSettings(), DEFAULT_SETTINGS),
       ]);
       use();
-      const t = new Date();
-      const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+      const today = todayWIB();   // sama dengan hari di database (WIB), bukan zona waktu perangkat
       const openHours = Math.max(1, (toMin(settings.closeTime) - toMin(settings.openTime)) / 60);
       const A = assess(
         [...grants.map((g) => g.startDate), ...parcels.map((x) => x.createdAt), ...bookings.map((b) => b.date)],

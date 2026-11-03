@@ -608,7 +608,24 @@ Untuk membuat akun resepsionis lain: buat user baru, lalu
 | **Peminjaman Wifi Guest** | jumlah pemberian akun wifi pada hari itu, jumlah slot, dan tamu yang masih aktif |
 | **Tamu datang** | jumlah ORANG (rombongan dijumlah), banyak kunjungan, dan yang masih di lokasi |
 
-Tiap kartu punya tren 7 hari (garis kecil), selisih dengan hari sebelumnya, dan bisa diketuk untuk membuka tab terkait.
+Tiap kartu punya tren 14 hari (garis kecil), selisih dengan hari sebelumnya, dan bisa diketuk untuk membuka tab terkait
+(kartu Dokumen masuk / keluar membuka tab Barang & Surat pada **tanggal & arah yang sama**).
+
+#### Aturan hitung (supaya angka bisa dicocokkan)
+- **Hari = WIB**, sama dengan database, apa pun zona waktu perangkat. Dashboard otomatis pindah ke hari baru lewat tengah malam,
+  dan data disegarkan sendiri tiap menit (serta saat tab dibuka kembali) — angka tidak basi bila ada pengguna / perangkat lain yang mencatat.
+- **Dokumen / barang masuk & keluar** = barang yang **DICATAT** pada tanggal itu, dijumlah per kolom *Jumlah* (satu catatan "Surat ×3" = 3).
+  Kartu juga menyebut jumlah catatan, berapa yang sudah diserahkan, berapa yang menunggu **dari catatan hari itu saja**, dan rincian per jenis
+  (Paket, Dokumen / Surat, Makanan, Barang lain). Barang yang dicatat di hari lain tetapi diserahkan hari ini TIDAK dihitung sebagai masuk/keluar hari ini
+  (ditampilkan terpisah di tab Barang & Surat → *Hari ini / per tanggal*).
+- **Peminjaman Wifi Guest** = pemberian akun wifi yang **dibuat** pada tanggal itu. Kapasitas (total slot, terpakai, tersedia, akun berlaku, tamu aktif)
+  adalah kondisi **saat ini** dan ditampilkan terpisah di panel *Kapasitas Wifi Guest* (bukan angka harian).
+- **Tamu datang** = jumlah ORANG pada tanggal kunjungan itu; tamu dari hari lalu yang belum dicatat pulang tidak ikut angka hari ini — muncul sebagai
+  catatan "belum dicatat pulang" dengan tombol *Rapikan*.
+- **Barang menunggu** (di hero & kartu bawah) adalah total semua hari, termasuk yang lama — diberi label "semua hari".
+- **FM Command Center** (tab Receptionist) memakai aturan yang sama (SQL bagian 056): *Masuk hari ini*, *Keluar hari ini*, dan *Diserahkan hari ini* dipisah.
+  Sebelumnya satu angka "dicatat hari ini" menjumlah masuk + keluar sehingga bisa lebih besar dari barang masuk sebenarnya (mis. 10 masuk + 1 keluar = 11).
+- Bila angka tidak cocok dengan hitungan manual: ketuk kartunya → daftar per tanggal memuat persis catatan yang dihitung.
 Di bawahnya: **Aktivitas 14 hari** (ketuk batang untuk pindah ke hari itu, arahkan kursor untuk rincian, ketuk nama di legenda untuk
 menampilkan/menyembunyikan jenis aktivitas), **Sedang di lokasi** (tamu yang belum pulang + tombol *Pulang*), **Jejak hari ini**
 (tamu datang/pulang, barang masuk/keluar/diserahkan, wifi, booking — urut waktu), **jadwal Induction Room** (garis waktu + penanda "sekarang"),
@@ -620,7 +637,7 @@ barang menunggu, akun wifi yang akan habis, dan pemakaian wifi per departemen. T
 dicari, diubah (termasuk jam datang & pulang), dibatalkan pulangnya, dihapus (bila salah catat), dan diekspor ke Excel/PDF. Kunjungan yang
 sudah > 4 jam tanpa Pulang diberi petunjuk "lupa check-out?".
 - Hak akses: yang mengelola Receptionist bisa mengisi; role Management hanya membaca.
-- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 055) di Supabase SQL Editor. Sebelum itu, tab Tamu menampilkan petunjuk
+- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 055 dan 056) di Supabase SQL Editor. Sebelum itu, tab Tamu menampilkan petunjuk
   dan bagian dashboard lain tetap berjalan.
 
 ### Pemilihan akun wifi sesuai durasi

@@ -819,9 +819,17 @@ const RECEPTIONIST: Record<string, RpcHandler> = {
         waiting_in: waiting.filter((p) => p.direction === "in").length,
         waiting_out: waiting.filter((p) => p.direction === "out").length,
         waiting_old: waiting.filter((p) => Date.parse(p.created_at) < twoDaysAgo).length,
-        in_today: parcels.filter((p) => wibDate(p.created_at) === today).length,
+        in_today: parcels.filter((p) => p.direction === "in" && wibDate(p.created_at) === today).reduce((x, p) => x + num(p.qty, 1), 0),
+        in_today_n: parcels.filter((p) => p.direction === "in" && wibDate(p.created_at) === today).length,
+        out_today: parcels.filter((p) => p.direction === "out" && wibDate(p.created_at) === today).reduce((x, p) => x + num(p.qty, 1), 0),
+        out_today_n: parcels.filter((p) => p.direction === "out" && wibDate(p.created_at) === today).length,
         handed_today: parcels.filter((p) => p.handed_at && wibDate(p.handed_at) === today).length,
+        handed_from_other_days: parcels.filter((p) => p.handed_at && wibDate(p.handed_at) === today && wibDate(p.created_at) !== today).length,
       },
+      visitors: (() => {
+        const vs = table(ctx.db, "rcp_visitors").filter((v) => v.visit_date === today);
+        return { guests: vs.reduce((x, v) => x + num(v.pax, 1), 0), visits: vs.length, inside: vs.filter((v) => !v.checked_out_at).length };
+      })(),
       bookings: rb.filter((b) => b.booking_date === today).sort((x, y) => s(x.start_time).localeCompare(s(y.start_time)))
         .map((b) => ({ start: hm(b.start_time), end: hm(b.end_time), title: b.title, attendees: b.attendees ?? null })),
       bookings_week: rb.filter((b) => s(b.booking_date) >= today && s(b.booking_date) <= week).length,

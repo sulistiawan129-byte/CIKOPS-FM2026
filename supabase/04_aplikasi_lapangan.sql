@@ -16,6 +16,7 @@
 --   Bagian 053  Pemeriksa/penggabung karyawan dobel + riwayat TGA tidak ditimpa
 --   Bagian 054  ATK punya daftar karyawan sendiri (atk_employees, dari Excel); Master Karyawan tidak lagi diisi dari ATK
 --   Bagian 055  Receptionist: buku tamu harian (rcp_visitors) — input tamu datang, check-out, dashboard harian
+--   Bagian 056  rcp_board (FM Command Center): angka harian masuk / keluar / diserahkan terpisah & sama dengan dashboard Receptionist
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -1315,3 +1316,58 @@ end $$;
 notify pgrst, 'reload schema';
 
 select '055 tamu datang' as cek, (select count(*) from information_schema.tables where table_name = 'rcp_visitors') as tabel_ada;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 056 — rcp_board (FM Command Center): angka harian yang SAMA dengan dashboard Receptionist
+-- Sebelumnya "in_today" menghitung SEMUA catatan hari ini (masuk + keluar, 1 catatan = 1) sehingga bisa lebih besar dari
+-- jumlah barang masuk yang sebenarnya (mis. 10 masuk + 1 keluar = 11). Sekarang dipisah dan dijumlah per kolom Jumlah (qty):
+--   in_today / in_today_n      barang MASUK dicatat hari ini (jumlah barang / jumlah catatan)
+--   out_today / out_today_n    barang KELUAR dicatat hari ini
+--   handed_today               serah terima yang terjadi hari ini (apa pun tanggal dicatatnya)
+--   handed_from_other_days     … di antaranya dicatat di hari lain
+--   visitors                   tamu datang hari ini (orang, kunjungan, masih di lokasi) — bila bagian 055 sudah dijalankan
+-- Hari = WIB (sama dengan rcp_today()).
+-- ═══════════════════════════════════════════════════════════════
+create or replace function rcp_board() returns jsonb
+language plpgsql stable security definer set search_path = public as $f$
+declare v_today date := rcp_today(); r jsonb; v_vis jsonb := jsonb_build_object('guests', 0, 'visits', 0, 'inside', 0);
+begin
+  if to_regclass('public.rcp_visitors') is not null then
+    execute 'select jsonb_build_object(''guests'', coalesce(sum(pax), 0), ''visits'', count(*), ''inside'', count(*) filter (where checked_out_at is null)) from rcp_visitors where visit_date = $1'
+       into v_vis using v_today;
+  end if;
+  select jsonb_build_object(
+    'today', v_today,
+    'wifi', (select jsonb_build_object(
+               'accounts', count(*) filter (where a.active and a.valid_until >= v_today),
+               'slots', coalesce(sum(a.slots) filter (where a.active and a.valid_until >= v_today), 0),
+               'used', coalesce(sum(least(rcp_wifi_used(a.id), a.slots)) filter (where a.active and a.valid_until >= v_today), 0),
+               'expiring7', count(*) filter (where a.active and a.valid_until between v_today and v_today + 7),
+               'guests_today', (select count(*) from rcp_wifi_grants g where (g.created_at at time zone 'Asia/Jakarta')::date = v_today))
+             from rcp_wifi_accounts a),
+    'parcels', (select jsonb_build_object(
+               'waiting', count(*) filter (where p.status = 'waiting'),
+               'waiting_in', count(*) filter (where p.status = 'waiting' and p.direction = 'in'),
+               'waiting_out', count(*) filter (where p.status = 'waiting' and p.direction = 'out'),
+               'waiting_old', count(*) filter (where p.status = 'waiting' and p.created_at < now() - interval '2 days'),
+               'in_today',  coalesce(sum(p.qty) filter (where p.direction = 'in'  and (p.created_at at time zone 'Asia/Jakarta')::date = v_today), 0),
+               'in_today_n', count(*) filter (where p.direction = 'in'  and (p.created_at at time zone 'Asia/Jakarta')::date = v_today),
+               'out_today', coalesce(sum(p.qty) filter (where p.direction = 'out' and (p.created_at at time zone 'Asia/Jakarta')::date = v_today), 0),
+               'out_today_n', count(*) filter (where p.direction = 'out' and (p.created_at at time zone 'Asia/Jakarta')::date = v_today),
+               'handed_today', count(*) filter (where (p.handed_at at time zone 'Asia/Jakarta')::date = v_today),
+               'handed_from_other_days', count(*) filter (where (p.handed_at at time zone 'Asia/Jakarta')::date = v_today and (p.created_at at time zone 'Asia/Jakarta')::date <> v_today))
+             from rcp_parcels p),
+    'visitors', v_vis,
+    'bookings', coalesce((select jsonb_agg(jsonb_build_object('start', to_char(b.start_time, 'HH24:MI'), 'end', to_char(b.end_time, 'HH24:MI'), 'title', b.title, 'attendees', b.attendees) order by b.start_time)
+             from rcp_room_bookings b where b.booking_date = v_today), '[]'::jsonb),
+    'bookings_week', (select count(*) from rcp_room_bookings b where b.booking_date between v_today and v_today + 6)
+  ) into r;
+  return r;
+end $f$;
+revoke all on function rcp_board() from public;
+grant execute on function rcp_board() to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+select '056 rcp_board' as cek, (rcp_board() -> 'parcels' ->> 'in_today') as in_today, (rcp_board() -> 'visitors' ->> 'guests') as tamu_hari_ini;

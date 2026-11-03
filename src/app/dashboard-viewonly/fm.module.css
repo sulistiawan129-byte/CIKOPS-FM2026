@@ -199,7 +199,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .shift:first-of-type { border-top: 0; }
 .shift b { font-size: .9rem; }
 .shift small { display: block; font-size: .8rem; font-weight: 700; color: var(--t3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .25rem; }
-.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 1rem; }
 .duo .num { font-size: 2.6rem; }
 
 @media (prefers-reduced-motion: reduce) { .fade, .grpBody { animation: none; } .heroArc, .tb, .bfill { transition: none; } }

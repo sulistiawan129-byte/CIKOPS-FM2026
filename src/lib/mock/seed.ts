@@ -460,7 +460,7 @@ export function buildSeed(): MockDB {
     const out = i % 5 === 0;
     const row: Row = {
       id: uuid(), receipt_no: `${out ? "OUT" : "IN"}-${ym}-${pad(i, 3)}`, direction: out ? "out" : "in",
-      item_type: ["Paket", "Dokumen", "Surat"][i % 3], description: ["Paket sparepart", "Dokumen kontrak", "Surat undangan", "Sampel produk", "Paket ATK"][i % 5],
+      item_type: ["Paket", "Dokumen / Surat", "Makanan"][i % 3], description: ["Paket sparepart", "Dokumen kontrak", "Surat undangan", "Sampel produk", "Paket ATK"][i % 5],
       sender: ["JNE", "TIKI", "Kantor Pusat", "PT Kemas Jaya", "Bank Mandiri"][i % 5], recipient: e.nama, department: e.departement, email: e.email,
       courier: ["JNE", "J&T", "SiCepat", "Kurir internal"][i % 4], status, created_by: "Receptionist",
       created_at: ago(status === "waiting" ? (i === 4 || i === 8 ? 60 : 1 + (i % 9)) : i * 4), share_token: uuid(),

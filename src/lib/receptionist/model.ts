@@ -177,7 +177,9 @@ export const itemTypeLabel = (t: string): string =>
 const pad = (n: number) => String(n).padStart(2, "0");
 export const isoOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const parseISO = (s: string) => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };
-export const todayISO = () => isoOf(new Date());
+/** Tanggal (YYYY-MM-DD) menurut WIB — SAMA dengan rcp_today() / visit_date di database, apa pun zona waktu perangkat. */
+export const wibDay = (ms: number) => new Date(ms + 7 * 3600000).toISOString().slice(0, 10);
+export const todayISO = () => wibDay(Date.now());
 export function addDays(iso: string, n: number): string { const d = parseISO(iso); d.setDate(d.getDate() + n); return isoOf(d); }
 export function addMonths(iso: string, n: number): string { const d = parseISO(iso); d.setMonth(d.getMonth() + n); return isoOf(d); }
 export const daysBetween = (a: string, b: string) => Math.round((parseISO(b).getTime() - parseISO(a).getTime()) / 86400000);
@@ -306,5 +308,6 @@ export function usageByDeptMonth(grants: WifiGrant[]): { months: string[]; rows:
 export const monthLabel = (ym: string) => { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString(loc(), { month: "short", year: "2-digit" }); };
 
 /** Tanggal / bulan lokal dari timestamp (timestamptz disimpan UTC). */
-export const dayOf = (ts: string | null | undefined) => (ts ? isoOf(new Date(ts)) : "");
+/** Hari (WIB) dari sebuah cap waktu — dasar semua hitungan harian / bulanan Receptionist. */
+export const dayOf = (ts: string | null | undefined) => (ts ? wibDay(new Date(ts).getTime()) : "");
 export const monthOf = (ts: string | null | undefined) => dayOf(ts).slice(0, 7);
