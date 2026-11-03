@@ -13,6 +13,7 @@
 --   Bagian 050  Data karyawan ATK digabung ke Master Karyawan (employees) — satu sumber
 --   Bagian 051  Menu kantin mingguan untuk layar TV (/menu-tv) — diisi di Dashboard → Kantin → Menu TV
 --   Bagian 052  Receptionist: ubah/hapus/batalkan serah terima barang & wifi + jumlah barang
+--   Bagian 053  Karyawan dobel: penggabungan ATK tidak lagi membuat baris baru bila nama sama + pemeriksa/penggabung dobel
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -1117,3 +1118,169 @@ notify pgrst, 'reload schema';
 
 select '052 receptionist koreksi' as cek,
        (select count(*) from information_schema.columns where table_name = 'rcp_parcels' and column_name in ('qty', 'updated_at', 'updated_by')) as kolom_baru;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 053 — Karyawan dobel (hasil penggabungan ATK) + riwayat TGA tidak ditimpa
+-- Masalah: penggabungan 050 membuat BARIS BARU bila NIK ATK tidak persis sama dengan NIK master
+-- (NIK beda ketik, atau berisi dua nomor "5001377 / 5011011"), padahal namanya sama → satu orang
+-- tampil dua kali dengan departemen berbeda.
+--   • _nik_tokens()          memecah NIK pada / , ; | → "nomor mana pun yang sama" dianggap orang yang sama
+--   • employee_upsert_basic  NIK cocok (nomor mana pun) → nama cocok hanya SATU baris → orang yang sama
+--                            (melengkapi yang kosong, tidak menimpa). Nama kembar & NIK tak cocok → 'ambiguous'
+--                            (dilewati, tidak menebak, tidak membuat baris baru)
+--   • employees_dedupe()     tanpa argumen = PRATINJAU; dengan daftar id = gabungkan. Hanya pasangan nama sama
+--                            dengan tepat satu baris "Operations - Cikarang": baris lama dipertahankan, departemen
+--                            jadi "Operations - Cikarang", NIK dua baris digabung "A / B", referensi TGA dipindah,
+--                            baris kembar dihapus. Pasangan lain hanya DILAPORKAN untuk dicek manual.
+--   • tga_sync_requestor     departemen kegiatan TGA yang SUDAH selesai/batal tidak ikut berubah (riwayat tetap)
+-- ═══════════════════════════════════════════════════════════════
+create or replace function _nik_tokens(p text) returns text[]
+language sql immutable as $f$
+  select coalesce(array_agg(t order by ord), '{}'::text[])
+    from (select nullif(trim(x), '') as t, ord
+            from unnest(regexp_split_to_array(coalesce(p, ''), '[/,;|]')) with ordinality as u(x, ord)) s
+   where t is not null
+$f$;
+
+create or replace function employee_upsert_basic(p_nama text, p_nik text, p_dept text) returns text
+language plpgsql security definer set search_path = public as $f$
+declare
+  v_nama text := left(trim(coalesce(p_nama, '')), 200);
+  v_nik  text := nullif(left(trim(coalesce(p_nik, '')), 60), '');
+  v_dept text := nullif(left(trim(coalesce(p_dept, '')), 120), '');
+  v_tok  text[] := _nik_tokens(nullif(left(trim(coalesce(p_nik, '')), 60), ''));
+  v_id uuid; v_n int; v_old_nik text; v_old_dept text;
+begin
+  if v_nama = '' then return 'skip'; end if;
+  -- 1) NIK: nomor mana pun yang sama
+  if cardinality(v_tok) > 0 then
+    select id into v_id from employees where _nik_tokens(nik) && v_tok order by created_at limit 1;
+  end if;
+  -- 2) nama (tanpa membedakan huruf besar/kecil)
+  if v_id is null then
+    select count(*) into v_n from employees where lower(trim(nama)) = lower(v_nama);
+    if v_n = 1 then
+      select id into v_id from employees where lower(trim(nama)) = lower(v_nama);
+    elsif v_n > 1 then
+      select id into v_id from employees
+       where lower(trim(nama)) = lower(v_nama) and nullif(trim(coalesce(nik, '')), '') is null
+       order by created_at limit 1;
+      if v_id is null then return 'ambiguous'; end if;
+    end if;
+  end if;
+  if v_id is null then
+    insert into employees (nama, nik, departement, aktif) values (v_nama, v_nik, v_dept, true);
+    return 'created';
+  end if;
+  select nullif(nik, ''), nullif(departement, '') into v_old_nik, v_old_dept from employees where id = v_id;
+  if (v_old_nik is null and v_nik is not null) or (v_old_dept is null and v_dept is not null) then
+    update employees set nik = coalesce(v_old_nik, v_nik), departement = coalesce(v_old_dept, v_dept), updated_at = now() where id = v_id;
+    return 'updated';
+  end if;
+  return 'same';
+end $f$;
+
+create or replace function _employees_merge_atk() returns jsonb
+language plpgsql security definer set search_path = public as $f$
+declare r record; res text; c int := 0; u int := 0; n int := 0; a int := 0;
+begin
+  if to_regclass('public.atk_requests') is null then return jsonb_build_object('scanned', 0, 'created', 0, 'updated', 0, 'ambiguous', 0); end if;
+  for r in
+    select distinct on (coalesce(nullif(trim(nik), ''), lower(trim(nama)))) nama, nik, departemen
+      from atk_requests
+     where coalesce(trim(nama), '') <> ''
+     order by coalesce(nullif(trim(nik), ''), lower(trim(nama))), tanggal desc, created_at desc
+  loop
+    n := n + 1;
+    res := employee_upsert_basic(r.nama, r.nik, r.departemen);
+    if res = 'created' then c := c + 1; elsif res = 'updated' then u := u + 1; elsif res = 'ambiguous' then a := a + 1; end if;
+  end loop;
+  return jsonb_build_object('scanned', n, 'created', c, 'updated', u, 'ambiguous', a);
+end $f$;
+
+-- nama (huruf kecil) pasangan yang AMAN digabung otomatis: tepat 2 baris, tepat 1 di antaranya "Operations - Cikarang"
+create or replace function _emp_dup_pairs() returns table (k text)
+language sql stable security definer set search_path = public as $f$
+  select lower(trim(nama))
+    from employees
+   group by 1
+  having count(*) = 2
+     and count(*) filter (where lower(trim(coalesce(departement, ''))) = 'operations - cikarang') = 1
+$f$;
+
+create or replace function employees_dedupe(p_apply uuid[] default null) returns jsonb
+language plpgsql security definer set search_path = public as $f$
+declare
+  r record; v_auto jsonb := '[]'::jsonb; v_manual jsonb; v_merged int := 0; v_nik text; v_dept text;
+begin
+  if auth.uid() is null or not exists (select 1 from profiles where id = auth.uid()) then
+    raise exception 'Akses ditolak: akun tidak terdaftar di CIKOPS.' using errcode = '42501';
+  end if;
+  perform set_config('cikops.skip_tga_sync', '1', true);   -- riwayat TGA tidak ditimpa saat menggabung
+  for r in
+    with rws as (
+      select e.*, lower(trim(e.nama)) as k, row_number() over (partition by lower(trim(e.nama)) order by e.created_at, e.id) as rn
+        from employees e where lower(trim(e.nama)) in (select k from _emp_dup_pairs())
+    )
+    select o.id as oid, o.nama as onama, o.nik as onik, o.departement as odept, o.email as oemail, o.no_hp as ohp, o.jabatan as ojab, o.aktif as oaktif,
+           n.id as nid, n.nik as nnik, n.departement as ndept, n.email as nemail, n.no_hp as nhp, n.jabatan as njab, n.aktif as naktif
+      from rws o join rws n on n.k = o.k and o.rn = 1 and n.rn = 2
+     order by o.nama
+  loop
+    select string_agg(t, ' / ' order by mo) into v_nik
+      from (select t, min(ord) as mo from unnest(_nik_tokens(r.onik) || _nik_tokens(r.nnik)) with ordinality as u(t, ord) group by t) x;
+    v_dept := case when lower(trim(coalesce(r.odept, ''))) = 'operations - cikarang' then trim(r.odept) else trim(r.ndept) end;
+    if p_apply is null then
+      v_auto := v_auto || jsonb_build_array(jsonb_build_object(
+        'keep_id', r.oid, 'nama', r.onama,
+        'keep', jsonb_build_object('nik', r.onik, 'dept', r.odept),
+        'drop', jsonb_build_object('nik', r.nnik, 'dept', r.ndept),
+        'result', jsonb_build_object('nik', v_nik, 'dept', v_dept)));
+    elsif r.oid = any (p_apply) then
+      update tga_activities set requestor_id = r.oid where requestor_id = r.nid;
+      delete from employees where id = r.nid;
+      update employees
+         set departement = v_dept, nik = v_nik,
+             email = coalesce(nullif(r.oemail, ''), r.nemail), no_hp = coalesce(nullif(r.ohp, ''), r.nhp),
+             jabatan = coalesce(nullif(r.ojab, ''), r.njab), aktif = coalesce(r.oaktif, true) or coalesce(r.naktif, true),
+             updated_at = now()
+       where id = r.oid;
+      v_merged := v_merged + 1;
+    end if;
+  end loop;
+  -- sisa nama kembar yang TIDAK boleh digabung otomatis → hanya dilaporkan
+  select coalesce(jsonb_agg(m.x order by m.x ->> 'nama'), '[]'::jsonb) into v_manual from (
+    select jsonb_build_object('nama', min(e.nama), 'rows',
+             jsonb_agg(jsonb_build_object('id', e.id, 'nik', e.nik, 'dept', e.departement) order by e.created_at)) as x
+      from employees e
+     where lower(trim(e.nama)) in (select lower(trim(nama)) from employees group by 1 having count(*) > 1)
+       and lower(trim(e.nama)) not in (select k from _emp_dup_pairs())
+     group by lower(trim(e.nama))
+     order by lower(trim(e.nama)) limit 300) m;
+  return jsonb_build_object('auto', v_auto, 'manual', v_manual, 'merged', v_merged);
+end $f$;
+
+-- Perubahan data karyawan → kegiatan TGA ikut: nama selalu; departemen hanya untuk kegiatan yang masih berjalan
+create or replace function tga_sync_requestor() returns trigger
+language plpgsql security definer set search_path = public as $f$
+begin
+  if coalesce(current_setting('cikops.skip_tga_sync', true), '') = '1' then return new; end if;
+  update tga_activities
+     set request_by = new.nama,
+         departemen = case when status in ('selesai', 'batal') then departemen
+                           else coalesce(nullif(trim(new.departement), ''), departemen) end
+   where requestor_id = new.id
+     and (request_by is distinct from new.nama
+          or (status not in ('selesai', 'batal') and departemen is distinct from coalesce(nullif(trim(new.departement), ''), departemen)));
+  return new;
+end $f$;
+
+revoke all on function _nik_tokens(text), _emp_dup_pairs(), employee_upsert_basic(text, text, text), _employees_merge_atk(), tga_sync_requestor() from public, anon, authenticated;
+revoke all on function employees_dedupe(uuid[]) from public, anon;
+grant execute on function employees_dedupe(uuid[]) to authenticated;
+
+notify pgrst, 'reload schema';
+
+select '053 karyawan dobel' as cek, (select count(*) from _emp_dup_pairs()) as pasangan_aman_digabung,
+       (select count(*) from (select 1 from employees group by lower(trim(nama)) having count(*) > 1) x) as nama_kembar_total;

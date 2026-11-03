@@ -721,11 +721,29 @@ tabel `employees` (Master Karyawan) yang juga dipakai Receptionist, TGA, dan per
   baru riwayat ATK. Pemohon baru yang diketik di form otomatis masuk ke Master Karyawan.
 - **Gabung data yang sudah ada:** Master Data → Pegawai → tombol **Gabungkan data ATK**.
   Aman diulang; hanya *melengkapi* NIK / departemen yang kosong, tidak menimpa email, no HP, atau jabatan.
-  Pencocokan per NIK, lalu per nama.
+  Pencocokan per NIK (nomor mana pun bila satu sel berisi dua nomor `A / B`), lalu per nama
+  (sejak bagian 053: bila hanya ada **satu** orang bernama itu, dianggap orang yang sama walau NIK-nya berbeda).
+  Bila ada beberapa orang bernama sama dan NIK tidak cocok, orang itu **dilewati** (tidak ditebak) dan dihitung
+  sebagai “dilewati” di pesan hasil.
 - **Dari Excel:** jalankan makro `SyncKaryawanOnly` (modul `modSyncCikops` versi terbaru) untuk mengirim sheet
   `MasterDataKaryawan` (kolom A NIK, B Nama, C Departemen) ke Master Karyawan. Cukup dijalankan sesekali.
 - **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 050) di Supabase SQL Editor.
   Restock tidak ikut digabung (kolom nama di restock = petugas gudang, bukan pemohon).
+
+### Karyawan dobel (bagian 053)
+Penggabungan ATK versi pertama membuat baris baru bila NIK ATK tidak persis sama dengan NIK master,
+sehingga satu orang tampil dua kali dengan departemen berbeda (mis. `SCM Pack Sachet` dan `Operations - Cikarang`).
+- Master Data → Pegawai → **Cek karyawan dobel** menampilkan **pratinjau** — belum ada yang berubah.
+- **Pasangan siap digabung** = nama sama, tepat dua baris, salah satunya `Operations - Cikarang`. Hasil gabung:
+  baris lama dipertahankan, departemen jadi **Operations - Cikarang**, NIK kedua baris digabung `A / B`,
+  email / HP / jabatan diambil dari yang terisi, kegiatan TGA dipindah ke baris yang bertahan, baris kembar dihapus.
+  Hilangkan centang pada pasangan yang ternyata dua orang berbeda, lalu **Gabungkan … terpilih**.
+- **Nama kembar lain** (mis. dua “Budi Santoso” dengan NIK dan departemen berbeda) hanya ditampilkan untuk dicek
+  manual lewat tabel Pegawai — bisa jadi memang orang berbeda.
+- **Riwayat tidak berubah:** transaksi lama (ATK, Receptionist, penugasan, kegiatan TGA yang sudah selesai)
+  tetap memuat departemen saat itu; transaksi baru memakai departemen terbaru. Kegiatan TGA yang masih berjalan
+  ikut departemen terbaru bila Master diubah.
+- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 053) di Supabase SQL Editor.
 
 ### File
 - Baru:
