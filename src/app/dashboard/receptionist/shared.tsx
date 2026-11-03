@@ -4,6 +4,7 @@ import { useId, useMemo } from "react";
 import type { Contact, RcpEmployee } from "@/lib/receptionist/model";
 import { exportGenericExcel, exportGenericPdf, type ReportColumn } from "@/lib/reportEngine";
 import r from "./receptionist.module.css";
+import { SearchPick } from "@/components/SearchPick";
 
 /** Direktori nama: Data Karyawan (utama) + buku alamat yang terbentuk sendiri. */
 export interface Directory { contacts: Contact[]; employees: RcpEmployee[] }
@@ -26,27 +27,15 @@ export const initialsOf = (name: string) => name.trim().split(/\s+/).slice(0, 2)
 export function NameInput({ dir, value, onChange, onPick, placeholder, required }: {
   dir: Directory; value: string; onChange: (v: string) => void; onPick?: (p: { email: string; department: string; phone: string }) => void; placeholder?: string; required?: boolean;
 }) {
-  const id = useId();
-  const names = useMemo(() => {
+  const options = useMemo(() => {
     const seen = new Set<string>();
-    const out: { name: string; hint: string }[] = [];
-    for (const e of dir.employees) { if (!e.aktif) continue; const k = e.nama.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ name: e.nama, hint: [e.departement, e.email].filter(Boolean).join(" · ") }); } }
-    for (const c of dir.contacts) { const k = c.name.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ name: c.name, hint: c.email }); } }
+    const out: { key: string; name: string; hint?: string }[] = [];
+    for (const e of dir.employees) { if (!e.aktif) continue; const k = e.nama.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ key: e.id, name: e.nama, hint: [e.departement, e.email].filter(Boolean).join(" · ") || undefined }); } }
+    for (const c of dir.contacts) { const k = c.name.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ key: `c:${k}`, name: c.name, hint: c.email || undefined }); } }
     return out;
   }, [dir]);
-  return (
-    <>
-      <input
-        className={r.input} list={id} value={value} placeholder={placeholder} required={required} autoComplete="off"
-        onChange={(e) => {
-          onChange(e.target.value);
-          const hit = lookupPerson(dir, e.target.value);
-          if (hit && onPick) onPick(hit);
-        }}
-      />
-      <datalist id={id}>{names.slice(0, 400).map((n) => <option key={n.name} value={n.name}>{n.hint}</option>)}</datalist>
-    </>
-  );
+  const change = (v: string) => { onChange(v); const hit = lookupPerson(dir, v); if (hit && onPick) onPick(hit); };
+  return <SearchPick inputClassName={r.input} value={value} onChange={change} placeholder={placeholder} required={required} options={options} ariaLabel={placeholder} />;
 }
 
 /** Tombol ekspor Excel + PDF untuk sebuah tabel. */

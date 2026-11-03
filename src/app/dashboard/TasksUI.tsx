@@ -19,6 +19,7 @@ import type { Driver, Employee, JobType, Plant, TaskDetail, TaskStatus, Vehicle 
 import { plantFull } from "@/lib/brand";
 
 import { loc , L} from "@/lib/i18n";
+import { SearchPick } from "@/components/SearchPick";
 /* ───────────────────────── util ───────────────────────── */
 
 
@@ -600,10 +601,9 @@ export function TaskForm(p: {
             <div className={s.twoCol} style={{ marginTop: 14 }}>
               <label className={s.field}>
                 <span>Requestor</span>
-                <select className={s.input} value={requestor} onChange={(e) => pickRequestor(e.target.value)}>
-                  <option value="">{L("Pilih pegawai", "Select employee")}</option>
-                  {p.employees.map((emp) => <option key={emp.id} value={emp.nama}>{emp.nama}</option>)}
-                </select>
+                <SearchPick strict inputClassName={s.input} ariaLabel="Requestor" value={requestor} onChange={(t) => { if (!t) pickRequestor(""); }}
+                  onPick={(o) => pickRequestor(o.name)} placeholder={L("Cari nama pegawai…", "Search employee name…")}
+                  options={p.employees.map((emp) => ({ key: emp.id, name: emp.nama, hint: emp.departement ?? undefined }))} />
               </label>
               <label className={s.field}>
                 <span>{L("Departemen", "Department")}</span>

@@ -1153,6 +1153,16 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
    internet putus layar tetap menampilkan menu terakhir. Minggu yang belum diisi menampilkan layar "Menu minggu ini segera hadir".
 7. **Isi menu** sebelum Senin: Dashboard → Fasilitas → Kantin → Menu TV (bisa isi massal untuk beberapa minggu sekaligus).
 
+## Memilih karyawan: kotak pencarian
+
+Semua pemilihan karyawan memakai **kotak pencarian** (bukan daftar panjang), supaya nyaman di HP: ketik sebagian nama, NIK, atau departemen
+(beberapa kata boleh, urutannya bebas, mis. "budi fin"), lalu ketuk hasilnya. Dipakai di: Penugasan Driver (Requestor), TGA (penugasan &
+ubah pekerjaan), ATK (nama pemohon), dan Receptionist (requestor wifi, penerima/pengirim barang, PIC booking). Di Penugasan Driver hanya
+bisa memilih dari daftar karyawan; di tempat lain nama di luar data karyawan (mis. tamu) tetap boleh diketik.
+
+> Batas Supabase **Max rows** (Project Settings → API) menentukan berapa karyawan yang dimuat sekali ambil (bawaan 1000). Jumlah karyawan
+> sekarang 1500 → pastikan **Max rows ≥ jumlah karyawan** (disarankan 5000). Bila suatu saat melewatinya, nama di ujung daftar tidak muncul.
+
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
 menyimpan backup harian 7 hari). Karena itu ada workflow GitHub **Backup database**
