@@ -10,6 +10,9 @@
  * Operator: ← → ganti slide, F layar penuh (layar tidak merespons klik/sentuhan).
  * Data: diisi di Dashboard → Kantin → Menu TV, dibaca lewat fungsi publik canteen_menu_public (segar tiap 5 menit).
  *      ?sample=1 menampilkan menu contoh (untuk uji tampilan).
+ *      ?safe=3 mengecilkan tampilan 3% dari tepi (untuk TV yang memotong tepi layar).
+ * Layar yang menyala terus: minggu & hari ini mengikuti jam (WIB), data dibaca ulang tiap 5 menit,
+ * halaman dimuat ulang otomatis tiap 03:30 WIB, dan bila jaringan putus layar tetap menampilkan menu terakhir.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -191,19 +194,29 @@ function Meal({ c }: { c: Ctx }) {
               {d.sides.filter(hasItem).map((sd, k) => (
                 <div key={k} className={s.side}><div className={s.dishName}>{sd.name}</div><Num it={sd} /></div>
               ))}
+              {hasItem(d.fruit) && (
+                <div className={s.fruit}>
+                  <div className={s.dishFoot}><span className={s.dishTag}>{L("Buah", "Fruit")}</span><Num it={d.fruit} /></div>
+                  <div className={s.dishName}>{d.fruit.name}</div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
       <div className={`${s.staples} ${s.rise}`} style={idxStyle(9)}>
-        <div className={s.staplesLabel}>{L("Selalu Tersedia", "Always Served")}<small>{L("setiap hari, Senin – Minggu", "every day, Monday – Sunday")}</small></div>
+        <div className={s.staplesLabel}>{L("Selalu Tersedia", "Always Served")}<small>{L("Senin – Minggu", "Monday – Sunday")}</small></div>
         <div className={s.stapleList}>
-          {c.week.staples.filter(hasItem).slice(0, 4).map((st, k) => (
+          {c.week.staples.filter(hasItem).slice(0, 3).map((st, k) => (
             <div key={k} className={s.staple}>
-              <div className={s.stapleIcon}>{["N", "S", "K", "B"][k] ?? "•"}</div>
-              <div><div className={s.stapleName}>{st.name}</div><div className={s.stapleNum}><b>{st.kcal}</b> {kk()} · <b>{st.gram}</b> g</div></div>
+              <div className={s.stapleIcon}>{["N", "S", "K"][k] ?? "•"}</div>
+              <div><div className={s.stapleName}>{st.name}</div><div className={s.stapleNum}><b>{st.kcal || "–"}</b> {kk()} · <b>{st.gram || "–"}</b> g</div></div>
             </div>
           ))}
+          <div className={`${s.staple} ${s.fruitNote}`}>
+            <div className={s.stapleIcon}>B</div>
+            <div><div className={s.stapleName}>{L("Buah", "Fruit")}</div><div className={s.stapleNum}>{L("berbeda setiap hari — lihat tiap kolom", "changes daily — see each column")}</div></div>
+          </div>
         </div>
       </div>
     </section>
@@ -251,7 +264,8 @@ function TodaySlide({ c }: { c: Ctx }) {
           <div className={`${s.course} ${s.rise}`} style={idxStyle(5)}><h3>{hasItem(d.special) ? "IV" : "III"}. {L("Pendamping", "Sides")}<span>{L("PELENGKAP", "ACCOMPANIMENT")}</span></h3>
             {d.sides.filter(hasItem).map((sd, k) => <MRow key={k} it={sd} i={n++} />)}
           </div>
-          <div className={`${s.course} ${s.rise}`} style={idxStyle(6)}><h3>{hasItem(d.special) ? "V" : "IV"}. {L("Selalu Tersedia", "Always Served")}<span>{L("SETIAP HARI", "EVERY DAY")}</span></h3>
+          <div className={`${s.course} ${s.rise}`} style={idxStyle(6)}><h3>{hasItem(d.special) ? "V" : "IV"}. {L("Pelengkap", "On the Side")}<span>{L("SETIAP HARI", "EVERY DAY")}</span></h3>
+            {hasItem(d.fruit) && <MRow tag={L("Buah", "Fruit")} col="#ff9ec4" it={d.fruit} i={n++} />}
             {c.week.staples.filter(hasItem).map((st, k) => <MRow key={k} it={st} i={n++} />)}
           </div>
         </div>
@@ -297,7 +311,8 @@ function EmptySlide({ period, error }: { period: string; error: boolean }) {
 export default function MenuTv() {
   const [ready, setReady] = useState(false);
   const [today, setToday] = useState("");
-  const [viewDate, setViewDate] = useState("");
+  const [dateParam, setDateParam] = useState<string | null>(null); // ?date= (pratinjau); bila kosong → ikut hari ini
+  const [safe, setSafe] = useState(0); // ?safe=N → kecilkan N% dari tepi (TV yang memotong tepi layar / overscan)
   const [idx, setIdx] = useState(0);
   const [tick, setTick] = useState(0); // naik tiap pergantian slide → memicu ulang sapuan emas
   const [auto, setAuto] = useState(true);
@@ -307,13 +322,15 @@ export default function MenuTv() {
   const [status, setStatus] = useState<"loading" | "ok" | "empty" | "error">("loading");
   const [sample, setSample] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const hasData = useRef(false);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const t = wibToday();
     setToday(t);
     const d = q.get("date");
-    setViewDate(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : t);
+    setDateParam(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null);
+    const sf = Number(q.get("safe")); if (sf > 0) setSafe(Math.min(10, sf));
     const sl = q.get("slide");
     if (sl) { const i = /^\d$/.test(sl) ? Number(sl) : ORDER.indexOf(sl as SlideKey); if (i >= 0 && i < ORDER.length) setIdx(i); }
     if (q.get("rotate") === "0") setAuto(false);
@@ -323,10 +340,10 @@ export default function MenuTv() {
   }, []);
 
   useEffect(() => {
-    const fit = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
+    const fit = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080) * (1 - safe / 100));
     fit(); window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
-  }, []);
+  }, [safe]);
 
   const key = ORDER[idx];
   const dur = secOverride ?? DEFAULT_SEC[key];
@@ -338,11 +355,21 @@ export default function MenuTv() {
     return () => clearTimeout(t);
   }, [auto, ready, idx, dur, go]);
 
-  // pulihkan tanggal otomatis bila layar menyala melewati tengah malam
+  // layar menyala berhari-hari: perbarui "hari ini" tiap menit (minggu & sorotan hari ikut berganti tengah malam)
   useEffect(() => {
     if (!ready) return;
-    const t = setInterval(() => { const n = wibToday(); setToday((o) => (o === n ? o : n)); }, 60_000);
+    const t = setInterval(() => { const n = wibToday(); setToday((o) => (o === n ? o : n)); }, 30_000);
     return () => clearInterval(t);
+  }, [ready]);
+
+  // muat ulang sekali sehari (03:30 WIB): ambil versi aplikasi terbaru setelah deploy & bersihkan memori browser TV
+  useEffect(() => {
+    if (!ready) return;
+    const now = Date.now() + 7 * 3600_000;
+    const d = new Date(now); d.setUTCHours(3, 30, 0, 0);
+    let at = d.getTime(); if (at <= now + 60_000) at += 24 * 3600_000;
+    const t = setTimeout(() => window.location.reload(), at - now);
+    return () => clearTimeout(t);
   }, [ready]);
 
   const toggleFs = useCallback(() => {
@@ -360,27 +387,32 @@ export default function MenuTv() {
     return () => window.removeEventListener("keydown", onKey);
   }, [go, toggleFs]);
 
+  const viewDate = dateParam ?? today;
   const weekStart = useMemo(() => (viewDate ? mondayOf(viewDate) : ""), [viewDate]);
 
   // ambil menu minggu ini; segarkan tiap 5 menit supaya perubahan dari Dashboard ikut tampil
   useEffect(() => {
     if (!ready || !weekStart) return;
     if (sample) { setWeek(sampleWeek(weekStart)); setStatus("ok"); return; }
+    setStatus("loading"); hasData.current = false; // pergantian minggu: kosongkan dulu, jangan tampilkan menu minggu lalu
     let alive = true;
     const pull = async () => {
       try {
         const w = await getPublicMenu(weekStart);
         if (!alive) return;
-        setWeek(w); setStatus(w ? "ok" : "empty");
+        setWeek(w); setStatus(w ? "ok" : "empty"); hasData.current = !!w;
       } catch { if (alive) setStatus((st) => (st === "ok" ? st : "error")); }
     };
     void pull();
     const t = setInterval(pull, 5 * 60_000);
-    return () => { alive = false; clearInterval(t); };
+    // belum ada data (jaringan baru menyala / minggu belum diisi): coba lagi tiap menit
+    const quick = setInterval(() => { if (!hasData.current) void pull(); }, 60_000);
+    return () => { alive = false; clearInterval(t); clearInterval(quick); };
   }, [ready, weekStart, sample]);
 
   if (!ready || !weekStart) return <div className={s.root} />;
-  const emptyState = status !== "ok" || !week;
+  // data minggu lama tidak boleh tampil di bawah tanggal minggu baru (pergantian Minggu → Senin)
+  const emptyState = status !== "ok" || !week || week.weekStart !== weekStart;
 
   const dates = Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
   const period = periodText(dates[0], dates[6]);

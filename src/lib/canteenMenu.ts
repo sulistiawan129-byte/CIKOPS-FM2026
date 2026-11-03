@@ -13,6 +13,8 @@ export interface DayMenu {
   special?: MenuItem;
   /** Menu pendamping: tempe, tahu, perkedel, dll. */
   sides: MenuItem[];
+  /** Buah: berbeda tiap hari */
+  fruit: MenuItem;
 }
 
 export interface WeeklyMenu {
@@ -20,7 +22,7 @@ export interface WeeklyMenu {
   weekStart: string;
   /** 7 hari, Senin → Minggu */
   days: DayMenu[];
-  /** Pasti ada setiap hari: nasi, sambal, kerupuk, buah */
+  /** Pasti ada setiap hari & sama sepanjang minggu: nasi, sambal, kerupuk (buah ada per hari) */
   staples: MenuItem[];
 }
 
@@ -29,30 +31,30 @@ const it = (name: string, kcal: number, gram: number): MenuItem => ({ name, kcal
 export const SAMPLE_DAYS: DayMenu[] = [
   { snack: it("Bubur Kacang Hijau", 180, 150),
     main: { daging: it("Rendang Sapi", 285, 70), ayam: it("Ayam Goreng Kremes", 310, 90), telur: it("Telur Balado", 140, 60) },
-    sides: [it("Tempe Orek", 120, 40), it("Tahu Goreng", 95, 50)] },
+    sides: [it("Tempe Orek", 120, 40), it("Tahu Goreng", 95, 50)], fruit: it("Pisang", 90, 100) },
   { snack: it("Pisang Goreng", 210, 100),
     main: { daging: it("Semur Daging", 260, 75), ayam: it("Ayam Bakar Madu", 260, 90), telur: it("Telur Dadar Padang", 160, 60) },
-    sides: [it("Perkedel Kentang", 130, 45), it("Tempe Mendoan", 140, 45)] },
+    sides: [it("Perkedel Kentang", 130, 45), it("Tempe Mendoan", 140, 45)], fruit: it("Semangka", 35, 120) },
   { snack: it("Roti Isi Cokelat", 240, 90),
     main: { daging: it("Empal Gepuk", 270, 70), ayam: it("Ayam Lada Hitam", 280, 90), telur: it("Telur Bumbu Bali", 150, 60) },
-    sides: [it("Tahu Bacem", 100, 50), it("Tempe Goreng Tepung", 150, 40)] },
+    sides: [it("Tahu Bacem", 100, 50), it("Tempe Goreng Tepung", 150, 40)], fruit: it("Melon", 30, 110) },
   { snack: it("Lemper Ayam", 190, 80),
     main: { daging: it("Sapi Lada Hitam", 275, 70), ayam: it("Ayam Woku", 270, 90), telur: it("Semur Telur", 145, 60) },
     special: it("Soto Ayam Lamongan", 320, 250),
-    sides: [it("Perkedel Jagung", 135, 45), it("Tahu Isi", 110, 50)] },
+    sides: [it("Perkedel Jagung", 135, 45), it("Tahu Isi", 110, 50)], fruit: it("Pepaya", 45, 120) },
   { snack: it("Kue Lapis", 170, 75),
     main: { daging: it("Bistik Jawa", 255, 75), ayam: it("Ayam Goreng Lengkuas", 300, 90), telur: it("Telur Ceplok Kecap", 150, 60) },
-    sides: [it("Tempe Kemangi", 115, 40), it("Tahu Crispy", 120, 50)] },
+    sides: [it("Tempe Kemangi", 115, 40), it("Tahu Crispy", 120, 50)], fruit: it("Jeruk", 45, 100) },
   { snack: it("Onde-onde", 200, 70),
     main: { daging: it("Daging Balado", 280, 70), ayam: it("Ayam Asam Manis", 285, 90), telur: it("Telur Dadar Sayur", 155, 60) },
-    sides: [it("Perkedel Tahu", 125, 45), it("Tempe Bacem", 125, 40)] },
+    sides: [it("Perkedel Tahu", 125, 45), it("Tempe Bacem", 125, 40)], fruit: it("Nanas", 50, 110) },
   { snack: it("Kolak Pisang", 220, 180),
     main: { daging: it("Tongseng Sapi", 290, 80), ayam: it("Ayam Panggang Bumbu Rujak", 275, 90), telur: it("Telur Rica-rica", 160, 60) },
-    sides: [it("Tahu Goreng", 95, 50), it("Tempe Orek Kering", 130, 40)] },
+    sides: [it("Tahu Goreng", 95, 50), it("Tempe Orek Kering", 130, 40)], fruit: it("Apel", 55, 100) },
 ];
 
 export const SAMPLE_STAPLES: MenuItem[] = [
-  it("Nasi Putih", 260, 200), it("Sambal", 30, 20), it("Kerupuk", 45, 10), it("Buah Potong", 50, 80),
+  it("Nasi Putih", 260, 200), it("Sambal", 30, 20), it("Kerupuk", 45, 10),
 ];
 
 /** Senin dari minggu yang memuat `isoDate` (YYYY-MM-DD). */
@@ -79,9 +81,9 @@ export const emptyItem = (): MenuItem => ({ name: "", kcal: 0, gram: 0 });
 /** Butir menu dianggap terisi bila namanya ada. */
 export const hasItem = (it?: MenuItem | null): it is MenuItem => !!it && it.name.trim() !== "";
 export const emptyDay = (): DayMenu => ({
-  snack: emptyItem(), main: { daging: emptyItem(), ayam: emptyItem(), telur: emptyItem() }, special: emptyItem(), sides: [emptyItem(), emptyItem()],
+  snack: emptyItem(), main: { daging: emptyItem(), ayam: emptyItem(), telur: emptyItem() }, special: emptyItem(), sides: [emptyItem(), emptyItem()], fruit: emptyItem(),
 });
-/** Nasi, sambal, kerupuk, buah — nilai awal minggu baru (bisa diubah per minggu). */
+/** Nasi, sambal, kerupuk — nilai awal minggu baru (bisa diubah per minggu). */
 export const DEFAULT_STAPLES: MenuItem[] = SAMPLE_STAPLES.map((x) => ({ ...x }));
 export const emptyWeek = (weekStart: string): WeeklyMenu => ({
   weekStart, days: Array.from({ length: 7 }, emptyDay), staples: DEFAULT_STAPLES.map((x) => ({ ...x })),
@@ -103,9 +105,15 @@ export function normalizeWeek(raw: unknown, weekStart: string): WeeklyMenu {
     const m = (d.main && typeof d.main === "object" ? d.main : {}) as Record<string, unknown>;
     const sides = Array.isArray(d.sides) ? (d.sides as unknown[]).map(clean) : [];
     while (sides.length < 2) sides.push(emptyItem());
-    return { snack: clean(d.snack), main: { daging: clean(m.daging), ayam: clean(m.ayam), telur: clean(m.telur) }, special: clean(d.special), sides };
+    return { snack: clean(d.snack), main: { daging: clean(m.daging), ayam: clean(m.ayam), telur: clean(m.telur) }, special: clean(d.special), sides, fruit: clean(d.fruit) };
   });
-  if (Array.isArray(r.staples) && r.staples.length) out.staples = (r.staples as unknown[]).map(clean);
+  if (Array.isArray(r.staples) && r.staples.length) {
+    let st = (r.staples as unknown[]).map(clean);
+    // data lama: "Buah" ikut di daftar tetap → pindahkan ke kolom buah tiap hari yang belum diisi
+    const legacy = st.find((x) => /^buah\b/i.test(x.name));
+    if (legacy) { st = st.filter((x) => x !== legacy); out.days.forEach((d) => { if (!hasItem(d.fruit)) d.fruit = { ...legacy }; }); }
+    out.staples = st;
+  } else if (Array.isArray(r.staples)) out.staples = [];
   return out;
 }
 
@@ -115,7 +123,7 @@ export function serializeWeek(w: WeeklyMenu): { days: DayMenu[]; staples: MenuIt
   return {
     days: w.days.map((d) => ({
       snack: c(d.snack), main: { daging: c(d.main.daging), ayam: c(d.main.ayam), telur: c(d.main.telur) },
-      special: c(d.special ?? emptyItem()), sides: d.sides.map(c).filter((x) => x.name),
+      special: c(d.special ?? emptyItem()), sides: d.sides.map(c).filter((x) => x.name), fruit: c(d.fruit ?? emptyItem()),
     })),
     staples: w.staples.map(c).filter((x) => x.name),
   };

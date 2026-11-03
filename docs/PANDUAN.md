@@ -1087,10 +1087,39 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
   3. Nama yang pernah dipakai terisi otomatis kalori & gramnya. **Salin dari minggu lalu** mempercepat pengisian.
   4. **Simpan menu** → layar TV memperbarui diri maksimal 5 menit kemudian. **Lihat di TV** membuka pratinjau.
   Baris yang namanya kosong tidak ditampilkan. Bila minggu itu belum diisi, TV menampilkan layar "Menu minggu ini segera hadir".
+- **Buah** diisi **per hari** (berbeda tiap hari); strip "Selalu tersedia" hanya berisi menu tetap (nasi, sambal, kerupuk).
+- **Isi massal** (tombol di toolbar editor):
+  - *Tempel / unggah data:* satu baris = satu hidangan, kolom `Hari · Jenis · Menu · Kkal · Gram`. **Pembeda kolom** bisa
+    dipilih (Tab dari salinan Excel, titik koma, koma, garis tegak) atau otomatis. Hari = Senin–Minggu, **tanggal**
+    (`2026-11-03` / `03/11/2026` → otomatis ke minggunya, jadi satu tempelan bisa memuat banyak minggu), atau `Semua`.
+    Jenis = Snack, Daging, Ayam, Telur, Special, Pendamping, Buah, Tetap (nasi/sambal/kerupuk, Hari diisi `-`).
+    Menu `-` = kosongkan butir itu. Bisa mengunggah `.xlsx`/`.csv`/`.txt`; **Muat format minggu ini** / **Unduh CSV**
+    memberi templat berisi menu saat ini untuk diedit di Excel lalu ditempel kembali.
+    Pratinjau menandai baris yang error (dilewati); mode **Gabung** hanya menimpa yang ada di data, mode **Ganti**
+    mengosongkan minggu yang tersentuh dulu. Data langsung tersimpan ke semua minggu yang terpengaruh.
+  - *Ulangi ke minggu lain:* menyalin isian yang tampil ke 1–12 minggu berikutnya (minggu yang sudah terisi dilewati,
+    kecuali dicentang "Timpa").
 - **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 051) di Supabase SQL Editor — membuat tabel
   `canteen_menu_weeks` dan fungsi publik `canteen_menu_public`. Yang boleh mengisi: akun dengan akses modul Kantin
   (sama seperti laporan kantin); layar TV hanya membaca satu minggu lewat fungsi itu.
 - `?sample=1` menampilkan menu contoh untuk uji tampilan.
+
+### Pemasangan di TV (checklist go-live)
+1. **Sebelum rapat dengan IT:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 050 & 051) di Supabase SQL Editor dan pastikan
+   perubahan terbaru sudah di-merge ke `main` (Vercel hanya men-deploy `main`).
+2. **Jaringan:** kabel LAN ke TV (tanpa captive portal). Minta IT memastikan TV boleh membuka alamat Vercel dan `*.supabase.co`
+   (HTTPS). Wifi guest dengan halaman login tidak cocok untuk TV.
+3. **Uji dulu di TV:** buka `https://<domain>/menu-tv?sample=1` (menu contoh, tanpa data). Aplikasi ini memerlukan browser modern
+   (setara Chrome/Edge 111+, Safari 16.4+). Browser bawaan TV yang lama (beberapa Samsung Tizen / LG webOS lama) bisa gagal
+   menampilkan — bila halaman kosong/berantakan, pakai Chromecast with Google TV / Android TV box / mini PC (Chrome), atau
+   cadangan video MP4 lewat USB.
+4. **Layar penuh:** buka `/menu-tv` lalu tekan tombol layar penuh browser (F11 / mode kiosk). Kursor tersembunyi otomatis.
+5. **Tepi terpotong?** Di pengaturan gambar TV pilih "Fit to screen / Just Scan / Screen Fit" (matikan overscan). Bila tetap
+   terpotong, tambahkan `?safe=3` (mengecilkan tampilan 3%) pada alamatnya.
+6. **Setelah terpasang tidak perlu disentuh:** minggu & sorotan "hari ini" berganti otomatis tengah malam (WIB), menu dibaca ulang
+   tiap 5 menit (perubahan dari Dashboard tampil maksimal 5 menit kemudian), halaman memuat ulang otomatis 03:30 WIB, dan bila
+   internet putus layar tetap menampilkan menu terakhir. Minggu yang belum diisi menampilkan layar "Menu minggu ini segera hadir".
+7. **Isi menu** sebelum Senin: Dashboard → Fasilitas → Kantin → Menu TV (bisa isi massal untuk beberapa minggu sekaligus).
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro

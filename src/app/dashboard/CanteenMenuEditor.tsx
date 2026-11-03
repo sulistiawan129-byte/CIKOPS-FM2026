@@ -13,8 +13,9 @@ import m from "./canteenMenu.module.css";
 import { L, loc } from "@/lib/i18n";
 import { addDaysIso, countFilled, emptyItem, emptyWeek, hasItem, mondayOf, serializeWeek, SAMPLE_DAYS, SAMPLE_STAPLES, type MenuItem, type WeeklyMenu } from "@/lib/canteenMenu";
 import { getMenuWeek, getRecentMenuWeeks, saveMenuWeek } from "@/lib/canteenMenuApi";
+import CanteenMenuBulk from "./CanteenMenuBulk";
 
-type Slot = "snack" | "daging" | "ayam" | "telur" | "special";
+type Slot = "snack" | "daging" | "ayam" | "telur" | "special" | "fruit";
 const wibToday = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 const fmt = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(loc(), { ...o, timeZone: "UTC" });
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -49,6 +50,7 @@ export default function CanteenMenuEditor() {
   const [ok, setOk] = useState<string | null>(null);
   const [existsInDb, setExistsInDb] = useState(false);
   const [library, setLibrary] = useState<Map<string, MenuItem>>(new Map());
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const dirty = snapshot(menu) !== saved;
 
@@ -57,7 +59,7 @@ export default function CanteenMenuEditor() {
     let alive = true;
     const lib = new Map<string, MenuItem>();
     const add = (it: MenuItem) => { if (hasItem(it) && it.kcal && it.gram) lib.set(it.name.trim().toLowerCase(), it); };
-    const feed = (d: WeeklyMenu["days"][number]) => { add(d.snack); add(d.main.daging); add(d.main.ayam); add(d.main.telur); if (d.special) add(d.special); d.sides.forEach(add); };
+    const feed = (d: WeeklyMenu["days"][number]) => { add(d.snack); if (d.fruit) add(d.fruit); add(d.main.daging); add(d.main.ayam); add(d.main.telur); if (d.special) add(d.special); d.sides.forEach(add); };
     SAMPLE_DAYS.forEach(feed); SAMPLE_STAPLES.forEach(add);
     getRecentMenuWeeks(12).then((ws) => { if (!alive) return; ws.slice().reverse().forEach((w) => { w.days.forEach(feed); w.staples.forEach(add); }); setLibrary(new Map(lib)); }).catch(() => setLibrary(new Map(lib)));
     return () => { alive = false; };
@@ -88,6 +90,7 @@ export default function CanteenMenuEditor() {
     const n = clone(cur); const day = n.days[d];
     if (slot === "snack") day.snack = { ...day.snack, ...p };
     else if (slot === "special") day.special = { ...(day.special ?? emptyItem()), ...p };
+    else if (slot === "fruit") day.fruit = { ...(day.fruit ?? emptyItem()), ...p };
     else day.main[slot] = { ...day.main[slot], ...p };
     return n;
   });
@@ -151,6 +154,7 @@ export default function CanteenMenuEditor() {
           {dirty ? L("Belum disimpan", "Unsaved") : existsInDb ? L(`Tersimpan · ${prog.filled}/${prog.total} menu utama`, `Saved · ${prog.filled}/${prog.total} main items`) : L("Belum diisi", "Not filled yet")}
         </span>
         <div className={m.grow} />
+        <button type="button" className={m.save} onClick={() => setBulkOpen(true)} disabled={loading} style={{ background: "var(--navy, #0d1a36)" }}>{L("Isi massal", "Bulk entry")}</button>
         <button type="button" className={m.ghost} onClick={copyPrev} disabled={loading}>{L("Salin dari minggu lalu", "Copy from last week")}</button>
         <button type="button" className={m.ghost} onClick={clearAll} disabled={loading}>{L("Kosongkan", "Clear")}</button>
         <a className={m.ghost} href={`/menu-tv?date=${weekStart}`} target="_blank" rel="noreferrer">{L("Lihat di TV ↗", "Preview on TV ↗")}</a>
@@ -189,13 +193,17 @@ export default function CanteenMenuEditor() {
                       onChange={(p) => patchSide(i, k, p)} onBlurName={() => autofill(sd, (p) => patchSide(i, k, p))} onRemove={d.sides.length > 1 ? () => delSide(i, k) : undefined} />
                   ))}
                   <button type="button" className={m.add} onClick={() => addSide(i)}>+ {L("Pendamping", "Side")}</button>
+                  <div className={m.fruitRow}>
+                    <ItemRow label={L("Buah", "Fruit")} color="#ff7eb3" item={d.fruit ?? emptyItem()} placeholder={L("mis. Pisang / Semangka / Melon (beda tiap hari)", "e.g. Banana / Watermelon (changes daily)")}
+                      onChange={(p) => patchSlot(i, "fruit", p)} onBlurName={() => autofill(d.fruit ?? emptyItem(), (p) => patchSlot(i, "fruit", p))} />
+                  </div>
                 </section>
               );
             })}
           </div>
 
           <section className={`${m.day} ${m.staples}`}>
-            <header className={m.dayHead}><b>{L("Selalu tersedia", "Always served")}</b><span>{L("setiap hari minggu ini — nasi, sambal, kerupuk, buah", "every day this week — rice, sambal, crackers, fruit")}</span></header>
+            <header className={m.dayHead}><b>{L("Selalu tersedia", "Always served")}</b><span>{L("sama setiap hari minggu ini — nasi, sambal, kerupuk (buah diisi per hari)", "same every day this week — rice, sambal, crackers (fruit is set per day)")}</span></header>
             <div className={m.cols}><span /><span>{L("Menu", "Dish")}</span><span>kkal</span><span>gram</span><span /></div>
             {menu.staples.map((st, i) => (
               <ItemRow key={i} label={L("Tetap", "Fixed")} color="#0fb5a4" item={st} onChange={(p) => patchStaple(i, p)} onBlurName={() => autofill(st, (p) => patchStaple(i, p))} onRemove={() => delStaple(i)} />
@@ -203,6 +211,11 @@ export default function CanteenMenuEditor() {
             <button type="button" className={m.add} onClick={addStaple}>+ {L("Menu tetap", "Fixed item")}</button>
           </section>
         </>
+      )}
+
+      {bulkOpen && (
+        <CanteenMenuBulk weekStart={weekStart} menu={menu} dirty={dirty} onClose={() => setBulkOpen(false)}
+          onApplied={(msg) => { setBulkOpen(false); void load(weekStart).then(() => setOk(msg)); }} />
       )}
     </div>
   );

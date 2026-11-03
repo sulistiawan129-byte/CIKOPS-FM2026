@@ -78,15 +78,15 @@
 .coverCourses span { color: var(--gold); font-size: 26px; }
 
 /* ══════════ KOP SLIDE (meal) ══════════ */
-.head { display: flex; align-items: center; gap: 30px; margin-bottom: 18px; }
-.headIcon { width: 92px; height: 92px; color: var(--gold); flex: none; }
-.headTitle { margin: 0; font-family: var(--serif); font-weight: 700; font-size: 62px; line-height: 1; letter-spacing: .02em; }
-.headTitle em { font-family: var(--script); font-weight: 500; font-size: 78px; letter-spacing: 0; }
-.headSub { margin: 8px 0 0; font-family: var(--script); font-style: italic; font-size: 30px; color: #cdd9f3; }
+.head { display: flex; align-items: center; gap: 26px; margin-bottom: 10px; }
+.headIcon { width: 70px; height: 70px; color: var(--gold); flex: none; }
+.headTitle { margin: 0; font-family: var(--serif); font-weight: 700; font-size: 54px; line-height: 1; letter-spacing: .02em; }
+.headTitle em { font-family: var(--script); font-weight: 500; font-size: 68px; letter-spacing: 0; }
+.headSub { margin: 2px 0 0; font-family: var(--script); font-style: italic; font-size: 26px; color: #cdd9f3; }
 .headGrow { flex: 1; }
 .headPeriod { text-align: right; }
 .headPeriod .label { font-size: 17px; }
-.headPeriod b { display: block; margin-top: 4px; font-family: var(--serif); font-weight: 600; font-size: 34px; }
+.headPeriod b { display: block; margin-top: 2px; font-family: var(--serif); font-weight: 600; font-size: 30px; }
 
 /* ══════════ SNACK ══════════ */
 .snack { flex-direction: row; gap: 64px; align-items: stretch; }
@@ -121,39 +121,46 @@
 .day.today { border: 1.5px solid var(--gold); background: linear-gradient(180deg, rgba(241, 217, 160, .14), rgba(241, 217, 160, .03));
   box-shadow: 0 0 0 5px rgba(241, 217, 160, .1), 0 0 60px -8px rgba(241, 217, 160, .5); animation: todayGlow 3.4s ease-in-out infinite; }
 @keyframes todayGlow { 0%, 100% { box-shadow: 0 0 0 5px rgba(241, 217, 160, .08), 0 0 40px -8px rgba(241, 217, 160, .35); } 50% { box-shadow: 0 0 0 9px rgba(241, 217, 160, .16), 0 0 78px -4px rgba(241, 217, 160, .7); } }
-.dayHead { padding: 11px 14px 10px; text-align: center; border-bottom: 1px solid rgba(241, 217, 160, .22); }
+.dayHead { padding: 8px 14px 7px; text-align: center; border-bottom: 1px solid rgba(241, 217, 160, .22); }
 .today .dayHead { background: linear-gradient(90deg, var(--gold3), var(--gold2) 40%, var(--gold)); border-bottom-color: transparent; color: #1a1204; }
-.dayName { display: block; font-family: var(--script); font-style: italic; font-weight: 700; font-size: 40px; line-height: 1; }
+.dayName { display: block; font-family: var(--script); font-style: italic; font-weight: 700; font-size: 38px; line-height: 1; }
 .dayDate { display: block; margin-top: 4px; font-family: var(--sans); font-size: 15px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
 .today .dayDate { color: #3a2a06; }
-.mealBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 9px 11px 12px; }
+.mealBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 7px 11px 10px; }
 .sec { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
 .sec::before, .sec::after { content: ""; flex: 1; height: 1px; background: rgba(241, 217, 160, .3); }
-.dish { position: relative; padding: 6px 6px 7px 14px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.dish { position: relative; padding: 4px 6px 5px 14px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
 .dish::before { content: ""; position: absolute; left: 2px; top: 13px; width: 7px; height: 7px; transform: rotate(45deg); background: var(--c, var(--gold)); box-shadow: 0 0 10px var(--c, var(--gold)); }
-.dishName { font-family: var(--serif); font-weight: 600; font-size: 21px; line-height: 1.12; min-height: 2.24em; display: flex; align-items: center; }
+.dishName { font-family: var(--serif); font-weight: 600; font-size: 21px; line-height: 1.1; min-height: 2.2em; display: flex; align-items: center; }
 .dishFoot { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-top: 1px; }
 .dishNum { font-family: var(--sans); font-size: 17px; font-weight: 500; color: #cfdcf6; font-variant-numeric: tabular-nums; }
 .dishNum b { font-weight: 600; color: #fff; }
 .dishTag { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--c, var(--gold)); }
-.special { position: relative; padding: 9px 12px 10px; border-radius: 14px; color: #1a1204; overflow: hidden;
+.special { position: relative; flex: none; padding: 7px 12px 8px; border-radius: 14px; color: #1a1204; overflow: hidden;
   background: linear-gradient(135deg, #f6e2ae, #e3b04a 55%, #c8922b); box-shadow: 0 14px 34px -14px rgba(241, 217, 160, .8); }
 .special::after { content: ""; position: absolute; top: 0; bottom: 0; width: 70px; left: -90px; transform: skewX(-20deg); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); animation: sweep 4.5s ease-in-out infinite; }
 @keyframes sweep { 0%, 55% { left: -90px; } 100% { left: 130%; } }
 .special .dishTag { color: #5a3d06; font-size: 12px; }
 .special .dishName { font-size: 23px; min-height: 0; margin: 1px 0 3px; color: #1a1204; }
 .special .dishNum, .special .dishNum b { color: #2c1d03; }
-.noSpecial { text-align: center; padding: 5px 0; font-family: var(--script); font-style: italic; font-size: 20px; color: rgba(205, 217, 243, .38); border: 1px dashed rgba(241, 217, 160, .2); border-radius: 12px; }
-.side { position: relative; padding: 5px 6px 6px 14px; }
+.noSpecial { text-align: center; padding: 3px 0; line-height: 1.1; font-family: var(--script); font-style: italic; font-size: 20px; color: rgba(205, 217, 243, .38); border: 1px dashed rgba(241, 217, 160, .2); border-radius: 12px; }
+.side { position: relative; padding: 3px 6px 4px 14px; flex: none; }
 .side::before { content: ""; position: absolute; left: 3px; top: 12px; width: 6px; height: 6px; transform: rotate(45deg); background: var(--sky); }
 .side .dishName { font-size: 19px; min-height: 0; }
-.staples { margin-top: 12px; display: flex; align-items: center; gap: 28px; padding: 11px 28px; border-radius: 22px;
+.fruit { position: relative; margin-top: 2px; padding: 5px 8px 6px 14px; border-radius: 12px; background: linear-gradient(90deg, rgba(255, 158, 196, .16), rgba(255, 158, 196, .03)); border: 1px solid rgba(255, 158, 196, .35); }
+.fruit .dishName { min-height: 0; font-size: 19px; color: #ffd6e7; }
+.fruit .dishTag { color: #ff9ec4; }
+.fruit .dishNum { font-size: 15px; }
+.fruitNote .stapleIcon { border-color: rgba(255, 158, 196, .6); color: #ff9ec4; }
+.fruitNote .stapleName { color: #ffd6e7; }
+.fruitNote .stapleNum { font-size: 15px; font-style: italic; }
+.staples { margin-top: 10px; display: flex; align-items: center; gap: 28px; padding: 7px 28px; border-radius: 22px;
   background: linear-gradient(90deg, rgba(45, 212, 191, .18), rgba(77, 141, 255, .1)); border: 1px solid rgba(45, 212, 191, .45); }
 .staplesLabel { min-width: 270px; font-family: var(--script); font-style: italic; font-weight: 700; font-size: 38px; line-height: 1; color: #7ff0df; }
 .staplesLabel small { display: block; margin-top: 4px; font-family: var(--sans); font-style: normal; font-size: 14px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--mute); }
 .stapleList { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .staple { display: flex; align-items: center; gap: 14px; }
-.stapleIcon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(45, 212, 191, .55); color: #7ff0df; font-family: var(--script); font-style: italic; font-weight: 700; font-size: 28px; flex: none; }
+.stapleIcon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(45, 212, 191, .55); color: #7ff0df; font-family: var(--script); font-style: italic; font-weight: 700; font-size: 28px; flex: none; }
 .stapleName { font-family: var(--serif); font-weight: 600; font-size: 25px; line-height: 1.05; }
 .stapleNum { font-family: var(--sans); font-size: 18px; font-weight: 500; color: #cfdcf6; font-variant-numeric: tabular-nums; }
 .stapleNum b { color: #fff; font-weight: 600; }
