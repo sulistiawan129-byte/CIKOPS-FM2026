@@ -1070,6 +1070,17 @@ login/driver; pilihan tersimpan di browser (`cikops_lang`) dan diterapkan seketi
 - **Menambah teks baru:** pakai `L("Indonesia", "English")` dari `src/lib/i18n.ts`. Tabel label tingkat modul
   harus memakai getter/fungsi agar bahasa tidak "membeku" saat impor.
 
+## Menu Kantin untuk layar TV (`/menu-tv`) — CONTOH
+
+Halaman layar penuh 16:9 (tanpa login) berisi: Sampul "MENU KANTIN KARYAWAN" + periode → Menu Snack → Menu Meal →
+penutup "Selamat Menikmati". Tiap menu menampilkan **nama, kalori (kkal) dan gram**. Meal: 3 lauk utama (daging, ayam,
+telur) + 1 kartu *Special* (hanya hari tertentu, mis. soto) + pendamping; nasi, sambal, kerupuk, buah tampil sekali di
+strip "Selalu Tersedia". Hari ini otomatis disorot.
+- URL: `/menu-tv` · `?slide=snack|meal|cover|closing` · `?rotate=0` · `?sec=20` · `?date=2026-11-03` (pratinjau minggu lain).
+- Tombol: ← → / spasi ganti slide, `F` layar penuh, klik layar = slide berikutnya.
+- **Status:** tampilan sudah jadi, isinya masih data contoh (`src/lib/canteenMenu.ts`); input menu per minggu dari
+  Dashboard → Kantin belum dibuat.
+
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
 menyimpan backup harian 7 hari). Karena itu ada workflow GitHub **Backup database**

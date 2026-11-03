@@ -5,7 +5,7 @@
 import { usePathname } from "next/navigation";
 import { useLang } from "@/lib/providers";
 
-const HAS_OWN = [/^\/dashboard(\/|$)/, /^\/driver(\/|$)/, /^\/canteen(\/|$)/, /^\/locker$/, /^\/tv-display/];
+const HAS_OWN = [/^\/menu-tv/, /^\/dashboard(\/|$)/, /^\/driver(\/|$)/, /^\/canteen(\/|$)/, /^\/locker$/, /^\/tv-display/];
 
 export default function LangSwitch() {
   const { lang, setLang } = useLang();

@@ -3,6 +3,7 @@
 /* Pita "DEMO" di semua halaman deployment demo. Di deployment MOCKUP (backend tiruan)
    pita ini jadi bar demo: ganti role tanpa login, lompat ke aplikasi lain, reset data. */
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { DEMO_ACCOUNTS, DEMO_MODE, MOCK_MODE } from "@/lib/brand";
 import { mockCurrentEmail, mockSignInAs } from "@/lib/mock/client";
 import { resetDb } from "@/lib/mock/core";
@@ -21,7 +22,8 @@ export default function DemoRibbon() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   useEffect(() => { if (MOCK_MODE) setEmail(mockCurrentEmail()); }, [open]);
-  if (!DEMO_MODE) return null;
+  const path = usePathname() || "";
+  if (!DEMO_MODE || path.startsWith("/menu-tv")) return null; // layar TV: tanpa pita
 
   const pill = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

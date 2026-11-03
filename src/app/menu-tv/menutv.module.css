@@ -1,0 +1,124 @@
+/* /menu-tv — layar TV menu kantin. Kanvas tetap 1920×1080, diskalakan ke layar apa pun. */
+.root {
+  position: fixed; inset: 0; overflow: hidden; background: #07140f; color: #f4f1e8;
+  font-family: var(--font-jakarta), system-ui, sans-serif; user-select: none;
+}
+.idle { cursor: none; }
+.stage {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center center;
+  background:
+    radial-gradient(1100px 700px at 12% -10%, rgba(255, 170, 60, .18), transparent 60%),
+    radial-gradient(900px 700px at 100% 110%, rgba(52, 211, 153, .16), transparent 60%),
+    linear-gradient(160deg, #0b2a20 0%, #08170f 60%, #061009 100%);
+  overflow: hidden;
+}
+.slide { position: absolute; inset: 0; padding: 40px 64px 52px; display: flex; flex-direction: column; animation: fadeIn .7s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* ── hiasan ── */
+.ring { position: absolute; border-radius: 50%; border: 2px solid rgba(255, 190, 90, .16); pointer-events: none; }
+.dotsGrid { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background-image: radial-gradient(rgba(255, 255, 255, .07) 2px, transparent 2px); background-size: 44px 44px; }
+
+/* ── sampul ── */
+.cover { align-items: center; justify-content: center; text-align: center; gap: 0; }
+.kicker { font-size: 30px; font-weight: 700; letter-spacing: .42em; text-transform: uppercase; color: #ffc25e; }
+.coverTitle { margin: 26px 0 0; font-weight: 900; line-height: .92; letter-spacing: -.02em; font-size: 212px; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff6df 10%, #ffc25e 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.coverRule { width: 220px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, #ffb13b, #34d399); margin: 46px 0 40px; }
+.period { display: inline-flex; align-items: baseline; gap: 22px; padding: 22px 50px; border-radius: 999px;
+  background: rgba(255, 255, 255, .07); border: 2px solid rgba(255, 255, 255, .14); }
+.period small { font-size: 26px; font-weight: 800; letter-spacing: .28em; color: #9fb7aa; }
+.period b { font-size: 54px; font-weight: 800; letter-spacing: .01em; }
+.coverChips { display: flex; gap: 22px; margin-top: 54px; }
+.chip { display: inline-flex; align-items: center; gap: 14px; padding: 16px 34px; border-radius: 18px; font-size: 32px; font-weight: 800;
+  background: rgba(255, 255, 255, .06); border: 2px solid rgba(255, 255, 255, .12); }
+.chip i { font-style: normal; font-size: 40px; }
+
+/* ── header slide ── */
+.head { display: flex; align-items: center; gap: 24px; margin-bottom: 18px; }
+.headIcon { width: 80px; height: 80px; border-radius: 24px; display: grid; place-items: center; font-size: 46px;
+  background: linear-gradient(145deg, #ffb13b, #f97316); box-shadow: 0 18px 40px -16px rgba(249, 115, 22, .8); }
+.headIcon.meal { background: linear-gradient(145deg, #34d399, #0f9d74); box-shadow: 0 18px 40px -16px rgba(16, 185, 129, .8); }
+.headTitle { margin: 0; font-size: 62px; font-weight: 900; letter-spacing: .02em; line-height: 1; text-transform: uppercase; }
+.headSub { margin: 6px 0 0; font-size: 25px; font-weight: 600; color: #9fb7aa; }
+.headGrow { flex: 1; }
+.headPeriod { text-align: right; }
+.headPeriod small { display: block; font-size: 20px; font-weight: 800; letter-spacing: .26em; color: #9fb7aa; }
+.headPeriod b { font-size: 34px; font-weight: 800; }
+
+/* ── kartu hari ── */
+.days { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
+.day { position: relative; display: flex; flex-direction: column; min-height: 0; border-radius: 26px; overflow: hidden;
+  background: rgba(255, 255, 255, .05); border: 2px solid rgba(255, 255, 255, .09); }
+.day.today { border-color: #ffc25e; background: rgba(255, 194, 94, .09); box-shadow: 0 0 0 6px rgba(255, 194, 94, .12), 0 24px 60px -24px rgba(255, 170, 60, .55); }
+.dayHead { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(255, 255, 255, .06); }
+.today .dayHead { background: linear-gradient(90deg, #ffb13b, #f97316); color: #1c0e00; }
+.dayName { font-size: 28px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.dayDate { font-size: 18px; font-weight: 700; opacity: .75; }
+.today .dayDate { opacity: 1; font-weight: 900; letter-spacing: .04em; }
+.dayHeadText { display: flex; flex-direction: column; gap: 2px; }
+
+/* snack */
+.snackBody { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 34px; padding: 22px 14px; }
+.snackEmoji { width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center; font-size: 108px;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 194, 94, .35), rgba(255, 194, 94, .08)); border: 2px solid rgba(255, 194, 94, .35); }
+.snackName { font-size: 44px; font-weight: 900; line-height: 1.1; min-height: 3.3em; display: flex; align-items: center; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.stat { border-radius: 16px; padding: 16px 4px; background: rgba(0, 0, 0, .28); }
+.stat b { display: block; font-size: 48px; font-weight: 900; line-height: 1; color: #ffc25e; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 22px; font-weight: 800; letter-spacing: .1em; color: #9fb7aa; text-transform: uppercase; }
+.stat.g b { color: #5eead4; }
+
+/* meal */
+.mealBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; padding: 10px 11px 12px; }
+.sec { font-size: 14px; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; color: #9fb7aa; display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.sec::after { content: ""; flex: 1; height: 2px; background: rgba(255, 255, 255, .1); }
+.sec:first-child { margin-top: 0; }
+.dish { border-radius: 13px; padding: 7px 10px 7px; background: rgba(0, 0, 0, .26); border-left: 6px solid var(--c, #94a3b8); }
+.dishTag { font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--c, #94a3b8); }
+.dishName { font-size: 22px; font-weight: 800; line-height: 1.1; margin: 0 0 3px; min-height: 2.2em; display: flex; align-items: center; }
+.dishFoot { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.dishNum { font-size: 18px; font-weight: 700; color: #cfe0d6; font-variant-numeric: tabular-nums; }
+.dishNum b { color: #fff; font-weight: 900; }
+.special { border-radius: 14px; padding: 8px 11px 9px; background: linear-gradient(135deg, rgba(249, 115, 22, .95), rgba(225, 29, 72, .9)); color: #fff; box-shadow: 0 14px 30px -16px rgba(249, 115, 22, .9); }
+.special .dishTag { color: #ffe9c2; }
+.special .dishName { font-size: 23px; min-height: 0; }
+.special .dishTag { font-size: 12px; }
+.special .dishName { margin: 1px 0 3px; }
+.special .dishNum, .special .dishNum b { color: #fff; }
+.noSpecial { border-radius: 12px; padding: 6px 10px; text-align: center; font-size: 16px; font-weight: 700; color: #6e8a7c; border: 2px dashed rgba(255, 255, 255, .12); }
+.sideRow { display: grid; gap: 6px; }
+.side { border-radius: 12px; padding: 6px 10px 7px; background: rgba(255, 255, 255, .06); border-left: 6px solid #a78bfa; }
+.side .dishName { font-size: 20px; min-height: 0; margin: 0 0 2px; }
+
+/* staples */
+.staples { margin-top: 12px; display: flex; align-items: center; gap: 22px; padding: 10px 26px; border-radius: 22px;
+  background: linear-gradient(90deg, rgba(52, 211, 153, .16), rgba(255, 255, 255, .05)); border: 2px solid rgba(52, 211, 153, .3); }
+.staplesLabel { font-size: 22px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: #5eead4; line-height: 1.2; min-width: 250px; }
+.staplesLabel small { display: block; font-size: 17px; font-weight: 700; letter-spacing: .04em; text-transform: none; color: #9fb7aa; margin-top: 3px; }
+.stapleList { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.staple { display: flex; align-items: center; gap: 14px; }
+.stapleIcon { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 32px; background: rgba(0, 0, 0, .3); }
+.stapleName { font-size: 26px; font-weight: 900; line-height: 1.05; }
+.stapleNum { font-size: 19px; font-weight: 700; color: #cfe0d6; font-variant-numeric: tabular-nums; }
+.stapleNum b { color: #fff; }
+
+/* penutup */
+.closing { align-items: center; justify-content: center; text-align: center; }
+.closeEmoji { font-size: 150px; line-height: 1; margin-bottom: 20px; filter: drop-shadow(0 20px 30px rgba(0, 0, 0, .4)); }
+.closeTitle { margin: 0; font-size: 168px; font-weight: 900; line-height: .95; letter-spacing: -.01em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff6df 10%, #ffc25e 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.closeSub { text-wrap: balance; margin: 40px 0 0; font-size: 44px; font-weight: 700; color: #dbe9e1; max-width: 1400px; line-height: 1.3; }
+.closeMeta { margin-top: 56px; font-size: 26px; font-weight: 800; letter-spacing: .26em; text-transform: uppercase; color: #9fb7aa; }
+
+/* kontrol (di luar kanvas) */
+.progress { position: absolute; left: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, #ffb13b, #34d399); animation: bar linear both; z-index: 5; }
+@keyframes bar { from { width: 0; } to { width: 100%; } }
+.nav { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 10px; z-index: 6; }
+.navDot { width: 12px; height: 12px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: rgba(255, 255, 255, .28); }
+.navDot.on { background: #ffc25e; width: 34px; border-radius: 99px; }
+.tools { position: absolute; top: 14px; right: 14px; z-index: 6; display: flex; gap: 8px; opacity: 0; transition: opacity .25s; }
+.root:hover .tools { opacity: 1; }
+.idle .tools { opacity: 0; }
+.tool { border: 0; cursor: pointer; padding: 9px 14px; border-radius: 12px; font: 800 14px/1 system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); }
