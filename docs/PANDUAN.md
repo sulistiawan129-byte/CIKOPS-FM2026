@@ -1072,12 +1072,14 @@ login/driver; pilihan tersimpan di browser (`cikops_lang`) dan diterapkan seketi
 
 ## Menu Kantin untuk layar TV (`/menu-tv`) — CONTOH
 
-Halaman layar penuh 16:9 (tanpa login) berisi: Sampul "MENU KANTIN KARYAWAN" + periode → Menu Snack → Menu Meal →
-penutup "Selamat Menikmati". Tiap menu menampilkan **nama, kalori (kkal) dan gram**. Meal: 3 lauk utama (daging, ayam,
-telur) + 1 kartu *Special* (hanya hari tertentu, mis. soto) + pendamping; nasi, sambal, kerupuk, buah tampil sekali di
-strip "Selalu Tersedia". Hari ini otomatis disorot.
-- URL: `/menu-tv` · `?slide=snack|meal|cover|closing` · `?rotate=0` · `?sec=20` · `?date=2026-11-03` (pratinjau minggu lain).
-- Tombol: ← → / spasi ganti slide, `F` layar penuh, klik layar = slide berikutnya.
+Tayangan otomatis layar penuh 16:9 (tanpa login, tanpa interaksi) bergaya menu restoran: navy + biru CIKOPS dengan
+aksen champagne, font serif (Playfair Display, Cormorant Garamond, Jost), debu emas, kilau, dan animasi masuk bertahap.
+Urutan (berulang): Sampul "MENU KANTIN KARYAWAN" + periode → Menu Snack → Menu Meal → Menu Hari Ini → Penutup "Selamat Menikmati".
+Tiap menu menampilkan **nama, kalori (kkal) dan gram**. Meal: 3 lauk utama (daging, ayam, telur) + kartu *Special*
+emas (hanya hari tertentu, mis. soto) + pendamping; nasi, sambal, kerupuk, buah di strip "Selalu Tersedia".
+Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjalan dalam gaya kartu menu.
+- URL: `/menu-tv` · `?slide=snack|meal|today|cover|closing` · `?rotate=0` · `?sec=20` · `?date=2026-11-03` (pratinjau minggu lain).
+- Operator: ← → ganti slide, `F` layar penuh. Layar tidak merespons klik/sentuhan.
 - **Status:** tampilan sudah jadi, isinya masih data contoh (`src/lib/canteenMenu.ts`); input menu per minggu dari
   Dashboard → Kantin belum dibuat.
 
