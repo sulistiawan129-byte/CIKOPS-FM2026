@@ -1121,7 +1121,7 @@ Report → Laporan Manajemen menyusun ringkasan umum per modul, dikelompokkan se
 
 | Kategori | Modul laporan |
 |---|---|
-| Fleet & Kendaraan | **Fleet Management** — penugasan driver, utilisasi armada, dokumen jatuh tempo |
+| Fleet & Kendaraan | **Fleet Management** — penugasan driver, armada terpakai, dokumen jatuh tempo |
 | Finance | **Klaim Driver** — pengeluaran per kategori |
 | Fasilitas | **Kantin**, **ATK**, **Cleaning & Gardening** (achievement plan vs actual), **TGA** (pekerjaan teknisi: selesai, belum selesai, urgent, per teknisi), **Receptionist** (akses wifi tamu, barang & surat + tingkat serah terima, pemakaian Induction Room, kapasitas akun wifi) |
 | Security | **Security** — kendaraan, visitor, transporter, pelanggaran, kejadian, patroli |
@@ -1129,6 +1129,24 @@ Report → Laporan Manajemen menyusun ringkasan umum per modul, dikelompokkan se
 Setiap modul berisi 4 angka utama, 2 grafik, temuan, dan rekomendasi; ringkasan eksekutif di atas
 memuat butir "perlu perhatian manajemen". Unduh sebagai Excel, PowerPoint, atau PDF (Indonesia / English).
 Modul yang tampil mengikuti role (mis. Admin ISS hanya Cleaning & Gardening dan TGA).
+
+### Cara membaca angka — perbandingan, catatan data, dan istilah
+- **Perbandingan yang adil.** Bulan yang sedang berjalan dipotong sampai **hari ini** dan dibandingkan dengan **rentang hari yang sama**
+  di bulan lalu (1–3 Nov ↔ 1–3 Okt), bukan dengan satu bulan penuh. Label periode memuat "(data s.d. 3 Nov)". Bulan/kuartal/tahun penuh
+  dibandingkan dengan periode kalender sebelumnya.
+- **Tanda ⚠ = perbandingan belum representatif.** Muncul bila periode pembanding baru terisi < 80% (mis. modul baru dipakai sejak
+  pertengahan bulan lalu) atau periode ini belum terisi penuh (data terakhir tertinggal > 3 hari). Angka naik/turun tetap tampil,
+  tetapi bertanda ⚠, tidak diwarnai baik/buruk, dan **tidak dijadikan dasar rekomendasi**. Ringkasan eksekutif menyebut modul mana yang terkena.
+  Di grafik tren 13 bulan, perubahan terhadap bulan yang datanya baru terisi sebagian tidak ditampilkan, dan bulan sebelum data ada
+  tidak dihitung sebagai "0".
+- **Catatan data per modul** (layar, PDF, PPT, Excel): *Data tersedia sejak … · terakhir tercatat … (N hari lalu)*, peringatan ⚠ beserta
+  alasannya, dan **definisi indikator** (rumus, aturan tutup otomatis pukul 17.00, dll.). Di layar: kotak di bawah tiap modul; PDF: strip di
+  dasar halaman + lampiran; PPT: strip + slide "Catatan data & definisi"; Excel: baris peringatan di atas + bagian "Catatan data & definisi".
+- **Tingkat penyelesaian driver** menampilkan komposisinya: *% oleh driver · % otomatis 17.00 · dibatalkan*. Tugas yang belum ditutup
+  driver sampai pukul 17.00 WIB pada tanggal tugas ditutup sistem; dihitung selesai tetapi tidak masuk rata-rata durasi.
+- **"Armada terpakai"** (dulu "Utilisasi armada") = unit aktif yang dipakai minimal sekali ÷ unit aktif. Tidak mengukur seberapa sering unit dipakai.
+- **Rincian selalu menjumlah ke total:** daftar teratas (jenis pekerjaan, teknisi, pemohon, kategori, jenis kejadian) memuat baris "Lainnya"
+  untuk sisanya.
 Laporan Receptionist tampil untuk Master Admin, Admin GA CIK, dan Management (role Management hanya membaca; kata sandi akun wifi tidak ikut terbaca — kapasitas akun diambil lewat fungsi khusus, SQL 052).
 
 ## Bahasa Indonesia / English

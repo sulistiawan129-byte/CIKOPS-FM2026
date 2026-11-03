@@ -6,7 +6,7 @@
 
 import type { TgaActivity } from "../tga/api";
 import {
-  PALETTE, deltaText, fmtNum, fmtPct, metaOf, perWord, buckets, tr, trendChart, trendSentence,
+  PALETTE, deltaText, fmtNum, fmtPct, metaOf, perWord, buckets, tr, trendChart, trendSentence, withOther,
   type ChartSpec, type Kpi, type ModuleReport, type MonthSlot,
 } from "./model";
 
@@ -15,7 +15,7 @@ const OPEN = new Set(["baru", "proses", "pending", "butuh_part"]);
 const topOf = (xs: string[], n: number) => {
   const m = new Map<string, number>();
   xs.forEach((x) => { const k = (x || "").trim() || "–"; m.set(k, (m.get(k) ?? 0) + 1); });
-  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+  return withOther([...m.entries()], n);   // sisanya jadi "Lainnya" → rincian menjumlah ke total
 };
 
 export function computeTga(p: {
@@ -77,8 +77,8 @@ export function computeTga(p: {
   ];
 
   const insights = [
-    tr(`${fmtNum(jobs.length)} pekerjaan TGA, ${dv.text} dibanding periode lalu (${fmtNum(prev.length)}); ${fmtPct(rate, 0)} selesai.`,
-       `${fmtNum(jobs.length)} TGA jobs, ${dv.text} versus the prior period (${fmtNum(prev.length)}); ${fmtPct(rate, 0)} completed.`),
+    tr(`${fmtNum(jobs.length)} pekerjaan TGA${dv.pct === null ? `, ${dv.text}` : `, ${dv.text} dibanding periode lalu (${fmtNum(prev.length)})`}; ${fmtPct(rate, 0)} selesai.`,
+       `${fmtNum(jobs.length)} TGA jobs${dv.pct === null ? `, ${dv.text}` : `, ${dv.text} versus the prior period (${fmtNum(prev.length)})`}; ${fmtPct(rate, 0)} completed.`),
     trendSentence(tr("pekerjaan TGA", "TGA jobs"), trendVals, p.months, (n) => fmtNum(n)),
     techs[0] ? tr(`Teknisi tersibuk ${techs[0][0]} (${techs[0][1]} pekerjaan)${techs[1] ? `, lalu ${techs[1][0]} (${techs[1][1]})` : ""}.`,
                   `Busiest technician ${techs[0][0]} (${techs[0][1]} jobs)${techs[1] ? `, then ${techs[1][0]} (${techs[1][1]})` : ""}.`) : "",
@@ -107,7 +107,17 @@ export function computeTga(p: {
     table: techs.length ? {
       title: tr("Pekerjaan per teknisi", "Jobs per technician"),
       headers: [tr("Teknisi", "Technician"), tr("Total", "Total"), tr("Selesai", "Completed"), tr("Belum selesai", "Open")],
-      rows: techs.map(([n, c]) => [n, c, jobs.filter((r) => (r.nama_tga || "–") === n && r.status === "selesai").length, jobs.filter((r) => (r.nama_tga || "–") === n && OPEN.has(r.status)).length]),
+      rows: (() => {
+        // baris "Lainnya" = sisa teknisi di luar daftar → selesai / belum selesai dihitung dari selisih agar kolom menjumlah ke total
+        const other = tr("Lainnya", "Other");
+        const named = techs.filter((t) => t[0] !== other);
+        const doneOf = (n: string) => jobs.filter((r) => (r.nama_tga || "–") === n && r.status === "selesai").length;
+        const openOf = (n: string) => jobs.filter((r) => (r.nama_tga || "–") === n && OPEN.has(r.status)).length;
+        const nd = named.reduce((a, t) => a + doneOf(t[0]), 0), no = named.reduce((a, t) => a + openOf(t[0]), 0);
+        return techs.map(([n, c]) => n === other && techs.length > named.length
+          ? [n, c, done.length - nd, open.length - no]
+          : [n, c, doneOf(n), openOf(n)]);
+      })(),
     } : undefined,
     empty: false,
   };

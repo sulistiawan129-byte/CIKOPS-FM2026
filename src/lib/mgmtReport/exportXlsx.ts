@@ -109,6 +109,15 @@ function moduleSheet(wb: WB, m: ModuleReport, report: MgmtReport, used: Set<stri
   titleBlock(ws, m.title, `${report.periodLabel} · ${report.scopeLabel}`, m.headline, 13);
   let r = 5;
   if (m.empty) { ws.getCell(r, 2).value = m.headline; return; }
+  // baris 4: peringatan perbandingan (bila ada) atau status kesegaran data
+  if (m.note && (m.note.warn || m.note.status)) {
+    ws.mergeCells(4, 2, 4, 13);
+    const c = ws.getCell(4, 2);
+    c.value = m.note.warn || m.note.status;
+    c.font = { bold: !!m.note.warn, size: 10, color: { argb: m.note.warn ? "FFB45309" : MUTED } };
+    c.alignment = { wrapText: true, vertical: "middle" };
+    ws.getRow(4).height = m.note.warn ? 32 : 18;
+  }
 
   sectionTitle(ws, r, tr("Indikator utama", "Key indicators"), argb(m.accent)); r++;
   const hdr = ws.getRow(r);
@@ -138,6 +147,18 @@ function moduleSheet(wb: WB, m: ModuleReport, report: MgmtReport, used: Set<stri
     m.table.headers.forEach((t, i) => { const c = ws.getCell(r, 2 + i); c.value = t; c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } }; });
     r++;
     m.table.rows.forEach((row) => { row.forEach((v, i) => { const c = ws.getCell(r, 2 + i); c.value = v; c.border = { bottom: { style: "thin", color: { argb: LINE } } }; }); r++; });
+    r++;
+  }
+
+  // catatan data & definisi indikator
+  if (m.note) {
+    sectionTitle(ws, r, tr("Catatan data & definisi", "Data notes & definitions"), MUTED); r++;
+    [m.note.status, m.note.warn, ...m.note.defs].filter((t): t is string => !!t).forEach((t) => {
+      ws.mergeCells(r, 2, r, 6); const c = ws.getCell(r, 2);
+      c.value = t; c.alignment = { wrapText: true, vertical: "top" };
+      c.font = { size: 10, color: { argb: t === m.note!.warn ? "FFB45309" : MUTED } };
+      ws.getRow(r).height = Math.max(18, Math.ceil(t.length / 95) * 15); r++;
+    });
     r++;
   }
 
