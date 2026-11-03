@@ -10,6 +10,7 @@
  * Operator: ← → ganti slide, F layar penuh (layar tidak merespons klik/sentuhan).
  * Data: diisi di Dashboard → Kantin → Menu TV, dibaca lewat fungsi publik canteen_menu_public (segar tiap 5 menit).
  *      ?sample=1 menampilkan menu contoh (untuk uji tampilan).
+ *      ?today=2026-11-04 berpura-pura hari itu adalah hari ini (pratinjau slide Menu Hari Ini).
  *      ?safe=3 mengecilkan tampilan 3% dari tepi (untuk TV yang memotong tepi layar).
  * Layar yang menyala terus: minggu & hari ini mengikuti jam (WIB), data dibaca ulang tiap 5 menit,
  * halaman dimuat ulang otomatis tiap 03:30 WIB, dan bila jaringan putus layar tetap menampilkan menu terakhir.
@@ -19,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./menutv.module.css";
 import { BRAND } from "@/lib/brand";
 import { L, loc } from "@/lib/i18n";
-import { addDaysIso, hasItem, mondayOf, sampleWeek, type MenuItem, type WeeklyMenu } from "@/lib/canteenMenu";
+import { addDaysIso, hasItem, mondayOf, sampleWeek, snackTotal, type MenuItem, type WeeklyMenu } from "@/lib/canteenMenu";
 import { getPublicMenu } from "@/lib/canteenMenuApi";
 
 type SlideKey = "cover" | "snack" | "meal" | "today" | "closing";
@@ -113,38 +114,54 @@ function Cover({ c }: { c: Ctx }) {
 }
 
 function Snack({ c }: { c: Ctx }) {
-  const max = Math.max(1, ...c.week.days.map((d) => d.snack.kcal));
   return (
-    <section className={`${s.slide} ${s.snack}`}>
-      <div className={s.snackLeft}>
-        <div className={`${s.cupWrap} ${s.fade}`} style={idxStyle(0)}><Cup /></div>
-        <h1 className={`${s.snackTitle} ${s.rise}`} style={idxStyle(1)}>{L("Menu", "Snack")}<em className={s.goldText}>{L("Snack", "Menu")}</em></h1>
-        <p className={`${s.snackSub} ${s.rise}`} style={idxStyle(3)}>{L("Sarapan & camilan — satu hidangan istimewa setiap hari.", "Breakfast & bites — one signature treat every day.")}</p>
-        <div className={`${s.snackPeriod} ${s.rise}`} style={idxStyle(4)}><span className={s.label}>{L("Periode", "Period")}</span><b>{c.period}</b></div>
+    <section className={s.slide}>
+      <div className={s.head}>
+        <div className={`${s.headIcon} ${s.fade}`}><Cup /></div>
+        <div className={s.rise} style={idxStyle(0)}>
+          <h1 className={s.headTitle}>{L("Menu", "Snack")} <em className={s.goldText}>{L("Snack", "Menu")}</em></h1>
+          <p className={s.headSub}>{L("Snack Breakfast, Snack Shift 2 & Shift 3 — beberapa komponen setiap hari.", "Snack Breakfast, Shift 2 & Shift 3 — several parts every day.")}</p>
+        </div>
+        <div className={s.headGrow} />
+        <div className={`${s.headPeriod} ${s.rise}`} style={idxStyle(1)}><span className={s.label}>{L("Periode", "Period")}</span><b>{c.period}</b></div>
       </div>
-      <div className={s.snackList}>
-        {c.week.days.map((d, i) => (
-          <div key={i} className={`${s.sRow} ${s.rise} ${c.dates[i] === c.today ? s.today : ""}`} style={idxStyle(i + 2)}>
-            <div className={s.sDay}>{fmt(c.dates[i], { weekday: "long" })}
-              {c.dates[i] === c.today ? <span><br /><span className={s.sNow}>{L("HARI INI", "TODAY")}</span></span> : <small>{fmt(c.dates[i], { day: "numeric", month: "short" })}</small>}
-            </div>
-            <div className={s.sName} style={hasItem(d.snack) ? undefined : { opacity: 0.3 }}>{hasItem(d.snack) ? d.snack.name : "—"}</div>
-            {hasItem(d.snack) ? (
-              <div className={s.sNum}>
-                <div><b><CountUp to={d.snack.kcal} delay={600 + i * 90} /></b><span>{kk()}</span></div>
-                <div className="g"><b style={{ color: "var(--sky)" }}><CountUp to={d.snack.gram} delay={700 + i * 90} /></b><span>g</span></div>
+      <div className={s.days}>
+        {c.week.days.map((d, i) => {
+          const items = d.snacks.filter(hasItem);
+          return (
+            <div key={i} className={`${s.day} ${s.rise} ${c.dates[i] === c.today ? s.today : ""}`} style={idxStyle(i + 2)}>
+              <div className={s.dayHead}>
+                <span className={s.dayName}>{fmt(c.dates[i], { weekday: "long" })}</span>
+                <span className={s.dayDate}>{c.dates[i] === c.today ? `★ ${L("Hari ini", "Today")} · ` : ""}{fmt(c.dates[i], { day: "numeric", month: "short" })}</span>
               </div>
-            ) : <div />}
-            {hasItem(d.snack) && <div className={s.sBar}><i style={{ ...idxStyle(i + 2), width: `${Math.round((d.snack.kcal / max) * 100)}%` }} /></div>}
-          </div>
-        ))}
+              <div className={s.snackBody}>
+                {items.length === 0 && <div className={s.sEmpty}>—</div>}
+                {items.map((sn, k) => (
+                  <div key={k} className={`${s.sItem} ${k === 0 ? s.sMain : ""}`}>
+                    <div className={s.sItemName}>{sn.name}</div>
+                    <div className={s.sItemNum}><b>{sn.kcal || "–"}</b> {kk()} · <b>{sn.gram || "–"}</b> g</div>
+                  </div>
+                ))}
+              </div>
+              {items.length > 0 && (
+                <div className={s.sTotal}><span>{L("Total snack", "Snack total")}</span><b><CountUp to={snackTotal(d)} delay={700 + i * 90} /></b><em>{kk()}</em></div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
 }
 
+/** Lauk utama mengikuti menu vendor: A Ayam · B Daging/Ikan · C Telur */
 const TAGS = (): [keyof WeeklyMenu["days"][number]["main"], string, string][] => [
-  ["daging", L("Daging", "Beef"), "#ff9d8a"], ["ayam", L("Ayam", "Chicken"), "#f6c667"], ["telur", L("Telur", "Egg"), "#ffeaa8"],
+  ["ayam", "A", "#f6c667"], ["daging", "B", "#ff9d8a"], ["telur", "C", "#ffeaa8"],
+];
+
+/** Label lengkap untuk slide Menu Hari Ini */
+const TAGS_FULL = (): [keyof WeeklyMenu["days"][number]["main"], string, string][] => [
+  ["ayam", L("A · Ayam", "A · Chicken"), "#f6c667"], ["daging", L("B · Daging/Ikan", "B · Beef/Fish"), "#ff9d8a"], ["telur", L("C · Telur", "C · Egg"), "#ffeaa8"],
 ];
 
 function Meal({ c }: { c: Ctx }) {
@@ -154,7 +171,7 @@ function Meal({ c }: { c: Ctx }) {
         <Cloche className={`${s.headIcon} ${s.fade}`} />
         <div className={s.rise} style={idxStyle(0)}>
           <h1 className={s.headTitle}>{L("Menu", "Meal")} <em className={s.goldText}>{L("Meal", "Menu")}</em></h1>
-          <p className={s.headSub}>{L("Tiga lauk utama setiap hari, dengan pendamping pilihan.", "Three main dishes every day, with selected sides.")}</p>
+          <p className={s.headSub}>{L("Lauk utama: A Ayam · B Daging / Ikan · C Telur — dengan sayur, pendamping, dan buah.", "Main dishes: A Chicken · B Beef / Fish · C Egg — with veg, sides and fruit.")}</p>
         </div>
         <div className={s.headGrow} />
         <div className={`${s.headPeriod} ${s.rise}`} style={idxStyle(1)}><span className={s.label}>{L("Periode", "Period")}</span><b>{c.period}</b></div>
@@ -170,17 +187,13 @@ function Meal({ c }: { c: Ctx }) {
               <div className={s.sec}>{L("Lauk Utama", "Main Dish")}</div>
               {TAGS().map(([k, tag, col]) => (
                 <div key={k} className={s.dish} style={{ ["--c" as string]: col }}>
+                  <i className={s.abc}>{tag}</i>
                   {hasItem(d.main[k]) ? (
                     <>
                       <div className={s.dishName}>{d.main[k].name}</div>
-                      <div className={s.dishFoot}><Num it={d.main[k]} /><span className={s.dishTag}>{tag}</span></div>
+                      <Num it={d.main[k]} />
                     </>
-                  ) : (
-                    <>
-                      <div className={s.dishName} style={{ opacity: 0.3 }}>—</div>
-                      <div className={s.dishFoot}><span /><span className={s.dishTag}>{tag}</span></div>
-                    </>
-                  )}
+                  ) : <div className={s.dishName} style={{ opacity: 0.3 }}>—</div>}
                 </div>
               ))}
               {hasItem(d.special) ? (
@@ -227,7 +240,7 @@ const MRow = ({ tag, col, it, i, sp }: { tag?: string; col?: string; it: MenuIte
   <div className={`${s.mRow} ${sp ? s.sp : ""} ${s.rise}`} style={{ ...idxStyle(i, 400), ["--c" as string]: col ?? "var(--gold)" } as React.CSSProperties}>
     {tag !== undefined && <span className={s.mTag}>{tag}</span>}
     <span className={s.mName}>{it.name}</span><span className={s.mLead} />
-    <span className={s.mNum}><b><CountUp to={it.kcal} delay={500 + i * 70} /></b> {kk()} · {it.gram} g</span>
+    <span className={s.mNum}><b>{it.kcal ? <CountUp to={it.kcal} delay={500 + i * 70} /> : "–"}</b> {kk()} · {it.gram || "–"} g</span>
   </div>
 );
 
@@ -248,11 +261,11 @@ function TodaySlide({ c }: { c: Ctx }) {
       </div>
       <div className={s.tCols}>
         <div>
-          <div className={`${s.course} ${s.rise}`} style={idxStyle(2)}><h3>I. {L("Snack", "Snack")}<span>{L("SARAPAN", "BREAKFAST")}</span></h3>
-            {hasItem(d.snack) ? <MRow it={d.snack} i={n++} /> : <div className={s.mRow} style={{ opacity: 0.35 }}><span className={s.mName}>—</span></div>}
+          <div className={`${s.course} ${s.rise}`} style={idxStyle(2)}><h3>I. {L("Snack", "Snack")}<span>{L("SHIFT 1 · 2 · 3", "SHIFT 1 · 2 · 3")}</span></h3>
+            {d.snacks.some(hasItem) ? d.snacks.filter(hasItem).map((sn, k) => <MRow key={k} it={sn} i={n++} />) : <div className={s.mRow} style={{ opacity: 0.35 }}><span className={s.mName}>—</span></div>}
           </div>
-          <div className={`${s.course} ${s.rise}`} style={idxStyle(3)}><h3>II. {L("Hidangan Utama", "Main Dishes")}<span>{L("3 PILIHAN", "3 CHOICES")}</span></h3>
-            {TAGS().map(([k, tag, col]) => hasItem(d.main[k]) ? <MRow key={k} tag={tag} col={col} it={d.main[k]} i={n++} /> : null)}
+          <div className={`${s.course} ${s.rise}`} style={idxStyle(3)}><h3>II. {L("Hidangan Utama", "Main Dishes")}<span>{L("PILIHAN LAUK", "CHOICES")}</span></h3>
+            {TAGS_FULL().map(([k, tag, col]) => hasItem(d.main[k]) ? <MRow key={k} tag={tag} col={col} it={d.main[k]} i={n++} /> : null)}
           </div>
           {hasItem(d.special) && (
             <div className={`${s.course} ${s.rise}`} style={idxStyle(4)}><h3>III. Special<span>{L("HARI INI SAJA", "TODAY ONLY")}</span></h3>
@@ -310,7 +323,8 @@ function EmptySlide({ period, error }: { period: string; error: boolean }) {
 /* ═════════ HALAMAN ═════════ */
 export default function MenuTv() {
   const [ready, setReady] = useState(false);
-  const [today, setToday] = useState("");
+  const [todayLive, setToday] = useState("");
+  const [todayParam, setTodayParam] = useState<string | null>(null); // ?today= (pratinjau hari tertentu)
   const [dateParam, setDateParam] = useState<string | null>(null); // ?date= (pratinjau); bila kosong → ikut hari ini
   const [safe, setSafe] = useState(0); // ?safe=N → kecilkan N% dari tepi (TV yang memotong tepi layar / overscan)
   const [idx, setIdx] = useState(0);
@@ -330,6 +344,7 @@ export default function MenuTv() {
     setToday(t);
     const d = q.get("date");
     setDateParam(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null);
+    const tp = q.get("today"); setTodayParam(tp && /^\d{4}-\d{2}-\d{2}$/.test(tp) ? tp : null);
     const sf = Number(q.get("safe")); if (sf > 0) setSafe(Math.min(10, sf));
     const sl = q.get("slide");
     if (sl) { const i = /^\d$/.test(sl) ? Number(sl) : ORDER.indexOf(sl as SlideKey); if (i >= 0 && i < ORDER.length) setIdx(i); }
@@ -387,6 +402,7 @@ export default function MenuTv() {
     return () => window.removeEventListener("keydown", onKey);
   }, [go, toggleFs]);
 
+  const today = todayParam ?? todayLive;
   const viewDate = dateParam ?? today;
   const weekStart = useMemo(() => (viewDate ? mondayOf(viewDate) : ""), [viewDate]);
 
