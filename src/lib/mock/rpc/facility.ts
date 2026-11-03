@@ -102,14 +102,25 @@ function atkRestock(ctx: MockCtx, by: string, a: Row): string {
   return id;
 }
 
-/** Tiru employee_upsert_basic (SQL 050): cocokkan per NIK lalu nama; hanya melengkapi kolom kosong. */
-function employeeUpsertBasic(db: MockCtx["db"], namaIn: unknown, nikIn: unknown, deptIn: unknown): "created" | "updated" | "same" | "skip" {
+/** Tiru _nik_tokens (SQL 053): NIK dipecah pada / , ; | */
+const nikTokens = (v: unknown): string[] => [...new Set(s(v).split(/[/,;|]/).map((x) => x.trim()).filter(Boolean))];
+
+/** Tiru employee_upsert_basic (SQL 053): NIK (nomor mana pun) → nama tunggal → orang yang sama; hanya melengkapi kolom kosong. */
+function employeeUpsertBasic(db: MockCtx["db"], namaIn: unknown, nikIn: unknown, deptIn: unknown): "created" | "updated" | "same" | "skip" | "ambiguous" {
   const nama = s(namaIn), nik = s(nikIn), dept = s(deptIn);
   if (!nama) return "skip";
   const emp = table(db, "employees");
   const key = nama.toLowerCase();
-  const hit = (nik ? emp.find((e) => s(e.nik) === nik) : undefined)
-    ?? emp.find((e) => s(e.nama).toLowerCase() === key && (!nik || !s(e.nik) || s(e.nik) === nik));
+  const tok = nikTokens(nik);
+  let hit = tok.length ? emp.find((e) => nikTokens(e.nik).some((t) => tok.includes(t))) : undefined;
+  if (!hit) {
+    const same = emp.filter((e) => s(e.nama).toLowerCase() === key);
+    if (same.length === 1) hit = same[0];
+    else if (same.length > 1) {
+      hit = same.find((e) => !s(e.nik));
+      if (!hit) return "ambiguous";
+    }
+  }
   if (!hit) {
     emp.push({ id: uuid(), nama, nik: nik || null, departement: dept || null, aktif: true, created_at: nowIso(), updated_at: nowIso() });
     return "created";
@@ -119,6 +130,22 @@ function employeeUpsertBasic(db: MockCtx["db"], namaIn: unknown, nikIn: unknown,
   if (!s(hit.departement) && dept) { hit.departement = dept; changed = true; }
   if (changed) hit.updated_at = nowIso();
   return changed ? "updated" : "same";
+}
+
+const GENERIC_DEPT = "operations - cikarang";
+/** Tiru _emp_dup_pairs (SQL 053): nama (huruf kecil) → [baris lama, baris baru] untuk pasangan yang aman digabung. */
+function empDupGroups(db: MockCtx["db"]) {
+  const g = new Map<string, Row[]>();
+  for (const e of table(db, "employees")) { const k = s(e.nama).toLowerCase(); g.set(k, [...(g.get(k) ?? []), e]); }
+  const safe: Row[][] = [], manual: Row[][] = [];
+  for (const rows of g.values()) {
+    if (rows.length < 2) continue;
+    rows.sort((a, b) => s(a.created_at).localeCompare(s(b.created_at)));
+    if (rows.length === 2 && rows.filter((r) => s(r.departement).toLowerCase() === GENERIC_DEPT).length === 1) safe.push(rows); else manual.push(rows);
+  }
+  safe.sort((a, b) => s(a[0].nama).localeCompare(s(b[0].nama)));
+  manual.sort((a, b) => s(a[0].nama).localeCompare(s(b[0].nama)));
+  return { safe, manual };
 }
 
 const ATK: Record<string, RpcHandler> = {
@@ -131,12 +158,38 @@ const ATK: Record<string, RpcHandler> = {
       const k = s(r.nik) || s(r.nama).toLowerCase();
       if (!seen.has(k)) seen.set(k, r);
     }
-    let created = 0, updated = 0;
+    let created = 0, updated = 0, ambiguous = 0;
     for (const r of seen.values()) {
       const res = employeeUpsertBasic(ctx.db, r.nama, r.nik, r.departemen);
-      if (res === "created") created++; else if (res === "updated") updated++;
+      if (res === "created") created++; else if (res === "updated") updated++; else if (res === "ambiguous") ambiguous++;
     }
-    return { scanned: seen.size, created, updated };
+    return { scanned: seen.size, created, updated, ambiguous };
+  },
+  /** employees_dedupe (SQL 053): tanpa argumen = pratinjau; dengan p_apply = gabungkan pasangan yang dipilih. */
+  employees_dedupe(a, ctx) {
+    atkStaff(ctx);
+    const { safe } = empDupGroups(ctx.db);
+    const apply = Array.isArray(a.p_apply) ? (a.p_apply as unknown[]).map(String) : null;
+    const auto: unknown[] = [];
+    let merged = 0;
+    const emp = table(ctx.db, "employees");
+    for (const [o, n] of safe) {
+      const nik = [...new Set([...nikTokens(o.nik), ...nikTokens(n.nik)])].join(" / ");
+      const dept = s(o.departement).toLowerCase() === GENERIC_DEPT ? s(o.departement) : s(n.departement);
+      if (apply === null) {
+        auto.push({ keep_id: o.id, nama: o.nama, keep: { nik: o.nik, dept: o.departement }, drop: { nik: n.nik, dept: n.departement }, result: { nik, dept } });
+      } else if (apply.includes(String(o.id))) {
+        for (const t of table(ctx.db, "tga_activities")) if (t.requestor_id === n.id) t.requestor_id = o.id;
+        emp.splice(emp.indexOf(n), 1);
+        Object.assign(o, {
+          departement: dept, nik, email: s(o.email) || n.email || null, no_hp: s(o.no_hp) || n.no_hp || null, jabatan: s(o.jabatan) || n.jabatan || null,
+          aktif: o.aktif !== false || n.aktif !== false, updated_at: nowIso(),
+        });
+        merged++;
+      }
+    }
+    const manual = empDupGroups(ctx.db).manual.slice(0, 300).map((rows) => ({ nama: rows[0].nama, rows: rows.map((r) => ({ id: r.id, nik: r.nik, dept: r.departement })) }));
+    return { auto, manual, merged };
   },
   atk_web_request(a, ctx) {
     const by = atkStaff(ctx);

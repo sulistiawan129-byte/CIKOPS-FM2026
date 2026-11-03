@@ -2340,13 +2340,46 @@ export async function updateEmployee(id: string, input: EmployeeInput): Promise<
 }
 
 /** Gabungkan pemohon dari riwayat ATK (NIK, nama, departemen) ke Master Karyawan — hanya melengkapi yang kosong. */
-export async function mergeAtkIntoEmployees(): Promise<{ scanned: number; created: number; updated: number }> {
+export async function mergeAtkIntoEmployees(): Promise<{ scanned: number; created: number; updated: number; ambiguous: number }> {
   const { data, error } = await supabase.rpc("employees_merge_atk");
   if (error) throw new Error(error.code === "PGRST202" || error.code === "42883"
     ? L("Fungsi penggabungan belum ada — jalankan supabase/04_aplikasi_lapangan.sql (bagian 050) di Supabase SQL Editor.", "The merge function is missing — run supabase/04_aplikasi_lapangan.sql (section 050) in the Supabase SQL Editor.")
     : error.message);
   const d = (data ?? {}) as Record<string, unknown>;
-  return { scanned: Number(d.scanned ?? 0), created: Number(d.created ?? 0), updated: Number(d.updated ?? 0) };
+  return { scanned: Number(d.scanned ?? 0), created: Number(d.created ?? 0), updated: Number(d.updated ?? 0), ambiguous: Number(d.ambiguous ?? 0) };
+}
+
+export interface EmployeeDupPair { keepId: string; nama: string; keep: { nik: string; dept: string }; drop: { nik: string; dept: string }; result: { nik: string; dept: string } }
+export interface EmployeeDupGroup { nama: string; rows: { id: string; nik: string; dept: string }[] }
+
+function dupRpcError(e: { code?: string; message: string }): Error {
+  return new Error(e.code === "PGRST202" || e.code === "42883"
+    ? L("Fungsi pemeriksa dobel belum ada — jalankan supabase/04_aplikasi_lapangan.sql (bagian 053) di Supabase SQL Editor.", "The duplicate checker is missing — run supabase/04_aplikasi_lapangan.sql (section 053) in the Supabase SQL Editor.")
+    : e.message);
+}
+
+/** Pratinjau karyawan dobel: `auto` = pasangan yang aman digabung, `manual` = nama kembar yang harus dicek sendiri. Tidak mengubah data. */
+export async function previewEmployeeDuplicates(): Promise<{ auto: EmployeeDupPair[]; manual: EmployeeDupGroup[] }> {
+  const { data, error } = await supabase.rpc("employees_dedupe");
+  if (error) throw dupRpcError(error);
+  type Side = { nik?: unknown; dept?: unknown };
+  type RawGroup = { nama?: unknown; rows?: { id?: unknown; nik?: unknown; dept?: unknown }[] };
+  const d = (data ?? {}) as { auto?: { keep_id?: unknown; nama?: unknown; keep?: Side; drop?: Side; result?: Side }[]; manual?: RawGroup[] };
+  const t = (v: unknown) => (v == null ? "" : String(v));
+  return {
+    auto: (d.auto ?? []).map((x) => ({
+      keepId: t(x.keep_id), nama: t(x.nama),
+      keep: { nik: t(x.keep?.nik), dept: t(x.keep?.dept) }, drop: { nik: t(x.drop?.nik), dept: t(x.drop?.dept) }, result: { nik: t(x.result?.nik), dept: t(x.result?.dept) },
+    })),
+    manual: (d.manual ?? []).map((g) => ({ nama: t(g.nama), rows: (g.rows ?? []).map((r) => ({ id: t(r.id), nik: t(r.nik), dept: t(r.dept) })) })),
+  };
+}
+
+/** Gabungkan pasangan dobel yang dipilih (id baris yang dipertahankan). Mengembalikan jumlah yang tergabung. */
+export async function mergeEmployeeDuplicates(keepIds: string[]): Promise<number> {
+  const { data, error } = await supabase.rpc("employees_dedupe", { p_apply: keepIds });
+  if (error) throw dupRpcError(error);
+  return Number(((data ?? {}) as { merged?: number }).merged ?? 0);
 }
 
 export async function deleteEmployee(id: string): Promise<void> {
