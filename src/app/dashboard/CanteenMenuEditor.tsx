@@ -15,7 +15,7 @@ import { addDaysIso, countFilled, emptyItem, emptyWeek, hasItem, mondayOf, seria
 import { getMenuWeek, getRecentMenuWeeks, saveMenuWeek } from "@/lib/canteenMenuApi";
 import CanteenMenuBulk from "./CanteenMenuBulk";
 
-type Slot = "snack" | "daging" | "ayam" | "telur" | "special" | "fruit";
+type Slot = "daging" | "ayam" | "telur" | "special" | "fruit";
 const wibToday = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 const fmt = (iso: string, o: Intl.DateTimeFormatOptions) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(loc(), { ...o, timeZone: "UTC" });
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -59,7 +59,7 @@ export default function CanteenMenuEditor() {
     let alive = true;
     const lib = new Map<string, MenuItem>();
     const add = (it: MenuItem) => { if (hasItem(it) && it.kcal && it.gram) lib.set(it.name.trim().toLowerCase(), it); };
-    const feed = (d: WeeklyMenu["days"][number]) => { add(d.snack); if (d.fruit) add(d.fruit); add(d.main.daging); add(d.main.ayam); add(d.main.telur); if (d.special) add(d.special); d.sides.forEach(add); };
+    const feed = (d: WeeklyMenu["days"][number]) => { d.snacks.forEach(add); if (d.fruit) add(d.fruit); add(d.main.daging); add(d.main.ayam); add(d.main.telur); if (d.special) add(d.special); d.sides.forEach(add); };
     SAMPLE_DAYS.forEach(feed); SAMPLE_STAPLES.forEach(add);
     getRecentMenuWeeks(12).then((ws) => { if (!alive) return; ws.slice().reverse().forEach((w) => { w.days.forEach(feed); w.staples.forEach(add); }); setLibrary(new Map(lib)); }).catch(() => setLibrary(new Map(lib)));
     return () => { alive = false; };
@@ -88,12 +88,14 @@ export default function CanteenMenuEditor() {
 
   const patchSlot = (d: number, slot: Slot, p: Partial<MenuItem>) => setMenu((cur) => {
     const n = clone(cur); const day = n.days[d];
-    if (slot === "snack") day.snack = { ...day.snack, ...p };
-    else if (slot === "special") day.special = { ...(day.special ?? emptyItem()), ...p };
+    if (slot === "special") day.special = { ...(day.special ?? emptyItem()), ...p };
     else if (slot === "fruit") day.fruit = { ...(day.fruit ?? emptyItem()), ...p };
     else day.main[slot] = { ...day.main[slot], ...p };
     return n;
   });
+  const patchSnack = (d: number, i: number, p: Partial<MenuItem>) => setMenu((cur) => { const n = clone(cur); n.days[d].snacks[i] = { ...n.days[d].snacks[i], ...p }; return n; });
+  const addSnack = (d: number) => setMenu((cur) => { const n = clone(cur); n.days[d].snacks.push(emptyItem()); return n; });
+  const delSnack = (d: number, i: number) => setMenu((cur) => { const n = clone(cur); n.days[d].snacks.splice(i, 1); return n; });
   const patchSide = (d: number, i: number, p: Partial<MenuItem>) => setMenu((cur) => { const n = clone(cur); n.days[d].sides[i] = { ...n.days[d].sides[i], ...p }; return n; });
   const addSide = (d: number) => setMenu((cur) => { const n = clone(cur); n.days[d].sides.push(emptyItem()); return n; });
   const delSide = (d: number, i: number) => setMenu((cur) => { const n = clone(cur); n.days[d].sides.splice(i, 1); return n; });
@@ -129,7 +131,7 @@ export default function CanteenMenuEditor() {
     try {
       await saveMenuWeek(menu);
       setSaved(snapshot(menu)); setExistsInDb(true);
-      const noNum = [...menu.days.flatMap((d) => [d.snack, d.main.daging, d.main.ayam, d.main.telur, d.special ?? emptyItem(), ...d.sides]), ...menu.staples].filter((x) => hasItem(x) && (!x.kcal || !x.gram)).length;
+      const noNum = [...menu.days.flatMap((d) => [...d.snacks, d.main.daging, d.main.ayam, d.main.telur, d.special ?? emptyItem(), ...d.sides]), ...menu.staples].filter((x) => hasItem(x) && (!x.kcal || !x.gram)).length;
       setOk(noNum ? L(`Tersimpan. ${noNum} menu belum punya kalori/gram — layar TV menampilkannya apa adanya.`, `Saved. ${noNum} dishes have no calories/grams yet — the TV shows them as they are.`) : L("Tersimpan. Layar TV akan memakai menu ini.", "Saved. The TV screen will use this menu."));
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setSaving(false); }
@@ -138,7 +140,7 @@ export default function CanteenMenuEditor() {
   const names = useMemo(() => [...library.values()].map((x) => x.name).sort(), [library]);
   const isThisWeek = weekStart === mondayOf(wibToday());
 
-  const MAIN: ["daging" | "ayam" | "telur", string, string][] = [["daging", L("Daging", "Beef"), "#e0533d"], ["ayam", L("Ayam", "Chicken"), "#ec9a17"], ["telur", L("Telur", "Egg"), "#c9a227"]];
+  const MAIN: ["daging" | "ayam" | "telur", string, string][] = [["ayam", L("A · Ayam", "A · Chicken"), "#ec9a17"], ["daging", L("B · Daging/Ikan", "B · Beef/Fish"), "#e0533d"], ["telur", L("C · Telur", "C · Egg"), "#c9a227"]];
 
   return (
     <div className={m.wrap}>
@@ -182,7 +184,11 @@ export default function CanteenMenuEditor() {
                     {today && <em>{L("Hari ini", "Today")}</em>}
                   </header>
                   <div className={m.cols}><span /><span>{L("Menu", "Dish")}</span><span>kkal</span><span>gram</span><span /></div>
-                  <ItemRow label="Snack" color="#0f8a5f" item={d.snack} onChange={(p) => patchSlot(i, "snack", p)} onBlurName={() => autofill(d.snack, (p) => patchSlot(i, "snack", p))} />
+                  {d.snacks.map((sn, k) => (
+                    <ItemRow key={`sn${k}`} label={k === 0 ? "Snack" : ""} color="#0f8a5f" item={sn} placeholder={k === 0 ? L("mis. Nasi kuning (utama)", "e.g. Yellow rice (main)") : L("komponen lain: lauk, sambal, kerupuk…", "other parts: side, sambal, crackers…")}
+                      onChange={(p) => patchSnack(i, k, p)} onBlurName={() => autofill(sn, (p) => patchSnack(i, k, p))} onRemove={d.snacks.length > 1 ? () => delSnack(i, k) : undefined} />
+                  ))}
+                  <button type="button" className={m.add} onClick={() => addSnack(i)}>+ {L("Komponen snack", "Snack part")}</button>
                   {MAIN.map(([k, label, col]) => (
                     <ItemRow key={k} label={label} color={col} item={d.main[k]} onChange={(p) => patchSlot(i, k, p)} onBlurName={() => autofill(d.main[k], (p) => patchSlot(i, k, p))} />
                   ))}

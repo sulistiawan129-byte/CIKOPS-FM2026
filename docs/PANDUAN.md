@@ -1075,8 +1075,11 @@ login/driver; pilihan tersimpan di browser (`cikops_lang`) dan diterapkan seketi
 Tayangan otomatis layar penuh 16:9 (tanpa login, tanpa interaksi) bergaya menu restoran: navy + biru CIKOPS dengan
 aksen champagne, font serif (Playfair Display, Cormorant Garamond, Jost), debu emas, kilau, dan animasi masuk bertahap.
 Urutan (berulang): Sampul "MENU KANTIN KARYAWAN" + periode → Menu Snack → Menu Meal → Menu Hari Ini → Penutup "Selamat Menikmati".
-Tiap menu menampilkan **nama, kalori (kkal) dan gram**. Meal: 3 lauk utama (daging, ayam, telur) + kartu *Special*
-emas (hanya hari tertentu, mis. soto) + pendamping; nasi, sambal, kerupuk, buah di strip "Selalu Tersedia".
+Tiap menu menampilkan **nama, kalori (kkal) dan gram**. Strukturnya mengikuti menu vendor kantin:
+- **Snack** (Breakfast / shift 2 / shift 3): beberapa komponen per hari (mis. nasi kuning, tempe orek, timun, kerupuk) + **total kalori snack** per hari.
+- **Meal:** lauk utama **A Ayam · B Daging/Ikan · C Telur** (persentase porsi vendor seperti "50%" tidak ditampilkan), kartu *Special*
+  emas (hanya hari tertentu, mis. Sop Daging), **pendamping** (sayur + tempe/tahu/dll.), **buah per hari**, dan strip "Selalu Tersedia"
+  untuk nasi putih, sambal, kerupuk.
 Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjalan dalam gaya kartu menu.
 - URL: `/menu-tv` · `?slide=snack|meal|today|cover|closing` · `?rotate=0` · `?sec=20` · `?date=2026-11-03` (pratinjau minggu lain).
 - Operator: ← → ganti slide, `F` layar penuh. Layar tidak merespons klik/sentuhan.
@@ -1084,7 +1087,7 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
   1. Pilih minggu (Senin–Minggu) dengan tombol ‹ › atau pilih tanggal.
   2. Isi per hari: Snack, lauk utama (Daging, Ayam, Telur), Special (kosongkan bila tidak ada), Pendamping (bisa tambah/hapus),
      lalu "Selalu tersedia" (nasi, sambal, kerupuk, buah) untuk satu minggu. Tiap butir: nama, **kkal**, **gram**.
-  3. Nama yang pernah dipakai terisi otomatis kalori & gramnya. **Salin dari minggu lalu** mempercepat pengisian.
+  3. Snack boleh banyak baris per hari (tombol **+ Komponen snack**). Nama yang pernah dipakai terisi otomatis kalori & gramnya. **Salin dari minggu lalu** mempercepat pengisian.
   4. **Simpan menu** → layar TV memperbarui diri maksimal 5 menit kemudian. **Lihat di TV** membuka pratinjau.
   Baris yang namanya kosong tidak ditampilkan. Bila minggu itu belum diisi, TV menampilkan layar "Menu minggu ini segera hadir".
 - **Buah** diisi **per hari** (berbeda tiap hari); strip "Selalu tersedia" hanya berisi menu tetap (nasi, sambal, kerupuk).
@@ -1099,6 +1102,13 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
     mengosongkan minggu yang tersentuh dulu. Data langsung tersimpan ke semua minggu yang terpengaruh.
   - *Ulangi ke minggu lain:* menyalin isian yang tampil ke 1–12 minggu berikutnya (minggu yang sudah terisi dilewati,
     kecuali dicentang "Timpa").
+- **Dari gambar menu vendor (pakai AI):** di dialog Isi massal klik **Salin prompt AI (gambar → teks)**, tempel prompt itu bersama
+  gambar menu vendor ke ChatGPT / Claude / Gemini, lalu tempel jawabannya di kotak teks. Tabel markdown dari AI (`| … |`), tanggal
+  gaya vendor (`02-Nov-26`), dan nama berakhiran `50%` dikenali otomatis. **Selalu cek pratinjau** sebelum menerapkan: AI bisa salah baca angka.
+  Berkas contoh hasil transkripsi menu vendor 2–8 Nov 2026: `docs/contoh-isi-massal-menu.csv` (bisa langsung diunggah).
+  Catatan transkripsi: Selasa "Telur bumbu pindang" dan Rabu special "Sop Daging" tidak punya angka di gambar → dikosongkan (tampil "–");
+  Rabu tidak ada lauk B (digantikan Sop Daging).
+- `?today=2026-11-04` memperlakukan tanggal itu sebagai "hari ini" (untuk pratinjau slide Menu Hari Ini hari lain).
 - **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 051) di Supabase SQL Editor — membuat tabel
   `canteen_menu_weeks` dan fungsi publik `canteen_menu_public`. Yang boleh mengisi: akun dengan akses modul Kantin
   (sama seperti laporan kantin); layar TV hanya membaca satu minggu lewat fungsi itu.

@@ -178,7 +178,7 @@
 .course h3 span { font-family: var(--sans); font-style: normal; font-size: 16px; font-weight: 600; letter-spacing: .3em; color: var(--mute); }
 .course h3::after { content: ""; flex: 1; height: 1px; background: rgba(241, 217, 160, .3); align-self: center; }
 .mRow { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; }
-.mTag { width: 96px; flex: none; font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--c, var(--gold)); }
+.mTag { width: 148px; flex: none; font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--c, var(--gold)); }
 .mName { font-family: var(--serif); font-weight: 600; font-size: 35px; line-height: 1.1; }
 .mLead { flex: 1; min-width: 20px; border-bottom: 2px dotted rgba(241, 217, 160, .38); transform: translateY(-7px); }
 .mNum { font-family: var(--sans); font-size: 27px; font-weight: 500; color: #d6e2fb; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -200,3 +200,24 @@
 .nav { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; gap: 12px; z-index: 6; }
 .navDot { width: 9px; height: 9px; transform: rotate(45deg); background: rgba(241, 217, 160, .3); transition: all .5s; }
 .navDot.on { background: var(--gold); width: 12px; height: 12px; box-shadow: 0 0 14px var(--gold); }
+
+/* ── snack multi-komponen (format vendor) ── */
+.snackBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 6px; }
+.sItem { position: relative; padding: 10px 4px 11px 18px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.sItem::before { content: ""; position: absolute; left: 3px; top: 20px; width: 7px; height: 7px; transform: rotate(45deg); background: var(--teal); box-shadow: 0 0 10px var(--teal); }
+.sMain::before { background: var(--gold); box-shadow: 0 0 12px var(--gold); top: 24px; }
+.sItemName { font-family: var(--serif); font-weight: 600; font-size: 26px; line-height: 1.12; }
+.sMain .sItemName { font-size: 33px; color: var(--gold); line-height: 1.08; }
+.sItemNum { margin-top: 3px; font-family: var(--sans); font-size: 20px; font-weight: 500; color: #cfdcf6; font-variant-numeric: tabular-nums; }
+.sItemNum b { color: #fff; font-weight: 600; }
+.sMain .sItemNum { font-size: 22px; }
+.sEmpty { text-align: center; padding: 20px 0; font-family: var(--script); font-style: italic; font-size: 26px; color: rgba(205, 217, 243, .35); }
+.sTotal { display: flex; align-items: baseline; justify-content: center; gap: 8px; padding: 10px 10px 12px; border-top: 1px solid rgba(241, 217, 160, .3); background: linear-gradient(180deg, rgba(241, 217, 160, .1), rgba(241, 217, 160, .02)); }
+.sTotal span { font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--mute); margin-right: 4px; }
+.sTotal b { font-family: var(--sans); font-weight: 500; font-size: 40px; color: var(--gold); line-height: 1; font-variant-numeric: tabular-nums; }
+.sTotal em { font-style: normal; font-family: var(--sans); font-size: 16px; font-weight: 600; color: var(--mute); }
+
+/* ── huruf lauk utama A / B / C (format vendor) ── */
+.dish { padding-left: 34px; }
+.dish::before { display: none; }
+.abc { position: absolute; left: 4px; top: 8px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-family: var(--sans); font-weight: 700; font-size: 13px; color: #07122b; background: var(--c, var(--gold)); box-shadow: 0 0 12px color-mix(in srgb, var(--c, var(--gold)) 60%, transparent); }

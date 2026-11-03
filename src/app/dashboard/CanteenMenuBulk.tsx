@@ -9,7 +9,7 @@ import m from "./canteenMenu.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
 import { L, loc } from "@/lib/i18n";
 import { addDaysIso, type WeeklyMenu } from "@/lib/canteenMenu";
-import { applyBulk, KIND_LABEL, parseBulk, toBulkText, touchedWeeks, type Delim } from "@/lib/canteenMenuBulk";
+import { AI_PROMPT, applyBulk, KIND_LABEL, parseBulk, toBulkText, touchedWeeks, type Delim } from "@/lib/canteenMenuBulk";
 import { getMenuWeek, saveMenuWeek } from "@/lib/canteenMenuApi";
 
 const fmtWeek = (ws: string) => {
@@ -27,6 +27,7 @@ export default function CanteenMenuBulk({ weekStart, menu, dirty, onClose, onApp
   const [delim, setDelim] = useState<Delim>("auto");
   const [mode, setMode] = useState<"merge" | "replace">("merge");
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +58,11 @@ export default function CanteenMenuBulk({ weekStart, menu, dirty, onClose, onApp
         setDelim("tab"); setText(lines.join("\n"));
       } else { setText((await file.text()).replace(/^﻿/, "")); setDelim("auto"); }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+  }
+
+  async function copyPrompt() {
+    try { await navigator.clipboard.writeText(AI_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 2500); }
+    catch { setText(AI_PROMPT); setErr(L("Browser tidak mengizinkan menyalin otomatis — prompt ditaruh di kotak teks, salin dari sana.", "The browser blocked automatic copying — the prompt was placed in the text box, copy it from there.")); }
   }
 
   function download() {
@@ -124,8 +130,8 @@ export default function CanteenMenuBulk({ weekStart, menu, dirty, onClose, onApp
           <div className={m.bulkBody}>
             <p className={m.help}>
               {L("Satu baris = satu hidangan, kolom: ", "One line = one dish, columns: ")}<b>Hari · Jenis · Menu · Kkal · Gram</b>.{" "}
-              {L("Hari: Senin–Minggu, tanggal (2026-11-03 atau 03/11/2026 — otomatis ke minggunya), atau Semua. Jenis: Snack, Daging, Ayam, Telur, Special, Pendamping, Buah, Tetap (nasi/sambal/kerupuk, Hari diisi -). Menu '-' = kosongkan.",
-                 "Day: Monday–Sunday, a date (2026-11-03 or 03/11/2026 — goes to that week), or All. Type: Snack, Daging (beef), Ayam (chicken), Telur (egg), Special, Pendamping (side), Buah (fruit), Tetap (fixed: rice/sambal/crackers, Day = -). Dish '-' clears it.")}
+              {L("Hari: Senin–Minggu, tanggal (2026-11-03 atau 03/11/2026 — otomatis ke minggunya), atau Semua. Jenis: Snack, Daging, Ayam, Telur, Special, Pendamping, Buah, Tetap (nasi/sambal/kerupuk, Hari diisi -). Menu '-' = kosongkan. Snack boleh banyak baris per hari (komponen). Tabel dari AI (| … |) dan tanggal seperti 02-Nov-26 juga dikenali.",
+                 "Day: Monday–Sunday, a date (2026-11-03 or 03/11/2026 — goes to that week), or All. Type: Snack, Daging (beef), Ayam (chicken), Telur (egg), Special, Pendamping (side), Buah (fruit), Tetap (fixed: rice/sambal/crackers, Day = -). Dish '-' clears it. Snack can have many rows per day (parts). AI tables (| … |) and dates like 02-Nov-26 are also recognised.")}
             </p>
             <div className={m.bulkBar}>
               <label className={m.fld}><span>{L("Pembeda kolom", "Column separator")}</span>
@@ -144,6 +150,7 @@ export default function CanteenMenuBulk({ weekStart, menu, dirty, onClose, onApp
                 </select>
               </label>
               <div className={m.grow} />
+              <button type="button" className={m.ghost} onClick={copyPrompt} title={L("Tempel prompt ini bersama gambar menu vendor ke ChatGPT / Claude / Gemini, lalu tempel hasilnya di bawah", "Paste this prompt with the vendor's menu image into ChatGPT / Claude / Gemini, then paste the result below")}>{copied ? L("✓ Prompt tersalin", "✓ Prompt copied") : L("Salin prompt AI (gambar → teks)", "Copy AI prompt (image → text)")}</button>
               <button type="button" className={m.ghost} onClick={() => setText(toBulkText(menu, "tab"))}>{L("Muat format minggu ini", "Load this week's format")}</button>
               <button type="button" className={m.ghost} onClick={download}>{L("Unduh CSV", "Download CSV")}</button>
               <button type="button" className={m.ghost} onClick={() => fileRef.current?.click()}>{L("Unggah file…", "Upload file…")}</button>
