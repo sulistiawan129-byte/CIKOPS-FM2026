@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MyProfile } from "@/lib/api";
 import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getVisitors, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
 import {
-  DEFAULT_SETTINGS, addDays, addMonths, toMin, todayISO,
+  DEFAULT_SETTINGS, addDays, addMonths, toMin, todayISO, wibDay,
   type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type Visitor, type WifiAccount, type WifiGrant } from "@/lib/receptionist/model";
 import RcpWifi from "./RcpWifi";
 import RcpParcels from "./RcpParcels";
@@ -20,6 +20,7 @@ import RcpRoom from "./RcpRoom";
 import RcpData from "./RcpData";
 import RcpDashboard from "./RcpDashboard";
 import RcpVisitors, { VisitorModal } from "./RcpVisitors";
+import { useNow } from "./useNow";
 import type { Directory, RcpView } from "./shared";
 import r from "./receptionist.module.css";
 import d from "./rcpdash.module.css";
@@ -40,7 +41,12 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
   const [employees, setEmployees] = useState<RcpEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [day, setDayState] = useState(todayISO());
+  // hari yang dilihat: null = "ikut hari ini" (otomatis berganti saat lewat tengah malam WIB), selain itu tanggal pilihan pengguna
+  const [picked, setPicked] = useState<string | null>(null);
+  const nowMs = useNow(30000);
+  const today = wibDay(nowMs);
+  const day = picked ?? today;
+  const [parcelDir, setParcelDir] = useState<"all" | "in" | "out">("all");
   const [vm, setVm] = useState<{ edit: Visitor | null } | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   // rentang tanggal yang sudah dimuat untuk tamu & booking (digeser bila pengguna membuka tanggal yang jauh)
@@ -84,7 +90,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
 
   /** Ganti tanggal yang dilihat; bila di luar rentang yang sudah dimuat, rentang diperluas lalu data dimuat ulang. */
   const setDay = useCallback((next: string) => {
-    setDayState(next);
+    setPicked(next === todayISO() ? null : next);
     const cur = range.current;
     if (next < cur.from || next > cur.to) {
       range.current = { from: next < cur.from ? addDays(next, -14) : cur.from, to: next > cur.to ? addDays(next, 14) : cur.to };
@@ -92,12 +98,31 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
     }
   }, [loadRange]);
 
+  // data tetap segar: muat ulang diam-diam tiap menit (tab terlihat) dan saat tab dibuka kembali — menghindari angka basi dari perangkat / pengguna lain
+  const refreshQuiet = useCallback(async () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    try { await Promise.all([loadWifi(), loadParcels(), loadRange()]); } catch { /* data lama tetap tampil */ }
+  }, [loadWifi, loadParcels, loadRange]);
+  useEffect(() => {
+    const id = window.setInterval(() => { void refreshQuiet(); }, 60000);
+    const onVis = () => { if (document.visibilityState === "visible") void refreshQuiet(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { window.clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
+  }, [refreshQuiet]);
+  // lewat tengah malam: perluas rentang tamu/booking ke depan supaya hari baru langsung terisi
+  useEffect(() => {
+    const need = addDays(today, 14);
+    if (range.current.to < need) { range.current = { ...range.current, to: need }; loadRange().catch(() => {}); }
+  }, [today, loadRange]);
+
+  const goTo = useCallback((v: View, o?: { parcelDir?: "in" | "out" }) => { if (o?.parcelDir) setParcelDir(o.parcelDir); setView(v); }, []);
+
   const dir: Directory = useMemo(() => ({ contacts, employees }), [contacts, employees]);
   const reloadWifi = useCallback(async () => { await Promise.all([loadWifi(), loadContacts()]); }, [loadWifi, loadContacts]);
   const reloadParcels = useCallback(async () => { await Promise.all([loadParcels(), loadContacts()]); }, [loadParcels, loadContacts]);
 
   const waiting = parcels.filter((p) => p.status === "waiting").length;
-  const insideNow = visitors.filter((v) => v.visitDate === todayISO() && !v.checkedOutAt).length;
+  const insideNow = visitors.filter((v) => v.visitDate === today && !v.checkedOutAt).length;
   const reloadEmployees = useCallback(async () => { setEmployees(await getRcpEmployees()); }, []);
   const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["visitors", L("Tamu", "Visitors"), insideNow], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", L("Pengaturan", "Settings")]];
 
@@ -123,11 +148,11 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
 
       {view === "dashboard" && (
         <RcpDashboard myProfile={myProfile} settings={settings} accounts={accounts} grants={grants} parcels={parcels} bookings={bookings} visitors={visitors}
-          day={day} setDay={setDay} go={setView} onNewVisitor={() => setVm({ edit: null })} reloadVisitors={loadRange} notify={notify} />
+          day={day} setDay={setDay} go={goTo} onNewVisitor={() => setVm({ edit: null })} reloadVisitors={loadRange} notify={notify} />
       )}
       {view === "visitors" && <RcpVisitors visitors={visitors} day={day} setDay={setDay} reload={loadRange} onNew={() => setVm({ edit: null })} onEdit={(v) => setVm({ edit: v })} notify={notify} />}
       {view === "wifi" && <RcpWifi settings={settings} accounts={accounts} grants={grants} dir={dir} reload={reloadWifi} />}
-      {view === "parcels" && <RcpParcels parcels={parcels} dir={dir} reload={reloadParcels} />}
+      {view === "parcels" && <RcpParcels parcels={parcels} dir={dir} reload={reloadParcels} day={day} setDay={setDay} dirFilter={parcelDir} setDirFilter={setParcelDir} />}
       {view === "room" && <RcpRoom settings={settings} dir={dir} onChanged={() => loadRange().catch(() => {})} />}
       {view === "data" && <RcpData employees={employees} accounts={accounts} reloadEmployees={reloadEmployees} reloadWifi={reloadWifi} />}
       {view === "settings" && <Settings settings={settings} onSaved={(s) => setSettings(s)} />}

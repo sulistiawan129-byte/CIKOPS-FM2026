@@ -9,7 +9,7 @@ import type { MyProfile } from "@/lib/api";
 import { checkoutVisitor } from "@/lib/receptionist/api";
 import { dayFeed, dayStats, daySeries, type DayStats, type FeedKind } from "@/lib/receptionist/daily";
 import {
-  addDays, fmtDate, fmtDateTime, fmtDuration, fmtTime, grantActive, itemTypeLabel, monthLabel, todayISO, toMin, usageByDeptMonth, visitMinutes,
+  addDays, addMonths, fmtDate, fmtDateTime, fmtDuration, fmtTime, grantActive, itemTypeLabel, monthLabel, wibDay, toMin, usageByDeptMonth, visitMinutes,
   type Parcel, type RcpSettings, type RoomBooking, type Visitor, type WifiAccount, type WifiGrant,
 } from "@/lib/receptionist/model";
 import { ExportButtons, col, type RcpView } from "./shared";
@@ -32,7 +32,7 @@ const FEED_ICON: Record<FeedKind, [string, string]> = {
 const FEED_TAB: Record<FeedKind, RcpView> = { "visitor-in": "visitors", "visitor-out": "visitors", "doc-in": "parcels", "doc-out": "parcels", handover: "parcels", wifi: "wifi", booking: "room" };
 
 const label = (k: MKey, room: string) => ({
-  docsIn: L("Dokumen masuk", "Documents in"), docsOut: L("Dokumen keluar", "Documents out"), bookings: `${L("Booking", "Bookings")} ${room}`,
+  docsIn: L("Dokumen / barang masuk", "Documents / items in"), docsOut: L("Dokumen / barang keluar", "Documents / items out"), bookings: `${L("Booking", "Bookings")} ${room}`,
   wifi: L("Peminjaman Wifi Guest", "Guest wifi loans"), guests: L("Tamu datang", "Visitors"),
 }[k]);
 const val = (s: DayStats, k: MKey) => s[k === "bookings" ? "bookings" : k];
@@ -54,19 +54,22 @@ function Spark({ values, color }: { values: number[]; color: string }) {
 
 function Num({ value }: { value: number }) { return <>{useCountUp(value)}</>; }
 
+/** Waktu kantor = WIB (sama dengan database), apa pun zona waktu perangkat. */
+const wibClock = (ms: number) => { const t = new Date(ms + 7 * 3600000); return { h: t.getUTCHours(), m: t.getUTCMinutes() }; };
+
 function LiveClock() {
   const now = useNow(1000);
-  const t = new Date(now);
+  const { h, m } = wibClock(now);
   const z = (n: number) => String(n).padStart(2, "0");
-  return <span className={d.clock} aria-label={L("Jam sekarang", "Current time")}>{z(t.getHours())}<i>:</i>{z(t.getMinutes())}</span>;
+  return <span className={d.clock} aria-label={L("Jam sekarang (WIB)", "Current time (WIB)")}>{z(h)}<i>:</i>{z(m)}<small className={d.tz}>WIB</small></span>;
 }
 
 export default function RcpDashboard({ myProfile, settings, accounts, grants, parcels, bookings, visitors, day, setDay, go, onNewVisitor, reloadVisitors, notify }: {
   myProfile: MyProfile | null; settings: RcpSettings; accounts: WifiAccount[]; grants: WifiGrant[]; parcels: Parcel[]; bookings: RoomBooking[]; visitors: Visitor[];
-  day: string; setDay: (d: string) => void; go: (v: RcpView) => void; onNewVisitor: () => void; reloadVisitors: () => Promise<void>; notify: (m: { ok: boolean; text: string }) => void;
+  day: string; setDay: (d: string) => void; go: (v: RcpView, o?: { parcelDir?: "in" | "out" }) => void; onNewVisitor: () => void; reloadVisitors: () => Promise<void>; notify: (m: { ok: boolean; text: string }) => void;
 }) {
   const now = useNow(30000);
-  const today = todayISO();
+  const today = wibDay(now);
   const isToday = day === today;
   const data = useMemo(() => ({ parcels, grants, bookings, visitors }), [parcels, grants, bookings, visitors]);
   const stats = useMemo(() => dayStats(day, data), [day, data]);
@@ -82,22 +85,28 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
   const inside = useMemo(() => visitors.filter((v) => v.visitDate === day && !v.checkedOutAt).sort((a, b) => a.checkedInAt.localeCompare(b.checkedInAt)), [visitors, day]);
   const bkDay = useMemo(() => bookings.filter((b) => b.date === day).sort((a, b) => a.start.localeCompare(b.start)), [bookings, day]);
 
+  // kapasitas wifi guest SAAT INI (semua akun berlaku) — bukan angka harian
   const usable = accounts.filter((a) => a.active && a.validUntil >= today);
+  const totalSlots = usable.reduce((a, x) => a + x.slots, 0);
+  const freeSlots = usable.reduce((a, x) => a + x.free, 0);
+  const usedSlots = Math.max(0, totalSlots - freeSlots);
+  const acctInUse = usable.filter((x) => x.used > 0).length;
+  const pctUsed = totalSlots ? Math.round((usedSlots / totalSlots) * 100) : 0;
+  const capColor = pctUsed >= 85 ? "var(--red)" : pctUsed >= 60 ? "var(--orange)" : "var(--green)";
   const expiring = usable.filter((a) => a.validUntil <= addDays(today, 7)).sort((a, b) => a.validUntil.localeCompare(b.validUntil));
   const activeGuests = grants.filter((g) => grantActive(g));
   const waiting = parcels.filter((p) => p.status === "waiting").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const waitIn = waiting.filter((p) => p.direction === "in").length;
+  const staleVisitors = visitors.filter((v) => !v.checkedOutAt && v.visitDate < today).sort((a, b) => a.visitDate.localeCompare(b.visitDate));
   const ageDays = (p: Parcel) => Math.floor((now - new Date(p.createdAt).getTime()) / 86400000);
   const usage = useMemo(() => { const u = usageByDeptMonth(grants); return { months: u.months.slice(-6), rows: u.rows.slice(0, 10) }; }, [grants]);
   const maxCell = Math.max(1, ...usage.rows.flatMap((x) => usage.months.map((m) => x.byMonth[m] ?? 0)));
 
   // jam layanan
-  const nowDate = new Date(now);
-  const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const { h: hr, m: mi } = wibClock(now);
+  const nowMin = hr * 60 + mi;
   const openMin = toMin(settings.openTime), closeMin = Math.max(openMin + 60, toMin(settings.closeTime));
   const status = nowMin < openMin ? "before" : nowMin >= closeMin ? "after" : "open";
   const first = (myProfile?.fullName || "").trim().split(/\s+/)[0];
-  const hr = nowDate.getHours();
   const greet = hr < 11 ? L("Selamat pagi", "Good morning") : hr < 15 ? L("Selamat siang", "Good afternoon") : hr < 18 ? L("Selamat sore", "Good evening") : L("Selamat malam", "Good night");
   const nextBk = isToday ? bkDay.find((b) => toMin(b.end) > nowMin) : undefined;
 
@@ -106,14 +115,17 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
     const vs = isToday ? L("kemarin", "yesterday") : L("hari sebelumnya", "prev. day");
     return diff === 0 ? { cls: "", text: `＝ ${L("sama dgn", "same as")} ${vs}` } : diff > 0 ? { cls: d.up, text: `▲ +${diff} ${L("vs", "vs")} ${vs}` } : { cls: d.down, text: `▼ ${diff} ${L("vs", "vs")} ${vs}` };
   };
+  // Semua angka di kartu = HARI YANG DIPILIH saja (tidak ada total kumulatif); kapasitas wifi ditandai "saat ini"
   const sub: Record<MKey, string> = {
-    docsIn: `${stats.docsInN} ${L("catatan", "records")} · ${waitIn} ${L("menunggu diambil", "awaiting pickup")}`,
-    docsOut: `${stats.docsOutN} ${L("catatan", "records")} · ${waiting.length - waitIn} ${L("menunggu kurir", "awaiting courier")}`,
+    docsIn: `${stats.docsInN} ${L("catatan", "records")} · ${stats.inTaken} ${L("sudah diserahkan", "handed over")} · ${stats.inOpen} ${L("menunggu", "waiting")}`,
+    docsOut: `${stats.docsOutN} ${L("catatan", "records")} · ${stats.outTaken} ${L("sudah diserahkan", "handed over")} · ${stats.outOpen} ${L("menunggu", "waiting")}`,
     bookings: stats.bookings ? (nextBk ? L(`berikutnya ${nextBk.start} · ${nextBk.title}`, `next ${nextBk.start} · ${nextBk.title}`) : `${(stats.bookedMin / 60).toFixed(1).replace(/\.0$/, "")} ${L("jam terbooking", "hours booked")}`) : L("ruangan kosong", "room is free"),
-    wifi: `${stats.wifiSlots} ${L("slot", "slots")} · ${activeGuests.length} ${L("tamu aktif sekarang", "guests active now")}`,
+    wifi: `${stats.wifiSlots} ${L("slot", "slots")} · ${stats.wifiReturned} ${L("sudah dikembalikan", "returned")}`,
     guests: `${stats.visits} ${L("kunjungan", "visits")} · ${stats.inside} ${L("di lokasi", "on site")}`,
   };
+  const typeLine = (t: [string, number][]) => t.map(([k, n]) => `${itemTypeLabel(k)} ${n}`).join(" · ");
   const tab: Record<MKey, RcpView> = { docsIn: "parcels", docsOut: "parcels", bookings: "room", wifi: "wifi", guests: "visitors" };
+  const open = (k: MKey) => go(tab[k], k === "docsIn" ? { parcelDir: "in" } : k === "docsOut" ? { parcelDir: "out" } : undefined);
 
   async function checkout(v: Visitor) {
     setBusy(v.id);
@@ -139,8 +151,8 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
             <h2>{greet}{first ? `, ${first}` : ""} <span className={d.wave} aria-hidden>👋</span></h2>
             <p>
               {isToday
-                ? (inside.length ? L(`${inside.length} kunjungan masih di lokasi · ${waiting.length} barang menunggu diambil · ${stats.bookings ? `${stats.bookings} booking ${settings.roomName} hari ini.` : `${settings.roomName} kosong hari ini.`}`, `${inside.length} visits still on site · ${waiting.length} items awaiting pickup · ${stats.bookings ? `${stats.bookings} ${settings.roomName} bookings today.` : `${settings.roomName} is free today.`}`)
-                  : L(`Lobby sedang tenang · ${waiting.length} barang menunggu diambil · ${stats.bookings ? `${stats.bookings} booking ${settings.roomName} hari ini.` : `${settings.roomName} kosong hari ini.`}`, `The lobby is calm · ${waiting.length} items awaiting pickup · ${stats.bookings ? `${stats.bookings} ${settings.roomName} bookings today.` : `${settings.roomName} is free today.`}`))
+                ? (inside.length ? L(`${inside.length} kunjungan masih di lokasi · ${waiting.length} barang menunggu (semua hari) · ${stats.bookings ? `${stats.bookings} booking ${settings.roomName} hari ini.` : `${settings.roomName} kosong hari ini.`}`, `${inside.length} visits still on site · ${waiting.length} items waiting (all days) · ${stats.bookings ? `${stats.bookings} ${settings.roomName} bookings today.` : `${settings.roomName} is free today.`}`)
+                  : L(`Lobby sedang tenang · ${waiting.length} barang menunggu (semua hari) · ${stats.bookings ? `${stats.bookings} booking ${settings.roomName} hari ini.` : `${settings.roomName} kosong hari ini.`}`, `The lobby is calm · ${waiting.length} items waiting (all days) · ${stats.bookings ? `${stats.bookings} ${settings.roomName} bookings today.` : `${settings.roomName} is free today.`}`))
                 : L(`Melihat ${dayName} — ${stats.guests} tamu, ${stats.docsIn + stats.docsOut} dokumen, ${stats.wifi} wifi, ${stats.bookings} booking.`, `Viewing ${dayName} — ${stats.guests} visitors, ${stats.docsIn + stats.docsOut} documents, ${stats.wifi} wifi, ${stats.bookings} bookings.`)}
             </p>
           </div>
@@ -153,16 +165,16 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
         </div>
         <div className={d.heroBar}>
           <div className={d.dayPick} role="group" aria-label={L("Pilih tanggal", "Pick a date")}>
-            <button type="button" onClick={() => setDay(addDays(day, -1))} aria-label={L("Hari sebelumnya", "Previous day")}>‹</button>
-            <input type="date" value={day} max={addDays(today, 14)} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={L("Tanggal", "Date")} />
+            <button type="button" onClick={() => setDay(addDays(day, -1))} disabled={day <= addMonths(today, -6)} aria-label={L("Hari sebelumnya", "Previous day")}>‹</button>
+            <input type="date" value={day} min={addMonths(today, -6)} max={addDays(today, 14)} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={L("Tanggal", "Date")} />
             <button type="button" onClick={() => setDay(addDays(day, 1))} disabled={day >= addDays(today, 14)} aria-label={L("Hari berikutnya", "Next day")}>›</button>
           </div>
           {!isToday && <button type="button" className={d.todayBtn} onClick={() => setDay(today)}>{L("Kembali ke hari ini", "Back to today")}</button>}
           <span style={{ flex: 1 }} />
           <div className={d.quick} aria-label={L("Aksi cepat", "Quick actions")}>
             <button type="button" className={d.quickPrimary} onClick={onNewVisitor}>🙋 {L("Tamu datang", "Visitor in")}</button>
-            <button type="button" onClick={() => go("parcels")}>📥 {L("Dokumen masuk", "Document in")}</button>
-            <button type="button" onClick={() => go("parcels")}>📤 {L("Dokumen keluar", "Document out")}</button>
+            <button type="button" onClick={() => go("parcels", { parcelDir: "in" })}>📥 {L("Dokumen masuk", "Document in")}</button>
+            <button type="button" onClick={() => go("parcels", { parcelDir: "out" })}>📤 {L("Dokumen keluar", "Document out")}</button>
             <button type="button" onClick={() => go("wifi")}>📶 {L("Wifi guest", "Guest wifi")}</button>
             <button type="button" onClick={() => go("room")}>🚪 {L("Booking ruang", "Book room")}</button>
           </div>
@@ -174,10 +186,18 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
         {KEYS.map((k, i) => {
           const dl = delta(k);
           return (
-            <button key={k} type="button" className={d.kpiCard} style={{ ["--c" as string]: PAL[k][0], ["--c2" as string]: PAL[k][1], ["--i" as string]: i }} onClick={() => go(tab[k])} aria-label={`${label(k, settings.roomName)}: ${val(stats, k)}`}>
+            <button key={k} type="button" className={d.kpiCard} style={{ ["--c" as string]: PAL[k][0], ["--c2" as string]: PAL[k][1], ["--i" as string]: i }} onClick={() => open(k)} aria-label={`${label(k, settings.roomName)}: ${val(stats, k)}`}>
               <span className={d.kpiHead}><span className={d.kpiIcon} aria-hidden>{ICON[k]}</span><span className={d.kpiLabel}>{label(k, settings.roomName)}</span></span>
-              <span className={d.kpiNum}><b><Num value={val(stats, k)} /></b><small>{k === "guests" ? L("orang", "people") : k === "bookings" ? L("agenda", "agenda") : k === "wifi" ? L("peminjaman", "loans") : L("dokumen", "documents")}</small></span>
+              <span className={d.kpiNum}><b><Num value={val(stats, k)} /></b><small>{k === "guests" ? L("orang", "people") : k === "bookings" ? L("agenda", "agenda") : k === "wifi" ? L("peminjaman baru", "new loans") : L("barang / surat", "items")}</small></span>
               <span className={d.kpiSub}>{sub[k]}</span>
+              {k === "docsIn" && stats.inTypes.length > 0 && <span className={d.kpiTypes}>{typeLine(stats.inTypes)}</span>}
+              {k === "docsOut" && stats.outTypes.length > 0 && <span className={d.kpiTypes}>{typeLine(stats.outTypes)}</span>}
+              {k === "wifi" && (
+                <span className={d.capLine} title={L("Kapasitas wifi guest saat ini (semua akun berlaku)", "Current guest wifi capacity (all valid accounts)")}>
+                  <span className={d.meterBar}><i style={{ width: `${Math.min(100, pctUsed)}%`, background: capColor }} /></span>
+                  <small>{L(`Slot terpakai ${usedSlots} dari ${totalSlots} · tersedia ${freeSlots} (saat ini)`, `Slots used ${usedSlots} of ${totalSlots} · ${freeSlots} free (now)`)}</small>
+                </span>
+              )}
               <span className={d.kpiFoot}><span className={`${d.delta} ${dl.cls}`}>{dl.text}</span><Spark values={series.map((s) => val(s, k))} color={PAL[k][0]} /></span>
             </button>
           );
@@ -239,6 +259,12 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
                 );
               })}
             </ul>
+          )}
+          {isToday && staleVisitors.length > 0 && (
+            <div className={d.notice} role="status">
+              <span>⚠ {L(`${staleVisitors.length} tamu dari hari sebelumnya belum dicatat pulang (sejak ${fmtDate(staleVisitors[0].visitDate, { day: "numeric", month: "short" })}). Tidak dihitung di angka hari ini.`, `${staleVisitors.length} visitors from earlier days were never checked out (since ${fmtDate(staleVisitors[0].visitDate, { day: "numeric", month: "short" })}). They are not counted in today's figures.`)}</span>
+              <button type="button" className={d.miniBtn} onClick={() => { setDay(staleVisitors[0].visitDate); go("visitors"); }}>{L("Rapikan", "Fix")}</button>
+            </div>
           )}
         </section>
       </div>
@@ -302,7 +328,7 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
       {/* ── Perlu perhatian ── */}
       <div className={d.rowB}>
         <section className={d.panel}>
-          <div className={d.panelHead}><div><h3>{L("Barang menunggu diambil", "Items waiting to be collected")}</h3><p>{waiting.length} {L("barang", "items")}{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} ${L("lebih dari 2 hari", "over 2 days")}` : ""}</p></div><button type="button" className={r.link} onClick={() => go("parcels")}>{L("Kelola →", "Manage →")}</button></div>
+          <div className={d.panelHead}><div><h3>{L("Barang menunggu diambil", "Items waiting to be collected")}</h3><p>{waiting.length} {L("catatan — semua hari, termasuk yang lama", "records — all days, including older ones")}{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} ${L("lebih dari 2 hari", "over 2 days")}` : ""}</p></div><button type="button" className={r.link} onClick={() => go("parcels")}>{L("Kelola →", "Manage →")}</button></div>
           {waiting.length === 0 ? <div className={d.emptyArt}><span aria-hidden>🎉</span><b>{L("Tidak ada yang menunggu", "Nothing waiting")}</b></div> : (
             <ul className={d.attn}>
               {waiting.slice(0, 6).map((p) => (
@@ -316,15 +342,30 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
           )}
         </section>
         <section className={d.panel}>
-          <div className={d.panelHead}><div><h3>{L("Akun wifi yang akan habis", "Wifi accounts about to expire")}</h3><p>≤ 7 {L("hari", "days")} · {L("slot tersedia", "free slots")} {usable.reduce((s, a) => s + a.free, 0)}/{usable.reduce((s, a) => s + a.slots, 0)}</p></div><button type="button" className={r.link} onClick={() => go("wifi")}>{L("Kelola →", "Manage →")}</button></div>
-          {expiring.length === 0 ? <div className={d.emptyArt}><span aria-hidden>👍</span><b>{L("Tidak ada akun yang habis dalam 7 hari", "No account expires within 7 days")}</b></div> : (
+          <div className={d.panelHead}><div><h3>{L("Kapasitas Wifi Guest", "Guest wifi capacity")}</h3><p>{L("Kondisi saat ini — semua akun yang masih berlaku (bukan angka harian)", "Current status — all accounts still valid (not a daily figure)")}</p></div><button type="button" className={r.link} onClick={() => go("wifi")}>{L("Kelola →", "Manage →")}</button></div>
+          <div className={d.cap}>
+            <div className={d.ring} style={{ ["--p" as string]: Math.min(100, pctUsed), ["--c" as string]: capColor }} role="img" aria-label={L(`${usedSlots} dari ${totalSlots} slot terpakai`, `${usedSlots} of ${totalSlots} slots used`)}>
+              <b><Num value={usedSlots} /></b><small>{L("dari", "of")} {totalSlots}</small><em>{pctUsed}%</em>
+            </div>
+            <ul className={d.capList}>
+              <li><span>{L("Total slot", "Total slots")}</span><b>{totalSlots}</b></li>
+              <li><span>{L("Terpakai", "Used")}</span><b style={{ color: capColor }}>{usedSlots}</b></li>
+              <li><span>{L("Tersedia", "Free")}</span><b>{freeSlots}</b></li>
+              <li><span>{L("Akun berlaku", "Valid accounts")}</span><b>{usable.length}</b></li>
+              <li><span>{L("Akun terpakai", "Accounts in use")}</span><b>{acctInUse}</b></li>
+              <li><span>{L("Tamu aktif", "Active guests")}</span><b>{activeGuests.length}</b></li>
+            </ul>
+          </div>
+          <div className={d.subHead}>{L("Akan habis ≤ 7 hari", "Expiring within 7 days")} ({expiring.length})</div>
+          {expiring.length === 0 ? <p className={r.hint}>{L("Tidak ada akun yang habis dalam 7 hari.", "No account expires within 7 days.")} 👍</p> : (
             <ul className={d.attn}>
-              {expiring.slice(0, 6).map((a) => (
+              {expiring.slice(0, 4).map((a) => (
                 <li key={a.id} className={d.attnRow}>
-                  <span style={{ minWidth: 0 }}><b className={r.mono}>{a.username}</b><small>{L("berlaku sampai", "valid until")} {fmtDate(a.validUntil)} · {a.used}/{a.slots} {L("slot terpakai", "slots used")}</small></span>
+                  <span style={{ minWidth: 0 }}><b className={r.mono}>{a.username}</b><small>{L("sampai", "until")} {fmtDate(a.validUntil)} · {a.used}/{a.slots} {L("slot terpakai", "slots used")}</small></span>
                   <span className={`${r.pill} ${a.daysLeft <= 2 ? r.pRed : r.pOrange}`}>{a.daysLeft === 0 ? L("hari ini", "today") : L(`${a.daysLeft} hari`, `${a.daysLeft} days`)}</span>
                 </li>
               ))}
+              {expiring.length > 4 && <li className={r.mute} style={{ fontSize: 12.5, textAlign: "center" }}>+{expiring.length - 4} {L("lainnya", "more")}</li>}
             </ul>
           )}
         </section>

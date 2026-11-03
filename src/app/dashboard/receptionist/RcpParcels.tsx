@@ -6,7 +6,8 @@
 import { useMemo, useState } from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { createParcel, deleteParcel, emailParcel, handoverParcel, unhandoverParcel, updateParcel } from "@/lib/receptionist/api";
-import { itemTypeLabel, ITEM_TYPES, fmtDate, fmtDateTime, fmtTime, todayISO, dayOf, monthOf, receiptFromParcel, type Parcel, type ParcelDirection } from "@/lib/receptionist/model";
+import { itemTypeLabel, ITEM_TYPES, addDays, addMonths, fmtDate, fmtDateTime, fmtTime, todayISO, dayOf, monthOf, receiptFromParcel, type Parcel, type ParcelDirection } from "@/lib/receptionist/model";
+import { dayStats } from "@/lib/receptionist/daily";
 import { ExportButtons, NameInput, col, lookupPerson, type Directory } from "./shared";
 import { ProofModal } from "./ProofCard";
 import r from "./receptionist.module.css";
@@ -14,27 +15,30 @@ import r from "./receptionist.module.css";
 import { L } from "@/lib/i18n";
 type Sub = "waiting" | "today" | "history";
 
-export default function RcpParcels({ parcels, dir, reload }: { parcels: Parcel[]; dir: Directory; reload: () => Promise<void> }) {
-  const [sub, setSub] = useState<Sub>("waiting");
+export default function RcpParcels({ parcels, dir, reload, day, setDay, dirFilter, setDirFilter }: {
+  parcels: Parcel[]; dir: Directory; reload: () => Promise<void>;
+  /** tanggal yang dilihat (sama dengan dashboard) dan filter arah — dashboard membuka tab ini sudah pada tanggal & arah yang diketuk */
+  day: string; setDay: (d: string) => void; dirFilter: "all" | ParcelDirection; setDirFilter: (d: "all" | ParcelDirection) => void;
+}) {
+  const [sub, setSub] = useState<Sub>(dirFilter !== "all" ? "today" : "waiting");
   const [proof, setProof] = useState<Parcel | null>(null);
   const who = proof ? (proof.direction === "in" ? proof.recipient : proof.sender) : "";
   const waiting = parcels.filter((p) => p.status === "waiting");
   const today = todayISO();
-  const todayList = parcels.filter((p) => dayOf(p.createdAt) === today || dayOf(p.handedAt) === today);
   return (
     <div className={r.split}>
       <NewParcel dir={dir} reload={reload} onProof={setProof} />
       <section className={r.card}>
         <div className={r.cardHead}>
           <div className={r.seg} role="group" aria-label="Daftar">
-            {([["waiting", `Menunggu (${waiting.length})`], ["today", L("Hari ini", "Today")], ["history", L("Riwayat", "History")]] as [Sub, string][]).map(([k, l]) => (
+            {([["waiting", `Menunggu (${waiting.length})`], ["today", day === today ? L("Hari ini", "Today") : fmtDate(day, { day: "numeric", month: "short" })], ["history", L("Riwayat", "History")]] as [Sub, string][]).map(([k, l]) => (
               <button key={k} type="button" aria-pressed={sub === k} onClick={() => setSub(k)}>{l}</button>
             ))}
           </div>
           <CourierSheet parcels={parcels} />
         </div>
         {sub === "waiting" && <WaitingList list={waiting} reload={reload} onProof={setProof} />}
-        {sub === "today" && <SimpleList list={todayList} onProof={setProof} reload={reload} />}
+        {sub === "today" && <DayLog parcels={parcels} day={day} setDay={setDay} dirFilter={dirFilter} setDirFilter={setDirFilter} onProof={setProof} reload={reload} />}
         {sub === "history" && <HistoryList parcels={parcels} onProof={setProof} reload={reload} />}
       </section>
       {proof && (
@@ -246,16 +250,58 @@ function WaitingList({ list, reload, onProof }: { list: Parcel[]; reload: () => 
   );
 }
 
-function SimpleList({ list, onProof, reload }: { list: Parcel[]; onProof: (p: Parcel) => void; reload: () => Promise<void> }) {
+/** Catatan per tanggal: HANYA barang yang DICATAT pada tanggal itu (sama persis dengan angka di dashboard).
+ *  Barang yang dicatat di hari lain tetapi diserahkan pada tanggal ini ditampilkan terpisah dan tidak dihitung sebagai masuk/keluar hari itu. */
+function DayLog({ parcels, day, setDay, dirFilter, setDirFilter, onProof, reload }: {
+  parcels: Parcel[]; day: string; setDay: (d: string) => void; dirFilter: "all" | ParcelDirection; setDirFilter: (d: "all" | ParcelDirection) => void;
+  onProof: (p: Parcel) => void; reload: () => Promise<void>;
+}) {
+  const today = todayISO();
+  const st = useMemo(() => dayStats(day, { parcels, grants: [], bookings: [], visitors: [] }), [day, parcels]);
+  const made = useMemo(() => parcels.filter((p) => dayOf(p.createdAt) === day && (dirFilter === "all" || p.direction === dirFilter)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [parcels, day, dirFilter]);
+  const other = useMemo(() => parcels.filter((p) => p.handedAt && dayOf(p.handedAt) === day && dayOf(p.createdAt) !== day && (dirFilter === "all" || p.direction === dirFilter)).sort((a, b) => (b.handedAt ?? "").localeCompare(a.handedAt ?? "")), [parcels, day, dirFilter]);
+  const types = (t: [string, number][]) => t.map(([k, n]) => `${itemTypeLabel(k)} ${n}`).join(" · ");
+  const min = addMonths(today, -6);   // data barang dimuat 6 bulan terakhir
+  return (
+    <>
+      <div className={r.row}>
+        <span className={r.row} style={{ gap: 4 }}>
+          <button type="button" className={r.ghost} onClick={() => setDay(addDays(day, -1))} disabled={day <= min} aria-label={L("Hari sebelumnya", "Previous day")}>‹</button>
+          <input className={r.input} style={{ width: 150, minHeight: 36 }} type="date" value={day} min={min} max={today} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label={L("Tanggal", "Date")} />
+          <button type="button" className={r.ghost} onClick={() => setDay(addDays(day, 1))} disabled={day >= today} aria-label={L("Hari berikutnya", "Next day")}>›</button>
+        </span>
+        {day !== today && <button type="button" className={r.ghost} onClick={() => setDay(today)}>{L("Hari ini", "Today")}</button>}
+        <div className={r.seg} role="group" aria-label={L("Arah", "Direction")}>
+          {([["all", L("Semua", "All")], ["in", L("Masuk", "Incoming")], ["out", L("Keluar", "Outgoing")]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={dirFilter === k} onClick={() => setDirFilter(k)}>{l}</button>)}
+        </div>
+      </div>
+      <div className={r.warn} style={{ background: "var(--surface2)", color: "var(--t1)", borderColor: "var(--border2)", fontWeight: 600 }}>
+        <div>⬇ {L("Masuk", "Incoming")}: <b>{st.docsIn}</b> {L("barang/surat", "items")} · {st.docsInN} {L("catatan", "records")} · {st.inTaken} {L("sudah diserahkan", "handed over")} · {st.inOpen} {L("menunggu", "waiting")}{st.inTypes.length ? ` — ${types(st.inTypes)}` : ""}</div>
+        <div>⬆ {L("Keluar", "Outgoing")}: <b>{st.docsOut}</b> {L("barang/surat", "items")} · {st.docsOutN} {L("catatan", "records")} · {st.outTaken} {L("sudah diserahkan", "handed over")} · {st.outOpen} {L("menunggu", "waiting")}{st.outTypes.length ? ` — ${types(st.outTypes)}` : ""}</div>
+      </div>
+      <h3 className={r.section} style={{ margin: 0 }}>{L("Dicatat pada tanggal ini", "Logged on this date")} ({made.length})</h3>
+      {made.length === 0 ? <p className={r.empty}>{day === today ? L("Belum ada barang / surat yang dicatat hari ini.", "No items logged today yet.") : L("Tidak ada barang / surat yang dicatat pada tanggal ini.", "No items were logged on this date.")}</p> : <SimpleList list={made} onProof={onProof} reload={reload} />}
+      {other.length > 0 && (
+        <>
+          <h3 className={r.section} style={{ margin: "6px 0 0" }}>{L(`Diserahkan pada tanggal ini — dicatat di hari lain (${other.length})`, `Handed over on this date — logged on another day (${other.length})`)}</h3>
+          <p className={r.hint}>{L("Tidak dihitung sebagai barang masuk / keluar pada tanggal ini.", "Not counted as incoming / outgoing on this date.")}</p>
+          <SimpleList list={other} onProof={onProof} reload={reload} showLogged />
+        </>
+      )}
+    </>
+  );
+}
+
+function SimpleList({ list, onProof, reload, showLogged }: { list: Parcel[]; onProof: (p: Parcel) => void; reload: () => Promise<void>; showLogged?: boolean }) {
   const [edit, setEdit] = useState<Parcel | null>(null);
-  if (!list.length) return <p className={r.empty}>{L("Belum ada aktivitas hari ini.", "No activity today.")}</p>;
+  if (!list.length) return <p className={r.empty}>{L("Belum ada aktivitas.", "No activity.")}</p>;
   return (
     <div className={r.list}>
       {list.map((p) => (
         <div key={p.id} className={r.item}>
           <div>
             <b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
-            <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}{p.qty > 1 ? ` ×${p.qty}` : ""}</span><span>{L("masuk", "logged")} {fmtTime(p.createdAt)}</span>{editedMark(p)}</div>
+            <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}{p.qty > 1 ? ` ×${p.qty}` : ""}</span><span>{L("dicatat", "logged")} {showLogged ? fmtDateTime(p.createdAt) : fmtTime(p.createdAt)}</span>{editedMark(p)}</div>
           </div>
           <div className={r.itemSide}>{p.status === "handed" ? <span className={`${r.pill} ${r.pGreen}`}>{p.handedTo} · {fmtTime(p.handedAt)}</span> : <span className={`${r.pill} ${r.pOrange}`}>{L("Menunggu", "Waiting")}</span>}
             <button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 {L("Bukti", "Receipt")}</button>

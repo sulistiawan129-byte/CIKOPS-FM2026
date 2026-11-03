@@ -18,6 +18,7 @@
 .heroText p { margin: 0; font-size: 14.5px; color: rgba(255, 255, 255, .88); line-height: 1.5; max-width: 62ch; }
 .clockBox { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .clock { font-family: var(--mono); font-size: clamp(30px, 4vw, 44px); font-weight: 700; letter-spacing: .02em; line-height: 1; text-shadow: 0 2px 14px rgba(0, 0, 0, .25); }
+.clock .tz { margin-left: 8px; font-family: var(--font); font-size: 12px; font-weight: 800; letter-spacing: .14em; opacity: .8; }
 .clock i { font-style: normal; animation: blink 1s steps(2, start) infinite; }
 @keyframes blink { to { visibility: hidden; } }
 .openChip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(255, 255, 255, .16); backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, .28); }
@@ -227,3 +228,25 @@
   .sparkLine { stroke-dashoffset: 0; } .sparkArea { opacity: 1; }
   .kpiCard:hover, .quick button:hover, .legend button:hover, .visRow:hover { transform: none; }
 }
+
+/* ───────── Penambahan audit akurasi: rincian jenis, kapasitas wifi, catatan ───────── */
+.kpiTypes { position: relative; z-index: 1; font-size: 11.5px; font-weight: 700; color: var(--t2); padding: 3px 8px; border-radius: 8px; background: color-mix(in srgb, var(--c) 10%, transparent); align-self: flex-start; }
+.capLine { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.capLine small { font-size: 11.5px; color: var(--t2); font-weight: 600; line-height: 1.3; }
+.meterBar { display: block; height: 7px; border-radius: 999px; background: var(--border2); overflow: hidden; }
+.meterBar i { display: block; height: 100%; border-radius: 999px; transition: width .6s ease; }
+.cap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.ring { position: relative; flex: none; display: grid; place-items: center; align-content: center; width: 132px; height: 132px; border-radius: 50%; text-align: center;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--border2) 0); }
+.ring::before { content: ""; position: absolute; inset: 12px; border-radius: 50%; background: var(--surface); }
+.ring b, .ring small, .ring em { position: relative; z-index: 1; line-height: 1.1; }
+.ring b { font-family: var(--font-display); font-size: 30px; }
+.ring small { font-size: 12px; color: var(--t2); font-weight: 700; }
+.ring em { font-style: normal; font-size: 11.5px; font-weight: 800; color: var(--c); margin-top: 2px; }
+.capList { flex: 1 1 200px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin: 0; padding: 0; list-style: none; }
+.capList li { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--border2); background: var(--surface); }
+.capList li span { font-size: 11.5px; font-weight: 700; color: var(--t2); }
+.capList li b { font-family: var(--font-display); font-size: 20px; line-height: 1.1; }
+.subHead { margin-top: 4px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--t2); }
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--orange) 45%, transparent); background: var(--orange-soft); color: var(--orange-text); font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .meterBar i { transition: none; } }

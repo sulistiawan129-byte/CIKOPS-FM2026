@@ -35,7 +35,10 @@ export interface NcBoard {
 export interface RcpBoard {
   today: string;
   wifi: { accounts: number; slots: number; used: number; expiring7: number; guests_today: number };
-  parcels: { waiting: number; waiting_in: number; waiting_out: number; waiting_old: number; in_today: number; handed_today: number };
+  /** in_today / out_today = JUMLAH barang (per kolom Jumlah) yang dicatat hari ini, *_n = jumlah catatan; handed_today = serah terima hari ini (apa pun tanggal dicatatnya).
+   *  Field baru (SQL 056) opsional supaya tetap jalan sebelum SQL dijalankan. */
+  parcels: { waiting: number; waiting_in: number; waiting_out: number; waiting_old: number; in_today: number; handed_today: number; in_today_n?: number; out_today?: number; out_today_n?: number; handed_from_other_days?: number };
+  visitors?: { guests: number; visits: number; inside: number };
   bookings: { start: string; end: string; title: string; attendees: number | null }[];
   bookings_week: number;
 }

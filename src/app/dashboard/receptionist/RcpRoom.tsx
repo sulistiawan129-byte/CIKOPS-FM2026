@@ -43,7 +43,8 @@ export default function RcpRoom({ settings, dir, onChanged }: { settings: RcpSet
   const open = toMin(settings.openTime), close = toMin(settings.closeTime), step = settings.slotMinutes;
   const slots = useMemo(() => { const a: number[] = []; for (let m = open; m < close; m += step) a.push(m); return a; }, [open, close, step]);
   const today = todayISO();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  // menit sejak tengah malam menurut WIB (sama dengan database & "hari ini"), bukan zona waktu perangkat
+  const nowMin = new Date(now.getTime() + 7 * 3600000).getUTCHours() * 60 + new Date(now.getTime() + 7 * 3600000).getUTCMinutes();
   const pxOf = (min: number) => ((min - open) / step) * SLOT_PX;
 
   function newAt(date: string, startMin: number) {

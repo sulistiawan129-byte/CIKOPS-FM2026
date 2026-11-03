@@ -553,7 +553,8 @@ function Atk({ v }: { v: FmView }) {
 function Rcp({ v }: { v: FmView }) {
   const r = v.rcp;
   if (!r) return <div className={s.empty}>{L("Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031).", "The Receptionist module is not active yet — run supabase/01_dasar.sql (section 031).")}</div>;
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const wib = new Date(Date.now() + 7 * 3600000);   // jam kantor = WIB, bukan zona waktu perangkat
+  const nowMin = wib.getUTCHours() * 60 + wib.getUTCMinutes();
   const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const freePct = r.wifi.slots ? (r.free / r.wifi.slots) * 100 : 0;
   return (
@@ -561,6 +562,7 @@ function Rcp({ v }: { v: FmView }) {
       <KpiStrip items={[
         { label: L("Slot wifi tamu tersedia", "Guest wifi slots available"), value: `${nf(r.free)} / ${nf(r.wifi.slots)}`, sub: L(`${nf(r.wifi.accounts)} akun berlaku · ${nf(r.wifi.expiring7)} habis ≤ 7 hari`, `${nf(r.wifi.accounts)} valid accounts · ${nf(r.wifi.expiring7)} expiring ≤ 7 days`), c: freePct < 15 ? C.bad : freePct < 35 ? C.warn : C.ok },
         { label: L("Tamu wifi hari ini", "Wifi guests today"), value: nf(r.wifi.guests_today), sub: L(`${nf(r.wifi.used)} slot sedang dipakai`, `${nf(r.wifi.used)} slot(s) in use`), c: C.blue },
+        ...(r.visitors ? [{ label: L("Tamu datang hari ini", "Visitors today"), value: nf(r.visitors.guests), sub: L(`${nf(r.visitors.visits)} kunjungan · ${nf(r.visitors.inside)} masih di lokasi`, `${nf(r.visitors.visits)} visits · ${nf(r.visitors.inside)} still on site`), c: C.blue }] : []),
         { label: L("Barang menunggu", "Items waiting"), value: nf(r.parcels.waiting), sub: L(`${nf(r.parcels.waiting_in)} masuk · ${nf(r.parcels.waiting_out)} keluar${r.parcels.waiting_old ? ` · ${nf(r.parcels.waiting_old)} > 2 hari` : ""}`, `${nf(r.parcels.waiting_in)} incoming · ${nf(r.parcels.waiting_out)} outgoing${r.parcels.waiting_old ? ` · ${nf(r.parcels.waiting_old)} > 2 days` : ""}`), c: r.parcels.waiting_old ? C.warn : C.violet },
         { label: L("Booking Induction Room", "Induction Room bookings"), value: nf(r.bookings.length), sub: L(`hari ini · ${nf(r.bookings_week)} dalam 7 hari`, `today · ${nf(r.bookings_week)} in 7 days`), c: C.ok },
       ]} />
@@ -583,8 +585,9 @@ function Rcp({ v }: { v: FmView }) {
         </Card>
         <Card title={L("Barang & surat hari ini", "Items & mail today")}>
           <div className={s.duo}>
-            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.in_today)}</div><div className={s.areaUnit}>{L("dicatat hari ini", "logged today")}</div></div>
-            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.handed_today)}</div><div className={s.areaUnit}>{L("diserahkan hari ini", "handed over today")}</div></div>
+            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.in_today)}</div><div className={s.areaUnit}>{L("masuk hari ini", "incoming today")}{r.parcels.in_today_n !== undefined && r.parcels.in_today_n !== r.parcels.in_today ? ` · ${nf(r.parcels.in_today_n)} ${L("catatan", "records")}` : ""}</div></div>
+            {r.parcels.out_today !== undefined && <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.out_today)}</div><div className={s.areaUnit}>{L("keluar hari ini", "outgoing today")}{r.parcels.out_today_n !== undefined && r.parcels.out_today_n !== r.parcels.out_today ? ` · ${nf(r.parcels.out_today_n)} ${L("catatan", "records")}` : ""}</div></div>}
+            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.handed_today)}</div><div className={s.areaUnit}>{L("diserahkan hari ini", "handed over today")}{r.parcels.handed_from_other_days ? ` · ${nf(r.parcels.handed_from_other_days)} ${L("dicatat hari lain", "logged earlier")}` : ""}</div></div>
           </div>
           <div style={{ marginTop: "1.4rem" }}>
             <Meter name={L("Slot wifi terpakai", "Wifi slots used")} value={L(`${nf(r.wifi.used)} dari ${nf(r.wifi.slots)}`, `${nf(r.wifi.used)} of ${nf(r.wifi.slots)}`)} frac={r.wifi.slots ? r.wifi.used / r.wifi.slots : 0} color={freePct < 15 ? C.bad : undefined} />
