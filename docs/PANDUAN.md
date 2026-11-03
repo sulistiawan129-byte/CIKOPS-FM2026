@@ -1080,8 +1080,17 @@ emas (hanya hari tertentu, mis. soto) + pendamping; nasi, sambal, kerupuk, buah 
 Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjalan dalam gaya kartu menu.
 - URL: `/menu-tv` · `?slide=snack|meal|today|cover|closing` · `?rotate=0` · `?sec=20` · `?date=2026-11-03` (pratinjau minggu lain).
 - Operator: ← → ganti slide, `F` layar penuh. Layar tidak merespons klik/sentuhan.
-- **Status:** tampilan sudah jadi, isinya masih data contoh (`src/lib/canteenMenu.ts`); input menu per minggu dari
-  Dashboard → Kantin belum dibuat.
+- **Mengisi menu:** Dashboard → Fasilitas → **Kantin** → tab **Menu TV**.
+  1. Pilih minggu (Senin–Minggu) dengan tombol ‹ › atau pilih tanggal.
+  2. Isi per hari: Snack, lauk utama (Daging, Ayam, Telur), Special (kosongkan bila tidak ada), Pendamping (bisa tambah/hapus),
+     lalu "Selalu tersedia" (nasi, sambal, kerupuk, buah) untuk satu minggu. Tiap butir: nama, **kkal**, **gram**.
+  3. Nama yang pernah dipakai terisi otomatis kalori & gramnya. **Salin dari minggu lalu** mempercepat pengisian.
+  4. **Simpan menu** → layar TV memperbarui diri maksimal 5 menit kemudian. **Lihat di TV** membuka pratinjau.
+  Baris yang namanya kosong tidak ditampilkan. Bila minggu itu belum diisi, TV menampilkan layar "Menu minggu ini segera hadir".
+- **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 051) di Supabase SQL Editor — membuat tabel
+  `canteen_menu_weeks` dan fungsi publik `canteen_menu_public`. Yang boleh mengisi: akun dengan akses modul Kantin
+  (sama seperti laporan kantin); layar TV hanya membaca satu minggu lewat fungsi itu.
+- `?sample=1` menampilkan menu contoh untuk uji tampilan.
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro

@@ -16,7 +16,8 @@ import { getAllCanteenReports, deleteCanteenReport } from "@/lib/api";
 import type { CanteenReport } from "@/lib/types";
 import { exportCanteenToPdf } from "@/lib/canteenReport";
 import c from "./canteen.module.css";
-import { ModuleHeader } from "./ModuleShell";
+import { ModuleHeader, ModuleTabs } from "./ModuleShell";
+import CanteenMenuEditor from "./CanteenMenuEditor";
 
 import { loc , L} from "@/lib/i18n";
 type PeriodMode = "day" | "week" | "month" | "custom";
@@ -84,6 +85,7 @@ const IcBulb = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
 export default function CanteenTab() {
   const { t } = useLang();
   const now = new Date();
+  const [view, setView] = useState<"report" | "menu">("report");
 
   const [allRows, setAllRows] = useState<CanteenReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,6 +279,25 @@ export default function CanteenTab() {
     );
   };
 
+  const viewTabs = (
+    <ModuleTabs<"report" | "menu"> value={view} onChange={setView} label={L("Tampilan Kantin", "Canteen view")}
+      tabs={[{ id: "report", label: L("Laporan", "Report"), icon: "📊" }, { id: "menu", label: L("Menu TV", "TV Menu"), icon: "📺" }]} />
+  );
+
+  if (view === "menu") {
+    return (
+      <div className={c.wrap}>
+        <ModuleHeader
+          kicker={L("Fasilitas · Kantin", "Facility · Canteen")}
+          title={L("Menu TV Kantin", "Canteen TV Menu")}
+          desc={L("Isi menu mingguan (snack, lauk utama, special, pendamping) beserta kalori & gram. Hasilnya tampil otomatis di layar TV kantin: /menu-tv.", "Enter the weekly menu (snack, main dishes, special, sides) with calories & grams. It shows automatically on the canteen TV: /menu-tv.")}
+        />
+        {viewTabs}
+        <CanteenMenuEditor />
+      </div>
+    );
+  }
+
   return (
     <div className={c.wrap}>
       <ModuleHeader
@@ -288,6 +309,8 @@ export default function CanteenTab() {
           <button type="button" className={c.ghost} onClick={handleExportPdf} disabled={!hasData || exportingPdf}><IcDown />{exportingPdf ? L("Membuat…", "Creating…") : "PDF"}</button>
         </>}
       />
+
+      {viewTabs}
 
       <div className={c.toolbar}>
         <div className={c.seg} role="group" aria-label={L("Mode periode", "Period mode")}>

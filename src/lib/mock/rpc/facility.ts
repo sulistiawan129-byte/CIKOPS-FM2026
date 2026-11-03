@@ -1025,4 +1025,12 @@ const GA: Record<string, RpcHandler> = {
   },
 };
 
-export const FACILITY: Record<string, RpcHandler> = { ...ATK, ...LOCKER, ...GIFT, ...PRINTER, ...RECEPTIONIST, ...GA };
+/** Menu kantin untuk layar TV (SQL 051): hanya baca, satu minggu. */
+const CANTEEN_MENU: Record<string, RpcHandler> = {
+  canteen_menu_public(a, ctx) {
+    const row = table(ctx.db, "canteen_menu_weeks").find((r) => s(r.week_start) === s(a.p_week));
+    return row ? row.data : null;
+  },
+};
+
+export const FACILITY: Record<string, RpcHandler> = { ...CANTEEN_MENU, ...ATK, ...LOCKER, ...GIFT, ...PRINTER, ...RECEPTIONIST, ...GA };

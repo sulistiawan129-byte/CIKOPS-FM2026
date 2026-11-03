@@ -8,14 +8,16 @@
  * URL: ?slide=cover|snack|meal|today|closing (mulai di slide tertentu), ?rotate=0 (tanpa rotasi),
  *      ?sec=20 (lama tiap slide, detik), ?date=2026-11-03 (pratinjau minggu lain).
  * Operator: ← → ganti slide, F layar penuh (layar tidak merespons klik/sentuhan).
- * CATATAN: isi menu masih CONTOH (lib/canteenMenu.ts) sampai ada input menu di Dashboard → Kantin.
+ * Data: diisi di Dashboard → Kantin → Menu TV, dibaca lewat fungsi publik canteen_menu_public (segar tiap 5 menit).
+ *      ?sample=1 menampilkan menu contoh (untuk uji tampilan).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import s from "./menutv.module.css";
 import { BRAND } from "@/lib/brand";
 import { L, loc } from "@/lib/i18n";
-import { addDaysIso, sampleWeek, type MenuItem, type WeeklyMenu } from "@/lib/canteenMenu";
+import { addDaysIso, hasItem, mondayOf, sampleWeek, type MenuItem, type WeeklyMenu } from "@/lib/canteenMenu";
+import { getPublicMenu } from "@/lib/canteenMenuApi";
 
 type SlideKey = "cover" | "snack" | "meal" | "today" | "closing";
 const ORDER: SlideKey[] = ["cover", "snack", "meal", "today", "closing"];
@@ -83,7 +85,7 @@ function CountUp({ to, delay = 0, dur = 1100 }: { to: number; delay?: number; du
 }
 
 const kk = () => L("kkal", "kcal");
-const Num = ({ it }: { it: MenuItem }) => <div className={s.dishNum}><b>{it.kcal}</b> {kk()} · <b>{it.gram}</b> g</div>;
+const Num = ({ it }: { it: MenuItem }) => <div className={s.dishNum}><b>{it.kcal || "–"}</b> {kk()} · <b>{it.gram || "–"}</b> g</div>;
 const idxStyle = (i: number, b = 0) => ({ ["--i" as string]: i, ["--b" as string]: `${b}ms` }) as React.CSSProperties;
 
 interface Ctx { week: WeeklyMenu; dates: string[]; today: string; period: string }
@@ -108,7 +110,7 @@ function Cover({ c }: { c: Ctx }) {
 }
 
 function Snack({ c }: { c: Ctx }) {
-  const max = Math.max(...c.week.days.map((d) => d.snack.kcal));
+  const max = Math.max(1, ...c.week.days.map((d) => d.snack.kcal));
   return (
     <section className={`${s.slide} ${s.snack}`}>
       <div className={s.snackLeft}>
@@ -123,12 +125,14 @@ function Snack({ c }: { c: Ctx }) {
             <div className={s.sDay}>{fmt(c.dates[i], { weekday: "long" })}
               {c.dates[i] === c.today ? <span><br /><span className={s.sNow}>{L("HARI INI", "TODAY")}</span></span> : <small>{fmt(c.dates[i], { day: "numeric", month: "short" })}</small>}
             </div>
-            <div className={s.sName}>{d.snack.name}</div>
-            <div className={s.sNum}>
-              <div><b><CountUp to={d.snack.kcal} delay={600 + i * 90} /></b><span>{kk()}</span></div>
-              <div className="g"><b style={{ color: "var(--sky)" }}><CountUp to={d.snack.gram} delay={700 + i * 90} /></b><span>g</span></div>
-            </div>
-            <div className={s.sBar}><i style={{ ...idxStyle(i + 2), width: `${Math.round((d.snack.kcal / max) * 100)}%` }} /></div>
+            <div className={s.sName} style={hasItem(d.snack) ? undefined : { opacity: 0.3 }}>{hasItem(d.snack) ? d.snack.name : "—"}</div>
+            {hasItem(d.snack) ? (
+              <div className={s.sNum}>
+                <div><b><CountUp to={d.snack.kcal} delay={600 + i * 90} /></b><span>{kk()}</span></div>
+                <div className="g"><b style={{ color: "var(--sky)" }}><CountUp to={d.snack.gram} delay={700 + i * 90} /></b><span>g</span></div>
+              </div>
+            ) : <div />}
+            {hasItem(d.snack) && <div className={s.sBar}><i style={{ ...idxStyle(i + 2), width: `${Math.round((d.snack.kcal / max) * 100)}%` }} /></div>}
           </div>
         ))}
       </div>
@@ -163,11 +167,20 @@ function Meal({ c }: { c: Ctx }) {
               <div className={s.sec}>{L("Lauk Utama", "Main Dish")}</div>
               {TAGS().map(([k, tag, col]) => (
                 <div key={k} className={s.dish} style={{ ["--c" as string]: col }}>
-                  <div className={s.dishName}>{d.main[k].name}</div>
-                  <div className={s.dishFoot}><Num it={d.main[k]} /><span className={s.dishTag}>{tag}</span></div>
+                  {hasItem(d.main[k]) ? (
+                    <>
+                      <div className={s.dishName}>{d.main[k].name}</div>
+                      <div className={s.dishFoot}><Num it={d.main[k]} /><span className={s.dishTag}>{tag}</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={s.dishName} style={{ opacity: 0.3 }}>—</div>
+                      <div className={s.dishFoot}><span /><span className={s.dishTag}>{tag}</span></div>
+                    </>
+                  )}
                 </div>
               ))}
-              {d.special ? (
+              {hasItem(d.special) ? (
                 <div className={s.special}>
                   <div className={s.dishTag}>★ Special</div>
                   <div className={s.dishName}>{d.special.name}</div>
@@ -175,7 +188,7 @@ function Meal({ c }: { c: Ctx }) {
                 </div>
               ) : <div className={s.noSpecial}>—</div>}
               <div className={s.sec}>{L("Pendamping", "Sides")}</div>
-              {d.sides.map((sd, k) => (
+              {d.sides.filter(hasItem).map((sd, k) => (
                 <div key={k} className={s.side}><div className={s.dishName}>{sd.name}</div><Num it={sd} /></div>
               ))}
             </div>
@@ -185,7 +198,7 @@ function Meal({ c }: { c: Ctx }) {
       <div className={`${s.staples} ${s.rise}`} style={idxStyle(9)}>
         <div className={s.staplesLabel}>{L("Selalu Tersedia", "Always Served")}<small>{L("setiap hari, Senin – Minggu", "every day, Monday – Sunday")}</small></div>
         <div className={s.stapleList}>
-          {c.week.staples.map((st, k) => (
+          {c.week.staples.filter(hasItem).slice(0, 4).map((st, k) => (
             <div key={k} className={s.staple}>
               <div className={s.stapleIcon}>{["N", "S", "K", "B"][k] ?? "•"}</div>
               <div><div className={s.stapleName}>{st.name}</div><div className={s.stapleNum}><b>{st.kcal}</b> {kk()} · <b>{st.gram}</b> g</div></div>
@@ -223,23 +236,23 @@ function TodaySlide({ c }: { c: Ctx }) {
       <div className={s.tCols}>
         <div>
           <div className={`${s.course} ${s.rise}`} style={idxStyle(2)}><h3>I. {L("Snack", "Snack")}<span>{L("SARAPAN", "BREAKFAST")}</span></h3>
-            <MRow it={d.snack} i={n++} />
+            {hasItem(d.snack) ? <MRow it={d.snack} i={n++} /> : <div className={s.mRow} style={{ opacity: 0.35 }}><span className={s.mName}>—</span></div>}
           </div>
           <div className={`${s.course} ${s.rise}`} style={idxStyle(3)}><h3>II. {L("Hidangan Utama", "Main Dishes")}<span>{L("3 PILIHAN", "3 CHOICES")}</span></h3>
-            {TAGS().map(([k, tag, col]) => <MRow key={k} tag={tag} col={col} it={d.main[k]} i={n++} />)}
+            {TAGS().map(([k, tag, col]) => hasItem(d.main[k]) ? <MRow key={k} tag={tag} col={col} it={d.main[k]} i={n++} /> : null)}
           </div>
-          {d.special && (
+          {hasItem(d.special) && (
             <div className={`${s.course} ${s.rise}`} style={idxStyle(4)}><h3>III. Special<span>{L("HARI INI SAJA", "TODAY ONLY")}</span></h3>
               <MRow sp it={d.special} i={n++} />
             </div>
           )}
         </div>
         <div>
-          <div className={`${s.course} ${s.rise}`} style={idxStyle(5)}><h3>{d.special ? "IV" : "III"}. {L("Pendamping", "Sides")}<span>{L("PELENGKAP", "ACCOMPANIMENT")}</span></h3>
-            {d.sides.map((sd, k) => <MRow key={k} it={sd} i={n++} />)}
+          <div className={`${s.course} ${s.rise}`} style={idxStyle(5)}><h3>{hasItem(d.special) ? "IV" : "III"}. {L("Pendamping", "Sides")}<span>{L("PELENGKAP", "ACCOMPANIMENT")}</span></h3>
+            {d.sides.filter(hasItem).map((sd, k) => <MRow key={k} it={sd} i={n++} />)}
           </div>
-          <div className={`${s.course} ${s.rise}`} style={idxStyle(6)}><h3>{d.special ? "V" : "IV"}. {L("Selalu Tersedia", "Always Served")}<span>{L("SETIAP HARI", "EVERY DAY")}</span></h3>
-            {c.week.staples.map((st, k) => <MRow key={k} it={st} i={n++} />)}
+          <div className={`${s.course} ${s.rise}`} style={idxStyle(6)}><h3>{hasItem(d.special) ? "V" : "IV"}. {L("Selalu Tersedia", "Always Served")}<span>{L("SETIAP HARI", "EVERY DAY")}</span></h3>
+            {c.week.staples.filter(hasItem).map((st, k) => <MRow key={k} it={st} i={n++} />)}
           </div>
         </div>
       </div>
@@ -263,6 +276,23 @@ function Closing({ c }: { c: Ctx }) {
   );
 }
 
+function EmptySlide({ period, error }: { period: string; error: boolean }) {
+  return (
+    <section className={`${s.slide} ${s.cover}`}>
+      <div className={s.rays} />
+      <div className={`${s.logoWrap} ${s.rise}`} style={idxStyle(0)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="CIKOPS-FM" />
+      </div>
+      <div className={`${s.label} ${s.coverKicker} ${s.rise}`} style={idxStyle(1)}>{BRAND.company} · Facility Management</div>
+      <h1 className={`${s.coverMenu} ${s.goldText} ${s.rise}`} style={{ ...idxStyle(2), fontSize: 120 }}>{L("Menu Kantin", "Canteen Menu")}</h1>
+      <div className={`${s.coverOrn} ${s.fade}`} style={idxStyle(4)}><Ornament /></div>
+      <div className={`${s.coverCourses} ${s.rise}`} style={idxStyle(5)}>{error ? L("Menu sedang dimuat — mohon tunggu sebentar.", "Loading the menu — please wait a moment.") : L("Menu minggu ini segera hadir.", "This week's menu is coming soon.")}</div>
+      <div className={`${s.coverPeriod} ${s.rise}`} style={{ ...idxStyle(6), marginTop: 30, fontSize: 30 }}><small>{L("Periode", "Period")}</small><b>{period}</b></div>
+    </section>
+  );
+}
+
 /* ═════════ HALAMAN ═════════ */
 export default function MenuTv() {
   const [ready, setReady] = useState(false);
@@ -273,6 +303,9 @@ export default function MenuTv() {
   const [auto, setAuto] = useState(true);
   const [secOverride, setSecOverride] = useState<number | null>(null);
   const [scale, setScale] = useState(1);
+  const [week, setWeek] = useState<WeeklyMenu | null>(null);
+  const [status, setStatus] = useState<"loading" | "ok" | "empty" | "error">("loading");
+  const [sample, setSample] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -284,6 +317,7 @@ export default function MenuTv() {
     const sl = q.get("slide");
     if (sl) { const i = /^\d$/.test(sl) ? Number(sl) : ORDER.indexOf(sl as SlideKey); if (i >= 0 && i < ORDER.length) setIdx(i); }
     if (q.get("rotate") === "0") setAuto(false);
+    if (q.get("sample") === "1") setSample(true);
     const sec = Number(q.get("sec")); if (sec > 0) setSecOverride(sec);
     setReady(true);
   }, []);
@@ -326,11 +360,31 @@ export default function MenuTv() {
     return () => window.removeEventListener("keydown", onKey);
   }, [go, toggleFs]);
 
-  const week = useMemo(() => (viewDate ? sampleWeek(viewDate) : null), [viewDate]);
-  if (!ready || !week) return <div className={s.root} />;
+  const weekStart = useMemo(() => (viewDate ? mondayOf(viewDate) : ""), [viewDate]);
 
-  const dates = week.days.map((_, i) => addDaysIso(week.weekStart, i));
-  const c: Ctx = { week, dates, today, period: periodText(dates[0], dates[6]) };
+  // ambil menu minggu ini; segarkan tiap 5 menit supaya perubahan dari Dashboard ikut tampil
+  useEffect(() => {
+    if (!ready || !weekStart) return;
+    if (sample) { setWeek(sampleWeek(weekStart)); setStatus("ok"); return; }
+    let alive = true;
+    const pull = async () => {
+      try {
+        const w = await getPublicMenu(weekStart);
+        if (!alive) return;
+        setWeek(w); setStatus(w ? "ok" : "empty");
+      } catch { if (alive) setStatus((st) => (st === "ok" ? st : "error")); }
+    };
+    void pull();
+    const t = setInterval(pull, 5 * 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [ready, weekStart, sample]);
+
+  if (!ready || !weekStart) return <div className={s.root} />;
+  const emptyState = status !== "ok" || !week;
+
+  const dates = Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
+  const period = periodText(dates[0], dates[6]);
+  const c: Ctx | null = emptyState ? null : { week: week!, dates, today, period };
 
   return (
     <div ref={rootRef} className={s.root}>
@@ -347,17 +401,18 @@ export default function MenuTv() {
         <Corner cls={s.cTL} /><Corner cls={s.cTR} /><Corner cls={s.cBL} /><Corner cls={s.cBR} />
 
         <div key={`${key}-${tick}`} style={{ position: "absolute", inset: 0 }}>
-          {key === "cover" && <Cover c={c} />}
-          {key === "snack" && <Snack c={c} />}
-          {key === "meal" && <Meal c={c} />}
-          {key === "today" && <TodaySlide c={c} />}
-          {key === "closing" && <Closing c={c} />}
+          {!c && status !== "loading" && <EmptySlide period={period} error={status === "error"} />}
+          {c && key === "cover" && <Cover c={c} />}
+          {c && key === "snack" && <Snack c={c} />}
+          {c && key === "meal" && <Meal c={c} />}
+          {c && key === "today" && <TodaySlide c={c} />}
+          {c && key === "closing" && <Closing c={c} />}
           <div className={s.wipe} />
         </div>
       </div>
 
-      {auto && <div key={`${idx}-${tick}-${dur}`} className={s.progress} style={{ animationDuration: `${dur}s` }} />}
-      <div className={s.nav}>
+      {auto && c && <div key={`${idx}-${tick}-${dur}`} className={s.progress} style={{ animationDuration: `${dur}s` }} />}
+      <div className={s.nav} style={c ? undefined : { display: "none" }}>
         {ORDER.map((k, i) => <span key={k} className={`${s.navDot} ${i === idx ? s.on : ""}`} />)}
       </div>
     </div>
