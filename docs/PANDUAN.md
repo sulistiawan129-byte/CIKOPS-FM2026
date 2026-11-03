@@ -560,7 +560,7 @@ Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.
 
 ## Receptionist
 
-Menu baru: **Dashboard → Fasilitas → Receptionist** (Dashboard, Wifi Guest, Barang & Surat, Induction Room, Pengaturan).
+Menu baru: **Dashboard → Fasilitas → Receptionist** (Dashboard, Tamu, Wifi Guest, Barang & Surat, Induction Room, Data Master, Pengaturan).
 Ringkasannya juga tampil di **FM Command Center** (tab *Receptionist*, angka di *Ringkasan hari ini*, dan butir *Perlu tindakan*).
 
 ### 1. Jalankan SQL (sekali)
@@ -596,6 +596,32 @@ Akun ber-role `receptionist` dikunci ke menu Receptionist saja: tanpa Home, Ring
 Kalender, pencarian, atau menu lain. URL menu lain otomatis diarahkan kembali ke Receptionist.
 Untuk membuat akun resepsionis lain: buat user baru, lalu
 `update profiles set role = 'receptionist', allowed_tabs = array['receptionist'] where id = (select id from auth.users where email = '...');`
+
+### Dashboard harian & buku tamu (bagian 055)
+**Dashboard** menampilkan angka HARIAN untuk tanggal yang dipilih (default hari ini; panah ‹ › atau kalender di bagian atas, tombol *Kembali ke hari ini*):
+
+| Kartu | Isi |
+|---|---|
+| **Dokumen masuk** | jumlah barang/surat masuk pada hari itu (dijumlah per *Jumlah*), banyak catatan, dan yang masih menunggu diambil |
+| **Dokumen keluar** | jumlah barang/surat keluar, banyak catatan |
+| **Booking Induction Room** | jumlah agenda, total jam terbooking, atau agenda berikutnya |
+| **Peminjaman Wifi Guest** | jumlah pemberian akun wifi pada hari itu, jumlah slot, dan tamu yang masih aktif |
+| **Tamu datang** | jumlah ORANG (rombongan dijumlah), banyak kunjungan, dan yang masih di lokasi |
+
+Tiap kartu punya tren 7 hari (garis kecil), selisih dengan hari sebelumnya, dan bisa diketuk untuk membuka tab terkait.
+Di bawahnya: **Aktivitas 14 hari** (ketuk batang untuk pindah ke hari itu, arahkan kursor untuk rincian, ketuk nama di legenda untuk
+menampilkan/menyembunyikan jenis aktivitas), **Sedang di lokasi** (tamu yang belum pulang + tombol *Pulang*), **Jejak hari ini**
+(tamu datang/pulang, barang masuk/keluar/diserahkan, wifi, booking — urut waktu), **jadwal Induction Room** (garis waktu + penanda "sekarang"),
+barang menunggu, akun wifi yang akan habis, dan pemakaian wifi per departemen. Tombol aksi cepat di bagian atas membuka form yang dituju.
+
+**Tab Tamu = buku tamu.** *Tamu datang* → isi nama (tamu yang pernah datang muncul sebagai saran, instansi & HP terisi sendiri), jumlah orang
+(rombongan cukup satu baris), bertemu siapa (dari Data Karyawan; departemen terisi sendiri), keperluan, no. kartu tamu, dan jam datang
+(otomatis sekarang; boleh diisi mundur untuk koreksi). Saat tamu keluar tekan **Pulang**. Daftar per tanggal bisa difilter (Di lokasi / Sudah pulang),
+dicari, diubah (termasuk jam datang & pulang), dibatalkan pulangnya, dihapus (bila salah catat), dan diekspor ke Excel/PDF. Kunjungan yang
+sudah > 4 jam tanpa Pulang diberi petunjuk "lupa check-out?".
+- Hak akses: yang mengelola Receptionist bisa mengisi; role Management hanya membaca.
+- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 055) di Supabase SQL Editor. Sebelum itu, tab Tamu menampilkan petunjuk
+  dan bagian dashboard lain tetap berjalan.
 
 ### Pemilihan akun wifi sesuai durasi
 Akun wifi dari IT punya "tipe" menurut panjang masa berlakunya (mis. 7, 30, 60 hari). Pada pilihan **1 minggu / 1 bulan / 3 bulan**,
@@ -1121,7 +1147,7 @@ Report → Laporan Manajemen menyusun ringkasan umum per modul, dikelompokkan se
 
 | Kategori | Modul laporan |
 |---|---|
-| Fleet & Kendaraan | **Fleet Management** — penugasan driver, utilisasi armada, dokumen jatuh tempo |
+| Fleet & Kendaraan | **Fleet Management** — penugasan driver, armada terpakai, dokumen jatuh tempo |
 | Finance | **Klaim Driver** — pengeluaran per kategori |
 | Fasilitas | **Kantin**, **ATK**, **Cleaning & Gardening** (achievement plan vs actual), **TGA** (pekerjaan teknisi: selesai, belum selesai, urgent, per teknisi), **Receptionist** (akses wifi tamu, barang & surat + tingkat serah terima, pemakaian Induction Room, kapasitas akun wifi) |
 | Security | **Security** — kendaraan, visitor, transporter, pelanggaran, kejadian, patroli |
@@ -1129,6 +1155,24 @@ Report → Laporan Manajemen menyusun ringkasan umum per modul, dikelompokkan se
 Setiap modul berisi 4 angka utama, 2 grafik, temuan, dan rekomendasi; ringkasan eksekutif di atas
 memuat butir "perlu perhatian manajemen". Unduh sebagai Excel, PowerPoint, atau PDF (Indonesia / English).
 Modul yang tampil mengikuti role (mis. Admin ISS hanya Cleaning & Gardening dan TGA).
+
+### Cara membaca angka — perbandingan, catatan data, dan istilah
+- **Perbandingan yang adil.** Bulan yang sedang berjalan dipotong sampai **hari ini** dan dibandingkan dengan **rentang hari yang sama**
+  di bulan lalu (1–3 Nov ↔ 1–3 Okt), bukan dengan satu bulan penuh. Label periode memuat "(data s.d. 3 Nov)". Bulan/kuartal/tahun penuh
+  dibandingkan dengan periode kalender sebelumnya.
+- **Tanda ⚠ = perbandingan belum representatif.** Muncul bila periode pembanding baru terisi < 80% (mis. modul baru dipakai sejak
+  pertengahan bulan lalu) atau periode ini belum terisi penuh (data terakhir tertinggal > 3 hari). Angka naik/turun tetap tampil,
+  tetapi bertanda ⚠, tidak diwarnai baik/buruk, dan **tidak dijadikan dasar rekomendasi**. Ringkasan eksekutif menyebut modul mana yang terkena.
+  Di grafik tren 13 bulan, perubahan terhadap bulan yang datanya baru terisi sebagian tidak ditampilkan, dan bulan sebelum data ada
+  tidak dihitung sebagai "0".
+- **Catatan data per modul** (layar, PDF, PPT, Excel): *Data tersedia sejak … · terakhir tercatat … (N hari lalu)*, peringatan ⚠ beserta
+  alasannya, dan **definisi indikator** (rumus, aturan tutup otomatis pukul 17.00, dll.). Di layar: kotak di bawah tiap modul; PDF: strip di
+  dasar halaman + lampiran; PPT: strip + slide "Catatan data & definisi"; Excel: baris peringatan di atas + bagian "Catatan data & definisi".
+- **Tingkat penyelesaian driver** menampilkan komposisinya: *% oleh driver · % otomatis 17.00 · dibatalkan*. Tugas yang belum ditutup
+  driver sampai pukul 17.00 WIB pada tanggal tugas ditutup sistem; dihitung selesai tetapi tidak masuk rata-rata durasi.
+- **"Armada terpakai"** (dulu "Utilisasi armada") = unit aktif yang dipakai minimal sekali ÷ unit aktif. Tidak mengukur seberapa sering unit dipakai.
+- **Rincian selalu menjumlah ke total:** daftar teratas (jenis pekerjaan, teknisi, pemohon, kategori, jenis kejadian) memuat baris "Lainnya"
+  untuk sisanya.
 Laporan Receptionist tampil untuk Master Admin, Admin GA CIK, dan Management (role Management hanya membaca; kata sandi akun wifi tidak ikut terbaca — kapasitas akun diambil lewat fungsi khusus, SQL 052).
 
 ## Bahasa Indonesia / English

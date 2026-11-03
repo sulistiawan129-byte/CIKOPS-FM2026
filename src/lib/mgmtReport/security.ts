@@ -12,6 +12,7 @@ import {
   type DriverNames, type GcAgg, type GcCase, type MonthTotals, type SecData, type VehKey,
 } from "../security/model";
 import {
+  COMPARE_FLAG, comparableOk,
   PALETTE, dShort, fmtNum, fmtPct, getReportLang, monShort, metaOf, parseISO, prevRange, tr, trendChart, trendSentence,
   type ChartSpec, type Kpi, type ModuleReport, type MonthSlot,
 } from "./model";
@@ -32,8 +33,17 @@ const pct = (a: number, b: number) => (b ? (a / b) * 100 : 0);
 function change(cur: number | null, prev: number | null): { text: string; p: number | null } {
   if (cur === null || prev === null || prev <= 0) return { text: tr("belum ada pembanding", "no comparison"), p: null };
   const p = ((cur - prev) / prev) * 100;
-  if (Math.abs(p) < 0.5) return { text: tr("stabil", "flat"), p };
-  return { text: `${p > 0 ? "▲" : "▼"} ${fmtNum(Math.abs(p), 1)}%`, p };
+  const text = Math.abs(p) < 0.5 ? tr("stabil", "flat") : `${p > 0 ? "▲" : "▼"} ${fmtNum(Math.abs(p), 1)}%`;
+  // data pembanding / periode ini belum lengkap → tampilkan dengan tanda ⚠, tanpa warna baik/buruk
+  if (!comparableOk()) return { text: `${text} ${COMPARE_FLAG}`, p: null };
+  return { text, p };
+}
+/** Daftar "jenis jumlah" k teratas + sisanya sebagai "lainnya" supaya rincian menjumlah ke total. */
+function topList(xs: { name: string; n: number }[], k: number): string {
+  const head = xs.slice(0, k).map((x) => `${x.name} ${x.n}`);
+  const rest = xs.slice(k).reduce((a, x) => a + x.n, 0);
+  if (rest > 0) head.push(`${tr("lainnya", "others")} ${fmtNum(rest)}`);
+  return head.join(", ");
 }
 const toneOf = (p: number | null, goodUp: boolean | null): Kpi["tone"] => (p === null || goodUp === null || Math.abs(p) < 0.5 ? "neutral" : (p > 0) === goodUp ? "good" : "bad");
 const catName = (c: { id: string; en: string }) => tr(c.id, c.en);
@@ -302,8 +312,8 @@ export function computeSecurity(p: SecurityInput): ModuleReport[] {
   const issues = keys.flatMap((kk) => (p.rows[kk]?.issues || []));
   const openIssues = issues.filter((i) => i.status === "Open");
   const kejInsights = [
-    tr(`${fmtNum(kejTotal)} kejadian tercatat (${kejNonZero.slice(0, 4).map((x) => `${x.name} ${x.n}`).join(", ")}), ${kejCh.p === null ? "belum ada pembanding" : `${kejCh.p >= 0 ? "naik" : "turun"} ${fmtNum(Math.abs(kejCh.p), 1)}% dari periode sebelumnya`}.`,
-       `${fmtNum(kejTotal)} incidents recorded (${kejNonZero.slice(0, 4).map((x) => `${x.name} ${x.n}`).join(", ")}), ${kejCh.p === null ? "no comparison yet" : `${kejCh.p >= 0 ? "up" : "down"} ${fmtNum(Math.abs(kejCh.p), 1)}% on the prior period`}.`),
+    tr(`${fmtNum(kejTotal)} kejadian tercatat (${topList(kejNonZero, 4)}), ${kejCh.p === null ? "belum ada pembanding" : `${kejCh.p >= 0 ? "naik" : "turun"} ${fmtNum(Math.abs(kejCh.p), 1)}% dari periode sebelumnya`}.`,
+       `${fmtNum(kejTotal)} incidents recorded (${topList(kejNonZero, 4)}), ${kejCh.p === null ? "no comparison yet" : `${kejCh.p >= 0 ? "up" : "down"} ${fmtNum(Math.abs(kejCh.p), 1)}% on the prior period`}.`),
   ];
   // perubahan per jenis vs bulan sebelumnya (hanya untuk laporan 1 bulan)
   if (!multiMonth && p.rows[prevLast]?.kej) {

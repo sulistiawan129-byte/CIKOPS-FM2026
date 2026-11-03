@@ -5,6 +5,7 @@
    Semua warna teks dipilih kontras tinggi terhadap latarnya (≥ 4.5:1).
 ════════════════════════════════════════════════════════════ */
 
+import { compareSummary } from "./notes";
 import { renderChartPNG } from "./chartImage";
 import { metaOf, setReportLang, tr, type ChartSpec, type MgmtReport, type ModuleKey, type ModuleReport } from "./model";
 
@@ -108,7 +109,8 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
     const rows = Math.ceil(sm.length / nc);
     const ay = 1.35 + rows * (ch + 0.15) + 0.05;
     const att = report.modules.flatMap((m) => m.attention);
-    const ah = Math.min(2.2, 6.88 - ay);
+    const cmp = compareSummary(report.modules);
+    const ah = Math.min(2.2, 6.88 - ay - (cmp ? 0.4 : 0));
     if (ah >= 0.6) {
       card(s, 0.5, ay, W - 1, ah, att.length ? "2A1013" : "0E2A22", att.length ? "6B2A31" : "1F5A47");
       s.addText(tr("Perlu perhatian manajemen", "Management attention required"), { x: 0.75, y: ay + 0.08, w: 5, h: 0.32, fontFace: BODY, fontSize: 12, bold: true, color: att.length ? "FFC2C2" : "A7F3CF" });
@@ -116,6 +118,10 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
       s.addText(items.map((t) => ({ text: `•  ${t}`, options: { breakLine: true } })), {
         x: 0.75, y: ay + 0.4, w: W - 1.5, h: ah - 0.46, fontFace: BODY, fontSize: 10, color: att.length ? "FFE4E4" : "D1FAE5", valign: "top", fit: "shrink", paraSpaceAfter: 2,
       });
+    }
+    if (cmp) {
+      const cy2 = Math.min(6.52, ay + Math.max(ah, 0) + 0.06);
+      s.addText(cmp, { x: 0.5, y: cy2, w: W - 1, h: 6.92 - cy2, fontFace: BODY, fontSize: 9.5, bold: true, color: "F5B450", valign: "middle", fit: "shrink" });
     }
     footer(s);
   }
@@ -133,8 +139,17 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
     }
     kpiRow(pres, s, m, 0.5, 1.35, W - 1);
     const charts = m.charts.slice(0, 2);
-    if (charts.length === 1) chartCard(pres, s, charts[0], 0.5, 2.72, W - 1, 4.15, true);
-    else charts.forEach((c, i) => chartCard(pres, s, c, 0.5 + i * 6.28, 2.72, 6.05, 4.15, false));
+    const chH = m.note && (m.note.status || m.note.warn) ? 3.62 : 4.15;   // sisakan strip catatan data di dasar slide
+    if (charts.length === 1) chartCard(pres, s, charts[0], 0.5, 2.72, W - 1, chH, true);
+    else charts.forEach((c, i) => chartCard(pres, s, c, 0.5 + i * 6.28, 2.72, 6.05, chH, false));
+    if (m.note && (m.note.status || m.note.warn)) {
+      const ny = 2.72 + chH + 0.08;
+      card(s, 0.5, ny, W - 1, 6.92 - ny);
+      s.addText([
+        ...(m.note.status ? [{ text: m.note.status, options: { color: MUT, breakLine: !!m.note.warn } }] : []),
+        ...(m.note.warn ? [{ text: m.note.warn, options: { color: "F5B450", bold: true } }] : []),
+      ], { x: 0.7, y: ny + 0.03, w: W - 1.4, h: 6.92 - ny - 0.06, fontFace: BODY, fontSize: 9, valign: "middle", fit: "shrink" });
+    }
     footer(s);
 
     const s2 = newSlide();
@@ -165,22 +180,44 @@ export async function exportMgmtPptx(report: MgmtReport, filename: string): Prom
     footer(s2);
   }
 
+  /* ── catatan data & definisi indikator (2 modul per slide) ── */
+  {
+    const withNotes = report.modules.filter((m) => m.note && !m.empty);
+    for (let i = 0; i < withNotes.length; i += 2) {
+      const s = newSlide();
+      header(s, tr("Catatan data & definisi indikator", "Data notes & indicator definitions"), "#4D8DFF", RPT);
+      withNotes.slice(i, i + 2).forEach((m, j) => {
+        const x = 0.5 + j * 6.28, note = m.note!;
+        card(s, x, 1.35, 6.05, 5.5);
+        s.addShape(pres.ShapeType.rect, { x: x + 0.02, y: 1.5, w: 0.06, h: 0.4, fill: { color: hex(m.accent) }, line: { color: hex(m.accent) } });
+        s.addText(m.title, { x: x + 0.25, y: 1.46, w: 5.5, h: 0.45, fontFace: BODY, fontSize: 15, bold: true, color: TXT });
+        let y = 2.0;
+        if (note.status) { s.addText(note.status, { x: x + 0.25, y, w: 5.55, h: 0.5, fontFace: BODY, fontSize: 9.5, color: MUT, valign: "top", fit: "shrink" }); y += 0.5; }
+        if (note.warn) { s.addText(note.warn, { x: x + 0.25, y, w: 5.55, h: 0.75, fontFace: BODY, fontSize: 9.5, bold: true, color: "F5B450", valign: "top", fit: "shrink" }); y += 0.8; }
+        bullets(s, note.defs, x + 0.25, y + 0.05, 5.55, 6.75 - y, "●", ACC_LIGHT[m.key], 10);
+      });
+      footer(s);
+    }
+  }
+
   /* ── catatan metodologi ── */
   {
     const s = newSlide();
     header(s, tr("Catatan metodologi", "Methodology notes"), "#4D8DFF", RPT);
     const notes = report.lang === "en" ? [
-      `Reporting period ${report.periodLabel}; compared with ${report.prevLabel} (previous calendar period for full months, quarters or years; otherwise the same-length period immediately before).`,
+      `Reporting period ${report.periodLabel}; compared with ${report.prevLabel} (previous calendar period for full months, quarters or years; for a month in progress, the same days of the previous month; otherwise the same-length period immediately before).`,
+      "A change marked ⚠ compares against a period whose data was not yet complete (or the current period is not fully recorded). It is shown for information only and is not used as a basis for recommendations — see each module's data note.",
       "Data source: CIKOPS-FM app (driver assignments, fleet & gate, driver claims, daily canteen reports, office supplies transactions, ISS GA Excel sync (cleaning, gardening), TGA technician app, monthly security input).",
-      "Fleet utilisation = active vehicles used at least once ÷ total active vehicles.",
+      "Fleet used = active vehicles used at least once ÷ total active vehicles (it does not measure how often a vehicle is used).",
       "Canteen efficiency = (portions ordered − leftover) ÷ portions ordered, calculated separately for snacks and meals (never combined).",
       "Critical supplies stock = out of stock or under 14 days' cover based on this period's average usage.",
       "13-month trend charts: ▲▼ under each month = change from the previous month.",
       "Security: transporter violations read directly from G-C (Accept cases; cases counted per report, types per finding).",
     ] : [
-      `Periode laporan ${report.periodLabel}; pembanding ${report.prevLabel} (periode kalender sebelumnya untuk bulan/kuartal/tahun penuh; selain itu rentang sama panjang tepat sebelumnya).`,
+      `Periode laporan ${report.periodLabel}; pembanding ${report.prevLabel} (periode kalender sebelumnya untuk bulan/kuartal/tahun penuh; untuk bulan berjalan, rentang hari yang sama di bulan lalu; selain itu rentang sama panjang tepat sebelumnya).`,
+      "Perubahan bertanda ⚠ dibandingkan dengan periode yang datanya belum lengkap (atau periode ini belum terisi penuh). Angka itu hanya informasi dan tidak dipakai sebagai dasar rekomendasi — lihat catatan data tiap modul.",
       "Sumber data: aplikasi CIKOPS-FM (penugasan driver, armada & gate, klaim driver, laporan kantin harian, transaksi ATK, sinkron Excel ISS GA (cleaning, gardening), aplikasi teknisi TGA, input bulanan security).",
-      "Utilisasi armada = kendaraan aktif yang dipakai minimal sekali ÷ total kendaraan aktif.",
+      "Armada terpakai = kendaraan aktif yang dipakai minimal sekali ÷ total kendaraan aktif (tidak mengukur seberapa sering kendaraan dipakai).",
       "Efisiensi kantin = (porsi dipesan − sisa) ÷ porsi dipesan, dihitung terpisah untuk snack dan makan (tidak digabung).",
       "Stok ATK kritis = stok habis atau hanya cukup < 14 hari berdasarkan pemakaian rata-rata periode ini.",
       "Grafik tren 13 bulan: ▲▼ di bawah tiap bulan = perubahan dari bulan sebelumnya.",

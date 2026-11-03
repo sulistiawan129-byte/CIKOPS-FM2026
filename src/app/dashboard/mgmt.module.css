@@ -121,3 +121,11 @@
 .catBlock { margin-top: 14px; }
 .catBlock:first-of-type { margin-top: 4px; }
 .catTitle { margin: 0 0 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--t3); }
+
+/* Catatan data per modul: kesegaran, kelayakan perbandingan, definisi indikator */
+.note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--border2, rgba(127,127,127,.35)); font-size: 12px; line-height: 1.5; color: var(--t3, #64748b); }
+.note p { margin: 0 0 4px; }
+.noteWarn { color: #b45309; font-weight: 600; }
+.note summary { cursor: pointer; font-weight: 700; color: var(--t2, #475569); }
+.note ul { margin: 6px 0 0; padding-left: 18px; }
+.note li { margin: 2px 0; }

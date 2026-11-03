@@ -34,7 +34,7 @@ export function withLang<T>(l: ReportLang, fn: () => T): T {
 }
 
 const META_ID: Record<ModuleKey, { title: string; short: string; accent: string; desc: string }> = {
-  fleet: { title: "Fleet Management", short: "Armada", accent: "#2D5BFF", desc: "Penugasan driver, utilisasi kendaraan, dokumen armada" },
+  fleet: { title: "Fleet Management", short: "Armada", accent: "#2D5BFF", desc: "Penugasan driver, pemakaian kendaraan, dokumen armada" },
   claims: { title: "Klaim Driver", short: "Klaim", accent: "#0F9D74", desc: "Pengeluaran operasional driver per kategori" },
   canteen: { title: "Kantin", short: "Kantin", accent: "#E08A00", desc: "Efisiensi order & sisa makanan per shift" },
   atk: { title: "Alat Tulis Kantor (ATK)", short: "ATK", accent: "#7A5AF0", desc: "Pemakaian, departemen, dan stok kritis" },
@@ -44,7 +44,7 @@ const META_ID: Record<ModuleKey, { title: string; short: string; accent: string;
   security: { title: "Security", short: "Security", accent: "#E5484D", desc: "Kendaraan & visitor, transporter, pelanggaran, kejadian, patroli" },
 };
 const META_EN: Record<ModuleKey, { title: string; short: string; accent: string; desc: string }> = {
-  fleet: { title: "Fleet Management", short: "Fleet", accent: "#2D5BFF", desc: "Driver assignments, vehicle utilisation, fleet documents" },
+  fleet: { title: "Fleet Management", short: "Fleet", accent: "#2D5BFF", desc: "Driver assignments, vehicle usage, fleet documents" },
   claims: { title: "Driver Claims", short: "Claims", accent: "#0F9D74", desc: "Driver operating expenses by category" },
   canteen: { title: "Canteen", short: "Canteen", accent: "#E08A00", desc: "Order efficiency & food waste per shift" },
   atk: { title: "Office Supplies (ATK)", short: "Supplies", accent: "#7A5AF0", desc: "Usage, departments and critical stock" },
@@ -87,6 +87,16 @@ export interface ChartSpec {
   goodUp?: boolean | null;
 }
 
+/** Catatan data per modul (teks sudah dilokalkan): ditampilkan di layar, PDF, PPT, dan Excel. */
+export interface DataNote {
+  /** "Data tersedia sejak … · terakhir tercatat … (N hari lalu)" */
+  status: string;
+  /** Peringatan bila perbandingan dengan periode lalu belum representatif (kosong = aman). */
+  warn?: string;
+  /** Definisi indikator & aturan penghitungan modul ini. */
+  defs: string[];
+}
+
 export interface ModuleReport {
   key: ModuleKey;
   title: string;
@@ -104,6 +114,8 @@ export interface ModuleReport {
   empty: boolean;
   /** Bagian lanjutan sebuah modul (mis. halaman rincian Security) — tidak tampil sebagai kartu di ringkasan eksekutif. */
   sub?: boolean;
+  /** Catatan data (kesegaran, kelayakan perbandingan, definisi). */
+  note?: DataNote;
 }
 
 export interface MgmtReport {
@@ -144,12 +156,44 @@ export function fmtVal(n: number, unit: ChartSpec["unit"]): string {
   if (unit === "pct") return fmtPct(n);
   return fmtNum(n);
 }
+/* Status kelayakan perbandingan modul yang sedang dihitung (dipasang build.ts sebelum compute per modul).
+   Bila periode pembanding / periode ini datanya belum lengkap, angka naik/turun tetap ditampilkan tetapi
+   diberi tanda ⚠, tidak diwarnai baik/buruk, dan tidak dijadikan dasar rekomendasi. */
+let CMP_OK = true;
+export function setComparable(ok: boolean) { CMP_OK = ok; }
+export const COMPARE_FLAG = "⚠";
 /** "naik 12%" / "turun 8%" / "stabil" dibanding periode sebelumnya. */
 export function deltaText(cur: number, prev: number): { text: string; pct: number | null } {
   if (prev <= 0) return { text: cur > 0 ? tr("belum ada data periode sebelumnya", "no prior-period data") : tr("stabil", "stable"), pct: null };
   const pct = ((cur - prev) / prev) * 100;
-  if (Math.abs(pct) < 2) return { text: tr("relatif stabil", "broadly stable"), pct };
-  return { text: `${pct > 0 ? tr("naik", "up") : tr("turun", "down")} ${fmtNum(Math.abs(pct), 0)}%`, pct };
+  const text = Math.abs(pct) < 2 ? tr("relatif stabil", "broadly stable") : `${pct > 0 ? tr("naik", "up") : tr("turun", "down")} ${fmtNum(Math.abs(pct), 0)}%`;
+  if (!CMP_OK) return { text: `${text} ${COMPARE_FLAG}`, pct: null };
+  return { text, pct };
+}
+/* Awal data modul yang sedang dihitung (dipasang build.ts): bulan sebelum data ada tidak dihitung sebagai "0",
+   dan perubahan terhadap bulan yang datanya baru terisi sebagian tidak ditampilkan di grafik / kalimat tren. */
+export const COVERAGE_MIN = 0.8;
+let DATA_START: string | null = null;
+export function setDataStart(d: string | null) { DATA_START = d; }
+/** Porsi (0–1) bulan `m` yang sudah punya data. */
+export function monthCov(m: { from: string; to: string }): number {
+  if (DATA_START === null) return 1;
+  if (DATA_START <= m.from) return 1;
+  if (DATA_START > m.to) return 0;
+  return daysBetween(DATA_START, m.to) / daysBetween(m.from, m.to);
+}
+/** Perubahan persen untuk modul yang menghitung sendiri (Security): null bila perbandingan belum representatif. */
+export function comparableOk(): boolean { return CMP_OK; }
+
+/** Ambil n teratas; sisanya digabung jadi "Lainnya" agar rincian selalu menjumlah ke total. */
+export function withOther<T extends [string, number]>(entries: T[], n: number, otherLabel = tr("Lainnya", "Other")): [string, number][] {
+  const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, n).map((e) => [e[0], e[1]] as [string, number]);
+  const rest = sorted.slice(n).reduce((a, e) => a + e[1], 0);
+  if (rest <= 0) return top;
+  const ex = top.find((e) => e[0] === otherLabel);
+  if (ex) ex[1] += rest; else top.push([otherLabel, rest]);
+  return top;
 }
 
 /* ── tanggal & periode ── */
@@ -163,11 +207,17 @@ export function parseISO(s: string): Date {
 export function daysBetween(a: string, b: string): number {
   return Math.round((parseISO(b).getTime() - parseISO(a).getTime()) / 86400000) + 1;
 }
-/** Periode pembanding: bulan/kuartal/tahun penuh → periode kalender sebelumnya
-    (Sep → Agu, Q3 → Q2); selain itu rentang sama panjang tepat sebelumnya. */
+/** Periode pembanding: bulan/kuartal/tahun penuh → periode kalender sebelumnya (Sep → Agu, Q3 → Q2);
+    bulan berjalan (tgl 1 s.d. pertengahan bulan) → rentang HARI YANG SAMA di bulan lalu (1–15 Nov ↔ 1–15 Okt);
+    selain itu rentang sama panjang tepat sebelumnya. */
 export function prevRange(from: string, to: string): { from: string; to: string } {
   const a = parseISO(from), b = parseISO(to);
   const wholeMonths = a.getDate() === 1 && b.getDate() === new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate();
+  if (a.getDate() === 1 && !wholeMonths && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()) {
+    const pm = new Date(a.getFullYear(), a.getMonth() - 1, 1);
+    const last = new Date(pm.getFullYear(), pm.getMonth() + 1, 0).getDate();
+    return { from: iso(pm), to: iso(new Date(pm.getFullYear(), pm.getMonth(), Math.min(b.getDate(), last))) };
+  }
   if (wholeMonths) {
     const months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + 1;
     return { from: iso(new Date(a.getFullYear(), a.getMonth() - months, 1)), to: iso(new Date(a.getFullYear(), a.getMonth(), 0)) };
@@ -186,6 +236,11 @@ const DOW_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const monShort = (m: number) => (LANG === "en" ? MON_EN : MON_ID)[m];
 export const monFull = (m: number) => (LANG === "en" ? FULL_EN : FULL_ID)[m];
 export const dowShort = (d: number) => (LANG === "en" ? DOW_EN : DOW_ID)[d];
+/** "3 Mar 2026" */
+export function dFull(s: string): string {
+  const d = parseISO(s);
+  return `${d.getDate()} ${monShort(d.getMonth())} ${d.getFullYear()}`;
+}
 export function dShort(s: string): string {
   const d = parseISO(s);
   return `${d.getDate()} ${monShort(d.getMonth())}`;
@@ -246,21 +301,25 @@ export function trendChart(p: {
   id: string; title: string; months: MonthSlot[]; unit: ChartSpec["unit"]; goodUp: boolean | null;
   series: { name: string; values: (number | null)[]; color: string }[];
 }): ChartSpec {
-  const tot = p.months.map((_, i) => {
+  const tot = p.months.map((m, i) => {
+    if (monthCov(m) === 0) return null;   // belum ada data modul pada bulan itu
     const vs = p.series.map((s) => s.values[i]);
     return vs.every((v) => v === null || v === undefined) ? null : vs.reduce<number>((a, v) => a + (v || 0), 0);
   });
+  // perubahan terhadap bulan yang datanya baru terisi sebagian tidak ditampilkan
+  const deltas = deltasOf(tot).map((d, i) => (i > 0 && monthCov(p.months[i - 1]) < COVERAGE_MIN ? null : d));
   const partial = p.months[p.months.length - 1]?.partial;
   return {
     id: p.id, title: p.title, type: p.series.length > 1 ? "stacked" : "bar",
     labels: p.months.map((m) => m.label),
     series: p.series.map((s) => ({ name: s.name, color: s.color, values: s.values.map((v) => v || 0) })),
-    unit: p.unit, deltas: deltasOf(tot), goodUp: p.goodUp,
+    unit: p.unit, deltas, goodUp: p.goodUp,
     note: partial ? tr("* bulan berjalan", "* month to date") : undefined,
   };
 }
 /** Kalimat ringkas tren 13 bulan: perubahan bulanan & tahunan, tertinggi/terendah. */
-export function trendSentence(name: string, vals: (number | null)[], months: MonthSlot[], fmt: (n: number) => string): string {
+export function trendSentence(name: string, rawVals: (number | null)[], months: MonthSlot[], fmt: (n: number) => string): string {
+  const vals = rawVals.map((v, i) => (v !== null && monthCov(months[i]) > 0 ? v : null));   // bulan sebelum data ada = tanpa data
   const n = vals.length - 1;
   const cur = vals[n];
   if (cur === null || cur === undefined) return "";
@@ -273,8 +332,8 @@ export function trendSentence(name: string, vals: (number | null)[], months: Mon
   };
   const hi = pairs.reduce((a, b) => (b.v > a.v ? b : a)), lo = pairs.reduce((a, b) => (b.v < a.v ? b : a));
   const parts: string[] = [];
-  if (prev) parts.push(`${ch(prev, cur)} ${tr("dari bulan sebelumnya", "month on month")}`);
-  if (vals.length >= 13 && first) parts.push(`${ch(first, cur)} ${tr("dari", "vs")} ${months[0].label}`);
+  if (prev && monthCov(months[n - 1]) >= COVERAGE_MIN) parts.push(`${ch(prev, cur)} ${tr("dari bulan sebelumnya", "month on month")}`);
+  if (vals.length >= 13 && first && monthCov(months[0]) >= COVERAGE_MIN) parts.push(`${ch(first, cur)} ${tr("dari", "vs")} ${months[0].label}`);
   const partialNote = months[n].partial ? tr(" (bulan berjalan)", " (month to date)") : "";
   return tr(
     `Tren 13 bulan — ${name} ${fmt(cur)}${partialNote}: ${parts.join(", ")}. Tertinggi ${hi.l} (${fmt(hi.v)}), terendah ${lo.l} (${fmt(lo.v)}).`,

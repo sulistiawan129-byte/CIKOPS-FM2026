@@ -101,6 +101,21 @@ export interface RoomBooking {
   receiptNo: string; shareToken: string; picEmail: string;
 }
 
+/** Tamu yang datang (buku tamu harian, SQL 055). */
+export interface Visitor {
+  id: string; visitDate: string; checkedInAt: string; checkedOutAt: string | null;
+  name: string; company: string; phone: string; pax: number; host: string; department: string; purpose: string; badge: string; notes: string;
+  createdBy: string; createdAt: string; updatedAt?: string | null; updatedBy?: string;
+}
+/** Keperluan kunjungan (tersimpan dalam bahasa Indonesia; label tampilan mengikuti bahasa). */
+export const VISIT_PURPOSES = ["Meeting", "Interview", "Vendor / Kurir", "Audit / Inspeksi", "Kunjungan", "Lainnya"] as const;
+export const visitPurposeLabel = (t: string): string =>
+  t === "Meeting" ? "Meeting" : t === "Interview" ? "Interview" : t === "Vendor / Kurir" ? L("Vendor / Kurir", "Vendor / Courier") : t === "Audit / Inspeksi" ? L("Audit / Inspeksi", "Audit / Inspection")
+    : t === "Kunjungan" ? L("Kunjungan", "Visit") : t === "Lainnya" ? L("Lainnya", "Other") : t;
+/** Lama kunjungan dalam menit (belum pulang → sampai sekarang). */
+export const visitMinutes = (v: Visitor, now = Date.now()) => Math.max(0, Math.round(((v.checkedOutAt ? new Date(v.checkedOutAt).getTime() : now) - new Date(v.checkedInAt).getTime()) / 60000));
+export const fmtDuration = (min: number) => (min < 60 ? `${min}${L(" mnt", " min")}` : `${Math.floor(min / 60)}${L(" j", " h")} ${min % 60 ? `${min % 60}${L(" mnt", " min")}` : ""}`.trim());
+
 /** Karyawan (tabel employees CIKOPS + kolom migrasi 033). */
 export interface RcpEmployee { id: string; nama: string; nik: string; departement: string; email: string; noHp: string; jabatan: string; aktif: boolean; createdAt: string }
 

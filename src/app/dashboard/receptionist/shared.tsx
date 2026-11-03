@@ -6,6 +6,9 @@ import { exportGenericExcel, exportGenericPdf, type ReportColumn } from "@/lib/r
 import r from "./receptionist.module.css";
 import { SearchPick } from "@/components/SearchPick";
 
+/** Tab-tab modul Receptionist. */
+export type RcpView = "dashboard" | "visitors" | "wifi" | "parcels" | "room" | "data" | "settings";
+
 /** Direktori nama: Data Karyawan (utama) + buku alamat yang terbentuk sendiri. */
 export interface Directory { contacts: Contact[]; employees: RcpEmployee[] }
 

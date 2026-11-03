@@ -4,7 +4,7 @@ import { supabase } from "../supabaseClient";
 import { L } from "@/lib/i18n";
 import {
   DEFAULT_SETTINGS, receiptUrl, type Contact, type ImportRow, type Parcel, type ParcelDirection, type RcpEmployee, type RcpSettings, type ReceiptData,
-  type RoomBooking, type WifiAccount, type WifiGrant, type WifiGrantResult, type WifiSuggestion,
+  type RoomBooking, type Visitor, type WifiAccount, type WifiGrant, type WifiGrantResult, type WifiSuggestion,
 } from "./model";
 
 const MIGRATION_MSG = "Modul Receptionist belum aktif — jalankan supabase/01_dasar.sql (bagian 031) di Supabase SQL Editor.";
@@ -352,4 +352,58 @@ export async function deleteBooking(id: string, wholeSeries?: string | null, fro
   q = wholeSeries ? q.eq("series_id", wholeSeries).gte("booking_date", fromDate ?? "0000-01-01") : q.eq("id", id);
   const { error } = await q;
   if (error) throw friendly(error);
+}
+
+/* ── Tamu yang datang (SQL 055) ── */
+const MIGRATION_055 = "Fitur Tamu datang belum aktif — jalankan supabase/04_aplikasi_lapangan.sql (bagian 055) di Supabase SQL Editor.";
+function friendly055(error: { code?: string; message?: string } | null): Error {
+  if (error && (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST202" || error.code === "42883" || /Could not find the (function|table)|does not exist|schema cache/i.test(error.message ?? ""))) {
+    return new Error(L(MIGRATION_055, "The Visitors feature is not active yet — run supabase/04_aplikasi_lapangan.sql (section 055) in the Supabase SQL Editor."));
+  }
+  return friendly(error);
+}
+interface VisitorRow {
+  id: string; visit_date: string; checked_in_at: string; checked_out_at: string | null; name: string; company: string | null; phone: string | null; pax: number;
+  host_name: string | null; department: string | null; purpose: string | null; badge_no: string | null; notes: string | null; created_by: string | null; created_at: string;
+  updated_at: string | null; updated_by: string | null;
+}
+const mapVisitor = (r: VisitorRow): Visitor => ({
+  id: r.id, visitDate: r.visit_date, checkedInAt: r.checked_in_at, checkedOutAt: r.checked_out_at, name: r.name, company: r.company ?? "", phone: r.phone ?? "", pax: r.pax ?? 1,
+  host: r.host_name ?? "", department: r.department ?? "", purpose: r.purpose ?? "", badge: r.badge_no ?? "", notes: r.notes ?? "", createdBy: r.created_by ?? "", createdAt: r.created_at,
+  updatedAt: r.updated_at ?? null, updatedBy: r.updated_by ?? "",
+});
+/** Tamu pada rentang tanggal kunjungan (WIB), terbaru dulu. */
+export async function getVisitors(from: string, to: string): Promise<Visitor[]> {
+  const { data, error } = await supabase.from("rcp_visitors").select("*").gte("visit_date", from).lte("visit_date", to).order("checked_in_at", { ascending: false }).limit(5000);
+  if (error) throw friendly055(error);
+  return ((data ?? []) as VisitorRow[]).map(mapVisitor);
+}
+export interface VisitorInput { name: string; company: string; phone: string; pax: number; host: string; department: string; purpose: string; badge: string; notes: string; checkedIn?: string | null }
+export async function createVisitor(i: VisitorInput): Promise<string> {
+  const { data, error } = await supabase.rpc("rcp_visitor_create", {
+    p_name: i.name, p_company: i.company, p_phone: i.phone, p_pax: i.pax, p_host: i.host, p_department: i.department, p_purpose: i.purpose, p_badge: i.badge, p_notes: i.notes,
+    p_checked_in: i.checkedIn ?? null,
+  });
+  if (error) throw friendly055(error);
+  return (data as { id: string }).id;
+}
+export interface VisitorEdit extends VisitorInput { checkedIn: string; checkedOut: string | null }
+export async function updateVisitor(id: string, e: VisitorEdit): Promise<void> {
+  const { error } = await supabase.rpc("rcp_visitor_update", {
+    p_id: id, p_name: e.name, p_company: e.company, p_phone: e.phone, p_pax: e.pax, p_host: e.host, p_department: e.department, p_purpose: e.purpose, p_badge: e.badge, p_notes: e.notes,
+    p_checked_in: e.checkedIn, p_checked_out: e.checkedOut,
+  });
+  if (error) throw friendly055(error);
+}
+export async function checkoutVisitor(id: string, at?: string | null): Promise<void> {
+  const { error } = await supabase.rpc("rcp_visitor_checkout", { p_id: id, p_at: at ?? null });
+  if (error) throw friendly055(error);
+}
+export async function undoCheckoutVisitor(id: string): Promise<void> {
+  const { error } = await supabase.rpc("rcp_visitor_undo_checkout", { p_id: id });
+  if (error) throw friendly055(error);
+}
+export async function deleteVisitor(id: string): Promise<void> {
+  const { error } = await supabase.from("rcp_visitors").delete().eq("id", id);
+  if (error) throw friendly055(error);
 }

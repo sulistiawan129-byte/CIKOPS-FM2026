@@ -15,6 +15,7 @@
 --   Bagian 052  Receptionist: ubah/hapus/batalkan serah terima barang & wifi + jumlah barang
 --   Bagian 053  Pemeriksa/penggabung karyawan dobel + riwayat TGA tidak ditimpa
 --   Bagian 054  ATK punya daftar karyawan sendiri (atk_employees, dari Excel); Master Karyawan tidak lagi diisi dari ATK
+--   Bagian 055  Receptionist: buku tamu harian (rcp_visitors) — input tamu datang, check-out, dashboard harian
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -1191,3 +1192,126 @@ notify pgrst, 'reload schema';
 select '054 karyawan ATK terpisah' as cek,
        (select count(*) from atk_employees) as karyawan_atk,
        (select count(*) from pg_trigger where tgname = 'trg_atk_requests_employee') as trigger_lama_tersisa;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 055 — Receptionist: tamu yang datang (buku tamu harian)
+--   • rcp_visitors            satu baris = satu kunjungan (nama, instansi, jumlah orang, bertemu siapa, keperluan, jam datang / pulang)
+--   • rcp_visitor_create      catat tamu datang (jam datang boleh diisi mundur untuk koreksi)
+--   • rcp_visitor_update      koreksi semua isian + jam datang / pulang
+--   • rcp_visitor_checkout    catat tamu pulang · rcp_visitor_undo_checkout membatalkannya
+--   • hapus lewat tabel (policy staf Receptionist); role Management hanya MEMBACA (untuk laporan)
+-- Jalankan sesudah 01 & 02. Idempotent.
+-- ═══════════════════════════════════════════════════════════════
+create table if not exists rcp_visitors (
+  id             uuid primary key default gen_random_uuid(),
+  visit_date     date not null default ((now() at time zone 'Asia/Jakarta')::date),
+  checked_in_at  timestamptz not null default now(),
+  checked_out_at timestamptz,
+  name           text not null,
+  company        text not null default '',
+  phone          text not null default '',
+  pax            int  not null default 1 check (pax between 1 and 500),
+  host_name      text not null default '',   -- bertemu siapa
+  department     text not null default '',
+  purpose        text not null default '',
+  badge_no       text not null default '',   -- nomor kartu tamu
+  notes          text not null default '',
+  created_by     text not null default '',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz,
+  updated_by     text not null default ''
+);
+create index if not exists rcp_visitors_date_idx on rcp_visitors (visit_date);
+create index if not exists rcp_visitors_name_idx on rcp_visitors (lower(trim(name)));
+alter table rcp_visitors enable row level security;
+drop policy if exists rcp_visitors_staff on rcp_visitors;
+create policy rcp_visitors_staff on rcp_visitors for all to authenticated using (rcp_is_staff()) with check (rcp_is_staff());
+drop policy if exists rcp_visitors_mgmt_read on rcp_visitors;
+create policy rcp_visitors_mgmt_read on rcp_visitors for select to authenticated using (staff_role() = 'management');
+grant select, insert, update, delete on rcp_visitors to authenticated;
+
+create or replace function rcp_visitor_create(
+  p_name text, p_company text default '', p_phone text default '', p_pax int default 1, p_host text default '',
+  p_department text default '', p_purpose text default '', p_badge text default '', p_notes text default '', p_checked_in timestamptz default null
+) returns jsonb
+language plpgsql security definer set search_path = public as $f$
+declare v_by text; v_in timestamptz := coalesce(p_checked_in, now()); v_id uuid;
+begin
+  if not rcp_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  v_by := rcp_staff_name();
+  if coalesce(trim(p_name), '') = '' then raise exception 'Nama tamu wajib diisi.'; end if;
+  if p_pax is null or p_pax < 1 or p_pax > 500 then raise exception 'Jumlah orang harus 1–500.'; end if;
+  if v_in > now() + interval '1 hour' then raise exception 'Jam datang tidak boleh di masa depan.'; end if;
+  insert into rcp_visitors (visit_date, checked_in_at, name, company, phone, pax, host_name, department, purpose, badge_no, notes, created_by)
+  values ((v_in at time zone 'Asia/Jakarta')::date, v_in, trim(p_name), coalesce(trim(p_company), ''), coalesce(trim(p_phone), ''), p_pax,
+          coalesce(trim(p_host), ''), coalesce(trim(p_department), ''), coalesce(trim(p_purpose), ''), coalesce(trim(p_badge), ''), coalesce(trim(p_notes), ''), v_by)
+  returning id into v_id;
+  return jsonb_build_object('id', v_id);
+end $f$;
+
+create or replace function rcp_visitor_update(
+  p_id uuid, p_name text, p_company text, p_phone text, p_pax int, p_host text, p_department text, p_purpose text, p_badge text, p_notes text,
+  p_checked_in timestamptz, p_checked_out timestamptz
+) returns void
+language plpgsql security definer set search_path = public as $f$
+declare v_by text;
+begin
+  if not rcp_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  v_by := rcp_staff_name();
+  if not exists (select 1 from rcp_visitors where id = p_id) then raise exception 'Data tamu tidak ditemukan.'; end if;
+  if coalesce(trim(p_name), '') = '' then raise exception 'Nama tamu wajib diisi.'; end if;
+  if p_pax is null or p_pax < 1 or p_pax > 500 then raise exception 'Jumlah orang harus 1–500.'; end if;
+  if p_checked_in is null then raise exception 'Jam datang wajib diisi.'; end if;
+  if p_checked_in > now() + interval '1 hour' then raise exception 'Jam datang tidak boleh di masa depan.'; end if;
+  if p_checked_out is not null and p_checked_out < p_checked_in then raise exception 'Jam pulang tidak boleh sebelum jam datang.'; end if;
+  if p_checked_out is not null and p_checked_out > now() + interval '1 hour' then raise exception 'Jam pulang tidak boleh di masa depan.'; end if;
+  update rcp_visitors set
+    name = trim(p_name), company = coalesce(trim(p_company), ''), phone = coalesce(trim(p_phone), ''), pax = p_pax,
+    host_name = coalesce(trim(p_host), ''), department = coalesce(trim(p_department), ''), purpose = coalesce(trim(p_purpose), ''),
+    badge_no = coalesce(trim(p_badge), ''), notes = coalesce(trim(p_notes), ''),
+    checked_in_at = p_checked_in, checked_out_at = p_checked_out, visit_date = (p_checked_in at time zone 'Asia/Jakarta')::date,
+    updated_at = now(), updated_by = v_by
+  where id = p_id;
+end $f$;
+
+create or replace function rcp_visitor_checkout(p_id uuid, p_at timestamptz default null) returns void
+language plpgsql security definer set search_path = public as $f$
+declare v_by text; v rcp_visitors%rowtype; v_at timestamptz := coalesce(p_at, now());
+begin
+  if not rcp_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  v_by := rcp_staff_name();
+  select * into v from rcp_visitors where id = p_id for update;
+  if not found then raise exception 'Data tamu tidak ditemukan.'; end if;
+  if v.checked_out_at is not null then raise exception 'Tamu ini sudah dicatat pulang.'; end if;
+  if v_at < v.checked_in_at then raise exception 'Jam pulang tidak boleh sebelum jam datang.'; end if;
+  if v_at > now() + interval '1 hour' then raise exception 'Jam pulang tidak boleh di masa depan.'; end if;
+  update rcp_visitors set checked_out_at = v_at, updated_at = now(), updated_by = v_by where id = p_id;
+end $f$;
+
+create or replace function rcp_visitor_undo_checkout(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $f$
+declare v_by text;
+begin
+  if not rcp_is_staff() then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  v_by := rcp_staff_name();
+  update rcp_visitors set checked_out_at = null, updated_at = now(), updated_by = v_by where id = p_id and checked_out_at is not null;
+  if not found then raise exception 'Tamu belum dicatat pulang atau tidak ditemukan.'; end if;
+end $f$;
+
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'rcp_visitor_create(text,text,text,int,text,text,text,text,text,timestamptz)',
+    'rcp_visitor_update(uuid,text,text,text,int,text,text,text,text,text,timestamptz,timestamptz)',
+    'rcp_visitor_checkout(uuid,timestamptz)',
+    'rcp_visitor_undo_checkout(uuid)'] loop
+    execute format('revoke all on function %s from public, anon', f);
+    execute format('grant execute on function %s to authenticated', f);
+  end loop;
+end $$;
+
+notify pgrst, 'reload schema';
+
+select '055 tamu datang' as cek, (select count(*) from information_schema.tables where table_name = 'rcp_visitors') as tabel_ada;

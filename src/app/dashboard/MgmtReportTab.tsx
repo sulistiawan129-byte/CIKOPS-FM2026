@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { reportModulesOf, type MyProfile } from "@/lib/api";
 import { useLang } from "@/lib/providers";
 import { L } from "@/lib/i18n";
+import { compareSummary } from "@/lib/mgmtReport/notes";
 import { buildMgmtReport, reportFilename } from "@/lib/mgmtReport/build";
 import { renderChartPNG } from "@/lib/mgmtReport/chartImage";
 import {
@@ -127,6 +128,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
   }, [report]);
 
   const attention = report ? report.modules.flatMap((m) => m.attention) : [];
+  const cmpSummary = report ? compareSummary(report.modules) : null;
 
   return (
     <div className={r.wrap}>
@@ -322,6 +324,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
               <b>{report.lang === "en" ? "Management attention required" : "Perlu perhatian manajemen"}</b>
               {attention.length ? <ul>{attention.map((a, i) => <li key={i}>{a}</li>)}</ul> : <span>{report.lang === "en" ? "No critical issues this period." : "Tidak ada isu kritis pada periode ini."}</span>}
             </div>
+            {cmpSummary && <div className={r.note}><p className={r.noteWarn} style={{ margin: 0 }}>{cmpSummary}</p></div>}
           </section>
 
           {report.modules.map((m, mi) => (
@@ -361,6 +364,16 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
                       <ul className={`${r.list} ${r.listAct}`}>{m.actions.slice(0, 4).map((t, i) => <li key={i}>{t}</li>)}</ul>
                     </div>
                   </div>
+                  {m.note && (
+                    <div className={r.note}>
+                      {m.note.status && <p>{m.note.status}</p>}
+                      {m.note.warn && <p className={r.noteWarn}>{m.note.warn}</p>}
+                      <details>
+                        <summary>{report.lang === "en" ? "Definitions & notes" : "Definisi & catatan"}</summary>
+                        <ul>{m.note.defs.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                      </details>
+                    </div>
+                  )}
                 </>
               )}
             </section>

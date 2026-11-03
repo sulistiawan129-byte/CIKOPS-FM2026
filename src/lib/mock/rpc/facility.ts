@@ -591,6 +591,59 @@ const RECEPTIONIST: Record<string, RpcHandler> = {
     Object.assign(p!, { status: "handed", handed_to: s(a.p_handed_to), handed_at: nowIso(), handed_by: by });
     return null;
   },
+  /* SQL 055 — tamu yang datang */
+  rcp_visitor_create(a, ctx) {
+    const by = rcpStaff(ctx);
+    if (!s(a.p_name)) fail("Nama tamu wajib diisi.");
+    const pax = a.p_pax == null ? 1 : num(a.p_pax, 0);
+    if (!Number.isInteger(pax) || pax < 1 || pax > 500) fail("Jumlah orang harus 1–500.");
+    const inAt = s(a.p_checked_in) ? new Date(s(a.p_checked_in)).toISOString() : nowIso();
+    if (Date.parse(inAt) > Date.now() + 3600000) fail("Jam datang tidak boleh di masa depan.");
+    const id = uuid();
+    table(ctx.db, "rcp_visitors").push({
+      id, visit_date: wibDate(inAt), checked_in_at: inAt, checked_out_at: null, name: s(a.p_name), company: s(a.p_company), phone: s(a.p_phone), pax,
+      host_name: s(a.p_host), department: s(a.p_department), purpose: s(a.p_purpose), badge_no: s(a.p_badge), notes: s(a.p_notes),
+      created_by: by, created_at: nowIso(), updated_at: null, updated_by: "",
+    });
+    return { id };
+  },
+  rcp_visitor_update(a, ctx) {
+    const by = rcpStaff(ctx);
+    const v = table(ctx.db, "rcp_visitors").find((x) => x.id === a.p_id);
+    if (!v) fail("Data tamu tidak ditemukan.");
+    if (!s(a.p_name)) fail("Nama tamu wajib diisi.");
+    const pax = num(a.p_pax, 0);
+    if (!Number.isInteger(pax) || pax < 1 || pax > 500) fail("Jumlah orang harus 1–500.");
+    if (!s(a.p_checked_in)) fail("Jam datang wajib diisi.");
+    const inAt = new Date(s(a.p_checked_in)).toISOString();
+    const outAt = s(a.p_checked_out) ? new Date(s(a.p_checked_out)).toISOString() : null;
+    if (Date.parse(inAt) > Date.now() + 3600000) fail("Jam datang tidak boleh di masa depan.");
+    if (outAt && Date.parse(outAt) < Date.parse(inAt)) fail("Jam pulang tidak boleh sebelum jam datang.");
+    if (outAt && Date.parse(outAt) > Date.now() + 3600000) fail("Jam pulang tidak boleh di masa depan.");
+    Object.assign(v!, {
+      name: s(a.p_name), company: s(a.p_company), phone: s(a.p_phone), pax, host_name: s(a.p_host), department: s(a.p_department), purpose: s(a.p_purpose),
+      badge_no: s(a.p_badge), notes: s(a.p_notes), checked_in_at: inAt, checked_out_at: outAt, visit_date: wibDate(inAt), updated_at: nowIso(), updated_by: by,
+    });
+    return null;
+  },
+  rcp_visitor_checkout(a, ctx) {
+    const by = rcpStaff(ctx);
+    const v = table(ctx.db, "rcp_visitors").find((x) => x.id === a.p_id);
+    if (!v) fail("Data tamu tidak ditemukan.");
+    if (v!.checked_out_at) fail("Tamu ini sudah dicatat pulang.");
+    const at = s(a.p_at) ? new Date(s(a.p_at)).toISOString() : nowIso();
+    if (Date.parse(at) < Date.parse(s(v!.checked_in_at))) fail("Jam pulang tidak boleh sebelum jam datang.");
+    if (Date.parse(at) > Date.now() + 3600000) fail("Jam pulang tidak boleh di masa depan.");
+    Object.assign(v!, { checked_out_at: at, updated_at: nowIso(), updated_by: by });
+    return null;
+  },
+  rcp_visitor_undo_checkout(a, ctx) {
+    const by = rcpStaff(ctx);
+    const v = table(ctx.db, "rcp_visitors").find((x) => x.id === a.p_id && x.checked_out_at);
+    if (!v) fail("Tamu belum dicatat pulang atau tidak ditemukan.");
+    Object.assign(v!, { checked_out_at: null, updated_at: nowIso(), updated_by: by });
+    return null;
+  },
   /* SQL 052 */
   rcp_wifi_capacity(_a, ctx) {
     const today = todayWib();

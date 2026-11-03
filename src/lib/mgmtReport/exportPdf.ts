@@ -2,6 +2,7 @@
 
 import { renderChartPNG } from "./chartImage";
 import { metaOf, setReportLang, tr, type MgmtReport, type ModuleReport } from "./model";
+import { compareSummary } from "./notes";
 
 type RGB = [number, number, number];
 const hex = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -17,7 +18,7 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
   const { default: jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   // Font standar PDF (WinAnsi) tidak punya ≤ ≥ → − ; ganti dengan padanan aman.
-  const clean = (t: string) => t.replace(/▲\s?/g, "+").replace(/▼\s?/g, "-").replace(/≤/g, tr("maks.", "max.")).replace(/≥/g, tr("min.", "min.")).replace(/→/g, "->").replace(/−/g, "-").replace(/[“”]/g, '"');
+  const clean = (t: string) => t.replace(/▲\s?/g, "+").replace(/▼\s?/g, "-").replace(/≤/g, tr("maks.", "max.")).replace(/≥/g, tr("min.", "min.")).replace(/⚠/g, "(!)").replace(/→/g, "->").replace(/−/g, "-").replace(/[“”]/g, '"');
   const cleanAny = (t: string | string[]) => (Array.isArray(t) ? t.map(clean) : clean(t));
   const origText = doc.text.bind(doc);
   const origSplit = doc.splitTextToSize.bind(doc);
@@ -110,8 +111,17 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
   const ay = 28 + Math.ceil(sm.length / cols) * (ch + gap);
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
   doc.text(tr("Perlu perhatian manajemen", "Management attention required"), M, ay + 4);
-  if (attention.length) bullets(attention, M, ay + 11, W - M * 2, H - 14, [214, 69, 69]);
+  const cmp = compareSummary(report.modules);
+  const attnBottom = cmp ? H - 26 : H - 14;
+  if (attention.length) bullets(attention, M, ay + 11, W - M * 2, attnBottom, [214, 69, 69]);
   else { doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...MUTED); doc.text(tr("Tidak ada isu kritis pada periode ini.", "No critical issues this period."), M, ay + 11); }
+  if (cmp) {
+    const ls = doc.splitTextToSize(cmp, W - M * 2 - 8) as string[];
+    const h = 4 + ls.length * 3.8, y = H - 13 - h;
+    doc.setFillColor(...SOFT); doc.setDrawColor(...LINE); doc.roundedRect(M, y, W - M * 2, h, 2, 2, "FD");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(180, 83, 9);
+    doc.text(ls, M + 4, y + 5);
+  }
   footer(page);
 
   /* ── halaman per modul ── */
@@ -120,6 +130,29 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
     doc.addPage();
     header(m.title, hex(m.accent), report.periodLabel);
     modulePage(doc, m, W, H, M, bullets);
+    if (m.note && !m.empty) noteStrip(doc, m, W, H, M);
+    footer(page);
+  }
+
+  /* ── lampiran: catatan data & definisi indikator ── */
+  const withNotes = report.modules.filter((m) => m.note && !m.empty);
+  if (withNotes.length) {
+    page += 1;
+    doc.addPage(); header(tr("Catatan data & definisi indikator", "Data notes & indicator definitions"), [100, 116, 139], report.periodLabel);
+    let y = 30;
+    const newPage = () => { footer(page); page += 1; doc.addPage(); header(tr("Catatan data & definisi indikator (lanjutan)", "Data notes & indicator definitions (continued)"), [100, 116, 139], report.periodLabel); y = 30; };
+    for (const m of withNotes) {
+      const note = m.note!;
+      const est = 8 + (note.status ? 5 : 0) + (note.warn ? 9 : 0) + note.defs.reduce((a, d) => a + Math.ceil(d.length / 150) * 4.4 + 2.2, 0);
+      if (y + est > H - 14 && y > 32) newPage();
+      doc.setFillColor(...hex(m.accent)); doc.rect(M, y - 3.6, 2, 5.2, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
+      doc.text(m.title, M + 5, y + 0.6); y += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...MUTED);
+      if (note.status) { doc.text(doc.splitTextToSize(note.status, W - M * 2) as string[], M + 5, y); y += 5; }
+      if (note.warn) { doc.setTextColor(180, 83, 9); const ls = doc.splitTextToSize(note.warn, W - M * 2 - 5) as string[]; doc.text(ls, M + 5, y); y += ls.length * 4 + 1; }
+      y = bullets(note.defs, M + 4, y + 1, W - M * 2 - 4, H - 14, hex(m.accent)) + 2;
+    }
     footer(page);
   }
 
@@ -167,6 +200,21 @@ function modulePage(
   doc.text(tr("Temuan utama", "Key findings"), M, by);
   doc.text(tr("Rekomendasi", "Recommendations"), M + colW + 10, by);
   doc.setFillColor(...accent); doc.rect(M, by + 1.8, 14, 0.8, "F"); doc.rect(M + colW + 10, by + 1.8, 14, 0.8, "F");
-  bullets(m.insights.slice(0, 5), M, by + 8, colW, H - 14, accent);
-  bullets(m.actions.slice(0, 4), M + colW + 10, by + 8, colW, H - 14, [15, 157, 116]);
+  const bottom = m.note ? H - 29 : H - 14;   // sisakan ruang untuk strip catatan data
+  bullets(m.insights.slice(0, 5), M, by + 8, colW, bottom, accent);
+  bullets(m.actions.slice(0, 4), M + colW + 10, by + 8, colW, bottom, [15, 157, 116]);
+}
+
+/** Strip "Catatan data" di dasar halaman modul: kesegaran data + peringatan perbandingan (definisi ada di lampiran). */
+function noteStrip(doc: import("jspdf").jsPDF, m: ModuleReport, W: number, H: number, M: number) {
+  const note = m.note!;
+  const lines: { t: string; warn: boolean }[] = [];
+  if (note.status) (doc.splitTextToSize(note.status, W - M * 2 - 8) as string[]).forEach((t) => lines.push({ t, warn: false }));
+  if (note.warn) (doc.splitTextToSize(note.warn, W - M * 2 - 8) as string[]).forEach((t) => lines.push({ t, warn: true }));
+  if (!lines.length) return;
+  const h = Math.min(18, 4 + lines.length * 3.6);
+  const y = H - 13 - h;
+  doc.setFillColor(...SOFT); doc.setDrawColor(...LINE); doc.roundedRect(M, y, W - M * 2, h, 2, 2, "FD");
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.8);
+  lines.slice(0, 4).forEach((l, i) => { doc.setTextColor(...(l.warn ? ([180, 83, 9] as RGB) : MUTED)); doc.text(l.t, M + 4, y + 4.6 + i * 3.6); });
 }

@@ -2,40 +2,56 @@
 
 /* ════════════════════════════════════════════════════════════
    RECEPTIONIST — pilar Fasilitas.
-   Dashboard (wifi, barang menunggu, booking hari ini) · Wifi Guest ·
-   Barang & Surat · Induction Room · Pengaturan.
-   Database: supabase/01_dasar.sql (bagian 031) · Email: send-receptionist-email.
+   Dashboard harian (dokumen masuk/keluar, booking, wifi, tamu) · Tamu · Wifi Guest ·
+   Barang & Surat · Induction Room · Data Master · Pengaturan.
+   Database: supabase/01_dasar.sql (bagian 031) & 04_aplikasi_lapangan.sql (052, 055) · Email: send-receptionist-email.
 ════════════════════════════════════════════════════════════ */
 
 import { SettingsGroup, SettingsPage } from "@/components/settings/Settings";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MyProfile } from "@/lib/api";
-import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
+import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getVisitors, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
 import {
-  DEFAULT_SETTINGS, addDays, addMonths, fmtDate, fmtDateTime, grantActive, monthLabel, toMin, todayISO, usageByDeptMonth,
-  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type WifiAccount, type WifiGrant, itemTypeLabel } from "@/lib/receptionist/model";
+  DEFAULT_SETTINGS, addDays, addMonths, toMin, todayISO,
+  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type Visitor, type WifiAccount, type WifiGrant } from "@/lib/receptionist/model";
 import RcpWifi from "./RcpWifi";
 import RcpParcels from "./RcpParcels";
 import RcpRoom from "./RcpRoom";
 import RcpData from "./RcpData";
-import { ExportButtons, col, type Directory } from "./shared";
+import RcpDashboard from "./RcpDashboard";
+import RcpVisitors, { VisitorModal } from "./RcpVisitors";
+import type { Directory, RcpView } from "./shared";
 import r from "./receptionist.module.css";
+import d from "./rcpdash.module.css";
 
 import { L } from "@/lib/i18n";
-type View = "dashboard" | "wifi" | "parcels" | "room" | "data" | "settings";
+type View = RcpView;
 
 export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | null }) {
-  void myProfile;
   const [view, setView] = useState<View>("dashboard");
   const [settings, setSettings] = useState<RcpSettings>(DEFAULT_SETTINGS);
   const [accounts, setAccounts] = useState<WifiAccount[]>([]);
   const [grants, setGrants] = useState<WifiGrant[]>([]);
   const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [today, setToday] = useState<RoomBooking[]>([]);
+  const [bookings, setBookings] = useState<RoomBooking[]>([]);
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [visError, setVisError] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [employees, setEmployees] = useState<RcpEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [day, setDayState] = useState(todayISO());
+  const [vm, setVm] = useState<{ edit: Visitor | null } | null>(null);
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+  // rentang tanggal yang sudah dimuat untuk tamu & booking (digeser bila pengguna membuka tanggal yang jauh)
+  const range = useRef({ from: addDays(todayISO(), -29), to: addDays(todayISO(), 14) });
+
+  const notify = useCallback((m: { ok: boolean; text: string }) => { setToast(m); }, []);
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), toast.ok ? 3600 : 6000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   const loadWifi = useCallback(async () => {
     const since = addMonths(todayISO(), -12);
@@ -45,26 +61,45 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
   const loadParcels = useCallback(async () => {
     setParcels(await getParcels(new Date(addMonths(todayISO(), -6) + "T00:00:00").toISOString()));
   }, []);
-  const loadToday = useCallback(async () => { const t = todayISO(); setToday(await getBookings(t, t)); }, []);
+  /** Booking + tamu pada rentang aktif. Gagalnya tamu (mis. SQL 055 belum dijalankan) tidak mengganggu bagian lain. */
+  const loadRange = useCallback(async () => {
+    const { from, to } = range.current;
+    const [b, v] = await Promise.all([
+      getBookings(from, to),
+      getVisitors(from, to).then((x) => { setVisError(""); return x; }).catch((e) => { setVisError(e instanceof Error ? e.message : String(e)); return [] as Visitor[]; }),
+    ]);
+    setBookings(b); setVisitors(v);
+  }, []);
   const loadContacts = useCallback(async () => { setContacts(await getContacts()); }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [s] = await Promise.all([getRcpSettings(), loadWifi(), loadParcels(), loadToday(), loadContacts()]);
+      const [s] = await Promise.all([getRcpSettings(), loadWifi(), loadParcels(), loadRange(), loadContacts()]);
       setSettings(s);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); }
     getRcpEmployees().then(setEmployees).catch(() => {});
-  }, [loadWifi, loadParcels, loadToday, loadContacts]);
+  }, [loadWifi, loadParcels, loadRange, loadContacts]);
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  /** Ganti tanggal yang dilihat; bila di luar rentang yang sudah dimuat, rentang diperluas lalu data dimuat ulang. */
+  const setDay = useCallback((next: string) => {
+    setDayState(next);
+    const cur = range.current;
+    if (next < cur.from || next > cur.to) {
+      range.current = { from: next < cur.from ? addDays(next, -14) : cur.from, to: next > cur.to ? addDays(next, 14) : cur.to };
+      loadRange().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    }
+  }, [loadRange]);
 
   const dir: Directory = useMemo(() => ({ contacts, employees }), [contacts, employees]);
   const reloadWifi = useCallback(async () => { await Promise.all([loadWifi(), loadContacts()]); }, [loadWifi, loadContacts]);
   const reloadParcels = useCallback(async () => { await Promise.all([loadParcels(), loadContacts()]); }, [loadParcels, loadContacts]);
 
   const waiting = parcels.filter((p) => p.status === "waiting").length;
+  const insideNow = visitors.filter((v) => v.visitDate === todayISO() && !v.checkedOutAt).length;
   const reloadEmployees = useCallback(async () => { setEmployees(await getRcpEmployees()); }, []);
-  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", L("Pengaturan", "Settings")]];
+  const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["visitors", L("Tamu", "Visitors"), insideNow], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", L("Pengaturan", "Settings")]];
 
   return (
     <div className={r.wrap}>
@@ -72,7 +107,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
         <div className={r.headText}>
           <span className={r.kicker}>Fasilitas · Receptionist</span>
           <h1>Receptionist</h1>
-          <p>{L("Akses wifi tamu, barang & surat, dan booking", "Guest wifi access, items & mail, and booking of")} {settings.roomName} {L("dalam satu tempat.", "in one place.")}</p>
+          <p>{L("Tamu yang datang, akses wifi tamu, barang & surat, dan booking", "Visitors, guest wifi access, items & mail, and booking of")} {settings.roomName} {L("dalam satu tempat.", "in one place.")}</p>
         </div>
         <button type="button" className={r.ghost} onClick={loadAll} disabled={loading}>{loading ? L("Memuat…", "Loading…") : L("↻ Muat ulang", "↻ Reload")}</button>
       </header>
@@ -84,132 +119,25 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
         ))}
       </nav>
       {error && <div className={r.err}>{error}</div>}
+      {visError && (view === "dashboard" || view === "visitors") && <div className={r.warn}>{visError}</div>}
 
-      {view === "dashboard" && <Dashboard accounts={accounts} grants={grants} parcels={parcels} today={today} settings={settings} go={setView} />}
+      {view === "dashboard" && (
+        <RcpDashboard myProfile={myProfile} settings={settings} accounts={accounts} grants={grants} parcels={parcels} bookings={bookings} visitors={visitors}
+          day={day} setDay={setDay} go={setView} onNewVisitor={() => setVm({ edit: null })} reloadVisitors={loadRange} notify={notify} />
+      )}
+      {view === "visitors" && <RcpVisitors visitors={visitors} day={day} setDay={setDay} reload={loadRange} onNew={() => setVm({ edit: null })} onEdit={(v) => setVm({ edit: v })} notify={notify} />}
       {view === "wifi" && <RcpWifi settings={settings} accounts={accounts} grants={grants} dir={dir} reload={reloadWifi} />}
       {view === "parcels" && <RcpParcels parcels={parcels} dir={dir} reload={reloadParcels} />}
-      {view === "room" && <RcpRoom settings={settings} dir={dir} onChanged={() => loadToday().catch(() => {})} />}
+      {view === "room" && <RcpRoom settings={settings} dir={dir} onChanged={() => loadRange().catch(() => {})} />}
       {view === "data" && <RcpData employees={employees} accounts={accounts} reloadEmployees={reloadEmployees} reloadWifi={reloadWifi} />}
       {view === "settings" && <Settings settings={settings} onSaved={(s) => setSettings(s)} />}
+
+      {vm && (
+        <VisitorModal edit={vm.edit} dir={dir} history={visitors} onClose={() => setVm(null)}
+          onSaved={async (msg) => { setVm(null); try { await loadRange(); } catch { /* data lama tetap tampil */ } notify({ ok: true, text: msg }); }} />
+      )}
+      {toast && <div className={`${d.toast} ${toast.ok ? "" : d.bad}`} role="status" aria-live="polite" onClick={() => setToast(null)}>{toast.text}</div>}
     </div>
-  );
-}
-
-/* ── Dashboard ── */
-function Dashboard({ accounts, grants, parcels, today, settings, go }: {
-  accounts: WifiAccount[]; grants: WifiGrant[]; parcels: Parcel[]; today: RoomBooking[]; settings: RcpSettings; go: (v: View) => void;
-}) {
-  const t = todayISO();
-  const usable = accounts.filter((a) => a.active && a.validUntil >= t);
-  const totalSlots = usable.reduce((s, a) => s + a.slots, 0);
-  const freeSlots = usable.reduce((s, a) => s + a.free, 0);
-  const expiring = usable.filter((a) => a.validUntil <= addDays(t, 7)).sort((a, b) => a.validUntil.localeCompare(b.validUntil));
-  const activeGuests = grants.filter((g) => grantActive(g));
-  const waiting = parcels.filter((p) => p.status === "waiting").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const waitIn = waiting.filter((p) => p.direction === "in").length;
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-  const nextBk = today.find((b) => toMin(b.end) > nowMin);
-  const pctFree = totalSlots ? (freeSlots / totalSlots) * 100 : 0;
-  const usage = useMemo(() => {
-    const u = usageByDeptMonth(grants);
-    return { months: u.months.slice(-6), rows: u.rows.slice(0, 10) };
-  }, [grants]);
-  const maxCell = Math.max(1, ...usage.rows.flatMap((x) => usage.months.map((m) => x.byMonth[m] ?? 0)));
-  const ageDays = (p: Parcel) => Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000);
-
-  return (
-    <>
-      <div className={r.kpis}>
-        <button type="button" className={r.kpi} style={{ ["--c" as string]: pctFree < 15 ? "var(--red)" : pctFree < 35 ? "var(--orange)" : "var(--green)" }} onClick={() => go("wifi")}>
-          <small>{L("Slot wifi tersedia", "Wifi slots available")}</small>
-          <b>{freeSlots} <em>{L("dari", "of")} {totalSlots}</em></b>
-          <span className={r.meter}><i style={{ width: `${pctFree}%` }} /></span>
-          <span>{activeGuests.length} {L("tamu aktif", "active guests")} · {usable.length} {L("akun berlaku", "valid accounts")}</span>
-        </button>
-        <button type="button" className={r.kpi} style={{ ["--c" as string]: expiring.length ? "var(--orange)" : "var(--green)" }} onClick={() => go("wifi")}>
-          <small>{L("Akun habis ≤ 7 hari", "Accounts expiring ≤ 7 days")}</small><b>{expiring.length}</b>
-          <span>{expiring[0] ? L(`terdekat ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}`, `nearest ${expiring[0].username} · ${fmtDate(expiring[0].validUntil)}`) : L("tidak ada", "none")}</span>
-        </button>
-        <button type="button" className={r.kpi} style={{ ["--c" as string]: waiting.some((p) => ageDays(p) >= 2) ? "var(--orange)" : "var(--brand)" }} onClick={() => go("parcels")}>
-          <small>{L("Barang menunggu", "Items waiting")}</small><b>{waiting.length}</b>
-          <span>{waitIn} {L("masuk", "incoming")} · {waiting.length - waitIn} {L("keluar", "outgoing")}{waiting.some((p) => ageDays(p) >= 2) ? ` · ${waiting.filter((p) => ageDays(p) >= 2).length} ${L("> 2 hari", "> 2 days")}` : ""}</span>
-        </button>
-        <button type="button" className={r.kpi} style={{ ["--c" as string]: "var(--green)" }} onClick={() => go("room")}>
-          <small>{L("Booking", "Bookings for")} {settings.roomName} {L("hari ini", "today")}</small><b>{today.length}</b>
-          <span>{nextBk ? L(`berikutnya ${nextBk.start} · ${nextBk.title}`, `next ${nextBk.start} · ${nextBk.title}`) : today.length ? L("semua sudah selesai", "all finished") : L("ruangan kosong", "room is free")}</span>
-        </button>
-      </div>
-
-      <div className={r.grid3}>
-        <section className={r.card}>
-          <div className={r.cardHead}><h2>{L("Barang menunggu diambil", "Items waiting to be collected")}</h2><button type="button" className={r.link} onClick={() => go("parcels")}>{L("Kelola →", "Manage →")}</button></div>
-          {waiting.length === 0 ? <p className={r.empty}>{L("Tidak ada barang yang menunggu.", "No items waiting.")}</p> : (
-            <div className={r.list}>
-              {waiting.slice(0, 6).map((p) => (
-                <div key={p.id} className={r.item}>
-                  <div><b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
-                    <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}</span><span>{fmtDateTime(p.createdAt)}</span></div></div>
-                  {ageDays(p) >= 2 ? <span className={`${r.pill} ${r.pOrange}`}>{ageDays(p)} {L("hari", "days")}</span> : <span className={`${r.pill} ${r.pBlue}`}>{L("baru", "new")}</span>}
-                </div>
-              ))}
-              {waiting.length > 6 && <span className={r.mute}>+{waiting.length - 6} {L("lainnya", "more")}</span>}
-            </div>
-          )}
-        </section>
-
-        <section className={r.card}>
-          <div className={r.cardHead}><h2>{settings.roomName} {L("hari ini", "today")}</h2><button type="button" className={r.link} onClick={() => go("room")}>{L("Buka jadwal →", "Open schedule →")}</button></div>
-          {today.length === 0 ? <p className={r.empty}>{L("Tidak ada booking hari ini.", "No bookings today.")}</p> : (
-            <div className={r.timeline}>
-              {today.map((b) => (
-                <div key={b.id} className={`${r.tl} ${toMin(b.start) <= nowMin && nowMin < toMin(b.end) ? r.tlNow : ""}`} style={toMin(b.end) <= nowMin ? { opacity: 0.55 } : undefined}>
-                  <b>{b.start}–{b.end}</b>
-                  <span><b style={{ fontFamily: "inherit" }}>{b.title}</b><div className={r.mute}>{[b.pic, b.department, b.attendees ? `${b.attendees} orang` : ""].filter(Boolean).join(" · ")}</div></span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className={r.card}>
-          <div className={r.cardHead}><h2>{L("Akun wifi yang akan habis", "Wifi accounts about to expire")}</h2><small>≤ 7 {L("hari", "days")}</small></div>
-          {expiring.length === 0 ? <p className={r.empty}>{L("Tidak ada akun yang habis dalam 7 hari.", "No accounts expire within 7 days.")}</p> : (
-            <div className={r.tableBox}>
-              <table className={r.table}>
-                <thead><tr><th>{L("Akun", "Account")}</th><th>{L("Berlaku sampai", "Valid until")}</th><th>{L("Sisa", "Left")}</th><th>{L("Slot terpakai", "Slots used")}</th></tr></thead>
-                <tbody>{expiring.map((a) => (
-                  <tr key={a.id}><td className={r.mono}><b>{a.username}</b></td><td>{fmtDate(a.validUntil)}</td>
-                    <td><span className={`${r.pill} ${a.daysLeft <= 2 ? r.pRed : r.pOrange}`}>{a.daysLeft === 0 ? L("hari ini", "today") : L(`${a.daysLeft} hari`, `${a.daysLeft} days`)}</span></td><td>{a.used}/{a.slots}</td></tr>
-                ))}</tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <section className={r.card} style={{ gridColumn: "1 / -1" }}>
-          <div className={r.cardHead}>
-            <h2>{L("Pemakaian wifi per departemen", "Wifi usage per department")}</h2>
-            <ExportButtons rows={usage.rows} title={L("Pemakaian Wifi Tamu per Departemen", "Guest Wifi Usage per Department")} filename="Wifi_per_Departemen" columns={[
-              col<(typeof usage.rows)[number]>("d", L("Departemen", "Department"), (x) => x.dept),
-              ...usage.months.map((m) => col<(typeof usage.rows)[number]>(m, monthLabel(m), (x) => x.byMonth[m] ?? 0, "right")),
-              col<(typeof usage.rows)[number]>("t", "Total", (x) => usage.months.reduce((s, m) => s + (x.byMonth[m] ?? 0), 0), "right")]} />
-          </div>
-          {usage.rows.length === 0 ? <p className={r.empty}>{L("Belum ada pemakaian.", "No usage yet.")}</p> : (
-            <div className={r.tableBox}>
-              <table className={r.table}>
-                <thead><tr><th>{L("Departemen", "Department")}</th>{usage.months.map((m) => <th key={m} className={r.num}>{monthLabel(m)}</th>)}</tr></thead>
-                <tbody>{usage.rows.map((x) => (
-                  <tr key={x.dept}><td>{x.dept}</td>{usage.months.map((m) => (
-                    <td key={m} className={r.num}><span className={r.heat} style={{ ["--h" as string]: Math.round(((x.byMonth[m] ?? 0) / maxCell) * 45) }}>{x.byMonth[m] ?? 0}</span></td>
-                  ))}</tr>
-                ))}</tbody>
-              </table>
-            </div>
-          )}
-          <p className={r.hint}>{L("Jumlah tanda terima wifi per bulan (6 bulan terakhir).", "Number of wifi receipts per month (last 6 months).")}</p>
-        </section>
-      </div>
-    </>
   );
 }
 

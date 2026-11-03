@@ -7,7 +7,7 @@
 import type { AtkItem, AtkRequest, AtkRestock, CanteenReport, Claim, Plant, TaskDetail, Vehicle, VehicleGateLog } from "../types";
 import { isAutoCompleted } from "../types";
 import {
-  PALETTE, SERIES_COLORS, buckets, dShort, daysBetween, deltaText, metaOf, perWord, prevRange, tr,
+  PALETTE, SERIES_COLORS, buckets, dShort, daysBetween, deltaText, metaOf, perWord, prevRange, tr, withOther,
   fmtNum, fmtPct, fmtRp, fmtRpShort, parseISO, iso,
   type ChartSpec, type Kpi, type ModuleReport,
 } from "./model";
@@ -55,6 +55,9 @@ export function computeFleet(p: {
   const auto = done.filter((t) => isAutoCompleted(t));
   const prevValid = p.prevTasks.filter((t) => t.status !== "CANCELLED");
   const completion = valid.length ? (done.length / valid.length) * 100 : 0;
+  // komposisi penyelesaian: ditutup driver vs ditutup otomatis sistem pukul 17.00
+  const driverPct = valid.length ? ((done.length - auto.length) / valid.length) * 100 : 0;
+  const autoPct = valid.length ? (auto.length / valid.length) * 100 : 0;
   const cancelRate = tasks.length ? (cancelled.length / tasks.length) * 100 : 0;
 
   const durations = done
@@ -96,7 +99,7 @@ export function computeFleet(p: {
 
   const byJob = new Map<string, number>();
   valid.forEach((t) => addTo(byJob, t.jenis_pekerjaan || tr("Lainnya", "Other"), 1));
-  const jobs = topN(byJob, 6);
+  const jobs = withOther([...byJob.entries()], 6);
 
   const byVehicle = new Map<string, number>();
   valid.forEach((t) => t.kendaraan && addTo(byVehicle, t.kendaraan, 1));
@@ -115,8 +118,10 @@ export function computeFleet(p: {
 
   const kpis: Kpi[] = [
     { label: tr("Total penugasan", "Total assignments"), value: fmtNum(valid.length), sub: vol.pct === null ? vol.text : `${vol.text} ${vsPrev()}`, tone: vol.pct === null ? "neutral" : vol.pct >= 0 ? "good" : "neutral" },
-    { label: tr("Tingkat penyelesaian", "Completion rate"), value: fmtPct(completion, 0), sub: `${fmtNum(cancelled.length)} ${tr("dibatalkan", "cancelled")} (${fmtPct(cancelRate, 0)})`, tone: completion >= 90 ? "good" : completion >= 75 ? "neutral" : "bad" },
-    { label: tr("Utilisasi armada", "Fleet utilisation"), value: fmtPct(util, 0), sub: tr(`${usedActive} dari ${activeVehicles.length} unit terpakai`, `${usedActive} of ${activeVehicles.length} units used`), tone: util >= 70 ? "good" : util >= 50 ? "neutral" : "bad" },
+    { label: tr("Tingkat penyelesaian", "Completion rate"), value: fmtPct(completion, 0),
+      sub: tr(`${fmtPct(driverPct, 0)} oleh driver · ${fmtPct(autoPct, 0)} otomatis 17.00 · ${fmtNum(cancelled.length)} dibatalkan`, `${fmtPct(driverPct, 0)} by drivers · ${fmtPct(autoPct, 0)} auto-closed 17:00 · ${fmtNum(cancelled.length)} cancelled`),
+      tone: completion < 75 ? "bad" : completion >= 90 && autoPct <= 20 ? "good" : "neutral" },
+    { label: tr("Armada terpakai", "Fleet used"), value: fmtPct(util, 0), sub: tr(`${usedActive} dari ${activeVehicles.length} unit dipakai minimal sekali`, `${usedActive} of ${activeVehicles.length} units used at least once`), tone: util >= 70 ? "good" : util >= 50 ? "neutral" : "bad" },
     { label: tr("Rata-rata durasi tugas", "Avg. task duration"), value: avgDur ? `${fmtNum(avgDur / 60, 1)} ${tr("jam", "hrs")}` : "–", sub: tr("diterima → selesai", "accepted → completed"), tone: "neutral" },
     { label: tr("Dokumen jatuh tempo", "Documents due"), value: fmtNum(docs.length), sub: overdue.length ? tr(`${overdue.length} sudah lewat`, `${overdue.length} overdue`) : tr("≤ 30 hari ke depan", "within the next 30 days"), tone: docs.length ? "bad" : "good" },
   ];
@@ -138,8 +143,8 @@ export function computeFleet(p: {
     `${fmtNum(valid.length)} penugasan pada periode ini, ${vol.text}${vol.pct !== null ? ` dibanding periode sebelumnya (${fmtNum(prevValid.length)})` : ""}.`,
     `${fmtNum(valid.length)} assignments this period, ${vol.text}${vol.pct !== null ? ` versus the prior period (${fmtNum(prevValid.length)})` : ""}.`));
   insights.push(tr(
-    `Tingkat penyelesaian ${fmtPct(completion, 0)}; ${fmtNum(cancelled.length)} tugas dibatalkan (${fmtPct(cancelRate, 0)} dari total).`,
-    `Completion rate ${fmtPct(completion, 0)}; ${fmtNum(cancelled.length)} tasks cancelled (${fmtPct(cancelRate, 0)} of total).`));
+    `Tingkat penyelesaian ${fmtPct(completion, 0)} (${fmtPct(driverPct, 0)} ditutup driver, ${fmtPct(autoPct, 0)} ditutup otomatis); ${fmtNum(cancelled.length)} tugas dibatalkan (${fmtPct(cancelRate, 0)} dari total).`,
+    `Completion rate ${fmtPct(completion, 0)} (${fmtPct(driverPct, 0)} closed by drivers, ${fmtPct(autoPct, 0)} auto-closed); ${fmtNum(cancelled.length)} tasks cancelled (${fmtPct(cancelRate, 0)} of total).`));
   if (busiest && weeks >= 1.5) insights.push(tr(
     `Hari tersibuk adalah ${dowName(busiest[0])} dengan rata-rata ${fmtNum(busyAvg, 1)} tugas per minggu.`,
     `${dowName(busiest[0])} is the busiest day, averaging ${fmtNum(busyAvg, 1)} tasks per week.`));
@@ -150,8 +155,8 @@ export function computeFleet(p: {
     `Jenis pekerjaan dominan: ${jobs[0][0]} (${fmtPct((jobs[0][1] / Math.max(1, valid.length)) * 100, 0)} dari seluruh tugas).`,
     `Dominant job type: ${jobs[0][0]} (${fmtPct((jobs[0][1] / Math.max(1, valid.length)) * 100, 0)} of all tasks).`));
   insights.push(tr(
-    `${usedActive} dari ${activeVehicles.length} kendaraan aktif terpakai (${fmtPct(util, 0)})${idle.length ? `; ${idle.length} unit tidak dipakai sama sekali` : ""}.`,
-    `${usedActive} of ${activeVehicles.length} active vehicles were used (${fmtPct(util, 0)})${idle.length ? `; ${idle.length} units were not used at all` : ""}.`));
+    `${usedActive} dari ${activeVehicles.length} kendaraan aktif dipakai minimal sekali (${fmtPct(util, 0)})${idle.length ? `; ${idle.length} unit tidak dipakai sama sekali` : ""}.`,
+    `${usedActive} of ${activeVehicles.length} active vehicles were used at least once (${fmtPct(util, 0)})${idle.length ? `; ${idle.length} units were not used at all` : ""}.`));
   if (gateTrips.length) insights.push(tr(
     `${fmtNum(gateTrips.length)} pergerakan kendaraan tercatat di gate${gateDur.length ? `, rata-rata ${fmtNum(gateAvg, 1)} jam di luar` : ""}.`,
     `${fmtNum(gateTrips.length)} vehicle movements logged at the gate${gateDur.length ? `, averaging ${fmtNum(gateAvg, 1)} hrs outside` : ""}.`));
@@ -176,9 +181,9 @@ export function computeFleet(p: {
   if (activeVehicles.length && util < 60) {
     const idleList = idle.slice(0, 3).map((v) => v.nopol).join(", ");
     actions.push(tr(
-      `Utilisasi armada ${fmtPct(util, 0)} — evaluasi kebutuhan unit atau rotasi pemakaian${idle.length ? ` (${idleList} tidak terpakai)` : ""}.`,
-      `Fleet utilisation is ${fmtPct(util, 0)} — review unit requirements or rotate usage${idle.length ? ` (${idleList} unused)` : ""}.`));
-    attention.push(tr(`Armada: utilisasi hanya ${fmtPct(util, 0)}.`, `Fleet: utilisation only ${fmtPct(util, 0)}.`));
+      `Hanya ${fmtPct(util, 0)} unit aktif yang dipakai pada periode ini — evaluasi kebutuhan unit atau rotasi pemakaian${idle.length ? ` (${idleList} tidak terpakai)` : ""}.`,
+      `Only ${fmtPct(util, 0)} of active units were used this period — review unit requirements or rotate usage${idle.length ? ` (${idleList} unused)` : ""}.`));
+    attention.push(tr(`Armada: hanya ${fmtPct(util, 0)} unit aktif yang dipakai.`, `Fleet: only ${fmtPct(util, 0)} of active units were used.`));
   }
   if (cancelRate > 10) {
     actions.push(tr(
@@ -194,8 +199,8 @@ export function computeFleet(p: {
   return {
     key: "fleet", title: meta.title, accent: meta.accent,
     headline: tr(
-      `${fmtNum(valid.length)} penugasan (${vol.text}), penyelesaian ${fmtPct(completion, 0)}, utilisasi armada ${fmtPct(util, 0)}.`,
-      `${fmtNum(valid.length)} assignments (${vol.text}), ${fmtPct(completion, 0)} completed, fleet utilisation ${fmtPct(util, 0)}.`),
+      `${fmtNum(valid.length)} penugasan (${vol.text}), penyelesaian ${fmtPct(completion, 0)} (${fmtPct(driverPct, 0)} oleh driver), ${fmtPct(util, 0)} armada terpakai.`,
+      `${fmtNum(valid.length)} assignments (${vol.text}), ${fmtPct(completion, 0)} completed (${fmtPct(driverPct, 0)} by drivers), ${fmtPct(util, 0)} of fleet used.`),
     kpis, charts, insights, actions, attention,
     table: docs.length ? {
       title: tr("Dokumen armada jatuh tempo", "Fleet documents due"),
