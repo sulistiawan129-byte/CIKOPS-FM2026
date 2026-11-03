@@ -191,19 +191,29 @@ function Meal({ c }: { c: Ctx }) {
               {d.sides.filter(hasItem).map((sd, k) => (
                 <div key={k} className={s.side}><div className={s.dishName}>{sd.name}</div><Num it={sd} /></div>
               ))}
+              {hasItem(d.fruit) && (
+                <div className={s.fruit}>
+                  <div className={s.dishFoot}><span className={s.dishTag}>{L("Buah", "Fruit")}</span><Num it={d.fruit} /></div>
+                  <div className={s.dishName}>{d.fruit.name}</div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
       <div className={`${s.staples} ${s.rise}`} style={idxStyle(9)}>
-        <div className={s.staplesLabel}>{L("Selalu Tersedia", "Always Served")}<small>{L("setiap hari, Senin – Minggu", "every day, Monday – Sunday")}</small></div>
+        <div className={s.staplesLabel}>{L("Selalu Tersedia", "Always Served")}<small>{L("Senin – Minggu", "Monday – Sunday")}</small></div>
         <div className={s.stapleList}>
-          {c.week.staples.filter(hasItem).slice(0, 4).map((st, k) => (
+          {c.week.staples.filter(hasItem).slice(0, 3).map((st, k) => (
             <div key={k} className={s.staple}>
-              <div className={s.stapleIcon}>{["N", "S", "K", "B"][k] ?? "•"}</div>
-              <div><div className={s.stapleName}>{st.name}</div><div className={s.stapleNum}><b>{st.kcal}</b> {kk()} · <b>{st.gram}</b> g</div></div>
+              <div className={s.stapleIcon}>{["N", "S", "K"][k] ?? "•"}</div>
+              <div><div className={s.stapleName}>{st.name}</div><div className={s.stapleNum}><b>{st.kcal || "–"}</b> {kk()} · <b>{st.gram || "–"}</b> g</div></div>
             </div>
           ))}
+          <div className={`${s.staple} ${s.fruitNote}`}>
+            <div className={s.stapleIcon}>B</div>
+            <div><div className={s.stapleName}>{L("Buah", "Fruit")}</div><div className={s.stapleNum}>{L("berbeda setiap hari — lihat tiap kolom", "changes daily — see each column")}</div></div>
+          </div>
         </div>
       </div>
     </section>
@@ -251,7 +261,8 @@ function TodaySlide({ c }: { c: Ctx }) {
           <div className={`${s.course} ${s.rise}`} style={idxStyle(5)}><h3>{hasItem(d.special) ? "IV" : "III"}. {L("Pendamping", "Sides")}<span>{L("PELENGKAP", "ACCOMPANIMENT")}</span></h3>
             {d.sides.filter(hasItem).map((sd, k) => <MRow key={k} it={sd} i={n++} />)}
           </div>
-          <div className={`${s.course} ${s.rise}`} style={idxStyle(6)}><h3>{hasItem(d.special) ? "V" : "IV"}. {L("Selalu Tersedia", "Always Served")}<span>{L("SETIAP HARI", "EVERY DAY")}</span></h3>
+          <div className={`${s.course} ${s.rise}`} style={idxStyle(6)}><h3>{hasItem(d.special) ? "V" : "IV"}. {L("Pelengkap", "On the Side")}<span>{L("SETIAP HARI", "EVERY DAY")}</span></h3>
+            {hasItem(d.fruit) && <MRow tag={L("Buah", "Fruit")} col="#ff9ec4" it={d.fruit} i={n++} />}
             {c.week.staples.filter(hasItem).map((st, k) => <MRow key={k} it={st} i={n++} />)}
           </div>
         </div>
