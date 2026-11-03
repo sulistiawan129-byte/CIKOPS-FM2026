@@ -23,6 +23,7 @@ import type { ReportColumn, ReportLang } from "@/lib/reportEngine";
 import s from "./atk.module.css";
 
 import { loc } from "@/lib/i18n";
+import { SearchPick } from "@/components/SearchPick";
 type Lang = "id" | "en";
 type View = "dashboard" | "request" | "restock" | "stock" | "history" | "sync";
 type Preset = "thisMonth" | "lastMonth" | "d30" | "m3" | "year" | "custom";
@@ -653,6 +654,12 @@ function TxnForm({ kind, lang, items, history, myProfile, prefillKode, onDone }:
     }
     return m;
   }, [history, master]);
+  // pilihan pemohon: master karyawan dulu, lalu nama dari riwayat ATK (tanpa dobel nama)
+  const personOptions = useMemo(() => {
+    const seen = new Set<string>(); const out: { key: string; name: string; hint?: string }[] = [];
+    for (const p of people.values()) { const k = p.nama.toLowerCase(); if (!p.nama || seen.has(k)) continue; seen.add(k); out.push({ key: k, name: p.nama, hint: [p.dept, p.nik].filter(Boolean).join(" · ") || undefined }); }
+    return out;
+  }, [people]);
   const deptList = useMemo(() => [...new Set([...master.map((e) => e.dept), ...history.map((r) => r.departemen)].filter(Boolean))].sort(), [history, master]);
   const nameList = useMemo(() => [...new Set([...master.map((e) => e.nama), ...history.map((r) => r.nama)].filter(Boolean))].sort().slice(0, 3000), [history, master]);
   const helperList = useMemo(() => [...new Set(history.map((r) => r.helper).filter(Boolean))].sort(), [history]);
@@ -731,13 +738,12 @@ function TxnForm({ kind, lang, items, history, myProfile, prefillKode, onDone }:
         </div>
         <label className={s.field}>
           <span>{isReq ? L("Nama pemohon", "Requester name") + " *" : L("Petugas", "Staff")}</span>
-          <input ref={isReq ? firstRef : undefined} className={s.input} value={nama} onChange={(e) => setNama(e.target.value)} onBlur={() => fillFrom("p:" + nama.trim().toLowerCase())} list={isReq ? "atk-names" : undefined} required={isReq} maxLength={120} autoComplete="off" />
+          <SearchPick inputRef={isReq ? firstRef : undefined} inputClassName={s.input} value={nama} onChange={setNama} onPick={(o) => fillFrom("p:" + o.name.toLowerCase())} onBlur={() => fillFrom("p:" + nama.trim().toLowerCase())} required={isReq} maxLength={120} ariaLabel={isReq ? L("Nama pemohon", "Requester name") : L("Petugas", "Staff")} options={isReq ? personOptions : []} />
         </label>
         <div className={s.fields2}>
           <label className={s.field}><span>{L("Departemen", "Department")}</span><input className={s.input} value={dept} onChange={(e) => setDept(e.target.value)} list="atk-depts" maxLength={80} autoComplete="off" /></label>
           {isReq && <label className={s.field}><span>{L("Helper (pengambil barang)", "Helper (picked up by)")}</span><input className={s.input} value={helper} onChange={(e) => setHelper(e.target.value)} list="atk-helpers" maxLength={80} autoComplete="off" /></label>}
         </div>
-        <datalist id="atk-names">{nameList.map((n) => <option key={n} value={n} />)}</datalist>
         <datalist id="atk-depts">{deptList.map((n) => <option key={n} value={n} />)}</datalist>
         <datalist id="atk-helpers">{helperList.map((n) => <option key={n} value={n} />)}</datalist>
       </section>

@@ -597,6 +597,27 @@ Kalender, pencarian, atau menu lain. URL menu lain otomatis diarahkan kembali ke
 Untuk membuat akun resepsionis lain: buat user baru, lalu
 `update profiles set role = 'receptionist', allowed_tabs = array['receptionist'] where id = (select id from auth.users where email = '...');`
 
+### Pemilihan akun wifi sesuai durasi
+Akun wifi dari IT punya "tipe" menurut panjang masa berlakunya (mis. 7, 30, 60 hari). Pada pilihan **1 minggu / 1 bulan / 3 bulan**,
+sakelar **Utamakan akun yang sesuai durasi** (aktif secara bawaan) memilih tipe terkecil yang cukup panjang: 1 minggu → akun 7 hari,
+1 bulan → akun 30 hari, 3 bulan → tipe terpanjang yang ada. Akun yang sudah berjalan beberapa hari bisa habis sedikit lebih cepat dari
+durasi yang diminta; dalam hal itu **tanggal selesai otomatis disesuaikan ke tanggal habis akun** dan tampil peringatan kuning
+(tanggal yang sama yang tercetak di tanda terima), jadi tamu tidak pernah diberi akun yang habis sebelum tanggal di tanda terima.
+Matikan sakelar untuk perilaku ketat (hanya akun yang berlaku penuh sampai tanggal selesai, paling cepat habis dulu).
+Untuk Hari ini, 3 hari, dan "Sampai tanggal…" perilaku tetap ketat.
+
+### Koreksi data (ubah / hapus) — SQL 052
+Supaya salah input jumlah, penerima, atau tanggal bisa dibetulkan tanpa menghapus semuanya:
+- **Barang & Surat:** kolom **Jumlah** (tampil ×N di daftar, bukti, dan laporan). Tombol **✎ Ubah** di daftar Menunggu, Hari ini, dan Riwayat:
+  semua isian bisa diubah (arah masuk/keluar dan nomor bukti tetap; bila arah salah, hapus lalu catat ulang). Untuk barang yang sudah
+  diserahkan, nama pengambil dan waktu serah terima bisa dikoreksi, atau pilih **↩ Batalkan serah terima** agar barang kembali "Menunggu".
+  **Hapus** hanya untuk salah catat (ada konfirmasi yang menyebut nomor, penerima, dan jumlah).
+- **Wifi Guest:** di Tamu aktif dan Riwayat ada **✎ Ubah** (nama tamu/requestor, departemen, keperluan, slot, tanggal selesai) dan **Hapus**.
+  Tanggal selesai tidak boleh melewati masa berlaku akun, slot tidak boleh melebihi kapasitas akun (dicek di database). Hapus
+  mengosongkan slot akun; bila tamu hanya pulang lebih awal, pakai **Kembalikan**.
+- Setiap koreksi tercatat (`updated_at` / `updated_by`) dan tampil di daftar sebagai "✎ diubah oleh … · tanggal".
+- **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 052) di Supabase SQL Editor.
+
 ### 4. Pengaturan awal (menu Receptionist → Pengaturan)
 - Jam operasional ruangan (default 06:00–22:00) dan panjang slot grid (15/30/60 menit).
 - Nama wifi (SSID) dan ketentuan — keduanya dicantumkan di email tanda terima.
@@ -1049,12 +1070,13 @@ Report → Laporan Manajemen menyusun ringkasan umum per modul, dikelompokkan se
 |---|---|
 | Fleet & Kendaraan | **Fleet Management** — penugasan driver, utilisasi armada, dokumen jatuh tempo |
 | Finance | **Klaim Driver** — pengeluaran per kategori |
-| Fasilitas | **Kantin**, **ATK**, **Cleaning & Gardening** (achievement plan vs actual), **TGA** (pekerjaan teknisi: selesai, belum selesai, urgent, per teknisi) |
+| Fasilitas | **Kantin**, **ATK**, **Cleaning & Gardening** (achievement plan vs actual), **TGA** (pekerjaan teknisi: selesai, belum selesai, urgent, per teknisi), **Receptionist** (akses wifi tamu, barang & surat + tingkat serah terima, pemakaian Induction Room, kapasitas akun wifi) |
 | Security | **Security** — kendaraan, visitor, transporter, pelanggaran, kejadian, patroli |
 
 Setiap modul berisi 4 angka utama, 2 grafik, temuan, dan rekomendasi; ringkasan eksekutif di atas
 memuat butir "perlu perhatian manajemen". Unduh sebagai Excel, PowerPoint, atau PDF (Indonesia / English).
 Modul yang tampil mengikuti role (mis. Admin ISS hanya Cleaning & Gardening dan TGA).
+Laporan Receptionist tampil untuk Master Admin, Admin GA CIK, dan Management (role Management hanya membaca; kata sandi akun wifi tidak ikut terbaca — kapasitas akun diambil lewat fungsi khusus, SQL 052).
 
 ## Bahasa Indonesia / English
 
@@ -1130,6 +1152,16 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
    tiap 5 menit (perubahan dari Dashboard tampil maksimal 5 menit kemudian), halaman memuat ulang otomatis 03:30 WIB, dan bila
    internet putus layar tetap menampilkan menu terakhir. Minggu yang belum diisi menampilkan layar "Menu minggu ini segera hadir".
 7. **Isi menu** sebelum Senin: Dashboard → Fasilitas → Kantin → Menu TV (bisa isi massal untuk beberapa minggu sekaligus).
+
+## Memilih karyawan: kotak pencarian
+
+Semua pemilihan karyawan memakai **kotak pencarian** (bukan daftar panjang), supaya nyaman di HP: ketik sebagian nama, NIK, atau departemen
+(beberapa kata boleh, urutannya bebas, mis. "budi fin"), lalu ketuk hasilnya. Dipakai di: Penugasan Driver (Requestor), TGA (penugasan &
+ubah pekerjaan), ATK (nama pemohon), dan Receptionist (requestor wifi, penerima/pengirim barang, PIC booking). Di Penugasan Driver hanya
+bisa memilih dari daftar karyawan; di tempat lain nama di luar data karyawan (mis. tamu) tetap boleh diketik.
+
+> Batas Supabase **Max rows** (Project Settings → API) menentukan berapa karyawan yang dimuat sekali ambil (bawaan 1000). Jumlah karyawan
+> sekarang 1500 → pastikan **Max rows ≥ jumlah karyawan** (disarankan 5000). Bila suatu saat melewatinya, nama di ujung daftar tidak muncul.
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro

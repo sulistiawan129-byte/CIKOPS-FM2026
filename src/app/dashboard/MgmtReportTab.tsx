@@ -18,7 +18,7 @@ import {
 import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
-const ALL_MODULES: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "security"];
+const ALL_MODULES: ModuleKey[] = ["fleet", "claims", "canteen", "atk", "ga", "tga", "receptionist", "security"];
 const MONTHS_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 

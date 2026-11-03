@@ -15,6 +15,7 @@ import {
 import { notifyTgaTask } from "@/lib/push";
 import a from "./atk.module.css";
 import b from "./tgatasks.module.css";
+import { SearchPick } from "@/components/SearchPick";
 
 type Lang = "id" | "en";
 interface Emp { id: string; nama: string; departement: string | null }
@@ -234,8 +235,9 @@ function AssignModal({ lang, initial, users, emps, presence, onClose, onSaved }:
 
         <div className={a.fields2}>
           <label className={a.field}><span>{L("Requestor (Data Karyawan)", "Requestor (employee)")}</span>
-            <input className={a.input} list="tga-emp-list" value={d.requestBy} onChange={(e) => pickRequestor(e.target.value)} placeholder={L("Ketik nama…", "Type a name…")} />
-            <datalist id="tga-emp-list">{emps.map((e) => <option key={e.id} value={e.nama}>{e.departement ?? ""}</option>)}</datalist>
+            <SearchPick inputClassName={a.input} ariaLabel="Requestor" value={d.requestBy} onChange={pickRequestor}
+              onPick={(o) => setD((x) => ({ ...x, requestBy: o.name, requestorId: o.key, departemen: o.hint ?? x.departemen }))}
+              placeholder={L("Cari nama karyawan…", "Search employee name…")} options={emps.map((e) => ({ key: e.id, name: e.nama, hint: e.departement ?? undefined }))} />
             {d.requestBy && <small className={d.requestorId ? a.tGreen : a.mute}>{d.requestorId ? L("✓ terhubung ke data karyawan", "✓ linked to employee") : L("di luar data karyawan", "not in employee data")}</small>}
           </label>
           <label className={a.field}><span>{L("Departemen", "Department")}</span><input className={a.input} value={d.departemen} onChange={(e) => set("departemen", e.target.value)} /></label>

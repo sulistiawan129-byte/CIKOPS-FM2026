@@ -12,6 +12,7 @@
 --   Bagian 049  Form kantin publik: boleh mengisi / memperbarui laporan TANGGAL MANA PUN (backdate)
 --   Bagian 050  Data karyawan ATK digabung ke Master Karyawan (employees) — satu sumber
 --   Bagian 051  Menu kantin mingguan untuk layar TV (/menu-tv) — diisi di Dashboard → Kantin → Menu TV
+--   Bagian 052  Receptionist: ubah/hapus/batalkan serah terima barang & wifi + jumlah barang
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -896,3 +897,223 @@ grant execute on function canteen_menu_public(date) to anon, authenticated;
 notify pgrst, 'reload schema';
 
 select '051 menu kantin' as cek, to_regclass('public.canteen_menu_weeks') is not null as tabel_ada;
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 052 — Receptionist: koreksi data (ubah / hapus / batalkan serah terima) + jumlah barang
+-- Receptionist bisa salah mengetik jumlah, penerima, atau tanggal. Sekarang:
+--   • rcp_parcels.qty            jumlah barang/surat (default 1) — tampil di daftar, bukti, dan laporan
+--   • rcp_parcel_update          ubah semua isian barang (arah IN/OUT & nomor bukti tetap); barang yang sudah diserahkan
+--                                boleh dikoreksi nama pengambil & waktu serah terima
+--   • rcp_parcel_unhandover      batalkan serah terima yang salah → kembali "menunggu"
+--   • rcp_wifi_grant_update      ubah data pemberian wifi; tanggal selesai tidak boleh melewati masa berlaku akun,
+--                                slot tidak boleh melebihi kapasitas akun
+--   • updated_at / updated_by    jejak siapa terakhir mengubah (tampil di daftar)
+-- Hapus tetap lewat tabel (policy staf receptionist). Jalankan sesudah 01 & 02. Idempotent.
+-- ═══════════════════════════════════════════════════════════════
+alter table rcp_parcels add column if not exists qty int not null default 1;
+alter table rcp_parcels add column if not exists updated_at timestamptz;
+alter table rcp_parcels add column if not exists updated_by text not null default '';
+alter table rcp_wifi_grants add column if not exists updated_at timestamptz;
+alter table rcp_wifi_grants add column if not exists updated_by text not null default '';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'rcp_parcels_qty_chk') then
+    alter table rcp_parcels add constraint rcp_parcels_qty_chk check (qty between 1 and 9999);
+  end if;
+end $$;
+
+-- rcp_parcel_create: tambah p_qty (versi lama 8 argumen dihapus supaya tidak ambigu di API)
+drop function if exists rcp_parcel_create(text, text, text, text, text, text, text, text);
+create or replace function rcp_parcel_create(
+  p_direction text, p_item_type text, p_description text, p_sender text, p_recipient text,
+  p_department text, p_email text, p_courier text, p_qty int default 1
+) returns jsonb
+language plpgsql security definer set search_path = public as $f$
+declare v_by text; v_no text; v_id uuid;
+begin
+  v_by := rcp_staff_name();
+  if p_direction not in ('in', 'out') then raise exception 'Arah barang tidak valid.'; end if;
+  if coalesce(trim(p_recipient), '') = '' and coalesce(trim(p_sender), '') = '' then raise exception 'Isi dari / untuk siapa.'; end if;
+  if p_qty is null or p_qty < 1 or p_qty > 9999 then raise exception 'Jumlah harus 1–9999.'; end if;
+  v_no := rcp_next_no(case when p_direction = 'in' then 'IN' else 'OUT' end);
+  insert into rcp_parcels (receipt_no, direction, item_type, description, sender, recipient, department, email, courier, qty, created_by)
+  values (v_no, p_direction, coalesce(nullif(trim(p_item_type), ''), 'Paket'), coalesce(trim(p_description), ''),
+          coalesce(trim(p_sender), ''), coalesce(trim(p_recipient), ''), coalesce(trim(p_department), ''),
+          lower(coalesce(trim(p_email), '')), coalesce(trim(p_courier), ''), p_qty, v_by)
+  returning id into v_id;
+  perform rcp_remember_contact(case when p_direction = 'in' then p_recipient else p_sender end, p_email, p_department);
+  return jsonb_build_object('id', v_id, 'receipt_no', v_no);
+end $f$;
+
+create or replace function rcp_parcel_update(
+  p_id uuid, p_item_type text, p_description text, p_sender text, p_recipient text, p_department text,
+  p_email text, p_courier text, p_qty int, p_handed_to text default null, p_handed_at timestamptz default null
+) returns void
+language plpgsql security definer set search_path = public as $f$
+declare v_by text; p rcp_parcels%rowtype;
+begin
+  v_by := rcp_staff_name();
+  select * into p from rcp_parcels where id = p_id for update;
+  if not found then raise exception 'Barang tidak ditemukan.'; end if;
+  if coalesce(trim(p_recipient), '') = '' and coalesce(trim(p_sender), '') = '' then raise exception 'Isi dari / untuk siapa.'; end if;
+  if p_qty is null or p_qty < 1 or p_qty > 9999 then raise exception 'Jumlah harus 1–9999.'; end if;
+  if p.status = 'handed' then
+    if coalesce(trim(p_handed_to), '') = '' then raise exception 'Nama pengambil wajib diisi.'; end if;
+    if p_handed_at is not null and p_handed_at > now() + interval '1 hour' then raise exception 'Waktu serah terima tidak boleh di masa depan.'; end if;
+  end if;
+  update rcp_parcels set
+    item_type   = coalesce(nullif(trim(p_item_type), ''), item_type),
+    description = coalesce(trim(p_description), ''),
+    sender      = coalesce(trim(p_sender), ''),
+    recipient   = coalesce(trim(p_recipient), ''),
+    department  = coalesce(trim(p_department), ''),
+    email       = lower(coalesce(trim(p_email), '')),
+    courier     = coalesce(trim(p_courier), ''),
+    qty         = p_qty,
+    handed_to   = case when status = 'handed' then trim(p_handed_to) else handed_to end,
+    handed_at   = case when status = 'handed' then coalesce(p_handed_at, handed_at) else handed_at end,
+    updated_at  = now(), updated_by = v_by
+  where id = p_id;
+end $f$;
+
+create or replace function rcp_parcel_unhandover(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $f$
+declare v_by text;
+begin
+  v_by := rcp_staff_name();
+  update rcp_parcels set status = 'waiting', handed_to = '', handed_at = null, handed_by = '', updated_at = now(), updated_by = v_by
+   where id = p_id and status = 'handed';
+  if not found then raise exception 'Barang belum diserahkan atau tidak ditemukan.'; end if;
+end $f$;
+
+create or replace function rcp_wifi_grant_update(
+  p_id uuid, p_guest_name text, p_guest_company text, p_requestor_name text, p_requestor_email text,
+  p_department text, p_line_manager text, p_purpose text, p_slots int, p_end date
+) returns void
+language plpgsql security definer set search_path = public as $f$
+declare v_by text; g rcp_wifi_grants%rowtype; a rcp_wifi_accounts%rowtype; v_other int;
+begin
+  v_by := rcp_staff_name();
+  select * into g from rcp_wifi_grants where id = p_id for update;
+  if not found then raise exception 'Data pemberian wifi tidak ditemukan.'; end if;
+  if coalesce(trim(p_guest_name), '') = '' then raise exception 'Nama tamu wajib diisi.'; end if;
+  if coalesce(trim(p_requestor_name), '') = '' then raise exception 'Nama requestor wajib diisi.'; end if;
+  if g.returned_at is null then
+    select * into a from rcp_wifi_accounts where id = g.account_id;
+    if p_end is null or p_end < g.start_date then raise exception 'Tanggal selesai tidak boleh sebelum tanggal mulai.'; end if;
+    if p_end > a.valid_until then
+      raise exception 'Akun % hanya berlaku sampai % — tanggal selesai tidak boleh melewatinya.', a.username, to_char(a.valid_until, 'DD Mon YYYY');
+    end if;
+    if p_slots is null or p_slots < 1 then raise exception 'Slot minimal 1.'; end if;
+    select coalesce(sum(x.slots), 0) into v_other from rcp_wifi_grants x
+     where x.account_id = g.account_id and x.id <> g.id and x.returned_at is null and x.end_date >= rcp_today();
+    if v_other + p_slots > a.slots then
+      raise exception 'Slot akun % tidak cukup (tersisa %).', a.username, greatest(a.slots - v_other, 0);
+    end if;
+    update rcp_wifi_grants set slots = p_slots, end_date = p_end where id = p_id;
+  end if;
+  update rcp_wifi_grants set
+    guest_name = trim(p_guest_name), guest_company = coalesce(trim(p_guest_company), ''),
+    requestor_name = trim(p_requestor_name), requestor_email = lower(coalesce(trim(p_requestor_email), '')),
+    department = coalesce(trim(p_department), ''), line_manager = coalesce(trim(p_line_manager), ''), purpose = coalesce(trim(p_purpose), ''),
+    updated_at = now(), updated_by = v_by
+  where id = p_id;
+end $f$;
+
+-- bukti publik (/bukti): sertakan jumlah barang
+create or replace function rcp_receipt(p_token text) returns jsonb
+language plpgsql stable security definer set search_path = public as $f$
+declare v jsonb; st rcp_settings%rowtype; v_today date := rcp_today();
+begin
+  if coalesce(length(p_token), 0) < 16 then return null; end if;
+  select * into st from rcp_settings where id = 1;
+
+  select jsonb_build_object(
+      'kind', 'wifi', 'receipt_no', g.receipt_no, 'created_at', g.created_at, 'created_by', g.created_by,
+      'guest_name', g.guest_name, 'guest_company', g.guest_company, 'requestor_name', g.requestor_name,
+      'department', g.department, 'purpose', g.purpose, 'slots', g.slots, 'start_date', g.start_date, 'end_date', g.end_date,
+      'returned_at', g.returned_at,
+      'status', case when g.returned_at is not null then 'returned' when g.end_date < v_today then 'ended' else 'active' end,
+      'username', a.username,
+      'password', case when g.returned_at is null and g.end_date >= v_today then a.password end,
+      'ssid', st.wifi_ssid, 'terms', st.wifi_terms)
+    into v
+    from rcp_wifi_grants g join rcp_wifi_accounts a on a.id = g.account_id
+   where g.share_token = p_token;
+  if v is not null then return v; end if;
+
+  select jsonb_build_object(
+      'kind', 'parcel', 'receipt_no', p.receipt_no, 'created_at', p.created_at, 'created_by', p.created_by,
+      'direction', p.direction, 'item_type', p.item_type, 'description', p.description, 'sender', p.sender,
+      'recipient', p.recipient, 'department', p.department, 'courier', p.courier, 'qty', p.qty,
+      'status', p.status, 'handed_to', p.handed_to, 'handed_at', p.handed_at)
+    into v from rcp_parcels p where p.share_token = p_token;
+  if v is not null then return v; end if;
+
+  select jsonb_build_object(
+      'kind', 'booking', 'receipt_no', b.receipt_no, 'created_at', b.created_at, 'created_by', b.created_by,
+      'room', b.room, 'date', b.booking_date, 'start', to_char(b.start_time, 'HH24:MI'), 'end', to_char(b.end_time, 'HH24:MI'),
+      'title', b.title, 'pic', b.pic_name, 'department', b.department, 'attendees', b.attendees, 'notes', b.notes,
+      'status', case when b.booking_date < v_today then 'done' else 'confirmed' end,
+      'series', case when b.series_id is null then null else (
+        select jsonb_build_object('count', count(*), 'first', min(s.booking_date), 'last', max(s.booking_date))
+          from rcp_room_bookings s where s.series_id = b.series_id) end)
+    into v from rcp_room_bookings b where b.share_token = p_token;
+  return v;
+end $f$;
+revoke all on function rcp_receipt(text) from public;
+grant execute on function rcp_receipt(text) to anon, authenticated;
+
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'rcp_parcel_create(text,text,text,text,text,text,text,text,int)',
+    'rcp_parcel_update(uuid,text,text,text,text,text,text,text,int,text,timestamptz)',
+    'rcp_parcel_unhandover(uuid)',
+    'rcp_wifi_grant_update(uuid,text,text,text,text,text,text,text,int,date)'] loop
+    execute format('revoke all on function %s from public, anon', f);
+    execute format('grant execute on function %s to authenticated', f);
+  end loop;
+end $$;
+
+-- Laporan Manajemen → modul Receptionist: role Management (hanya lihat) ikut bisa MEMBACA data layanan.
+-- Tabel rcp_* dijaga rcp_is_staff() (= role yang mengelola Receptionist), sehingga tanpa ini laporan kosong bagi Management.
+-- Kata sandi akun wifi TIDAK terbuka: tabel rcp_wifi_accounts tidak diberi akses; kapasitas akun dibaca lewat fungsi di bawah.
+do $$
+declare t text;
+begin
+  foreach t in array array['rcp_wifi_grants', 'rcp_parcels', 'rcp_room_bookings', 'rcp_settings'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop policy if exists %I on %I', t || '_mgmt_read', t);
+      execute format('create policy %I on %I for select to authenticated using (staff_role() = ''management'')', t || '_mgmt_read', t);
+    end if;
+  end loop;
+end $$;
+
+-- Kapasitas & masa berlaku akun wifi TANPA kata sandi (untuk laporan). Boleh dipanggil semua staf login.
+create or replace function rcp_wifi_capacity()
+returns table (id uuid, username text, valid_from date, valid_until date, slots int, used int, free int, days_left int, duration_days int, status text, active boolean)
+language plpgsql stable security definer set search_path = public as $f$
+begin
+  if not exists (select 1 from profiles pr where pr.id = auth.uid()) then raise exception 'Akses ditolak.' using errcode = '42501'; end if;
+  return query
+  select a.id, a.username, a.valid_from, a.valid_until, a.slots, u.used, greatest(a.slots - u.used, 0),
+         (a.valid_until - rcp_today())::int, (a.valid_until - a.valid_from)::int,
+         case when not a.active then 'inactive'
+              when a.valid_until < rcp_today() then 'expired'
+              when u.used >= a.slots then 'full'
+              when u.used > 0 then 'partial'
+              else 'available' end,
+         a.active
+    from rcp_wifi_accounts a
+    cross join lateral (select rcp_wifi_used(a.id) as used) u
+   order by a.valid_until, a.username;
+end $f$;
+revoke all on function rcp_wifi_capacity() from public, anon;
+grant execute on function rcp_wifi_capacity() to authenticated;
+
+notify pgrst, 'reload schema';
+
+select '052 receptionist koreksi' as cek,
+       (select count(*) from information_schema.columns where table_name = 'rcp_parcels' and column_name in ('qty', 'updated_at', 'updated_by')) as kolom_baru;

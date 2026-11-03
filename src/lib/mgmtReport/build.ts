@@ -11,6 +11,9 @@ import { computeGa } from "./ga";
 import { getGaEvents, getGaImprovements, getGaInventory, getGaPlan } from "../ga/api";
 import { tgaAllActivities } from "../tga/api";
 import { computeTga } from "./tga";
+import { computeReceptionist } from "./receptionist";
+import { getBookings, getParcels, getRcpSettings, getWifiCapacity, getWifiGrants } from "../receptionist/api";
+import { DEFAULT_SETTINGS, toMin } from "../receptionist/model";
 import { atkTrend, canteenTrend, claimsTrend, fleetTrend } from "./trend";
 import { fetchGcCases, getSecurityConfig, getSecurityMonths } from "../security/api";
 import { DEFAULT_KHUSUS, monthKeyOf } from "../security/model";
@@ -86,6 +89,19 @@ export async function buildMgmtReport(p: {
       const rows = await safe(() => tgaAllActivities(), []);
       use();
       out.push(computeTga({ from: p.from, to: p.to, prevFrom: prev.from, prevTo: prev.to, months, rows }));
+    } else if (key === "receptionist") {
+      const [grants, parcels, bookings, accounts, settings] = await Promise.all([
+        safe(() => getWifiGrants(winFrom), []),
+        safe(() => getParcels(winFrom), []),
+        safe(() => getBookings(winFrom, p.to), []),
+        safe(() => getWifiCapacity(), []),
+        safe(() => getRcpSettings(), DEFAULT_SETTINGS),
+      ]);
+      use();
+      const t = new Date();
+      const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+      const openHours = Math.max(1, (toMin(settings.closeTime) - toMin(settings.openTime)) / 60);
+      out.push(computeReceptionist({ from: p.from, to: p.to, prevFrom: prev.from, prevTo: prev.to, today, months, grants, parcels, bookings, accounts, openHours, roomName: settings.roomName || "Induction Room" }));
     } else if (key === "security") {
       const [rows, cfg, gc] = await Promise.all([
         safe(() => getSecurityMonths(monthKeyOf(winFrom), monthKeyOf(p.to)), {}),
