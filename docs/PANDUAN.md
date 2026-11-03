@@ -560,7 +560,7 @@ Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.
 
 ## Receptionist
 
-Menu baru: **Dashboard → Fasilitas → Receptionist** (Dashboard, Wifi Guest, Barang & Surat, Induction Room, Pengaturan).
+Menu baru: **Dashboard → Fasilitas → Receptionist** (Dashboard, Tamu, Wifi Guest, Barang & Surat, Induction Room, Data Master, Pengaturan).
 Ringkasannya juga tampil di **FM Command Center** (tab *Receptionist*, angka di *Ringkasan hari ini*, dan butir *Perlu tindakan*).
 
 ### 1. Jalankan SQL (sekali)
@@ -596,6 +596,32 @@ Akun ber-role `receptionist` dikunci ke menu Receptionist saja: tanpa Home, Ring
 Kalender, pencarian, atau menu lain. URL menu lain otomatis diarahkan kembali ke Receptionist.
 Untuk membuat akun resepsionis lain: buat user baru, lalu
 `update profiles set role = 'receptionist', allowed_tabs = array['receptionist'] where id = (select id from auth.users where email = '...');`
+
+### Dashboard harian & buku tamu (bagian 055)
+**Dashboard** menampilkan angka HARIAN untuk tanggal yang dipilih (default hari ini; panah ‹ › atau kalender di bagian atas, tombol *Kembali ke hari ini*):
+
+| Kartu | Isi |
+|---|---|
+| **Dokumen masuk** | jumlah barang/surat masuk pada hari itu (dijumlah per *Jumlah*), banyak catatan, dan yang masih menunggu diambil |
+| **Dokumen keluar** | jumlah barang/surat keluar, banyak catatan |
+| **Booking Induction Room** | jumlah agenda, total jam terbooking, atau agenda berikutnya |
+| **Peminjaman Wifi Guest** | jumlah pemberian akun wifi pada hari itu, jumlah slot, dan tamu yang masih aktif |
+| **Tamu datang** | jumlah ORANG (rombongan dijumlah), banyak kunjungan, dan yang masih di lokasi |
+
+Tiap kartu punya tren 7 hari (garis kecil), selisih dengan hari sebelumnya, dan bisa diketuk untuk membuka tab terkait.
+Di bawahnya: **Aktivitas 14 hari** (ketuk batang untuk pindah ke hari itu, arahkan kursor untuk rincian, ketuk nama di legenda untuk
+menampilkan/menyembunyikan jenis aktivitas), **Sedang di lokasi** (tamu yang belum pulang + tombol *Pulang*), **Jejak hari ini**
+(tamu datang/pulang, barang masuk/keluar/diserahkan, wifi, booking — urut waktu), **jadwal Induction Room** (garis waktu + penanda "sekarang"),
+barang menunggu, akun wifi yang akan habis, dan pemakaian wifi per departemen. Tombol aksi cepat di bagian atas membuka form yang dituju.
+
+**Tab Tamu = buku tamu.** *Tamu datang* → isi nama (tamu yang pernah datang muncul sebagai saran, instansi & HP terisi sendiri), jumlah orang
+(rombongan cukup satu baris), bertemu siapa (dari Data Karyawan; departemen terisi sendiri), keperluan, no. kartu tamu, dan jam datang
+(otomatis sekarang; boleh diisi mundur untuk koreksi). Saat tamu keluar tekan **Pulang**. Daftar per tanggal bisa difilter (Di lokasi / Sudah pulang),
+dicari, diubah (termasuk jam datang & pulang), dibatalkan pulangnya, dihapus (bila salah catat), dan diekspor ke Excel/PDF. Kunjungan yang
+sudah > 4 jam tanpa Pulang diberi petunjuk "lupa check-out?".
+- Hak akses: yang mengelola Receptionist bisa mengisi; role Management hanya membaca.
+- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 055) di Supabase SQL Editor. Sebelum itu, tab Tamu menampilkan petunjuk
+  dan bagian dashboard lain tetap berjalan.
 
 ### Pemilihan akun wifi sesuai durasi
 Akun wifi dari IT punya "tipe" menurut panjang masa berlakunya (mis. 7, 30, 60 hari). Pada pilihan **1 minggu / 1 bulan / 3 bulan**,

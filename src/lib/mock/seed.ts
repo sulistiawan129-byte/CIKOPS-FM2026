@@ -482,6 +482,52 @@ export function buildSeed(): MockDB {
       });
     }
   }
+  /* Aktivitas harian 13 hari terakhir supaya dashboard Receptionist (grafik 14 hari) terlihat hidup:
+     barang masuk / keluar tambahan (sudah diserahkan), pemberian wifi tambahan (sudah dikembalikan), dan buku tamu. */
+  {
+    const WIFI_ACC = T("rcp_wifi_accounts");
+    for (let d = -13; d <= 0; d++) {
+      const day = addDays(today, d), dow = isoDow(day);
+      if (dow >= 6) continue;
+      const a = Math.abs(d);
+      // jam kerja yang sudah lewat (hari ini tidak boleh di masa depan)
+      const when = (min: number) => (d === 0 ? Math.min(min, Math.max(0, nowMin - 5)) : min);
+      for (let k = 0; k < 2 + ((a * 3) % 5); k++) {
+        const e = emp[(a * 11 + k * 7) % 64], out = (a + k) % 3 === 0;
+        put("rcp_parcels", {
+          id: uuid(), receipt_no: `${out ? "OUT" : "IN"}-${ym}-${pad(100 + (13 - a) * 10 + k, 3)}`, direction: out ? "out" : "in",
+          item_type: ["Paket", "Dokumen / Surat", "Dokumen / Surat", "Makanan"][(a + k) % 4], description: ["Dokumen kontrak", "Surat tagihan", "Paket sparepart", "Sampel produk"][(a + k) % 4],
+          sender: out ? e.nama : ["JNE", "J&T", "PT Kemas Jaya", "Kantor Pusat"][(a + k) % 4], recipient: out ? ["PT Mitra Logistik", "Bank Mandiri", "Customer Bekasi"][(a + k) % 3] : e.nama,
+          department: e.departement, email: e.email, courier: ["JNE", "J&T", "SiCepat", "Kurir internal"][(a + k) % 4], status: "handed", handed_to: e.nama, handed_by: "Receptionist",
+          handed_at: tsAt(day, when(840 + k * 20)), created_by: "Receptionist", created_at: tsAt(day, when(480 + k * 55 + (a % 4) * 15)), share_token: uuid(), qty: 1 + ((a + k) % 3 === 0 ? 2 : 0),
+        });
+      }
+      for (let k = 0; k < (a * 2) % 4; k++) {
+        const e = emp[(a * 5 + k * 3) % 64], acc = WIFI_ACC[(a + k) % WIFI_ACC.length];
+        put("rcp_wifi_grants", {
+          id: uuid(), receipt_no: `WF-${ym}-${pad(100 + (13 - a) * 4 + k, 3)}`, account_id: acc.id, slots: 1,
+          guest_name: ["Mr. Park", "Ms. Chen", "Bpk. Hendra (Vendor)", "Ibu Maya (Auditor)"][(a + k) % 4], guest_company: ["Seoul Machinery", "Shanghai Pack", "PT Solusi Data", "KAP Mitra Audit"][(a + k) % 4],
+          requestor_name: e.nama, requestor_email: e.email, department: e.departement, purpose: "Kunjungan kerja", start_date: day, end_date: day,
+          returned_at: tsAt(day, when(990)), created_by: "Receptionist", created_at: tsAt(day, when(500 + k * 70)), share_token: uuid(),
+        });
+      }
+      const VN = ["Budi Hartono", "Siti Rahma", "Mr. Kim", "Dewi Lestari", "Agus Salim", "Ms. Wong", "Rizky Pratama", "Maria Gonzales", "Hendra Wijaya", "Nur Aini", "Bpk. Darmawan"];
+      const VC = ["PT Mitra Logistik", "Bank Mandiri", "Seoul Machinery", "KAP Mitra Audit", "PT Solusi Data", "Dinas Tenaga Kerja", "PT Kemas Jaya", "Customer Bekasi"];
+      const count = d === 0 ? 6 : 3 + ((a * 5) % 6);
+      for (let k = 0; k < count; k++) {
+        const h = emp[(a * 13 + k * 5) % 64];
+        const inMin = d === 0 ? Math.max(0, nowMin - (k + 1) * 47) : 495 + k * 55 + (a % 3) * 10;
+        const stay = 35 + ((a * 17 + k * 29) % 140);
+        const still = d === 0 && k < 3;
+        put("rcp_visitors", {
+          id: uuid(), visit_date: day, checked_in_at: tsAt(day, inMin), checked_out_at: still ? null : tsAt(day, Math.min(inMin + stay, d === 0 ? Math.max(inMin, nowMin - 2) : 1020)),
+          name: VN[(a + k * 3) % VN.length], company: VC[(a * 2 + k) % VC.length], phone: `0812${pad(5500000 + a * 311 + k * 17, 8)}`, pax: k % 4 === 1 ? 2 + (a % 3) : 1,
+          host_name: h.nama, department: h.departement, purpose: ["Meeting", "Interview", "Vendor / Kurir", "Audit / Inspeksi", "Kunjungan", "Meeting"][(a + k) % 6], badge_no: `K-${pad(1 + ((a * 6 + k) % 30), 2)}`,
+          notes: "", created_by: "Receptionist", created_at: tsAt(day, inMin), updated_at: null, updated_by: "",
+        });
+      }
+    }
+  }
   for (const [prefix, last] of [["WF", 40], ["IN", 40], ["OUT", 40], ["BK", 60]] as const) put("rcp_counters", { prefix, period: ym, last });
 
   /* ════ Cleaning & Gardening ════ */
@@ -650,7 +696,7 @@ export function buildSeed(): MockDB {
     "condolence_wreaths", "driver_claim_requests", "driver_tiers", "drivers", "employee_requests", "employees", "ga_events", "ga_improvements", "ga_inventory",
     "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations", "gift_events", "gift_registrations", "gift_verify_attempts",
     "job_types", "kantong", "lockers", "overtime", "printer_requests", "printers", "profiles", "push_subscriptions", "rcp_contacts", "rcp_counters", "rcp_parcels",
-    "rcp_room_bookings", "rcp_settings", "rcp_wifi_accounts", "rcp_wifi_grants", "security_config", "security_monthly", "tasks", "tga_activities",
+    "rcp_room_bookings", "rcp_settings", "rcp_visitors", "rcp_wifi_accounts", "rcp_wifi_grants", "security_config", "security_monthly", "tasks", "tga_activities",
     "tga_assign_config", "tga_counters", "tga_sessions", "tga_users", "vehicle_doc_notifications", "vehicle_gate_logs", "vehicles", "auth_users",
   ]) T(t);
 
