@@ -105,33 +105,6 @@ function atkRestock(ctx: MockCtx, by: string, a: Row): string {
 /** Tiru _nik_tokens (SQL 053): NIK dipecah pada / , ; | */
 const nikTokens = (v: unknown): string[] => [...new Set(s(v).split(/[/,;|]/).map((x) => x.trim()).filter(Boolean))];
 
-/** Tiru employee_upsert_basic (SQL 053): NIK (nomor mana pun) → nama tunggal → orang yang sama; hanya melengkapi kolom kosong. */
-function employeeUpsertBasic(db: MockCtx["db"], namaIn: unknown, nikIn: unknown, deptIn: unknown): "created" | "updated" | "same" | "skip" | "ambiguous" {
-  const nama = s(namaIn), nik = s(nikIn), dept = s(deptIn);
-  if (!nama) return "skip";
-  const emp = table(db, "employees");
-  const key = nama.toLowerCase();
-  const tok = nikTokens(nik);
-  let hit = tok.length ? emp.find((e) => nikTokens(e.nik).some((t) => tok.includes(t))) : undefined;
-  if (!hit) {
-    const same = emp.filter((e) => s(e.nama).toLowerCase() === key);
-    if (same.length === 1) hit = same[0];
-    else if (same.length > 1) {
-      hit = same.find((e) => !s(e.nik));
-      if (!hit) return "ambiguous";
-    }
-  }
-  if (!hit) {
-    emp.push({ id: uuid(), nama, nik: nik || null, departement: dept || null, aktif: true, created_at: nowIso(), updated_at: nowIso() });
-    return "created";
-  }
-  let changed = false;
-  if (!s(hit.nik) && nik) { hit.nik = nik; changed = true; }
-  if (!s(hit.departement) && dept) { hit.departement = dept; changed = true; }
-  if (changed) hit.updated_at = nowIso();
-  return changed ? "updated" : "same";
-}
-
 const GENERIC_DEPT = "operations - cikarang";
 /** Tiru _emp_dup_pairs (SQL 053): nama (huruf kecil) → [baris lama, baris baru] untuk pasangan yang aman digabung. */
 function empDupGroups(db: MockCtx["db"]) {
@@ -149,22 +122,6 @@ function empDupGroups(db: MockCtx["db"]) {
 }
 
 const ATK: Record<string, RpcHandler> = {
-  employees_merge_atk(_a, ctx) {
-    atkStaff(ctx);
-    const seen = new Map<string, Row>();
-    const reqs = table(ctx.db, "atk_requests").slice().sort((a, b) => s(b.tanggal).localeCompare(s(a.tanggal)));
-    for (const r of reqs) {
-      if (!s(r.nama)) continue;
-      const k = s(r.nik) || s(r.nama).toLowerCase();
-      if (!seen.has(k)) seen.set(k, r);
-    }
-    let created = 0, updated = 0, ambiguous = 0;
-    for (const r of seen.values()) {
-      const res = employeeUpsertBasic(ctx.db, r.nama, r.nik, r.departemen);
-      if (res === "created") created++; else if (res === "updated") updated++; else if (res === "ambiguous") ambiguous++;
-    }
-    return { scanned: seen.size, created, updated, ambiguous };
-  },
   /** employees_dedupe (SQL 053): tanpa argumen = pratinjau; dengan p_apply = gabungkan pasangan yang dipilih. */
   employees_dedupe(a, ctx) {
     atkStaff(ctx);
@@ -215,7 +172,6 @@ const ATK: Record<string, RpcHandler> = {
       });
       it.stok = num(it.stok) - r.jumlah; it.updated_at = now;
     }
-    employeeUpsertBasic(ctx.db, a.p_nama, a.p_nik, a.p_departemen);
     return id;
   },
   atk_web_restock(a, ctx) {

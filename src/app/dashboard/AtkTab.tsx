@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getAtkItems, getAtkRequests, getAtkRestocks, createAtkRequest, createAtkRestock, addAtkItem, setAtkMinStok,
-  cancelAtkTransaction, getAtkSyncStatus, rotateAtkSyncKey, getAllEmployeesFull,
+  cancelAtkTransaction, getAtkSyncStatus, rotateAtkSyncKey, getAtkEmployees,
 } from "@/lib/api";
 import type { MyProfile, AtkLineInput } from "@/lib/api";
 import type { AtkItem, AtkRequest, AtkRestock, AtkSyncStatus } from "@/lib/types";
@@ -631,37 +631,36 @@ function TxnForm({ kind, lang, items, history, myProfile, prefillKode, onDone }:
   const [saved, setSaved] = useState<{ id: string; lines: { nama: string; jumlah: number; satuan: string }[] } | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
 
-  // Master Karyawan (Master Data → Pegawai) = sumber utama pemohon; riwayat ATK hanya pelengkap
+  // Daftar karyawan ATK = HANYA dari sheet Excel "MasterDataKaryawan" (tabel atk_employees), terpisah dari Master Karyawan.
+  // Riwayat ATK tidak dipakai lagi untuk saran nama / departemen (agar departemen lama yang salah tidak ikut muncul).
   const [master, setMaster] = useState<{ nama: string; nik: string; dept: string }[]>([]);
+  const [masterLoaded, setMasterLoaded] = useState(false);
   useEffect(() => {
     let alive = true;
-    getAllEmployeesFull()
-      .then((es) => { if (alive) setMaster(es.filter((e) => e.aktif !== false).map((e) => ({ nama: e.nama, nik: (e.nik ?? "").trim(), dept: (e.departement ?? "").trim() }))); })
-      .catch(() => { /* daftar master opsional — form tetap bisa diketik manual */ });
+    getAtkEmployees()
+      .then((es) => { if (alive) setMaster(es); })
+      .catch(() => { /* daftar opsional — form tetap bisa diketik manual */ })
+      .finally(() => { if (alive) setMasterLoaded(true); });
     return () => { alive = false; };
   }, []);
 
-  // isian otomatis: master dulu, lalu riwayat
+  // isian otomatis dari daftar Excel
   const people = useMemo(() => {
     const m = new Map<string, { nama: string; nik: string; dept: string }>();
     for (const e of master) {
       if (e.nik && !m.has("n:" + e.nik)) m.set("n:" + e.nik, e);
       if (e.nama && !m.has("p:" + e.nama.toLowerCase())) m.set("p:" + e.nama.toLowerCase(), e);
     }
-    for (const r of history) {
-      if (r.nik && !m.has("n:" + r.nik)) m.set("n:" + r.nik, { nama: r.nama, nik: r.nik, dept: r.departemen });
-      if (r.nama && !m.has("p:" + r.nama.toLowerCase())) m.set("p:" + r.nama.toLowerCase(), { nama: r.nama, nik: r.nik, dept: r.departemen });
-    }
     return m;
-  }, [history, master]);
-  // pilihan pemohon: master karyawan dulu, lalu nama dari riwayat ATK (tanpa dobel nama)
+  }, [master]);
+  // pilihan pemohon: daftar karyawan ATK (tanpa dobel nama)
   const personOptions = useMemo(() => {
     const seen = new Set<string>(); const out: { key: string; name: string; hint?: string }[] = [];
     for (const p of people.values()) { const k = p.nama.toLowerCase(); if (!p.nama || seen.has(k)) continue; seen.add(k); out.push({ key: k, name: p.nama, hint: [p.dept, p.nik].filter(Boolean).join(" · ") || undefined }); }
     return out;
   }, [people]);
-  const deptList = useMemo(() => [...new Set([...master.map((e) => e.dept), ...history.map((r) => r.departemen)].filter(Boolean))].sort(), [history, master]);
-  const nameList = useMemo(() => [...new Set([...master.map((e) => e.nama), ...history.map((r) => r.nama)].filter(Boolean))].sort().slice(0, 3000), [history, master]);
+  const deptList = useMemo(() => [...new Set(master.map((e) => e.dept).filter(Boolean))].sort(), [master]);
+  const nameList = useMemo(() => [...new Set(master.map((e) => e.nama).filter(Boolean))].sort().slice(0, 3000), [master]);
   const helperList = useMemo(() => [...new Set(history.map((r) => r.helper).filter(Boolean))].sort(), [history]);
   function fillFrom(key: string) {
     const p = people.get(key);
@@ -739,6 +738,7 @@ function TxnForm({ kind, lang, items, history, myProfile, prefillKode, onDone }:
         <label className={s.field}>
           <span>{isReq ? L("Nama pemohon", "Requester name") + " *" : L("Petugas", "Staff")}</span>
           <SearchPick inputRef={isReq ? firstRef : undefined} inputClassName={s.input} value={nama} onChange={setNama} onPick={(o) => fillFrom("p:" + o.name.toLowerCase())} onBlur={() => fillFrom("p:" + nama.trim().toLowerCase())} required={isReq} maxLength={120} ariaLabel={isReq ? L("Nama pemohon", "Requester name") : L("Petugas", "Staff")} options={isReq ? personOptions : []} />
+          {isReq && masterLoaded && master.length === 0 && <small className={s.hint}>{L("Daftar karyawan ATK masih kosong — kirim sheet MasterDataKaryawan dari Excel (makro SyncKaryawanOnly). Sementara itu nama bisa diketik manual.", "The ATK employee list is empty — send the MasterDataKaryawan sheet from Excel (SyncKaryawanOnly macro). Meanwhile you can type the name manually.")}</small>}
         </label>
         <div className={s.fields2}>
           <label className={s.field}><span>{L("Departemen", "Department")}</span><input className={s.input} value={dept} onChange={(e) => setDept(e.target.value)} list="atk-depts" maxLength={80} autoComplete="off" /></label>

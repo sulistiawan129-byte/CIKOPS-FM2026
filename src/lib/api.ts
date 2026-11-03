@@ -2339,14 +2339,11 @@ export async function updateEmployee(id: string, input: EmployeeInput): Promise<
   if (error) throw error;
 }
 
-/** Gabungkan pemohon dari riwayat ATK (NIK, nama, departemen) ke Master Karyawan — hanya melengkapi yang kosong. */
-export async function mergeAtkIntoEmployees(): Promise<{ scanned: number; created: number; updated: number; ambiguous: number }> {
-  const { data, error } = await supabase.rpc("employees_merge_atk");
-  if (error) throw new Error(error.code === "PGRST202" || error.code === "42883"
-    ? L("Fungsi penggabungan belum ada — jalankan supabase/04_aplikasi_lapangan.sql (bagian 050) di Supabase SQL Editor.", "The merge function is missing — run supabase/04_aplikasi_lapangan.sql (section 050) in the Supabase SQL Editor.")
-    : error.message);
-  const d = (data ?? {}) as Record<string, unknown>;
-  return { scanned: Number(d.scanned ?? 0), created: Number(d.created ?? 0), updated: Number(d.updated ?? 0), ambiguous: Number(d.ambiguous ?? 0) };
+/** Daftar karyawan KHUSUS ATK (NIK, nama, departemen) — diisi dari sheet Excel "MasterDataKaryawan"; terpisah dari Master Karyawan. */
+export async function getAtkEmployees(): Promise<{ nama: string; nik: string; dept: string }[]> {
+  const { data, error } = await supabase.from("atk_employees").select("nik, nama, departemen").order("nama", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r: { nik: string | null; nama: string; departemen: string | null }) => ({ nama: r.nama, nik: (r.nik ?? "").trim(), dept: (r.departemen ?? "").trim() }));
 }
 
 export interface EmployeeDupPair { keepId: string; nama: string; keep: { nik: string; dept: string }; drop: { nik: string; dept: string }; result: { nik: string; dept: string } }

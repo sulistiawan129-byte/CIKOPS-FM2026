@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import styles from "./dashboard.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
-import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, mergeAtkIntoEmployees, previewEmployeeDuplicates, mergeEmployeeDuplicates, type EmployeeDupPair, type EmployeeDupGroup, addEmployee, updateEmployee, deleteEmployee, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
+import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, previewEmployeeDuplicates, mergeEmployeeDuplicates, type EmployeeDupPair, type EmployeeDupGroup, addEmployee, updateEmployee, deleteEmployee, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
 import type { Plant, DriverTier } from "@/lib/types";
 import type { DriverType } from "@/lib/types";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf, DRIVER_TYPES, DRIVER_TYPE_LABEL, DRIVER_TYPE_COLOR } from "@/lib/duty";
@@ -574,17 +574,6 @@ function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
     catch (e) { setError(e instanceof Error ? e.message : String(e)); setRows([]); }
   }, []);
   useEffect(() => { load(); }, [load]);
-  const [merging, setMerging] = useState(false);
-  const [mergeMsg, setMergeMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  async function doMerge() {
-    setMerging(true); setMergeMsg(null);
-    try {
-      const res = await mergeAtkIntoEmployees();
-      setMergeMsg({ ok: true, text: L(`Selesai: ${res.scanned} pemohon ATK diperiksa · ${res.created} karyawan baru · ${res.updated} dilengkapi${res.ambiguous ? ` · ${res.ambiguous} dilewati (nama kembar, NIK tidak cocok — cek manual)` : ""}.`, `Done: ${res.scanned} ATK requesters checked · ${res.created} new employees · ${res.updated} completed${res.ambiguous ? ` · ${res.ambiguous} skipped (same name, ID does not match — check manually)` : ""}.`) });
-      await load();
-    } catch (e) { setMergeMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
-    finally { setMerging(false); }
-  }
   /* ── Karyawan dobel (hasil penggabungan lama): pratinjau dulu, baru gabung yang dipilih ── */
   const [dup, setDup] = useState<{ auto: EmployeeDupPair[]; manual: EmployeeDupGroup[] } | null>(null);
   const [dupSel, setDupSel] = useState<Set<string>>(new Set());
@@ -618,19 +607,13 @@ function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   return (
     <SettingsPage>
       {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
-      <div style={{ gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: "var(--bg2, rgba(127,127,127,.08))", border: "1px solid var(--border2, rgba(127,127,127,.2))" }}>
-        <div style={{ flex: "1 1 280px", fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
-          <b style={{ color: "var(--t1)" }}>{L("Satu sumber data karyawan", "One employee source")}</b> — {L("pemohon ATK (NIK, nama, departemen) otomatis masuk ke daftar ini, dan form ATK memakai daftar ini. Tekan tombol untuk menggabungkan riwayat ATK yang sudah ada (hanya melengkapi yang kosong, tidak menimpa).", "ATK requesters (ID, name, department) are added to this list automatically, and the ATK form uses this list. Press the button to merge existing ATK history (fills blanks only, never overwrites).")}
-          {mergeMsg && <div style={{ marginTop: 6, fontWeight: 700, color: mergeMsg.ok ? "var(--green, #16a34a)" : "var(--red)" }}>{mergeMsg.text}</div>}
-        </div>
-        <button type="button" disabled={merging} onClick={doMerge} style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: merging ? "default" : "pointer", opacity: merging ? 0.6 : 1 }}>
-          {merging ? L("Menggabungkan…", "Merging…") : L("Gabungkan data ATK", "Merge ATK data")}
-        </button>
+      <div style={{ gridColumn: "1 / -1", padding: "12px 14px", borderRadius: 12, background: "var(--bg2, rgba(127,127,127,.08))", border: "1px solid var(--border2, rgba(127,127,127,.2))", fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
+        <b style={{ color: "var(--t1)" }}>{L("Dua sumber karyawan", "Two employee sources")}</b> — {L("daftar ini (Master Karyawan) dipakai semua modul KECUALI ATK, dan diunggah langsung lewat Supabase. ATK punya daftar sendiri yang diisi dari sheet Excel “MasterDataKaryawan”, jadi perubahan di sini tidak mengubah ATK dan sebaliknya.", "this list (Employee Master) is used by every module EXCEPT ATK, and is uploaded directly through Supabase. ATK has its own list filled from the Excel “MasterDataKaryawan” sheet, so changes here do not affect ATK and vice versa.")}
       </div>
       <div style={{ gridColumn: "1 / -1", padding: "12px 14px", borderRadius: 12, background: "var(--bg2, rgba(127,127,127,.08))", border: "1px solid var(--border2, rgba(127,127,127,.2))" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           <div style={{ flex: "1 1 280px", fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
-            <b style={{ color: "var(--t1)" }}>{L("Karyawan dobel", "Duplicate employees")}</b> — {L("satu orang tercatat dua kali (mis. hasil penggabungan ATK dengan NIK berbeda). Pratinjau dulu; pasangan yang jelas dipertahankan di departemen “Operations - Cikarang”, NIK kedua baris digabung “A / B”. Nama kembar lain hanya ditampilkan untuk dicek manual.", "One person recorded twice (e.g. from an ATK merge with a different ID). Preview first; clear pairs are kept in the “Operations - Cikarang” department with both IDs joined “A / B”. Other same-name entries are only listed for manual review.")}
+            <b style={{ color: "var(--t1)" }}>{L("Karyawan dobel", "Duplicate employees")}</b> — {L("satu orang tercatat dua kali (mis. NIK berbeda ketik). Pratinjau dulu; pasangan yang jelas dipertahankan di departemen “Operations - Cikarang”, NIK kedua baris digabung “A / B”. Nama kembar lain hanya ditampilkan untuk dicek manual.", "One person recorded twice (e.g. from an ATK merge with a different ID). Preview first; clear pairs are kept in the “Operations - Cikarang” department with both IDs joined “A / B”. Other same-name entries are only listed for manual review.")}
             {dupMsg && <div style={{ marginTop: 6, fontWeight: 700, color: dupMsg.ok ? "var(--green, #16a34a)" : "var(--red)" }}>{dupMsg.text}</div>}
           </div>
           <button type="button" disabled={dupBusy} onClick={checkDup} style={{ padding: "9px 16px", borderRadius: 10, border: "1px solid var(--border2, rgba(127,127,127,.35))", background: "var(--surface, #fff)", color: "var(--t1)", fontWeight: 700, fontSize: 13, cursor: dupBusy ? "default" : "pointer", opacity: dupBusy ? 0.6 : 1 }}>
@@ -680,11 +663,11 @@ function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
       <div style={{ gridColumn: "1 / -1" }}>
         <CrudList<EmployeeRow>
           icon="👤" title={L("Pegawai", "Employees")} itemName={L("pegawai", "employee")}
-          desc={L(`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan. ${depts.length} departemen.`, `Employee data for TGA requestors, Receptionist and employee requests. ${depts.length} department(s).`)}
+          desc={L(`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan (ATK memakai daftar sendiri dari Excel). ${depts.length} departemen.`, `Employee data for TGA requestors, Receptionist and employee requests. ${depts.length} department(s).`)}
           rows={rows} rowKey={(r) => r.id}
           columns={[{ label: "NIK", render: (r) => r.nik || "—" }, { label: L("Nama", "Name"), render: (r) => <b>{r.nama}</b> }, { label: L("Departemen", "Department"), render: (r) => r.departement || "—" }]}
           fields={[
-            { key: "nik", label: "NIK", placeholder: L("opsional — dipakai juga oleh ATK", "optional — also used by ATK") },
+            { key: "nik", label: "NIK", placeholder: L("opsional", "optional") },
             { key: "nama", label: L("Nama", "Name"), required: true },
             { key: "departement", label: L("Departemen", "Department"), placeholder: depts.slice(0, 3).join(" / ") || L("mis. GA", "e.g. GA") },
           ]}

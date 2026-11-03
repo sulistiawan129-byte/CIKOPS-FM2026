@@ -10,10 +10,11 @@
 --   Bagian 047  Cleaning & Gardening: reset actual / generate ulang jadwal per periode (+ batalkan)
 --   Bagian 048  FM Command Center: ringkasan TGA untuk layar publik (tga_board)
 --   Bagian 049  Form kantin publik: boleh mengisi / memperbarui laporan TANGGAL MANA PUN (backdate)
---   Bagian 050  Data karyawan ATK digabung ke Master Karyawan (employees) — satu sumber
+--   Bagian 050  (dihapus — digantikan 054)
 --   Bagian 051  Menu kantin mingguan untuk layar TV (/menu-tv) — diisi di Dashboard → Kantin → Menu TV
 --   Bagian 052  Receptionist: ubah/hapus/batalkan serah terima barang & wifi + jumlah barang
---   Bagian 053  Karyawan dobel: penggabungan ATK tidak lagi membuat baris baru bila nama sama + pemeriksa/penggabung dobel
+--   Bagian 053  Pemeriksa/penggabung karyawan dobel + riwayat TGA tidak ditimpa
+--   Bagian 054  ATK punya daftar karyawan sendiri (atk_employees, dari Excel); Master Karyawan tidak lagi diisi dari ATK
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -754,112 +755,11 @@ select 'kantin: tanggal bebas' as cek, count(*) filter (where policyname like 'p
 
 
 -- ═══════════════════════════════════════════════════════════════
--- ## BAGIAN 050 — Data karyawan ATK digabung ke Master Karyawan (employees)
--- Sebelumnya pemohon ATK (NIK, nama, departemen) hanya ada di riwayat transaksi ATK / sheet
--- Excel "MasterDataKaryawan", terpisah dari Master Data → Pegawai. Sekarang SATU sumber: employees.
---   • employee_upsert_basic()  cocokkan per NIK (bila ada) lalu per nama; hanya MELENGKAPI kolom
---                              yang kosong (tidak menimpa email / no HP / jabatan yang sudah diisi)
---   • trigger di atk_requests  pemohon baru dari web ATK maupun Excel otomatis masuk employees
---   • employees_merge_atk()    gabung riwayat ATK yang sudah ada (tombol di Master Data → Pegawai)
---   • atk_excel_push_employee  Excel mengirim sheet MasterDataKaryawan (kunci sinkron, seperti 044)
--- Restock tidak ikut digabung (kolom nama di sana = petugas gudang, bukan pemohon).
+-- ## BAGIAN 050 — (DIHAPUS) dulu: pemohon ATK digabung ke Master Karyawan
+-- Diganti bagian 054: ATK punya daftar karyawan SENDIRI (atk_employees, diisi dari Excel) dan TIDAK
+-- lagi menulis ke Master Karyawan (employees). Kode lama sengaja dihapus agar menjalankan ulang file
+-- ini tidak mengisi employees dari riwayat ATK.
 -- ═══════════════════════════════════════════════════════════════
-create or replace function employee_upsert_basic(p_nama text, p_nik text, p_dept text) returns text
-language plpgsql security definer set search_path = public as $f$
-declare
-  v_nama text := left(trim(coalesce(p_nama, '')), 200);
-  v_nik  text := nullif(left(trim(coalesce(p_nik, '')), 60), '');
-  v_dept text := nullif(left(trim(coalesce(p_dept, '')), 120), '');
-  v_id uuid; v_old_nik text; v_old_dept text;
-begin
-  if v_nama = '' then return 'skip'; end if;
-  if v_nik is not null then select id into v_id from employees where nik = v_nik order by created_at limit 1; end if;
-  if v_id is null then
-    select id into v_id from employees
-     where lower(trim(nama)) = lower(v_nama) and (v_nik is null or nullif(nik, '') is null or nik = v_nik)
-     order by (nullif(nik, '') is null), created_at limit 1;
-  end if;
-  if v_id is null then
-    insert into employees (nama, nik, departement, aktif) values (v_nama, v_nik, v_dept, true);
-    return 'created';
-  end if;
-  select nullif(nik, ''), nullif(departement, '') into v_old_nik, v_old_dept from employees where id = v_id;
-  if (v_old_nik is null and v_nik is not null) or (v_old_dept is null and v_dept is not null) then
-    update employees set nik = coalesce(v_old_nik, v_nik), departement = coalesce(v_old_dept, v_dept), updated_at = now() where id = v_id;
-    return 'updated';
-  end if;
-  return 'same';
-end $f$;
-
-create or replace function atk_sync_employee_trg() returns trigger
-language plpgsql security definer set search_path = public as $f$
-begin
-  begin
-    perform employee_upsert_basic(new.nama, new.nik, new.departemen);
-  exception when others then
-    null;  -- sinkron master tidak boleh menggagalkan transaksi ATK
-  end;
-  return new;
-end $f$;
-
-create or replace function _employees_merge_atk() returns jsonb
-language plpgsql security definer set search_path = public as $f$
-declare r record; res text; c int := 0; u int := 0; n int := 0;
-begin
-  if to_regclass('public.atk_requests') is null then return jsonb_build_object('scanned', 0, 'created', 0, 'updated', 0); end if;
-  -- satu baris per orang (NIK bila ada, jika tidak nama); nilai terbaru yang dipakai
-  for r in
-    select distinct on (coalesce(nullif(trim(nik), ''), lower(trim(nama)))) nama, nik, departemen
-      from atk_requests
-     where coalesce(trim(nama), '') <> ''
-     order by coalesce(nullif(trim(nik), ''), lower(trim(nama))), tanggal desc, created_at desc
-  loop
-    n := n + 1;
-    res := employee_upsert_basic(r.nama, r.nik, r.departemen);
-    if res = 'created' then c := c + 1; elsif res = 'updated' then u := u + 1; end if;
-  end loop;
-  return jsonb_build_object('scanned', n, 'created', c, 'updated', u);
-end $f$;
-
-create or replace function employees_merge_atk() returns jsonb
-language plpgsql security definer set search_path = public as $f$
-begin
-  if auth.uid() is null or not exists (select 1 from profiles where id = auth.uid()) then
-    raise exception 'Akses ditolak: akun tidak terdaftar di CIKOPS.' using errcode = '42501';
-  end if;
-  return _employees_merge_atk();
-end $f$;
-
-create or replace function atk_excel_push_employee(p_key text, p_row jsonb) returns text
-language plpgsql security definer set search_path = public as $f$
-declare res text;
-begin
-  perform atk_check_key(p_key);
-  res := employee_upsert_basic(p_row ->> 'nama', p_row ->> 'nik', p_row ->> 'departemen');
-  update atk_sync_config set last_push_at = now() where id = 1;
-  return res;
-end $f$;
-
-revoke all on function employee_upsert_basic(text, text, text), atk_sync_employee_trg(), _employees_merge_atk() from public, anon, authenticated;
-revoke all on function employees_merge_atk() from public, anon;
-grant execute on function employees_merge_atk() to authenticated;
-revoke all on function atk_excel_push_employee(text, jsonb) from public;
-grant execute on function atk_excel_push_employee(text, jsonb) to anon, authenticated;
-
-do $$
-begin
-  if to_regclass('public.atk_requests') is null then
-    raise notice 'Tabel ATK belum ada — trigger bagian 050 dilewati.'; return;
-  end if;
-  drop trigger if exists trg_atk_requests_employee on atk_requests;
-  create trigger trg_atk_requests_employee after insert on atk_requests
-    for each row execute function atk_sync_employee_trg();
-end $$;
-
--- Gabung riwayat ATK yang sudah ada (sekali jalan; aman diulang — hanya melengkapi yang kosong)
-select '050 gabung karyawan ATK' as cek, _employees_merge_atk() as hasil;
-
-notify pgrst, 'reload schema';
 
 
 -- ═══════════════════════════════════════════════════════════════
@@ -1121,14 +1021,9 @@ select '052 receptionist koreksi' as cek,
 
 
 -- ═══════════════════════════════════════════════════════════════
--- ## BAGIAN 053 — Karyawan dobel (hasil penggabungan ATK) + riwayat TGA tidak ditimpa
--- Masalah: penggabungan 050 membuat BARIS BARU bila NIK ATK tidak persis sama dengan NIK master
--- (NIK beda ketik, atau berisi dua nomor "5001377 / 5011011"), padahal namanya sama → satu orang
--- tampil dua kali dengan departemen berbeda.
---   • _nik_tokens()          memecah NIK pada / , ; | → "nomor mana pun yang sama" dianggap orang yang sama
---   • employee_upsert_basic  NIK cocok (nomor mana pun) → nama cocok hanya SATU baris → orang yang sama
---                            (melengkapi yang kosong, tidak menimpa). Nama kembar & NIK tak cocok → 'ambiguous'
---                            (dilewati, tidak menebak, tidak membuat baris baru)
+-- ## BAGIAN 053 — Pemeriksa karyawan dobel + riwayat TGA tidak ditimpa
+-- Satu orang bisa tercatat dua kali di Master Karyawan (NIK beda ketik, atau berisi dua nomor "A / B").
+--   • _nik_tokens()          memecah NIK pada / , ; |
 --   • employees_dedupe()     tanpa argumen = PRATINJAU; dengan daftar id = gabungkan. Hanya pasangan nama sama
 --                            dengan tepat satu baris "Operations - Cikarang": baris lama dipertahankan, departemen
 --                            jadi "Operations - Cikarang", NIK dua baris digabung "A / B", referensi TGA dipindah,
@@ -1142,62 +1037,6 @@ language sql immutable as $f$
             from unnest(regexp_split_to_array(coalesce(p, ''), '[/,;|]')) with ordinality as u(x, ord)) s
    where t is not null
 $f$;
-
-create or replace function employee_upsert_basic(p_nama text, p_nik text, p_dept text) returns text
-language plpgsql security definer set search_path = public as $f$
-declare
-  v_nama text := left(trim(coalesce(p_nama, '')), 200);
-  v_nik  text := nullif(left(trim(coalesce(p_nik, '')), 60), '');
-  v_dept text := nullif(left(trim(coalesce(p_dept, '')), 120), '');
-  v_tok  text[] := _nik_tokens(nullif(left(trim(coalesce(p_nik, '')), 60), ''));
-  v_id uuid; v_n int; v_old_nik text; v_old_dept text;
-begin
-  if v_nama = '' then return 'skip'; end if;
-  -- 1) NIK: nomor mana pun yang sama
-  if cardinality(v_tok) > 0 then
-    select id into v_id from employees where _nik_tokens(nik) && v_tok order by created_at limit 1;
-  end if;
-  -- 2) nama (tanpa membedakan huruf besar/kecil)
-  if v_id is null then
-    select count(*) into v_n from employees where lower(trim(nama)) = lower(v_nama);
-    if v_n = 1 then
-      select id into v_id from employees where lower(trim(nama)) = lower(v_nama);
-    elsif v_n > 1 then
-      select id into v_id from employees
-       where lower(trim(nama)) = lower(v_nama) and nullif(trim(coalesce(nik, '')), '') is null
-       order by created_at limit 1;
-      if v_id is null then return 'ambiguous'; end if;
-    end if;
-  end if;
-  if v_id is null then
-    insert into employees (nama, nik, departement, aktif) values (v_nama, v_nik, v_dept, true);
-    return 'created';
-  end if;
-  select nullif(nik, ''), nullif(departement, '') into v_old_nik, v_old_dept from employees where id = v_id;
-  if (v_old_nik is null and v_nik is not null) or (v_old_dept is null and v_dept is not null) then
-    update employees set nik = coalesce(v_old_nik, v_nik), departement = coalesce(v_old_dept, v_dept), updated_at = now() where id = v_id;
-    return 'updated';
-  end if;
-  return 'same';
-end $f$;
-
-create or replace function _employees_merge_atk() returns jsonb
-language plpgsql security definer set search_path = public as $f$
-declare r record; res text; c int := 0; u int := 0; n int := 0; a int := 0;
-begin
-  if to_regclass('public.atk_requests') is null then return jsonb_build_object('scanned', 0, 'created', 0, 'updated', 0, 'ambiguous', 0); end if;
-  for r in
-    select distinct on (coalesce(nullif(trim(nik), ''), lower(trim(nama)))) nama, nik, departemen
-      from atk_requests
-     where coalesce(trim(nama), '') <> ''
-     order by coalesce(nullif(trim(nik), ''), lower(trim(nama))), tanggal desc, created_at desc
-  loop
-    n := n + 1;
-    res := employee_upsert_basic(r.nama, r.nik, r.departemen);
-    if res = 'created' then c := c + 1; elsif res = 'updated' then u := u + 1; elsif res = 'ambiguous' then a := a + 1; end if;
-  end loop;
-  return jsonb_build_object('scanned', n, 'created', c, 'updated', u, 'ambiguous', a);
-end $f$;
 
 -- nama (huruf kecil) pasangan yang AMAN digabung otomatis: tepat 2 baris, tepat 1 di antaranya "Operations - Cikarang"
 create or replace function _emp_dup_pairs() returns table (k text)
@@ -1276,7 +1115,7 @@ begin
   return new;
 end $f$;
 
-revoke all on function _nik_tokens(text), _emp_dup_pairs(), employee_upsert_basic(text, text, text), _employees_merge_atk(), tga_sync_requestor() from public, anon, authenticated;
+revoke all on function _nik_tokens(text), _emp_dup_pairs(), tga_sync_requestor() from public, anon, authenticated;
 revoke all on function employees_dedupe(uuid[]) from public, anon;
 grant execute on function employees_dedupe(uuid[]) to authenticated;
 
@@ -1284,3 +1123,71 @@ notify pgrst, 'reload schema';
 
 select '053 karyawan dobel' as cek, (select count(*) from _emp_dup_pairs()) as pasangan_aman_digabung,
        (select count(*) from (select 1 from employees group by lower(trim(nama)) having count(*) > 1) x) as nama_kembar_total;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 054 — Dua sumber karyawan yang terpisah
+--   • ATK                  → tabel atk_employees (NIK, nama, departemen), diisi HANYA dari sheet Excel
+--                            "MasterDataKaryawan" (makro SyncKaryawanOnly). Excel adalah sumber utamanya:
+--                            kirim ulang = nama / departemen ikut diperbarui.
+--   • Modul lain           → tabel employees (Master Data → Pegawai), diunggah langsung lewat Supabase.
+--   • Transaksi ATK        tidak lagi menambah / mengubah employees.
+-- Menjalankan bagian ini TIDAK menghapus isi employees. Cara mengganti seluruh Master Karyawan: lihat
+-- docs/PANDUAN.md → "Mengganti seluruh Master Karyawan".
+-- ═══════════════════════════════════════════════════════════════
+create table if not exists atk_employees (
+  id         uuid primary key default gen_random_uuid(),
+  nik        text,
+  nama       text not null,
+  departemen text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create unique index if not exists atk_employees_nik_uq  on atk_employees (nik) where nik is not null;
+create index        if not exists atk_employees_nama_ix on atk_employees (lower(trim(nama)));
+alter table atk_employees enable row level security;
+drop policy if exists atk_employees_read on atk_employees;
+create policy atk_employees_read on atk_employees for select to authenticated using (true);
+grant select on atk_employees to authenticated;
+
+-- Excel → atk_employees. Cocok per NIK, jika tidak ada NIK per nama; Excel MENIMPA nama & departemen.
+create or replace function atk_excel_push_employee(p_key text, p_row jsonb) returns text
+language plpgsql security definer set search_path = public as $f$
+declare
+  v_nama text := left(trim(coalesce(p_row ->> 'nama', '')), 200);
+  v_nik  text := nullif(left(trim(coalesce(p_row ->> 'nik', '')), 60), '');
+  v_dept text := nullif(left(trim(coalesce(p_row ->> 'departemen', '')), 120), '');
+  v_id uuid; v_res text;
+begin
+  perform atk_check_key(p_key);
+  if v_nama = '' then return 'skip'; end if;
+  if v_nik is not null then select id into v_id from atk_employees where nik = v_nik; end if;
+  if v_id is null and v_nik is null then
+    select id into v_id from atk_employees where lower(trim(nama)) = lower(v_nama) and nik is null order by created_at limit 1;
+  end if;
+  if v_id is null then
+    insert into atk_employees (nik, nama, departemen) values (v_nik, v_nama, v_dept);
+    v_res := 'created';
+  else
+    update atk_employees set nama = v_nama, departemen = v_dept, updated_at = now()
+     where id = v_id and (nama is distinct from v_nama or departemen is distinct from v_dept);
+    v_res := case when found then 'updated' else 'same' end;
+  end if;
+  update atk_sync_config set last_push_at = now() where id = 1;
+  return v_res;
+end $f$;
+revoke all on function atk_excel_push_employee(text, jsonb) from public;
+grant execute on function atk_excel_push_employee(text, jsonb) to anon, authenticated;
+
+-- Lepas sambungan lama ATK → Master Karyawan (bagian 050 versi lama / 053 versi pertama)
+drop trigger  if exists trg_atk_requests_employee on atk_requests;
+drop function if exists atk_sync_employee_trg();
+drop function if exists employees_merge_atk();
+drop function if exists _employees_merge_atk();
+drop function if exists employee_upsert_basic(text, text, text);
+
+notify pgrst, 'reload schema';
+
+select '054 karyawan ATK terpisah' as cek,
+       (select count(*) from atk_employees) as karyawan_atk,
+       (select count(*) from pg_trigger where tgname = 'trg_atk_requests_employee') as trigger_lama_tersisa;
