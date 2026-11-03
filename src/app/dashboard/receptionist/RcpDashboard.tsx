@@ -117,8 +117,8 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
   };
   // Semua angka di kartu = HARI YANG DIPILIH saja (tidak ada total kumulatif); kapasitas wifi ditandai "saat ini"
   const sub: Record<MKey, string> = {
-    docsIn: `${stats.docsInN} ${L("catatan", "records")} · ${stats.inTaken} ${L("sudah diserahkan", "handed over")} · ${stats.inOpen} ${L("menunggu", "waiting")}`,
-    docsOut: `${stats.docsOutN} ${L("catatan", "records")} · ${stats.outTaken} ${L("sudah diserahkan", "handed over")} · ${stats.outOpen} ${L("menunggu", "waiting")}`,
+    docsIn: `${stats.docsInN} ${L("catatan", "records")}${stats.inMulti ? L(` (${stats.inMulti} berjumlah >1)`, ` (${stats.inMulti} with qty >1)`) : ""} · ${stats.inTaken} ${L("sudah diserahkan", "handed over")} · ${stats.inOpen} ${L("menunggu", "waiting")}`,
+    docsOut: `${stats.docsOutN} ${L("catatan", "records")}${stats.outMulti ? L(` (${stats.outMulti} berjumlah >1)`, ` (${stats.outMulti} with qty >1)`) : ""} · ${stats.outTaken} ${L("sudah diserahkan", "handed over")} · ${stats.outOpen} ${L("menunggu", "waiting")}`,
     bookings: stats.bookings ? (nextBk ? L(`berikutnya ${nextBk.start} · ${nextBk.title}`, `next ${nextBk.start} · ${nextBk.title}`) : `${(stats.bookedMin / 60).toFixed(1).replace(/\.0$/, "")} ${L("jam terbooking", "hours booked")}`) : L("ruangan kosong", "room is free"),
     wifi: `${stats.wifiSlots} ${L("slot", "slots")} · ${stats.wifiReturned} ${L("sudah dikembalikan", "returned")}`,
     guests: `${stats.visits} ${L("kunjungan", "visits")} · ${stats.inside} ${L("di lokasi", "on site")}`,

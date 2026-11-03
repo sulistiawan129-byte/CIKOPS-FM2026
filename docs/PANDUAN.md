@@ -626,6 +626,9 @@ Tiap kartu punya tren 14 hari (garis kecil), selisih dengan hari sebelumnya, dan
 - **FM Command Center** (tab Receptionist) memakai aturan yang sama (SQL bagian 056): *Masuk hari ini*, *Keluar hari ini*, dan *Diserahkan hari ini* dipisah.
   Sebelumnya satu angka "dicatat hari ini" menjumlah masuk + keluar sehingga bisa lebih besar dari barang masuk sebenarnya (mis. 10 masuk + 1 keluar = 11).
 - Bila angka tidak cocok dengan hitungan manual: ketuk kartunya → daftar per tanggal memuat persis catatan yang dihitung.
+  Penyebab paling umum: ada catatan dengan **Jumlah lebih dari 1** (mis. "Dokumen / Surat ×2") — 10 catatan jadi 11 barang. Daftar menandainya dengan
+  lencana "Jumlah ×N" dan ringkasan menyebut nomor catatannya; bila jumlahnya keliru, perbaiki lewat **✎ Ubah**. Satu pemilih tanggal dipakai bersama
+  oleh daftar dan tombol *Lembar kurir* (lembar kurir = barang keluar yang dicatat atau diserahkan pada tanggal itu).
 Di bawahnya: **Aktivitas 14 hari** (ketuk batang untuk pindah ke hari itu, arahkan kursor untuk rincian, ketuk nama di legenda untuk
 menampilkan/menyembunyikan jenis aktivitas), **Sedang di lokasi** (tamu yang belum pulang + tombol *Pulang*), **Jejak hari ini**
 (tamu datang/pulang, barang masuk/keluar/diserahkan, wifi, booking — urut waktu), **jadwal Induction Room** (garis waktu + penanda "sekarang"),
