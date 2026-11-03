@@ -21,7 +21,7 @@ const REL: Record<string, string> = {
 /** Kolom unik untuk upsert tanpa onConflict */
 const PK: Record<string, string[]> = {
   app_settings: ["key"], security_config: ["key"], security_monthly: ["plant", "period"], profiles: ["id"], rcp_settings: ["id"],
-  kantong: ["period", "plant"], rcp_contacts: ["name_key"], ga_jobs: ["id"], ga_manpower: ["id"], ga_plan: ["key"], atk_items: ["kode_barang"],
+  kantong: ["period", "plant"], rcp_contacts: ["name_key"], ga_jobs: ["id"], ga_manpower: ["id"], ga_plan: ["key"], atk_items: ["kode_barang"], canteen_menu_weeks: ["week_start"],
   push_subscriptions: ["endpoint"], tga_counters: ["period"], rcp_counters: ["prefix", "period"],
 };
 /** Default kolom saat insert (selain id / created_at) */

@@ -7,6 +7,7 @@
 ════════════════════════════════════════════════════════════ */
 
 import { addDays, isoDow, monthStart, rng, todayWib, uuid, wibIso, type MockDB, type Row } from "./core";
+import { SAMPLE_DAYS, SAMPLE_STAPLES, mondayOf } from "../canteenMenu";
 
 /* ── kosakata (sama persis dengan SQL) ── */
 const DEPTS = ["Produksi", "Quality Assurance", "Engineering", "HR & GA", "Finance & Accounting", "Supply Chain", "Marketing", "IT", "HSE", "R&D", "Procurement", "Warehouse"];
@@ -634,6 +635,12 @@ export function buildSeed(): MockDB {
     logs.push(row);
   }
   logs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).forEach((l) => put("activity_log", l));
+
+  /* ════ Menu kantin (layar TV /menu-tv): minggu ini & lalu terisi, minggu depan sengaja kosong ════ */
+  {
+    const wk = mondayOf(today);
+    for (const ws of [wk, addDays(wk, -7)]) put("canteen_menu_weeks", { week_start: ws, data: { days: SAMPLE_DAYS, staples: SAMPLE_STAPLES }, updated_at: NOW });
+  }
 
   /* ════ tabel tanpa data awal ════ */
   for (const t of [

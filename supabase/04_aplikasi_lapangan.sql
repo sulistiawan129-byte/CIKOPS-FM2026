@@ -11,6 +11,7 @@
 --   Bagian 048  FM Command Center: ringkasan TGA untuk layar publik (tga_board)
 --   Bagian 049  Form kantin publik: boleh mengisi / memperbarui laporan TANGGAL MANA PUN (backdate)
 --   Bagian 050  Data karyawan ATK digabung ke Master Karyawan (employees) — satu sumber
+--   Bagian 051  Menu kantin mingguan untuk layar TV (/menu-tv) — diisi di Dashboard → Kantin → Menu TV
 --
 -- Jalankan SESUDAH 02_peran_keamanan.sql. Idempotent — aman diulang.
 -- ═══════════════════════════════════════════════════════════════
@@ -857,3 +858,41 @@ end $$;
 select '050 gabung karyawan ATK' as cek, _employees_merge_atk() as hasil;
 
 notify pgrst, 'reload schema';
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- ## BAGIAN 051 — Menu kantin mingguan (layar TV /menu-tv)
+-- Satu baris per minggu (week_start = hari SENIN). data = {days:[7 hari], staples:[...]}; tiap butir {name, kcal, gram}.
+--   • Staf login: baca semua; tulis hanya role dengan akses modul kantin (staff_can('canteen')), sama seperti canteen_reports.
+--   • Layar TV tanpa login membaca LEWAT FUNGSI canteen_menu_public (hanya satu minggu, hanya baca) — tabel tetap tertutup untuk anon.
+-- ═══════════════════════════════════════════════════════════════
+create table if not exists canteen_menu_weeks (
+  week_start date primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  constraint canteen_menu_week_is_monday check (extract(isodow from week_start) = 1)
+);
+alter table canteen_menu_weeks enable row level security;
+revoke all on canteen_menu_weeks from anon;
+do $$
+declare p record;
+begin
+  for p in select policyname from pg_policies where schemaname = 'public' and tablename = 'canteen_menu_weeks' loop
+    execute format('drop policy %I on canteen_menu_weeks', p.policyname);
+  end loop;
+  create policy staff_read on canteen_menu_weeks for select to authenticated using (is_staff());
+  create policy staff_ins  on canteen_menu_weeks for insert to authenticated with check (staff_can('canteen'));
+  create policy staff_upd  on canteen_menu_weeks for update to authenticated using (staff_can('canteen')) with check (staff_can('canteen'));
+  create policy staff_del  on canteen_menu_weeks for delete to authenticated using (staff_can('canteen'));
+end $$;
+
+create or replace function canteen_menu_public(p_week date) returns jsonb
+language sql stable security definer set search_path = public as $f$
+  select data from canteen_menu_weeks where week_start = p_week
+$f$;
+revoke all on function canteen_menu_public(date) from public;
+grant execute on function canteen_menu_public(date) to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+select '051 menu kantin' as cek, to_regclass('public.canteen_menu_weeks') is not null as tabel_ada;
