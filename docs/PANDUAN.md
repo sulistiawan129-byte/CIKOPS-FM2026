@@ -729,26 +729,41 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
   `modSyncCikops` versi terbaru (kunci sinkron tidak berubah). Bagian 054 juga melepas sambungan lama
   ATK → Master Karyawan; isi `employees` TIDAK dihapus oleh SQL ini.
 
-#### Mengganti seluruh Master Karyawan (unggah langsung lewat Supabase)
-1. **Cadangkan dulu:** Supabase → Table Editor → `employees` → Export CSV.
-2. **Siapkan CSV baru** dengan kolom `nik`, `nama`, `departement` (opsional: `email`, `no_hp`, `jabatan`, `aktif`).
-   Satu orang satu baris; samakan penulisan departemen (mis. satu ejaan saja). Kolom `id`/`created_at` dikosongkan.
-3. **Kosongkan tabel — pakai `delete`, JANGAN `truncate ... cascade`** (cascade ikut menghapus seluruh kegiatan TGA):
+#### Mengganti seluruh Master Karyawan (CSV baru, lewat tabel sementara)
+Import CSV di Supabase hanya **menambah** baris — tidak memperbarui yang sudah ada. Jadi data lama harus diganti, bukan ditimpa.
+Cara paling aman: impor ke **tabel sementara** dulu, periksa, baru tukar dalam satu transaksi (tabel `employees` tidak pernah kosong di tengah jalan).
+1. **Cadangkan:** Supabase → Table Editor → `employees` → Export CSV.
+2. **Siapkan CSV** dengan kolom `nik`, `nama`, `departement` (ejaan kolom persis begitu, bukan "department"). Satu orang satu baris,
+   satu ejaan per departemen. NIK dibaca sebagai **teks** (Excel bisa membuang angka 0 di depan — simpan "CSV UTF-8" dan format kolom NIK sebagai Text).
+3. **Buat tabel sementara** (SQL Editor), lalu Table Editor → `employees_new` → Insert → Import data from CSV:
    ```sql
-   delete from employees;
+   create table employees_new (nik text, nama text, departement text);
+   alter table employees_new enable row level security;   -- data karyawan tidak boleh terbuka lewat API
    ```
-   Kegiatan TGA lama tetap ada (nama & departemen tersimpan sebagai teks); hanya tautan ke karyawannya dilepas
-   sementara. Transaksi ATK / Receptionist tidak terpengaruh.
-4. **Unggah:** Table Editor → `employees` → Insert → Import data from CSV.
-5. **Sambungkan lagi kegiatan TGA ke karyawan baru** (hanya yang namanya unik):
+4. **Periksa isi CSV** sebelum menukar:
    ```sql
-   update tga_activities a set requestor_id = m.id
-     from (select lower(trim(nama)) as k, (array_agg(id))[1] as id from employees group by 1 having count(*) = 1) m
-    where a.requestor_id is null and lower(trim(a.request_by)) = m.k;
+   select count(*) total, count(*) filter (where nullif(trim(nama),'') is null) nama_kosong,
+          count(*) filter (where nullif(trim(departement),'') is null) dept_kosong from employees_new;
+   select nullif(trim(nik),'') as nik, count(*) from employees_new where nullif(trim(nik),'') is not null group by 1 having count(*) > 1;  -- NIK ganda
+   select departement, count(*) from employees_new group by 1 order by 2 desc;   -- cek ejaan departemen
    ```
-6. Cek: Master Data → Pegawai → **Cek karyawan dobel** harus kosong atau hanya berisi nama kembar yang memang orang berbeda.
-- Departemen di transaksi lama (ATK, Receptionist, penugasan) tidak ikut berubah — itu memang riwayat. Transaksi baru
-  memakai departemen terbaru.
+5. **Tukar** (satu kali jalan; bila ada error, tidak ada yang berubah). **Pakai `delete`, JANGAN `truncate ... cascade`** — cascade ikut menghapus seluruh kegiatan TGA:
+   ```sql
+   begin;
+     delete from employees;
+     insert into employees (nik, nama, departement)
+       select nullif(trim(nik), ''), trim(nama), nullif(trim(departement), '') from employees_new where nullif(trim(nama), '') is not null;
+     -- sambungkan lagi kegiatan TGA ke karyawan baru (hanya nama yang unik)
+     update tga_activities a set requestor_id = m.id
+       from (select lower(trim(nama)) as k, (array_agg(id))[1] as id from employees group by 1 having count(*) = 1) m
+      where a.requestor_id is null and lower(trim(a.request_by)) = m.k;
+     select count(*) as employees_sekarang from employees;   -- harus sama dengan jumlah baris CSV
+   commit;
+   drop table employees_new;
+   ```
+- Kegiatan TGA lama tetap utuh (nama & departemen tersimpan sebagai teks). Transaksi ATK / Receptionist / penugasan tidak terpengaruh.
+- Departemen di transaksi lama tidak ikut berubah — itu riwayat. Transaksi baru memakai departemen terbaru.
+- Sesudahnya: Master Data → Pegawai → **Cek karyawan dobel** harus kosong atau hanya berisi nama kembar yang memang orang berbeda.
 
 ### Karyawan dobel (bagian 053)
 Satu orang bisa tercatat dua kali dengan departemen berbeda (mis. `SCM Pack Sachet` dan `Operations - Cikarang`), misalnya
