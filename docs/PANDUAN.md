@@ -713,26 +713,46 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
   - Detail tiap transaksi, batalkan, ekspor.
 - **Sinkron Excel**: status terakhir kirim/tarik, jumlah yang menunggu, kunci sinkron, unduhan VBA, dan panduan.
 
-### Satu sumber data karyawan (bagian 050)
-Dulu pemohon ATK (NIK, nama, departemen) hanya ada di riwayat transaksi ATK dan sheet Excel
-`MasterDataKaryawan`, terpisah dari **Master Data → Pegawai**. Sekarang semuanya bermuara ke
-tabel `employees` (Master Karyawan) yang juga dipakai Receptionist, TGA, dan permintaan karyawan.
-- **Form Permintaan ATK** mengambil daftar nama / NIK / departemen dari Master Karyawan lebih dulu,
-  baru riwayat ATK. Pemohon baru yang diketik di form otomatis masuk ke Master Karyawan.
-- **Gabung data yang sudah ada:** Master Data → Pegawai → tombol **Gabungkan data ATK**.
-  Aman diulang; hanya *melengkapi* NIK / departemen yang kosong, tidak menimpa email, no HP, atau jabatan.
-  Pencocokan per NIK (nomor mana pun bila satu sel berisi dua nomor `A / B`), lalu per nama
-  (sejak bagian 053: bila hanya ada **satu** orang bernama itu, dianggap orang yang sama walau NIK-nya berbeda).
-  Bila ada beberapa orang bernama sama dan NIK tidak cocok, orang itu **dilewati** (tidak ditebak) dan dihitung
-  sebagai “dilewati” di pesan hasil.
-- **Dari Excel:** jalankan makro `SyncKaryawanOnly` (modul `modSyncCikops` versi terbaru) untuk mengirim sheet
-  `MasterDataKaryawan` (kolom A NIK, B Nama, C Departemen) ke Master Karyawan. Cukup dijalankan sesekali.
-- **Syarat:** jalankan ulang `supabase/04_aplikasi_lapangan.sql` (bagian 050) di Supabase SQL Editor.
-  Restock tidak ikut digabung (kolom nama di restock = petugas gudang, bukan pemohon).
+### Dua sumber karyawan: ATK dari Excel, modul lain dari Master Karyawan (bagian 054)
+| Dipakai oleh | Sumber | Cara mengisi |
+|---|---|---|
+| **ATK** (form permintaan: saran nama, NIK, departemen) | tabel `atk_employees` | HANYA dari sheet Excel `MasterDataKaryawan` — makro `SyncKaryawanOnly` (kolom A NIK, B Nama, C Departemen) |
+| **Semua modul lain** (Receptionist, TGA, penugasan driver, permintaan karyawan, Laporan) | tabel `employees` = Master Data → Pegawai | diunggah langsung lewat Supabase (lihat di bawah) atau diubah di Master Data |
+
+- Kedua daftar **tidak saling memengaruhi**. Transaksi ATK tidak lagi menambah / mengubah Master Karyawan, dan
+  riwayat ATK tidak dipakai lagi untuk saran nama / departemen (departemen lama yang salah tidak ikut muncul).
+- **Excel = sumber ATK:** mengirim ulang sheet *menimpa* nama & departemen di daftar ATK (cocok per NIK; bila NIK
+  kosong, per nama). Perbaiki departemen di Excel, jalankan `SyncKaryawanOnly`, selesai.
+- Selama sheet belum pernah dikirim, saran nama di form ATK kosong (nama tetap bisa diketik manual) dan form
+  menampilkan petunjuk.
+- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 054) di Supabase SQL Editor, lalu pasang makro
+  `modSyncCikops` versi terbaru (kunci sinkron tidak berubah). Bagian 054 juga melepas sambungan lama
+  ATK → Master Karyawan; isi `employees` TIDAK dihapus oleh SQL ini.
+
+#### Mengganti seluruh Master Karyawan (unggah langsung lewat Supabase)
+1. **Cadangkan dulu:** Supabase → Table Editor → `employees` → Export CSV.
+2. **Siapkan CSV baru** dengan kolom `nik`, `nama`, `departement` (opsional: `email`, `no_hp`, `jabatan`, `aktif`).
+   Satu orang satu baris; samakan penulisan departemen (mis. satu ejaan saja). Kolom `id`/`created_at` dikosongkan.
+3. **Kosongkan tabel — pakai `delete`, JANGAN `truncate ... cascade`** (cascade ikut menghapus seluruh kegiatan TGA):
+   ```sql
+   delete from employees;
+   ```
+   Kegiatan TGA lama tetap ada (nama & departemen tersimpan sebagai teks); hanya tautan ke karyawannya dilepas
+   sementara. Transaksi ATK / Receptionist tidak terpengaruh.
+4. **Unggah:** Table Editor → `employees` → Insert → Import data from CSV.
+5. **Sambungkan lagi kegiatan TGA ke karyawan baru** (hanya yang namanya unik):
+   ```sql
+   update tga_activities a set requestor_id = m.id
+     from (select lower(trim(nama)) as k, (array_agg(id))[1] as id from employees group by 1 having count(*) = 1) m
+    where a.requestor_id is null and lower(trim(a.request_by)) = m.k;
+   ```
+6. Cek: Master Data → Pegawai → **Cek karyawan dobel** harus kosong atau hanya berisi nama kembar yang memang orang berbeda.
+- Departemen di transaksi lama (ATK, Receptionist, penugasan) tidak ikut berubah — itu memang riwayat. Transaksi baru
+  memakai departemen terbaru.
 
 ### Karyawan dobel (bagian 053)
-Penggabungan ATK versi pertama membuat baris baru bila NIK ATK tidak persis sama dengan NIK master,
-sehingga satu orang tampil dua kali dengan departemen berbeda (mis. `SCM Pack Sachet` dan `Operations - Cikarang`).
+Satu orang bisa tercatat dua kali dengan departemen berbeda (mis. `SCM Pack Sachet` dan `Operations - Cikarang`), misalnya
+akibat NIK yang berbeda ketik. Alat ini untuk memeriksa dan merapikannya, juga setelah unggah ulang.
 - Master Data → Pegawai → **Cek karyawan dobel** menampilkan **pratinjau** — belum ada yang berubah.
 - **Pasangan siap digabung** = nama sama, tepat dua baris, salah satunya `Operations - Cikarang`. Hasil gabung:
   baris lama dipertahankan, departemen jadi **Operations - Cikarang**, NIK kedua baris digabung `A / B`,
@@ -1155,7 +1175,7 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
 - `?sample=1` menampilkan menu contoh untuk uji tampilan.
 
 ### Pemasangan di TV (checklist go-live)
-1. **Sebelum rapat dengan IT:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 050 & 051) di Supabase SQL Editor dan pastikan
+1. **Sebelum rapat dengan IT:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 051 & 054) di Supabase SQL Editor dan pastikan
    perubahan terbaru sudah di-merge ke `main` (Vercel hanya men-deploy `main`).
 2. **Jaringan:** kabel LAN ke TV (tanpa captive portal). Minta IT memastikan TV boleh membuka alamat Vercel dan `*.supabase.co`
    (HTTPS). Wifi guest dengan halaman login tidak cocok untuk TV.

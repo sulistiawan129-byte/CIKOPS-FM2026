@@ -91,6 +91,8 @@ export function buildSeed(): MockDB {
       created_at: ago(24 * 90), updated_at: ago(24 * 90),
     }));
   }
+  // Daftar karyawan khusus ATK (di sistem asli diisi dari sheet Excel "MasterDataKaryawan")
+  for (const e of emp.slice(0, 40)) put("atk_employees", { id: uuid(), nik: e.nik, nama: e.nama, departemen: e.departement, created_at: ago(24 * 60) });
   for (const label of [...JENIS, "Lainnya"]) put("job_types", { id: uuid(), label });
   const tierGold = uuid(), tierSilver = uuid(), tierBronze = uuid();
   put("driver_tiers", { id: tierGold, name: "Gold", color: "#d4a017", amount_per_month: 2500000, created_at: ago(24 * 90) });
@@ -644,7 +646,7 @@ export function buildSeed(): MockDB {
 
   /* ════ tabel tanpa data awal ════ */
   for (const t of [
-    "activity_log", "agenda_events", "announcements", "app_settings", "atk_items", "atk_requests", "atk_restocks", "atk_sync_config", "canteen_reports", "claims",
+    "activity_log", "agenda_events", "announcements", "app_settings", "atk_employees", "atk_items", "atk_requests", "atk_restocks", "atk_sync_config", "canteen_reports", "claims",
     "condolence_wreaths", "driver_claim_requests", "driver_tiers", "drivers", "employee_requests", "employees", "ga_events", "ga_improvements", "ga_inventory",
     "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations", "gift_events", "gift_registrations", "gift_verify_attempts",
     "job_types", "kantong", "lockers", "overtime", "printer_requests", "printers", "profiles", "push_subscriptions", "rcp_contacts", "rcp_counters", "rcp_parcels",

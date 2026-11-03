@@ -17,7 +17,7 @@ Option Explicit
 '   SyncToCikops        -> TARIK lalu KIRIM semuanya (disarankan)
 '   TarikDariCikops     -> hanya TARIK transaksi dari CIKOPS
 '   SyncStokOnly / SyncPermintaanOnly / SyncRestockOnly -> seperti dulu
-'   SyncKaryawanOnly    -> kirim sheet MasterDataKaryawan ke Master Karyawan CIKOPS (sekali-sekali)
+'   SyncKaryawanOnly    -> kirim sheet MasterDataKaryawan ke DAFTAR KARYAWAN ATK di CIKOPS (sekali-sekali; Excel = sumber, departemen di CIKOPS ikut diperbarui)
 '
 ' CARA PASANG / UPDATE:
 '   1. Alt+F11 -> hapus modul modSyncCikops yang lama
@@ -171,8 +171,8 @@ Public Sub SyncKaryawanOnly()
     Application.ScreenUpdating = True
     If nKar >= 0 Then
         MsgBox "Sinkron Data Karyawan selesai." & vbCrLf & vbCrLf & _
-               "Karyawan dikirim ke Master Karyawan CIKOPS: " & nKar & " orang" & vbCrLf & _
-               "(yang sudah ada hanya dilengkapi NIK / departemen yang masih kosong)", vbInformation, "Sinkron Karyawan"
+               "Karyawan dikirim ke daftar karyawan ATK CIKOPS: " & nKar & " orang" & vbCrLf & _
+               "(yang sudah ada diperbarui sesuai Excel; Master Karyawan modul lain tidak tersentuh)", vbInformation, "Sinkron Karyawan"
     End If
     Exit Sub
 ErrHandler:
@@ -531,7 +531,7 @@ Private Function SyncKaryawan() As Long
     Next i
     If firstError <> "" Then
         MsgBox "Sinkron Karyawan ada yang gagal." & vbCrLf & vbCrLf & "Contoh error pertama:" & vbCrLf & firstError & vbCrLf & vbCrLf & _
-               "Pastikan supabase/04_aplikasi_lapangan.sql bagian 050 sudah dijalankan.", vbExclamation, "Sinkron Karyawan - Sebagian Gagal"
+               "Pastikan supabase/04_aplikasi_lapangan.sql bagian 054 sudah dijalankan.", vbExclamation, "Sinkron Karyawan - Sebagian Gagal"
     End If
     SyncKaryawan = count
 End Function

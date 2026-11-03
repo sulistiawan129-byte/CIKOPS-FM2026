@@ -334,11 +334,7 @@ insert into vehicles (nopol, jenis) values
   ('B 9999 DEF', 'Daihatsu Xenia')
 on conflict (nopol) do nothing;
 
-insert into employees (nik, nama, departement) values
-  ('001', 'John Doe',    'IT'),
-  ('002', 'Jane Smith',  'HR'),
-  ('003', 'Bob Johnson', 'Finance')
-on conflict do nothing;
+-- (karyawan contoh dihapus: Master Karyawan diunggah langsung lewat Supabase — lihat docs/PANDUAN.md)
 
 -- ═══════════════════════════════════════════════════════════════
 --  SELESAI. Semua default PIN driver = 1234 (ganti via app nanti).
