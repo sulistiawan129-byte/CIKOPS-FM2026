@@ -84,8 +84,9 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
   doc.addPage(); header(tr("Ringkasan Eksekutif", "Executive Summary"), [45, 91, 255], report.periodLabel);
   const cols = 2, gap = sm.length > 4 ? 4 : 6;
   const compact = sm.length > 4;
-  const cw = (W - M * 2 - gap) / cols, ch = compact ? 44 : 58;
-  const o = compact ? { h: 15, kl: 25, kv: 33, ks: 38.5, lines: 1 } : { h: 17, kl: 33, kv: 42, ks: 48, lines: 2 };
+  // compact (≥5 modul → 3–4 baris kartu) harus muat di satu halaman A4 landscape; bagian "Perlu perhatian" pindah ke halaman berikutnya
+  const cw = (W - M * 2 - gap) / cols, ch = compact ? 38 : 58;
+  const o = compact ? { h: 14, kl: 22, kv: 29.5, ks: 34.5, lines: 1 } : { h: 17, kl: 33, kv: 42, ks: 48, lines: 2 };
   sm.forEach((m, i) => {
     const x = M + (i % cols) * (cw + gap);
     const y = 28 + Math.floor(i / cols) * (ch + gap);
@@ -108,7 +109,8 @@ export async function exportMgmtPdf(report: MgmtReport, filename: string): Promi
     if (m.empty) { doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(tr("Tidak ada data pada periode ini.", "No data for this period."), x + 7, y + o.kv - 4); }
   });
   const attention = report.modules.flatMap((m) => m.attention);
-  const ay = 28 + Math.ceil(sm.length / cols) * (ch + gap);
+  let ay = 28 + Math.ceil(sm.length / cols) * (ch + gap);
+  if (compact) { footer(page); page += 1; doc.addPage(); header(tr("Perlu perhatian manajemen", "Management attention required"), [214, 69, 69], report.periodLabel); ay = 24; }
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
   doc.text(tr("Perlu perhatian manajemen", "Management attention required"), M, ay + 4);
   const cmp = compareSummary(report.modules);

@@ -1,0 +1,21 @@
+# Pembaruan dependensi otomatis (audit ISO 27001, temuan S-10 & T-02/T-04).
+# Dependabot membuat pull request; CI (.github/workflows/ci.yml) memeriksa build sebelum digabung.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 5
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies]

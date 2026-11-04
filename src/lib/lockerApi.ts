@@ -327,7 +327,7 @@ export async function confirmLockerAnswer(token: string, answer: "yes" | "no"): 
   const { data, error } = await supabase.rpc("confirm_locker_answer", { p_token: token, p_answer: answer });
   if (error) throw new Error(error.message);
   const row = data?.[0];
-  if (!row) throw new Error("Data locker tidak ditemukan.");
+  if (!row) throw new Error(L("PIN salah atau locker tidak ditemukan.", "Wrong PIN or locker not found."));
   return { ...mapReleaseRow(row), kept: row.kept };
 }
 
@@ -380,6 +380,6 @@ export async function verifyLockerRelease(
   const { data, error } = await supabase.rpc("verify_locker_release", { p_number: number, p_pin: pin });
   if (error) throw new Error(error.message);
   const row = data?.[0];
-  if (!row) throw new Error("Data locker tidak ditemukan.");
+  if (!row) throw new Error(L("PIN salah atau locker tidak ditemukan.", "Wrong PIN or locker not found."));
   return { lockerNumber: row.locker_number, nama: row.nama ?? "", extra: row.extra ?? "", periode: row.periode ?? "" };
 }

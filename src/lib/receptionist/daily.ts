@@ -8,11 +8,11 @@ export interface DailyData { parcels: Parcel[]; grants: WifiGrant[]; bookings: R
 
 export interface DayStats {
   date: string;
-  /** jumlah dokumen/barang (dijumlah per `qty`) dan jumlah catatannya */
+  /** docsIn/docsOut = jumlah BARANG (dijumlah per `qty`); docsInN/docsOutN = jumlah CATATAN (angka utama dashboard) */
   docsIn: number; docsInN: number; docsOut: number; docsOutN: number;
   /** dari barang yang DICATAT pada hari itu: berapa catatan sudah diserahkan / masih menunggu (status saat ini) */
   inTaken: number; inOpen: number; outTaken: number; outOpen: number;
-  /** rincian jumlah per jenis (Paket, Dokumen / Surat, Makanan, …), terbanyak dulu */
+  /** rincian jumlah CATATAN per jenis (Paket, Dokumen / Surat, Makanan, …), terbanyak dulu */
   inTypes: [string, number][]; outTypes: [string, number][];
   /** barang yang dicatat di hari LAIN tetapi diserahkan pada hari ini (tidak ikut hitungan "dicatat") */
   handedFromOtherDays: number;
@@ -32,7 +32,7 @@ export function dayStats(date: string, d: DailyData): DayStats {
     if (!made) { if (p.handedAt && dayOf(p.handedAt) === date) handedFromOtherDays++; continue; }
     const q = p.qty || 1;
     const bucket = p.direction === "in" ? tIn : tOut;
-    bucket.set(p.itemType || "Paket", (bucket.get(p.itemType || "Paket") ?? 0) + q);
+    bucket.set(p.itemType || "Paket", (bucket.get(p.itemType || "Paket") ?? 0) + 1);
     if (q > 1) { if (p.direction === "in") inMulti++; else outMulti++; }
     if (p.direction === "in") { docsIn += q; docsInN++; if (p.status === "handed") inTaken++; else inOpen++; }
     else { docsOut += q; docsOutN++; if (p.status === "handed") outTaken++; else outOpen++; }

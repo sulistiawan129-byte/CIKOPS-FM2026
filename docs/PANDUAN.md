@@ -10,6 +10,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
 | `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime), 047 reset periode Cleaning & Gardening, 048 ringkasan TGA di FM Command Center, 049 form kantin publik tanggal bebas (backdate) | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
+| `supabase/06_perbaikan_audit_2026-11.sql` | Perbaikan temuan audit keamanan: tutup fungsi yang bisa dipanggil tanpa login (buat/hapus tugas Fleet, data klaim & driver), batasi aksi admin locker, kunci 15 menit setelah 5× PIN locker salah, policy "semua akun login" → staf saja, batas wajar angka kantin | **Jalankan sekali di Supabase produksi, sesudah file 04.** Aman diulang. Lihat bab *Keamanan: menjalankan SQL 06* |
 | `supabase/05_data_demo.sql` | Akun & data **fiktif** untuk deployment DEMO (lihat bab *Deployment DEMO*) | **Hanya di project Supabase DEMO** — berhenti sendiri bila dijalankan di database yang berisi akun asli |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -602,8 +603,8 @@ Untuk membuat akun resepsionis lain: buat user baru, lalu
 
 | Kartu | Isi |
 |---|---|
-| **Dokumen masuk** | jumlah barang/surat masuk pada hari itu (dijumlah per *Jumlah*), banyak catatan, dan yang masih menunggu diambil |
-| **Dokumen keluar** | jumlah barang/surat keluar, banyak catatan |
+| **Dokumen masuk** | jumlah **catatan** masuk pada hari itu, berapa yang sudah diserahkan / masih menunggu, dan (bila ada) total barangnya |
+| **Dokumen keluar** | jumlah **catatan** keluar, sudah diserahkan / menunggu, dan total barangnya |
 | **Booking Induction Room** | jumlah agenda, total jam terbooking, atau agenda berikutnya |
 | **Peminjaman Wifi Guest** | jumlah pemberian akun wifi pada hari itu, jumlah slot, dan tamu yang masih aktif |
 | **Tamu datang** | jumlah ORANG (rombongan dijumlah), banyak kunjungan, dan yang masih di lokasi |
@@ -614,9 +615,10 @@ Tiap kartu punya tren 14 hari (garis kecil), selisih dengan hari sebelumnya, dan
 #### Aturan hitung (supaya angka bisa dicocokkan)
 - **Hari = WIB**, sama dengan database, apa pun zona waktu perangkat. Dashboard otomatis pindah ke hari baru lewat tengah malam,
   dan data disegarkan sendiri tiap menit (serta saat tab dibuka kembali) — angka tidak basi bila ada pengguna / perangkat lain yang mencatat.
-- **Dokumen / barang masuk & keluar** = barang yang **DICATAT** pada tanggal itu, dijumlah per kolom *Jumlah* (satu catatan "Surat ×3" = 3).
-  Kartu juga menyebut jumlah catatan, berapa yang sudah diserahkan, berapa yang menunggu **dari catatan hari itu saja**, dan rincian per jenis
-  (Paket, Dokumen / Surat, Makanan, Barang lain). Barang yang dicatat di hari lain tetapi diserahkan hari ini TIDAK dihitung sebagai masuk/keluar hari ini
+- **Dokumen / barang masuk & keluar** = jumlah **CATATAN** yang dicatat pada tanggal itu (satu catatan = satu hitungan, berapa pun kolom *Jumlah*-nya).
+  Bila ada catatan berjumlah lebih dari 1 (mis. "Surat ×3"), kartu menambahkan keterangan "total N barang". Kartu juga menyebut berapa catatan yang
+  sudah diserahkan dan berapa yang menunggu **dari catatan hari itu saja**, dan rincian catatan per jenis (Paket, Dokumen / Surat, Makanan, Barang lain).
+  Barang yang dicatat di hari lain tetapi diserahkan hari ini TIDAK dihitung sebagai masuk/keluar hari ini
   (ditampilkan terpisah di tab Barang & Surat → *Hari ini / per tanggal*).
 - **Peminjaman Wifi Guest** = pemberian akun wifi yang **dibuat** pada tanggal itu. Kapasitas (total slot, terpakai, tersedia, akun berlaku, tamu aktif)
   adalah kondisi **saat ini** dan ditampilkan terpisah di panel *Kapasitas Wifi Guest* (bukan angka harian).
@@ -626,7 +628,7 @@ Tiap kartu punya tren 14 hari (garis kecil), selisih dengan hari sebelumnya, dan
 - **FM Command Center** (tab Receptionist) memakai aturan yang sama (SQL bagian 056): *Masuk hari ini*, *Keluar hari ini*, dan *Diserahkan hari ini* dipisah.
   Sebelumnya satu angka "dicatat hari ini" menjumlah masuk + keluar sehingga bisa lebih besar dari barang masuk sebenarnya (mis. 10 masuk + 1 keluar = 11).
 - Bila angka tidak cocok dengan hitungan manual: ketuk kartunya → daftar per tanggal memuat persis catatan yang dihitung.
-  Penyebab paling umum: ada catatan dengan **Jumlah lebih dari 1** (mis. "Dokumen / Surat ×2") — 10 catatan jadi 11 barang. Daftar menandainya dengan
+  Angka utama sudah per catatan, jadi 10 catatan tetap tampil 10; bila ada catatan dengan **Jumlah lebih dari 1** (mis. "Dokumen / Surat ×2"), total barang (11) hanya muncul sebagai keterangan. Daftar menandainya dengan
   lencana "Jumlah ×N" dan ringkasan menyebut nomor catatannya; bila jumlahnya keliru, perbaiki lewat **✎ Ubah**. Satu pemilih tanggal dipakai bersama
   oleh daftar dan tombol *Lembar kurir* (lembar kurir = barang keluar yang dicatat atau diserahkan pada tanggal itu).
 Di bawahnya: **Aktivitas 14 hari** (ketuk batang untuk pindah ke hari itu, arahkan kursor untuk rincian, ketuk nama di legenda untuk
@@ -1408,4 +1410,40 @@ Langkah:
 4. Install juga GitHub App **Claude** di akun baru bila masih dipakai.
 5. Actions di repo hasil transfer: buka tab Actions → aktifkan workflow bila diminta
    (backup harian & build APK).
+
+---
+
+## Keamanan: menjalankan SQL 06 (hasil audit 4 November 2026)
+
+Laporan lengkap: `docs/AUDIT_KEAMANAN_ISO27001.md` (Bagian 1A = bukti dari database produksi).
+
+**Langkah**
+1. Buka Supabase → **SQL Editor** → tempel isi `supabase/06_perbaikan_audit_2026-11.sql` → **Run**. Aman diulang.
+2. Hasil akhir berupa tabel 12 baris; kolom `anon_bisa_panggil` harus `false` semua.
+3. *Deploy* ulang aplikasi di Vercel (merge ke `main`) supaya perbaikan XSS cetak (struk permintaan, label gift, bukti Receptionist) dan pesan PIN locker ikut aktif.
+
+**Yang berubah untuk pengguna**
+| Area | Sebelum | Sesudah |
+|---|---|---|
+| Tugas Fleet (buat / hapus batch) | siapa pun tanpa login | hanya staf Fleet (Master, Admin GA CIK/PRB); rentang maks. 62 hari |
+| Locker — "Lepas locker" / konfirmasi massal oleh admin | akun login mana pun | hanya staf Fasilitas |
+| Locker — PIN karyawan salah | bisa dicoba tanpa batas | salah 5× → **terkunci 15 menit** (pesan: "Terlalu banyak PIN salah…"); admin Fasilitas tetap bisa melepas locker |
+| Agenda, daftar penghuni locker, riwayat PIN locker, daftar karyawan ATK | semua akun login (termasuk driver) | hanya staf (riwayat PIN: Fasilitas) |
+| Aplikasi Driver (klaim, info tugas) | — | tidak berubah; driver hanya melihat datanya sendiri |
+
+**Setelah menjalankan, uji cepat**: (1) login Admin GA → buat tugas 1 hari → batalkan; (2) login driver → tab Klaim & Tugas terbuka normal; (3) Locker: lepas dengan PIN benar berhasil, PIN salah 5× terkunci; (4) form `/gate`, `/request`, `/canteen`, daftar locker karyawan tetap terbuka tanpa login.
+
+**Belum diubah (butuh keputusan Anda)**: pencarian & klaim gift, riwayat gate publik, pembatasan pendaftaran locker, kode petugas untuk form kantin — lihat tabel keputusan di laporan audit.
+
+### Header keamanan, CSP, CI, dan Dependabot (hasil audit)
+
+| Hal | Isi | Tindakan Anda |
+|---|---|---|
+| **Header keamanan** (`next.config.js`) | HSTS, `nosniff`, Referrer-Policy, Permissions-Policy (kamera/mikrofon/lokasi dimatikan), anti-clickjacking (`frame-ancestors 'self'`) | Otomatis aktif setelah *deploy*. Dashboard Command Center di dalam tab Akun tetap tampil (satu situs yang sama) |
+| **CSP penuh** (daftar sumber yang diizinkan) | Dikirim sebagai **Report-Only** — tidak memblokir apa pun, hanya mencatat. Diuji di 38 halaman: nol pelanggaran | Pakai aplikasi normal beberapa hari; cek **Vercel → Logs** dengan kata kunci `csp-violation`. Bila bersih: Vercel → Settings → Environment Variables → `CSP_ENFORCE` = `1` → Redeploy |
+| Variabel opsional | `CSP_FRAME_ANCESTORS` (situs lain yang boleh membingkai aplikasi, bawaan hanya diri sendiri), `CSP_EXTRA_CONNECT` (mis. domain kustom Supabase) | Hanya bila diperlukan |
+| **CI** (`.github/workflows/ci.yml`) | Setiap perubahan: cek tipe → build → uji header → `npm audit` (gagal bila ada celah tinggi/kritis) | Lihat tab *Actions*; jadikan syarat merge di Settings → Branches |
+| **Dependabot** (`.github/dependabot.yml`) | Tiap Senin 06.00 WIB membuat pull request pembaruan dependensi (dikelompokkan), GitHub Actions tiap bulan | Tinjau PR-nya; gabungkan bila CI hijau |
+
+Disarankan juga (pengaturan GitHub, tanpa kode): Settings → *Code security* → aktifkan **Secret scanning** dan **Push protection**.
 

@@ -585,8 +585,8 @@ function Rcp({ v }: { v: FmView }) {
         </Card>
         <Card title={L("Barang & surat hari ini", "Items & mail today")}>
           <div className={s.duo}>
-            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.in_today)}</div><div className={s.areaUnit}>{L("masuk hari ini", "incoming today")}{r.parcels.in_today_n !== undefined && r.parcels.in_today_n !== r.parcels.in_today ? ` · ${nf(r.parcels.in_today_n)} ${L("catatan", "records")}` : ""}</div></div>
-            {r.parcels.out_today !== undefined && <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.out_today)}</div><div className={s.areaUnit}>{L("keluar hari ini", "outgoing today")}{r.parcels.out_today_n !== undefined && r.parcels.out_today_n !== r.parcels.out_today ? ` · ${nf(r.parcels.out_today_n)} ${L("catatan", "records")}` : ""}</div></div>}
+            <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.in_today_n ?? r.parcels.in_today)}</div><div className={s.areaUnit}>{L("masuk hari ini (catatan)", "incoming today (records)")}{r.parcels.in_today_n !== undefined && r.parcels.in_today_n !== r.parcels.in_today ? ` · ${nf(r.parcels.in_today)} ${L("barang", "items")}` : ""}</div></div>
+            {r.parcels.out_today !== undefined && <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.out_today_n ?? r.parcels.out_today)}</div><div className={s.areaUnit}>{L("keluar hari ini (catatan)", "outgoing today (records)")}{r.parcels.out_today_n !== undefined && r.parcels.out_today_n !== r.parcels.out_today ? ` · ${nf(r.parcels.out_today)} ${L("barang", "items")}` : ""}</div></div>}
             <div><div className={s.num} style={{ fontSize: "2.6rem" }}>{nf(r.parcels.handed_today)}</div><div className={s.areaUnit}>{L("diserahkan hari ini", "handed over today")}{r.parcels.handed_from_other_days ? ` · ${nf(r.parcels.handed_from_other_days)} ${L("dicatat hari lain", "logged earlier")}` : ""}</div></div>
           </div>
           <div style={{ marginTop: "1.4rem" }}>

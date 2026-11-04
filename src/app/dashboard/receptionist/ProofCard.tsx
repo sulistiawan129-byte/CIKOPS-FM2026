@@ -3,6 +3,7 @@
 /* BUKTI PERMINTAAN — tiket bernomor unik untuk wifi tamu, barang & surat, dan booking ruangan.
    Dipakai di dashboard (pratinjau + aksi kirim/cetak) dan di halaman publik /bukti?t=… */
 
+import { escapeHtml } from "@/lib/escapeHtml";
 import { useMemo, useRef, useState } from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { code128 } from "@/lib/receptionist/barcode";
@@ -158,7 +159,7 @@ export function printTicket(el: HTMLElement | null, title: string) {
     catch { if (sh.href) links.push(`<link rel="stylesheet" href="${sh.href}">`); } // lembar lintas-domain (mis. font)
   }
   const styles = `${links.join("")}<style>${inline.join("\n")}</style>`;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><base href="${window.location.origin}/"><title>${title}</title>${styles}
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><base href="${window.location.origin}/"><title>${escapeHtml(title)}</title>${styles}
     <style>html,body{background:#fff!important;margin:0}body{padding:24px}.${p.tear} i{background:#fff!important}.${p.ticket}{box-shadow:0 0 0 1px #e3e8f3!important}@page{size:A5;margin:10mm}@media print{body{padding:0}}</style></head>
     <body>${el.outerHTML}</body></html>`);
   w.document.close();

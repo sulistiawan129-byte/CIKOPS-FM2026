@@ -1,0 +1,48 @@
+# Pemeriksaan otomatis untuk setiap perubahan (audit ISO 27001, temuan S-10):
+#   tsc (tipe) → build produksi (mode mockup, tanpa rahasia) → pemindaian kerentanan dependensi → uji header keamanan.
+# Tidak memakai secret apa pun; aman dijalankan untuk pull request dari fork.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Pasang dependensi (sesuai package-lock)
+        run: npm ci
+      - name: Cek tipe
+        run: npx tsc --noEmit
+      - name: Build produksi (mockup)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_MOCK_BACKEND: "1"
+      - name: Header keamanan terpasang
+        run: |
+          npx next start -p 3100 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3100/ && break; sleep 1; done
+          H=$(curl -sI http://localhost:3100/driver)
+          for k in "strict-transport-security" "x-content-type-options" "referrer-policy" "permissions-policy" "content-security-policy"; do
+            echo "$H" | grep -qi "^$k:" || { echo "::error::Header $k tidak ada"; exit 1; }
+          done
+          echo "Header keamanan lengkap."
+        env:
+          NEXT_PUBLIC_MOCK_BACKEND: "1"
+      - name: Kerentanan dependensi (gagal bila ada tingkat tinggi/kritis)
+        run: npm audit --audit-level=high
