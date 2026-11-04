@@ -35,7 +35,8 @@ const label = (k: MKey, room: string) => ({
   docsIn: L("Dokumen / barang masuk", "Documents / items in"), docsOut: L("Dokumen / barang keluar", "Documents / items out"), bookings: `${L("Booking", "Bookings")} ${room}`,
   wifi: L("Peminjaman Wifi Guest", "Guest wifi loans"), guests: L("Tamu datang", "Visitors"),
 }[k]);
-const val = (s: DayStats, k: MKey) => s[k === "bookings" ? "bookings" : k];
+// angka utama dokumen/barang = jumlah CATATAN (satu serah-terima = satu hitungan); jumlah barang (kolom Jumlah) hanya keterangan
+const val = (s: DayStats, k: MKey) => (k === "docsIn" ? s.docsInN : k === "docsOut" ? s.docsOutN : s[k]);
 
 function Spark({ values, color }: { values: number[]; color: string }) {
   const W = 96, H = 30, P = 3;
@@ -117,8 +118,8 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
   };
   // Semua angka di kartu = HARI YANG DIPILIH saja (tidak ada total kumulatif); kapasitas wifi ditandai "saat ini"
   const sub: Record<MKey, string> = {
-    docsIn: `${stats.docsInN} ${L("catatan", "records")}${stats.inMulti ? L(` (${stats.inMulti} berjumlah >1)`, ` (${stats.inMulti} with qty >1)`) : ""} · ${stats.inTaken} ${L("sudah diserahkan", "handed over")} · ${stats.inOpen} ${L("menunggu", "waiting")}`,
-    docsOut: `${stats.docsOutN} ${L("catatan", "records")}${stats.outMulti ? L(` (${stats.outMulti} berjumlah >1)`, ` (${stats.outMulti} with qty >1)`) : ""} · ${stats.outTaken} ${L("sudah diserahkan", "handed over")} · ${stats.outOpen} ${L("menunggu", "waiting")}`,
+    docsIn: `${stats.inTaken} ${L("sudah diserahkan", "handed over")} · ${stats.inOpen} ${L("menunggu", "waiting")}${stats.docsIn !== stats.docsInN ? L(` · total ${stats.docsIn} barang (${stats.inMulti} catatan berjumlah >1)`, ` · ${stats.docsIn} items in total (${stats.inMulti} records with qty >1)`) : ""}`,
+    docsOut: `${stats.outTaken} ${L("sudah diserahkan", "handed over")} · ${stats.outOpen} ${L("menunggu", "waiting")}${stats.docsOut !== stats.docsOutN ? L(` · total ${stats.docsOut} barang (${stats.outMulti} catatan berjumlah >1)`, ` · ${stats.docsOut} items in total (${stats.outMulti} records with qty >1)`) : ""}`,
     bookings: stats.bookings ? (nextBk ? L(`berikutnya ${nextBk.start} · ${nextBk.title}`, `next ${nextBk.start} · ${nextBk.title}`) : `${(stats.bookedMin / 60).toFixed(1).replace(/\.0$/, "")} ${L("jam terbooking", "hours booked")}`) : L("ruangan kosong", "room is free"),
     wifi: `${stats.wifiSlots} ${L("slot", "slots")} · ${stats.wifiReturned} ${L("sudah dikembalikan", "returned")}`,
     guests: `${stats.visits} ${L("kunjungan", "visits")} · ${stats.inside} ${L("di lokasi", "on site")}`,
@@ -153,7 +154,7 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
               {isToday
                 ? (inside.length ? L(`${inside.length} kunjungan masih di lokasi · ${waiting.length} barang menunggu (semua hari) · ${stats.bookings ? `${stats.bookings} booking ${settings.roomName} hari ini.` : `${settings.roomName} kosong hari ini.`}`, `${inside.length} visits still on site · ${waiting.length} items waiting (all days) · ${stats.bookings ? `${stats.bookings} ${settings.roomName} bookings today.` : `${settings.roomName} is free today.`}`)
                   : L(`Lobby sedang tenang · ${waiting.length} barang menunggu (semua hari) · ${stats.bookings ? `${stats.bookings} booking ${settings.roomName} hari ini.` : `${settings.roomName} kosong hari ini.`}`, `The lobby is calm · ${waiting.length} items waiting (all days) · ${stats.bookings ? `${stats.bookings} ${settings.roomName} bookings today.` : `${settings.roomName} is free today.`}`))
-                : L(`Melihat ${dayName} — ${stats.guests} tamu, ${stats.docsIn + stats.docsOut} dokumen, ${stats.wifi} wifi, ${stats.bookings} booking.`, `Viewing ${dayName} — ${stats.guests} visitors, ${stats.docsIn + stats.docsOut} documents, ${stats.wifi} wifi, ${stats.bookings} bookings.`)}
+                : L(`Melihat ${dayName} — ${stats.guests} tamu, ${stats.docsInN + stats.docsOutN} dokumen, ${stats.wifi} wifi, ${stats.bookings} booking.`, `Viewing ${dayName} — ${stats.guests} visitors, ${stats.docsInN + stats.docsOutN} documents, ${stats.wifi} wifi, ${stats.bookings} bookings.`)}
             </p>
           </div>
           <div className={d.clockBox}>
@@ -188,7 +189,7 @@ export default function RcpDashboard({ myProfile, settings, accounts, grants, pa
           return (
             <button key={k} type="button" className={d.kpiCard} style={{ ["--c" as string]: PAL[k][0], ["--c2" as string]: PAL[k][1], ["--i" as string]: i }} onClick={() => open(k)} aria-label={`${label(k, settings.roomName)}: ${val(stats, k)}`}>
               <span className={d.kpiHead}><span className={d.kpiIcon} aria-hidden>{ICON[k]}</span><span className={d.kpiLabel}>{label(k, settings.roomName)}</span></span>
-              <span className={d.kpiNum}><b><Num value={val(stats, k)} /></b><small>{k === "guests" ? L("orang", "people") : k === "bookings" ? L("agenda", "agenda") : k === "wifi" ? L("peminjaman baru", "new loans") : L("barang / surat", "items")}</small></span>
+              <span className={d.kpiNum}><b><Num value={val(stats, k)} /></b><small>{k === "guests" ? L("orang", "people") : k === "bookings" ? L("agenda", "agenda") : k === "wifi" ? L("peminjaman baru", "new loans") : L("catatan", "records")}</small></span>
               <span className={d.kpiSub}>{sub[k]}</span>
               {k === "docsIn" && stats.inTypes.length > 0 && <span className={d.kpiTypes}>{typeLine(stats.inTypes)}</span>}
               {k === "docsOut" && stats.outTypes.length > 0 && <span className={d.kpiTypes}>{typeLine(stats.outTypes)}</span>}

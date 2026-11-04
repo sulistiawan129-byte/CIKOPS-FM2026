@@ -603,8 +603,8 @@ Untuk membuat akun resepsionis lain: buat user baru, lalu
 
 | Kartu | Isi |
 |---|---|
-| **Dokumen masuk** | jumlah barang/surat masuk pada hari itu (dijumlah per *Jumlah*), banyak catatan, dan yang masih menunggu diambil |
-| **Dokumen keluar** | jumlah barang/surat keluar, banyak catatan |
+| **Dokumen masuk** | jumlah **catatan** masuk pada hari itu, berapa yang sudah diserahkan / masih menunggu, dan (bila ada) total barangnya |
+| **Dokumen keluar** | jumlah **catatan** keluar, sudah diserahkan / menunggu, dan total barangnya |
 | **Booking Induction Room** | jumlah agenda, total jam terbooking, atau agenda berikutnya |
 | **Peminjaman Wifi Guest** | jumlah pemberian akun wifi pada hari itu, jumlah slot, dan tamu yang masih aktif |
 | **Tamu datang** | jumlah ORANG (rombongan dijumlah), banyak kunjungan, dan yang masih di lokasi |
@@ -615,9 +615,10 @@ Tiap kartu punya tren 14 hari (garis kecil), selisih dengan hari sebelumnya, dan
 #### Aturan hitung (supaya angka bisa dicocokkan)
 - **Hari = WIB**, sama dengan database, apa pun zona waktu perangkat. Dashboard otomatis pindah ke hari baru lewat tengah malam,
   dan data disegarkan sendiri tiap menit (serta saat tab dibuka kembali) — angka tidak basi bila ada pengguna / perangkat lain yang mencatat.
-- **Dokumen / barang masuk & keluar** = barang yang **DICATAT** pada tanggal itu, dijumlah per kolom *Jumlah* (satu catatan "Surat ×3" = 3).
-  Kartu juga menyebut jumlah catatan, berapa yang sudah diserahkan, berapa yang menunggu **dari catatan hari itu saja**, dan rincian per jenis
-  (Paket, Dokumen / Surat, Makanan, Barang lain). Barang yang dicatat di hari lain tetapi diserahkan hari ini TIDAK dihitung sebagai masuk/keluar hari ini
+- **Dokumen / barang masuk & keluar** = jumlah **CATATAN** yang dicatat pada tanggal itu (satu catatan = satu hitungan, berapa pun kolom *Jumlah*-nya).
+  Bila ada catatan berjumlah lebih dari 1 (mis. "Surat ×3"), kartu menambahkan keterangan "total N barang". Kartu juga menyebut berapa catatan yang
+  sudah diserahkan dan berapa yang menunggu **dari catatan hari itu saja**, dan rincian catatan per jenis (Paket, Dokumen / Surat, Makanan, Barang lain).
+  Barang yang dicatat di hari lain tetapi diserahkan hari ini TIDAK dihitung sebagai masuk/keluar hari ini
   (ditampilkan terpisah di tab Barang & Surat → *Hari ini / per tanggal*).
 - **Peminjaman Wifi Guest** = pemberian akun wifi yang **dibuat** pada tanggal itu. Kapasitas (total slot, terpakai, tersedia, akun berlaku, tamu aktif)
   adalah kondisi **saat ini** dan ditampilkan terpisah di panel *Kapasitas Wifi Guest* (bukan angka harian).
@@ -627,7 +628,7 @@ Tiap kartu punya tren 14 hari (garis kecil), selisih dengan hari sebelumnya, dan
 - **FM Command Center** (tab Receptionist) memakai aturan yang sama (SQL bagian 056): *Masuk hari ini*, *Keluar hari ini*, dan *Diserahkan hari ini* dipisah.
   Sebelumnya satu angka "dicatat hari ini" menjumlah masuk + keluar sehingga bisa lebih besar dari barang masuk sebenarnya (mis. 10 masuk + 1 keluar = 11).
 - Bila angka tidak cocok dengan hitungan manual: ketuk kartunya → daftar per tanggal memuat persis catatan yang dihitung.
-  Penyebab paling umum: ada catatan dengan **Jumlah lebih dari 1** (mis. "Dokumen / Surat ×2") — 10 catatan jadi 11 barang. Daftar menandainya dengan
+  Angka utama sudah per catatan, jadi 10 catatan tetap tampil 10; bila ada catatan dengan **Jumlah lebih dari 1** (mis. "Dokumen / Surat ×2"), total barang (11) hanya muncul sebagai keterangan. Daftar menandainya dengan
   lencana "Jumlah ×N" dan ringkasan menyebut nomor catatannya; bila jumlahnya keliru, perbaiki lewat **✎ Ubah**. Satu pemilih tanggal dipakai bersama
   oleh daftar dan tombol *Lembar kurir* (lembar kurir = barang keluar yang dicatat atau diserahkan pada tanggal itu).
 Di bawahnya: **Aktivitas 14 hari** (ketuk batang untuk pindah ke hari itu, arahkan kursor untuk rincian, ketuk nama di legenda untuk
