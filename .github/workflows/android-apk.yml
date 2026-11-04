@@ -82,7 +82,7 @@ jobs:
       HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
       HAS_FCM: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Bunyi notifikasi & Firebase
         env:
