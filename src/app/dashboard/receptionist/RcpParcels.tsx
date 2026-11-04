@@ -35,7 +35,7 @@ export default function RcpParcels({ parcels, dir, reload, day, setDay, dirFilte
               <button key={k} type="button" aria-pressed={sub === k} onClick={() => setSub(k)}>{l}</button>
             ))}
           </div>
-          <CourierSheet parcels={parcels} />
+          <CourierSheet parcels={parcels} date={day} />
         </div>
         {sub === "waiting" && <WaitingList list={waiting} reload={reload} onProof={setProof} />}
         {sub === "today" && <DayLog parcels={parcels} day={day} setDay={setDay} dirFilter={dirFilter} setDirFilter={setDirFilter} onProof={setProof} reload={reload} />}
@@ -260,6 +260,7 @@ function DayLog({ parcels, day, setDay, dirFilter, setDirFilter, onProof, reload
   const st = useMemo(() => dayStats(day, { parcels, grants: [], bookings: [], visitors: [] }), [day, parcels]);
   const made = useMemo(() => parcels.filter((p) => dayOf(p.createdAt) === day && (dirFilter === "all" || p.direction === dirFilter)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [parcels, day, dirFilter]);
   const other = useMemo(() => parcels.filter((p) => p.handedAt && dayOf(p.handedAt) === day && dayOf(p.createdAt) !== day && (dirFilter === "all" || p.direction === dirFilter)).sort((a, b) => (b.handedAt ?? "").localeCompare(a.handedAt ?? "")), [parcels, day, dirFilter]);
+  const multi = made.filter((p) => p.qty > 1);
   const types = (t: [string, number][]) => t.map(([k, n]) => `${itemTypeLabel(k)} ${n}`).join(" · ");
   const min = addMonths(today, -6);   // data barang dimuat 6 bulan terakhir
   return (
@@ -276,9 +277,15 @@ function DayLog({ parcels, day, setDay, dirFilter, setDirFilter, onProof, reload
         </div>
       </div>
       <div className={r.warn} style={{ background: "var(--surface2)", color: "var(--t1)", borderColor: "var(--border2)", fontWeight: 600 }}>
-        <div>⬇ {L("Masuk", "Incoming")}: <b>{st.docsIn}</b> {L("barang/surat", "items")} · {st.docsInN} {L("catatan", "records")} · {st.inTaken} {L("sudah diserahkan", "handed over")} · {st.inOpen} {L("menunggu", "waiting")}{st.inTypes.length ? ` — ${types(st.inTypes)}` : ""}</div>
-        <div>⬆ {L("Keluar", "Outgoing")}: <b>{st.docsOut}</b> {L("barang/surat", "items")} · {st.docsOutN} {L("catatan", "records")} · {st.outTaken} {L("sudah diserahkan", "handed over")} · {st.outOpen} {L("menunggu", "waiting")}{st.outTypes.length ? ` — ${types(st.outTypes)}` : ""}</div>
+        <div>⬇ {L("Masuk", "Incoming")}: <b>{st.docsInN}</b> {L("catatan", "records")} → <b>{st.docsIn}</b> {L("barang/surat", "items")} · {st.inTaken} {L("sudah diserahkan", "handed over")} · {st.inOpen} {L("menunggu", "waiting")}{st.inTypes.length ? ` — ${types(st.inTypes)}` : ""}</div>
+        <div>⬆ {L("Keluar", "Outgoing")}: <b>{st.docsOutN}</b> {L("catatan", "records")} → <b>{st.docsOut}</b> {L("barang/surat", "items")} · {st.outTaken} {L("sudah diserahkan", "handed over")} · {st.outOpen} {L("menunggu", "waiting")}{st.outTypes.length ? ` — ${types(st.outTypes)}` : ""}</div>
       </div>
+      {multi.length > 0 && (
+        <div className={r.warn}>
+          ⓘ {L(`Jumlah barang lebih besar dari jumlah catatan karena ${multi.length} catatan berjumlah lebih dari 1: `, `Items exceed records because ${multi.length} record(s) have a quantity above 1: `)}
+          <b>{multi.map((p) => `${p.receiptNo} ×${p.qty}`).join(", ")}</b>. {L("Bila jumlahnya salah, perbaiki lewat “✎ Ubah”.", "If the quantity is wrong, fix it with “✎ Edit”.")}
+        </div>
+      )}
       <h3 className={r.section} style={{ margin: 0 }}>{L("Dicatat pada tanggal ini", "Logged on this date")} ({made.length})</h3>
       {made.length === 0 ? <p className={r.empty}>{day === today ? L("Belum ada barang / surat yang dicatat hari ini.", "No items logged today yet.") : L("Tidak ada barang / surat yang dicatat pada tanggal ini.", "No items were logged on this date.")}</p> : <SimpleList list={made} onProof={onProof} reload={reload} />}
       {other.length > 0 && (
@@ -301,7 +308,7 @@ function SimpleList({ list, onProof, reload, showLogged }: { list: Parcel[]; onP
         <div key={p.id} className={r.item}>
           <div>
             <b className={p.direction === "in" ? r.dirIn : r.dirOut}>{p.direction === "in" ? "⬇" : "⬆"} {p.direction === "in" ? p.recipient : p.sender}</b>
-            <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}{p.qty > 1 ? ` ×${p.qty}` : ""}</span><span>{L("dicatat", "logged")} {showLogged ? fmtDateTime(p.createdAt) : fmtTime(p.createdAt)}</span>{editedMark(p)}</div>
+            <div className={r.meta}><span className={r.mono}>{p.receiptNo}</span><span>{itemTypeLabel(p.itemType)}{p.qty > 1 ? <b className={`${r.pill} ${r.pOrange}`} style={{ marginLeft: 6 }}>{L("Jumlah", "Qty")} ×{p.qty}</b> : null}</span><span>{L("dicatat", "logged")} {showLogged ? fmtDateTime(p.createdAt) : fmtTime(p.createdAt)}</span>{editedMark(p)}</div>
           </div>
           <div className={r.itemSide}>{p.status === "handed" ? <span className={`${r.pill} ${r.pGreen}`}>{p.handedTo} · {fmtTime(p.handedAt)}</span> : <span className={`${r.pill} ${r.pOrange}`}>{L("Menunggu", "Waiting")}</span>}
             <button type="button" className={r.proofBtn} onClick={() => onProof(p)}>🧾 {L("Bukti", "Receipt")}</button>
@@ -358,8 +365,7 @@ function HistoryList({ parcels, onProof, reload }: { parcels: Parcel[]; onProof:
 }
 
 /** Lembar serah terima harian untuk kurir — hanya dicetak bila diperlukan. */
-function CourierSheet({ parcels }: { parcels: Parcel[] }) {
-  const [date, setDate] = useState(todayISO());
+function CourierSheet({ parcels, date }: { parcels: Parcel[]; date: string }) {
   const rows = useMemo(() => parcels.filter((p) => p.direction === "out" && (dayOf(p.createdAt) === date || dayOf(p.handedAt) === date)), [parcels, date]);
   async function print() {
     const { default: jsPDF } = await import("jspdf");
@@ -385,8 +391,10 @@ function CourierSheet({ parcels }: { parcels: Parcel[] }) {
   }
   return (
     <span className={r.row} style={{ gap: 6 }}>
-      <input className={r.input} style={{ width: 150, minHeight: 36 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label={L("Tanggal lembar kurir", "Courier sheet date")} />
-      <button type="button" className={r.ghost} disabled={!rows.length} onClick={() => print().catch((e) => alert(String(e)))} title={L("Cetak lembar serah terima kurir (barang keluar)", "Print the courier handover sheet (outgoing items)")}>🖨 Lembar kurir ({rows.length})</button>
+      <button type="button" className={r.ghost} disabled={!rows.length} onClick={() => print().catch((e) => alert(String(e)))}
+        title={L(`Cetak lembar serah terima kurir untuk ${fmtDate(date)} (barang keluar yang dicatat atau diserahkan pada tanggal itu)`, `Print the courier handover sheet for ${fmtDate(date)} (outgoing items logged or handed over that day)`)}>
+        🖨 {L("Lembar kurir", "Courier sheet")} {fmtDate(date, { day: "numeric", month: "short" })} ({rows.length})
+      </button>
     </span>
   );
 }
