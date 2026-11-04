@@ -15,6 +15,7 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import of from "./opfund.module.css";
 import { SkeletonRows } from "./TaskModals";
 import { BRAND } from "@/lib/brand";
+import { escapeHtml } from "@/lib/escapeHtml";
 
 import { loc , L} from "@/lib/i18n";
 // ════════════════════════════════════════════════════════════════
@@ -443,7 +444,7 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
     const sizeRows = filledSizes
       .map((s, i) => {
         const parsed = parseGiftSize(String(s.variant));
-        return `<div class="sizeRow"><span class="idx">${i + 1}</span><span class="sizeVal">${parsed.size}</span></div>`;
+        return `<div class="sizeRow"><span class="idx">${i + 1}</span><span class="sizeVal">${escapeHtml(parsed.size)}</span></div>`;
       })
       .join("");
     const ticketCount = getEffectiveTicketCount(r);
@@ -455,11 +456,11 @@ function printGiftLabels(regs: GiftRegistration[], layout: "standard" | "large" 
     return `
       <div class="label">
         <div class="noLabel">NO. URUT</div>
-        <div class="noValue">${r.sequenceNo || "-"}</div>
-        <div class="nama">${r.nama}</div>
-        <div class="meta">${r.nik} &middot; ${r.departemen || "-"}</div>
-        <div class="meta">${r.lokasiPengambilan || "-"}</div>
-        ${r.statusKehadiran ? `<div class="statusTag">${r.statusKehadiran}</div>` : ""}
+        <div class="noValue">${escapeHtml(r.sequenceNo || "-")}</div>
+        <div class="nama">${escapeHtml(r.nama)}</div>
+        <div class="meta">${escapeHtml(r.nik)} &middot; ${escapeHtml(r.departemen || "-")}</div>
+        <div class="meta">${escapeHtml(r.lokasiPengambilan || "-")}</div>
+        ${r.statusKehadiran ? `<div class="statusTag">${escapeHtml(r.statusKehadiran)}</div>` : ""}
         ${(r.anakDibawah2Tahun ?? 0) > 0 ? `<div class="toddlerNote">👶 ${r.anakDibawah2Tahun} Anak Gratis Masuk / Free Entry (&lt;2 Tahun)</div>` : ""}
         ${sizesHtml}
       </div>`;

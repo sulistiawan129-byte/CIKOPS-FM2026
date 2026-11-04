@@ -5,7 +5,7 @@
 | **Tanggal audit** | 4 November 2026 |
 | **Objek** | Repositori `sulistiawan129-byte/CIKOPS-FM2026` (branch `claude/loving-lamport-rqai35`), seluruh SQL Supabase, Edge Function, Next.js (Vercel), workflow GitHub, aplikasi Android (TWA), modul VBA/Excel |
 | **Pendekatan** | Telaah kode + **replika database** (SQL repo dijalankan di PostgreSQL 16 dengan stub Supabase, lalu RLS / policy / fungsi diukur langsung) + pemindaian rahasia + `npm audit` + pembuktian (PoC) di mockup lokal |
-| **Tidak dilakukan** | Tidak ada pengujian aktif ke produksi (Supabase / Vercel). Pemeriksaan header langsung ke situs produksi tidak bisa dilakukan dari lingkungan audit |
+| **Tidak dilakukan** | Tidak ada pengujian aktif ke produksi (Supabase / Vercel). Data produksi hanya berasal dari **kueri baca-saja `supabase/cek_audit_keamanan.sql` yang dijalankan sendiri oleh pemilik sistem** (Bagian 1A). Pemeriksaan header langsung ke situs produksi tidak bisa dilakukan dari lingkungan audit |
 | **Penting** | Ini audit teknis + gap-analysis terhadap ISO/IEC 27001:2022, **bukan sertifikasi** dan bukan nasihat hukum. Klausul manajemen (4–10) hanya bisa dinilai dari bukti dokumen yang ada di repo |
 
 ---
@@ -16,13 +16,18 @@
 
 | Kategori | Jumlah | Catatan |
 |---|---|---|
-| Tinggi | 4 | XSS tersimpan (3 jalur), Next.js rentan, akses baca terlalu luas untuk semua role staf, dependensi PDF |
-| Sedang | 11 | tulis anonim kantin, kebocoran kecil pada `atk_employees`, tanpa header keamanan/CSP, RPC publik tanpa pembatas, log audit, CI/CD, IaC, dll. |
-| Rendah | 7 | |
+| **Kritis** | 1 | **P-01** — pembuatan / penghapusan tugas Fleet bisa dilakukan **tanpa login** (terbukti di database produksi, Bagian 1A) |
+| Tinggi | 9 | 4 dari telaah kode (XSS tersimpan, Next.js rentan, baca data pribadi terlalu luas, jsPDF) + 5 dari produksi (data klaim/driver bisa dibuka tanpa login, aksi admin locker oleh akun biasa, PIN locker 3 digit tanpa batas coba, data pribadi pada pencarian gift) |
+| Sedang | 16 | tulis anonim kantin, kebocoran kecil pada `atk_employees`, tanpa header keamanan/CSP, RPC publik tanpa pembatas, log audit, CI/CD, IaC, dll. + 5 dari produksi (policy "semua akun login", peran longgar pada fungsi admin, akun ganda driver/staf, dll.) |
+| Rendah | 9 | |
 | **Sudah baik** | 14 | RLS 100% pada tabel di repo, tulis dibatasi per modul, bcrypt, backup terenkripsi, dll. |
 
-**Lima hal yang perlu dikerjakan lebih dulu**
+> **Status perbaikan (4 Nov 2026):** celah XSS (T-01) sudah diperbaiki di kode (perlu *deploy*), dan `supabase/06_perbaikan_audit_2026-11.sql`
+> menutup P-01…P-05, P-08, P-09 serta S-02 — **database produksi baru aman setelah file 06 dijalankan** (lihat PANDUAN → *Keamanan: menjalankan SQL 06*).
 
+**Hal yang perlu dikerjakan lebih dulu**
+
+0. **Jalankan `supabase/06_perbaikan_audit_2026-11.sql` di produksi** (P-01…P-09). Sebelum itu, siapa pun yang memegang kunci anon yang tertanam di aplikasi dapat membuat/menghapus tugas Fleet dan membaca data klaim/driver.
 1. **Tutup XSS tersimpan pada jendela cetak** (T-01). Siapa pun tanpa login bisa menyisipkan skrip lewat form publik; skrip itu berjalan di dashboard ketika staf menekan *Cetak Bukti* / *Cetak Label*. Sudah dibuktikan (PoC) di mockup.
 2. **Naikkan Next.js dari 16.3.8** (T-02). Versi terpasang berada di rentang yang memuat advisori RCE & DoS (≤ 16.4.0); versi 16.4.5 tersedia.
 3. **Batasi baca data pribadi per peran** (T-03). Role mana pun yang punya profil (termasuk Receptionist, Admin ISS, Security, Management) saat ini dapat membaca NIK/email/HP karyawan, data driver, klaim, lembur, dan pendaftar gift.
@@ -30,6 +35,46 @@
 5. **Mulai ISMS minimum**: ruang lingkup, register risiko, kebijakan akses, prosedur insiden & notifikasi pelanggaran data (UU PDP: 3×24 jam), tinjauan akses berkala (Bagian 6).
 
 **Tingkat kesiapan ISO/IEC 27001:2022** (dari baris yang dinilai di Bagian 4): Annex A.5 — 21 baris: 1 sesuai, 12 sebagian, 8 belum. Annex A.8 — 30 baris (3 tidak berlaku): 4 sesuai, 18 sebagian, 5 belum. A.6 hampir seluruhnya belum ada bukti; A.7 umumnya tidak berlaku (cloud). Klausul ISMS 4–10: **belum ada dokumen**. Perkiraan jalur sertifikasi: 6–9 bulan setelah ISMS dimulai (perkiraan kasar, bergantung sumber daya).
+
+---
+
+## 1A. Verifikasi di database produksi (4 November 2026)
+
+Pemilik sistem menjalankan `supabase/cek_audit_keamanan.sql` (bagian 1–9, baca-saja) di Supabase produksi dan menyerahkan hasilnya.
+Hasil itu **membuktikan** satu temuan dari telaah kode dan **menambah** temuan baru pada objek yang tidak ada di repo
+(fungsi yang dibuat langsung di Supabase). Setiap temuan di bawah diuji ulang pada replika database dengan definisi fungsi
+produksi yang sama persis: **sebelum** perbaikan serangan berhasil, **sesudah** perbaikan ditolak (uji per peran: anon, driver, Management, GA).
+
+| ID | Tingkat | Temuan (bukti produksi) | Dampak | Status |
+|---|---|---|---|---|
+| **P-01** | **Kritis** | `create_task_batch` & `delete_task_batch` — `SECURITY DEFINER`, **dapat dipanggil anon, tanpa pemeriksaan login/peran**. `create_task_batch` menyisipkan satu baris `tasks` per hari tanpa batas rentang. | Siapa pun dengan kunci anon (tertanam di aplikasi web) dapat membanjiri jadwal Fleet (mis. rentang 100 tahun = ±36.500 baris per panggilan), memblokir driver/kendaraan karena cek bentrok, memicu notifikasi, dan menghapus batch. Terbukti di replika: anon membuat 3 tugas, dan rentang 3 tahun diterima. | **Diperbaiki di SQL 06** — hanya `staff_can('fleet')`, rentang ≤ 62 hari |
+| **P-02** | Tinggi | `get_claims_by_driver(uuid)` anon, tanpa pemeriksaan. | Daftar klaim (rincian item, total Rp, status) per driver. UUID driver didapat dari P-03 (pencarian lewat email) → rantai serangan dari email saja. | **Diperbaiki** — hanya staf atau driver pemilik baris itu |
+| **P-03** | Tinggi | `get_driver_by_email(text)` & `get_driver_duty_info(uuid)` anon. | Nama, no. HP, status aktif, tier, plant, user yang diantar — dari tebakan alamat email. | **Diperbaiki** — driver hanya akunnya sendiri; staf bebas |
+| **P-04** | Tinggi | `start_bulk_confirmation()` & `admin_release_locker(text)` hanya memeriksa `auth.role() = 'authenticated'` — akun **driver** pun lolos. `start_bulk_confirmation` mengembalikan **email + nama + token** semua pemilik locker. | Akun driver dapat mengosongkan locker orang lain dan mengambil email + token konfirmasi seluruh penghuni. | **Diperbaiki** — `staff_can('facility')` |
+| **P-05** | Tinggi | `verify_locker_release` / `release_locker_by_user`: PIN **3 digit** (`generate_unique_locker_pin` = 100–999, hanya 900 kemungkinan), anon, **tanpa batas percobaan**; `release_locker_by_user` mengembalikan email & PIN. | Coba-coba PIN 1–2 menit mengosongkan locker mana pun dan membuka data penghuni. | **Diperbaiki** — salah 5× → kunci 15 menit per locker; PIN tidak diperpanjang (lihat catatan) |
+| **P-06** | Tinggi | `find_gift_registration_by_nik / _by_name / _by_sequence_no` dan `claim_gift_registration` anon; hasil memuat NIK & email **tanpa disamarkan**. | Mengetik nama/nomor urut sembarang menampilkan NIK + email pendaftar; siapa pun dapat menandai klaim. | **Butuh keputusan** (lihat bawah) — SQL 06 tidak mengubah alur gift |
+| **P-07** | Sedang | `get_gate_logs_public(p_date)` menerima tanggal apa saja. | Seluruh riwayat keluar-masuk kendaraan (plat, driver, jam) dapat ditarik tanpa login. | **Butuh keputusan** (batasi ke hari ini + kemarin?) |
+| **P-08** | Sedang | Policy `{public}` dengan `auth.role()='authenticated'` pada `agenda_events`, `locker_karyawan`, `locker_pin_history` (berisi **PIN**), dan `atk_employees_read` (**S-02 terkonfirmasi di produksi**). Akun driver ikut lolos filter RESTRICTIVE karena `staff_role()` kosong. | Akun driver dapat membaca/mengubah agenda, daftar penghuni locker, riwayat PIN locker, dan daftar NIK ATK. | **Diperbaiki** — `is_staff()` untuk baca; tulis per modul |
+| **P-09** | Sedang | `admin_cancel_task`, `admin_update_task_status`, `admin_set_driver_pin`, `employees_dedupe` hanya memeriksa "punya profil" (Management/Receptionist/ISS ikut lolos) dan dua di antaranya tanpa `SET search_path`. | Role non-Fleet dapat membatalkan tugas atau mengganti PIN driver; risiko pembajakan `search_path`. | **Diperbaiki** — `staff_can('fleet')` / `staff_can('masterdata')` + `search_path` dikunci |
+| **P-10** | Sedang | Tiga akun staf juga terdaftar sebagai driver: `ga-prb@cikops.com` (2 baris driver) dan `sulistiawan129@gmail.com` (role `admin`, **email pribadi**). | Satu kredensial memegang dua peran (driver + admin); akun pribadi sebagai admin menyulitkan offboarding dan pemulihan. | Tindakan manual: pisahkan akun driver & staf, pakai email perusahaan, aktifkan MFA admin |
+| **P-11** | Sedang | `register_locker` publik dapat dipanggil berulang (isi locker kosong dengan data palsu). | Locker kosong bisa "dihabiskan" oleh skrip. | **Butuh keputusan** (CAPTCHA / pembatas laju di Vercel WAF) |
+| **P-12** | Rendah | Trigger `on_auth_user_created` masih ada walau fungsinya sudah kosong (sengaja, SQL 02). | Tidak berbahaya; membingungkan saat tinjauan. | Opsional: `drop trigger` |
+| **P-13** | Rendah | `generate_unique_locker_pin` memakai `random()` (bukan sumber acak kriptografis) dan hanya 3 digit. | Memperlemah P-05 bila batas coba dilewati. | Perpanjang PIN menjadi 4–6 digit (perlu perubahan form & label cetak) |
+
+**Catatan P-05.** Batas 5 salah → kunci 15 menit membuat menebak 900 kemungkinan memakan rata-rata ±22 jam per locker (bukan 2 menit). Konsekuensi yang
+diterima: orang lain bisa *mengunci sementara* locker seseorang dengan menebak salah — admin Fasilitas tetap bisa membukanya lewat dashboard.
+PIN salah sekarang dikembalikan sebagai "0 baris" (bukan `raise exception`) supaya hitungan percobaan tidak ikut dibatalkan; aplikasi menampilkan *"PIN salah atau locker tidak ditemukan."*
+
+**Keputusan yang diperlukan dari pemilik proses (tidak diubah sepihak karena memengaruhi alur karyawan)**
+
+| Topik | Pilihan | Rekomendasi |
+|---|---|---|
+| Pencarian & klaim gift (P-06) | (a) samarkan NIK/email di hasil pencarian; (b) PIN stasiun / kode petugas untuk `claim_gift_registration` | (a) + (b): tampilkan `****1234`, dan klaim hanya dari perangkat petugas |
+| Riwayat gate publik (P-07) | batasi `p_date` ke hari ini ± 1 hari | Ya — data lama hanya untuk staf |
+| `register_locker` (P-11) | CAPTCHA / pembatas laju per IP | Pembatas laju di Vercel WAF (tanpa ubah form) |
+| Form kantin publik (S-01) | kode petugas vs tetap terbuka (sudah diberi `CHECK` nilai pada SQL 06) | Kode petugas lewat RPC |
+
+**Yang terkonfirmasi baik di produksi:** tabel yang diperiksa (`agenda_events`, `atk_employees`, `canteen_reports`, `locker_*`, `lockers`) semuanya ber-RLS; PIN driver disimpan dengan bcrypt (`crypt(..., gen_salt('bf'))`); fungsi pendaftaran akun otomatis sudah kosong sehingga akun baru tidak otomatis menjadi staf.
 
 ---
 
@@ -48,7 +93,7 @@ Aplikasi web dashboard (staf), aplikasi Driver & TGA (PWA + APK), halaman publik
 ### 2.3 Batasan (harus diverifikasi di lingkungan nyata)
 | Tidak terlihat dari repo | Cara memeriksa |
 |---|---|
-| Tabel/fungsi yang dibuat langsung di Supabase (gate, locker, gift, `activity_log`, `atk_*`, `drivers`/`tasks` versi produksi) | Jalankan `supabase/cek_audit_keamanan.sql` di produksi, bagian 1–7 |
+| Tabel/fungsi yang dibuat langsung di Supabase (gate, locker, gift, `activity_log`, `atk_*`, `drivers`/`tasks` versi produksi) | **Sebagian sudah terverifikasi (Bagian 1A)** lewat `supabase/cek_audit_keamanan.sql`; isi tabel `activity_log` dan trigger-nya belum diperiksa |
 | Pengaturan Supabase Auth (signup publik, panjang password, MFA, kebocoran password, masa sesi) | Dashboard → Authentication |
 | Paket Supabase, region, PITR, network restriction, SSL enforcement | Dashboard → Settings |
 | Header keamanan produksi, Deployment Protection, firewall/WAF | `curl -I https://<domain>` dari luar; Vercel → Settings |
@@ -70,6 +115,7 @@ Skala: **Tinggi** = dapat dieksploitasi dengan dampak nyata pada kerahasiaan/aku
 - **PoC (mockup lokal):** isian "Nama Anda" di `/request` diisi `<img src=x onerror=…>`; saat staf menekan **Cetak Bukti**, skrip berjalan di `origin` dashboard dan mengakses `localStorage` aplikasi.
 - **Dampak:** pengambilalihan akun staf yang mencetak (bila Master Admin: seluruh sistem), tanpa kredensial apa pun dari penyerang.
 - **Perbaikan:** (1) fungsi `esc()` untuk semua nilai yang disisipkan ke HTML cetak, atau bangun dokumen cetak dengan `textContent`/DOM, bukan string; (2) validasi server-side (panjang, daftar karakter) pada RPC/insert publik; (3) CSP (lihat S-03); (4) tinjau juga `<title>${title}` di `ProofCard.printTicket`.
+- **Status (4 Nov 2026):** **diperbaiki di kode** — `src/lib/escapeHtml.ts` dipakai di `printRequestReceipt`, `printGiftLabels`, dan `ProofCard.printTicket`; PoC diulang dan skrip penyerang **tidak lagi berjalan**. Berlaku setelah *deploy* ke Vercel. Validasi server-side dan CSP (S-03) tetap disarankan sebagai lapisan kedua.
 - **ISO:** A.8.28 (secure coding), A.8.26, A.8.29. **Usaha:** kecil (±0,5 hari) untuk escape; sedang untuk validasi + CSP.
 
 #### T-02 · Next.js 16.3.8 berada dalam rentang rentan
@@ -256,10 +302,13 @@ Umumnya **tidak berlaku** (SaaS cloud). Catatan: layar TV `Command Center` menam
 
 | Fase | Tindakan | Temuan | Perkiraan |
 |---|---|---|---|
-| **0–7 hari** | Escape semua HTML cetak + validasi panjang pada RPC publik | T-01 | 0,5–1 hari |
+| **0–7 hari** | **Jalankan `06_perbaikan_audit_2026-11.sql` di produksi** + deploy perbaikan XSS; uji alur Fleet, Locker, driver | P-01…P-05, P-08, P-09, S-02 | 1 jam (sudah disiapkan) |
+|  | Keputusan gift / gate / locker / kantin (tabel Bagian 1A) lalu perbaiki | P-06, P-07, P-11, S-01 | 1–2 hari |
+|  | Pisahkan akun driver & staf, email perusahaan, MFA admin | P-10 | 1 jam |
+|  | Escape semua HTML cetak (**selesai di kode**: struk permintaan, label gift, bukti Receptionist) + validasi panjang pada RPC publik | T-01 | selesai / 0,5 hari |
 | | Naikkan Next.js ke 16.4.5 + uji | T-02 | 0,5 hari |
 | | Cabut tulis anonim kantin → kode petugas + `CHECK` | S-01 | 1 hari |
-| | `atk_employees_read` → `staff_can('facility')` | S-02 | 15 menit |
+| | `atk_employees_read` → `staff_can('facility')` (**ada di SQL 06**) | S-02 | selesai |
 | | Putar kunci yang pernah lewat artifact (VAPID, keystore bila dibuat lewat workflow); pindahkan ke Secrets | S-06 | 0,5 hari |
 | | Jalankan `cek_audit_keamanan.sql` di produksi & simpan hasil | §2.3 | 1 jam |
 | **8–30 hari** | Batasi baca per peran (policy `SELECT`), sembunyikan `pin_hash` | T-03 | 3–5 hari |

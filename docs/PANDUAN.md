@@ -10,6 +10,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/02_peran_keamanan.sql` | Bagian 039 role per modul, 041 riwayat pengingat dokumen, 040 pengetatan keamanan | **Jalankan sekali sekarang** (utuh, satu kali Run). Aman diulang |
 | `supabase/04_aplikasi_lapangan.sql` | Bagian 042 token notifikasi APK (Firebase), 043 Self-Claim driver, 044 sinkron Excel ATK, 045 modul TGA (ubah/hapus pekerjaan + form penugasan publik), 046 status teknisi Available/Busy (realtime), 047 reset periode Cleaning & Gardening, 048 ringkasan TGA di FM Command Center, 049 form kantin publik tanggal bebas (backdate) | **Jalankan sekali, sesudah file 02.** Aman diulang |
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
+| `supabase/06_perbaikan_audit_2026-11.sql` | Perbaikan temuan audit keamanan: tutup fungsi yang bisa dipanggil tanpa login (buat/hapus tugas Fleet, data klaim & driver), batasi aksi admin locker, kunci 15 menit setelah 5× PIN locker salah, policy "semua akun login" → staf saja, batas wajar angka kantin | **Jalankan sekali di Supabase produksi, sesudah file 04.** Aman diulang. Lihat bab *Keamanan: menjalankan SQL 06* |
 | `supabase/05_data_demo.sql` | Akun & data **fiktif** untuk deployment DEMO (lihat bab *Deployment DEMO*) | **Hanya di project Supabase DEMO** — berhenti sendiri bila dijalankan di database yang berisi akun asli |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -1409,3 +1410,26 @@ Langkah:
 5. Actions di repo hasil transfer: buka tab Actions → aktifkan workflow bila diminta
    (backup harian & build APK).
 
+---
+
+## Keamanan: menjalankan SQL 06 (hasil audit 4 November 2026)
+
+Laporan lengkap: `docs/AUDIT_KEAMANAN_ISO27001.md` (Bagian 1A = bukti dari database produksi).
+
+**Langkah**
+1. Buka Supabase → **SQL Editor** → tempel isi `supabase/06_perbaikan_audit_2026-11.sql` → **Run**. Aman diulang.
+2. Hasil akhir berupa tabel 12 baris; kolom `anon_bisa_panggil` harus `false` semua.
+3. *Deploy* ulang aplikasi di Vercel (merge ke `main`) supaya perbaikan XSS cetak (struk permintaan, label gift, bukti Receptionist) dan pesan PIN locker ikut aktif.
+
+**Yang berubah untuk pengguna**
+| Area | Sebelum | Sesudah |
+|---|---|---|
+| Tugas Fleet (buat / hapus batch) | siapa pun tanpa login | hanya staf Fleet (Master, Admin GA CIK/PRB); rentang maks. 62 hari |
+| Locker — "Lepas locker" / konfirmasi massal oleh admin | akun login mana pun | hanya staf Fasilitas |
+| Locker — PIN karyawan salah | bisa dicoba tanpa batas | salah 5× → **terkunci 15 menit** (pesan: "Terlalu banyak PIN salah…"); admin Fasilitas tetap bisa melepas locker |
+| Agenda, daftar penghuni locker, riwayat PIN locker, daftar karyawan ATK | semua akun login (termasuk driver) | hanya staf (riwayat PIN: Fasilitas) |
+| Aplikasi Driver (klaim, info tugas) | — | tidak berubah; driver hanya melihat datanya sendiri |
+
+**Setelah menjalankan, uji cepat**: (1) login Admin GA → buat tugas 1 hari → batalkan; (2) login driver → tab Klaim & Tugas terbuka normal; (3) Locker: lepas dengan PIN benar berhasil, PIN salah 5× terkunci; (4) form `/gate`, `/request`, `/canteen`, daftar locker karyawan tetap terbuka tanpa login.
+
+**Belum diubah (butuh keputusan Anda)**: pencarian & klaim gift, riwayat gate publik, pembatasan pendaftaran locker, kode petugas untuk form kantin — lihat tabel keputusan di laporan audit.

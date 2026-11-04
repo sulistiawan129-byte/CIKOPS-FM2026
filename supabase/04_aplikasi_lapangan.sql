@@ -1055,8 +1055,8 @@ language plpgsql security definer set search_path = public as $f$
 declare
   r record; v_auto jsonb := '[]'::jsonb; v_manual jsonb; v_merged int := 0; v_nik text; v_dept text;
 begin
-  if auth.uid() is null or not exists (select 1 from profiles where id = auth.uid()) then
-    raise exception 'Akses ditolak: akun tidak terdaftar di CIKOPS.' using errcode = '42501';
+  if auth.uid() is null or not staff_can('masterdata') then
+    raise exception 'Akses ditolak: butuh hak Master Data.' using errcode = '42501';
   end if;
   perform set_config('cikops.skip_tga_sync', '1', true);   -- riwayat TGA tidak ditimpa saat menggabung
   for r in

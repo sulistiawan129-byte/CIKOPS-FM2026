@@ -7,6 +7,7 @@ import { toLocalISODate } from "@/lib/dateUtils";
 import of from "./opfund.module.css";
 import { NavTab } from "./HomeTab";
 import { BRAND } from "@/lib/brand";
+import { escapeHtml } from "@/lib/escapeHtml";
 
 import { loc , L} from "@/lib/i18n";
 export function todayStr() {
@@ -230,7 +231,7 @@ export function printRequestReceipt(params: {
   const refNo = `REQ-${toLocalISODate(new Date(params.createdAt)).replace(/-/g, "")}-${params.refId.slice(0, 6).toUpperCase()}`;
   const rows = params.lines
     .filter((l) => l.value)
-    .map((l) => `<tr><td style="padding:5px 0;color:#7886a8;width:38%;vertical-align:top;">${l.label}</td><td style="padding:5px 0;font-weight:700;color:#0d1a36;">: ${l.value}</td></tr>`)
+    .map((l) => `<tr><td style="padding:5px 0;color:#7886a8;width:38%;vertical-align:top;">${escapeHtml(l.label)}</td><td style="padding:5px 0;font-weight:700;color:#0d1a36;">: ${escapeHtml(l.value)}</td></tr>`)
     .join("");
   const origin = window.location.origin;
   w.document.write(`
@@ -266,9 +267,9 @@ export function printRequestReceipt(params: {
           <div style="padding:20px 28px;">
             <table style="margin-bottom:16px;font-size:13px;">
               <tr><td style="padding:5px 0;color:#7886a8;width:38%;">${L("Tanggal Pengajuan", "Submission Date")}</td><td style="padding:5px 0;font-weight:700;">: ${new Date(params.createdAt).toLocaleDateString(loc(), { day: "2-digit", month: "long", year: "numeric" })}</td></tr>
-              <tr><td style="padding:5px 0;color:#7886a8;">${L("Jenis Permintaan", "Request Type")}</td><td style="padding:5px 0;font-weight:700;">: ${params.typeLabel}</td></tr>
-              <tr><td style="padding:5px 0;color:#7886a8;">${L("Nama Pemohon", "Requester Name")}</td><td style="padding:5px 0;font-weight:700;">: ${params.employeeName}</td></tr>
-              <tr><td style="padding:5px 0;color:#7886a8;">${L("Departemen", "Department")}</td><td style="padding:5px 0;font-weight:700;">: ${params.department || "-"}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">${L("Jenis Permintaan", "Request Type")}</td><td style="padding:5px 0;font-weight:700;">: ${escapeHtml(params.typeLabel)}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">${L("Nama Pemohon", "Requester Name")}</td><td style="padding:5px 0;font-weight:700;">: ${escapeHtml(params.employeeName)}</td></tr>
+              <tr><td style="padding:5px 0;color:#7886a8;">${L("Departemen", "Department")}</td><td style="padding:5px 0;font-weight:700;">: ${escapeHtml(params.department || "-")}</td></tr>
             </table>
 
             <div class="lbl" style="border-top:1px solid #eef3fc;padding-top:14px;margin-bottom:8px;">${L("DETAIL PERMINTAAN", "REQUEST DETAILS")}</div>
