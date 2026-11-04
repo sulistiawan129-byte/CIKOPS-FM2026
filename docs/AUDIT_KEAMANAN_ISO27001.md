@@ -24,6 +24,7 @@
 
 > **Status perbaikan (4 Nov 2026):** celah XSS (T-01) sudah diperbaiki di kode (perlu *deploy*), dan `supabase/06_perbaikan_audit_2026-11.sql`
 > menutup P-01…P-05, P-08, P-09 serta S-02 — **database produksi baru aman setelah file 06 dijalankan** (lihat PANDUAN → *Keamanan: menjalankan SQL 06*).
+> Juga selesai: **T-02** (Next.js 16.4.5), **T-04** (jsPDF 4.2.1 + autotable 5), **S-03** (header keamanan + CSP Report-Only), **S-10** sebagian (CI + Dependabot).
 
 **Hal yang perlu dikerjakan lebih dulu**
 
@@ -122,6 +123,7 @@ Skala: **Tinggi** = dapat dieksploitasi dengan dampak nyata pada kerahasiaan/aku
 - **Bukti:** `npm audit` — `next` rentang `16.0.0–16.4.0`: RCE tanpa autentikasi pada *Image Optimization API* (SVG), RCE pada fungsi `use cache`, dan DoS pada Server Actions. Versi terbaru di registry: 16.4.5.
 - **Keterjangkauan:** aplikasi tidak memakai `next/image` maupun `use cache`, sehingga RCE kemungkinan **tidak terjangkau**; endpoint `/_next/image` tetap ada secara bawaan dan DoS Server Action tidak bisa dikesampingkan. Anggap **wajib ditambal**.
 - **Perbaikan:** naik ke 16.4.5 (atau terbaru), uji build + halaman utama. Catatan repo: Next ini punya perubahan besar — baca `node_modules/next/dist/docs/` sebelum menaikkan.
+- **Status (4 Nov 2026):** **diperbaiki** — `next` dinaikkan ke **16.4.5**; build produksi, 38 rute, dan ekspor PDF/Excel/PPT diuji lulus. `npm audit`: kerentanan kritis 1 → 0.
 - **ISO:** A.8.8 (manajemen kerentanan). **Usaha:** kecil–sedang.
 
 #### T-03 · Akses baca data pribadi terlalu luas (semua role staf)
@@ -134,6 +136,7 @@ Skala: **Tinggi** = dapat dieksploitasi dengan dampak nyata pada kerahasiaan/aku
 - **Bukti:** jsPDF ≤ 4.2.0 memuat banyak advisori, termasuk injeksi PDF/JavaScript dan "HTML injection in New Window paths" (CVSS 9.6). DOMPurify 2.5.9 (transitif) juga dalam rentang rentan.
 - **Keterjangkauan:** kode hanya memakai jsPDF untuk menulis teks/tabel (tidak memakai `html()`, `addJS`, atau `output(...newwindow)`), jadi eksploitasi langsung kecil. Tetap perlu diperbarui karena data pengguna ikut masuk PDF.
 - **Perbaikan:** jsPDF ≥ 4.2.1 (perubahan mayor; uji ekspor PDF Laporan Manajemen, kantin, klaim) + `jspdf-autotable` yang cocok. Perbarui `exceljs` (transitif `uuid`, `archiver`) — penting karena fitur impor `.xlsx` memuat berkas unggahan staf.
+- **Status (4 Nov 2026):** **diperbaiki** — `jspdf` 2.5.2 → **4.2.1** (DOMPurify transitif → 3.4.17), `jspdf-autotable` → **5.0.9**; override `uuid ^11.1.1` dan `image-size ^2.0.4`. Diuji: PDF Laporan Manajemen (id & en, 22 halaman), kantin, klaim (rekap mingguan), Dana Operasional, TGA, plus Excel & PowerPoint terbuka valid. **Sisa risiko diterima:** 8 advisori *moderate* `minimatch` via `exceljs → archiver` (DoS pola glob; kode itu tidak dipakai di browser, tidak ada masukan pengguna) — dipantau Dependabot. Sekaligus memperbaiki cacat tata letak PDF Manajemen: kartu 7 modul di Ringkasan Eksekutif terpotong & tertimpa catatan; kini muat satu halaman dan "Perlu perhatian manajemen" pindah ke halaman berikutnya.
 - **ISO:** A.8.8, A.8.19. **Usaha:** sedang.
 
 ### 3.2 Sedang
@@ -142,14 +145,14 @@ Skala: **Tinggi** = dapat dieksploitasi dengan dampak nyata pada kerahasiaan/aku
 |---|---|---|---|
 | **S-01** | **Tulis anonim `canteen_reports` untuk tanggal mana pun** | SQL bagian 049: `public_any_read/ins/upd` untuk `anon` dengan `using (true)`; hanya `UNIQUE(report_date)`, **tanpa CHECK nilai** dan tanpa riwayat perubahan. Siapa pun yang memegang anon key (publik) dapat menimpa angka kantin → memalsukan KPI Laporan Manajemen. *Berasal dari perubahan terakhir (backdate form kantin).* | Wajibkan kode petugas lewat RPC (seperti gift), batasi mundur ≤ 7 hari, tambah `CHECK (nilai between 0 and 5000)`, simpan versi lama (tabel audit), batasi laju |
 | **S-02** | **`atk_employees_read` terbuka untuk semua akun login** | SQL 054: `using (true) to authenticated` → akun **driver** pun bisa membaca NIK + nama + departemen daftar ATK. *Kemunduran dari audit sebelumnya (policy longgar `authenticated`).* | `using (staff_can('facility'))` |
-| **S-03** | **Tidak ada header keamanan / CSP** | Tidak ada `vercel.json`, `middleware`, atau `headers()` di `next.config.js`. Akibat: tidak ada `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors` (clickjacking pada dashboard), `Referrer-Policy` (URL `/bukti?t=<token>` ikut bocor lewat Referer), `Permissions-Policy`. | Tambah `headers()` di `next.config.js`: CSP (mulai mode *report-only*; skrip tema inline perlu hash/nonce), `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options`, `Permissions-Policy` |
+| **S-03** | **Tidak ada header keamanan / CSP** — *diperbaiki 4 Nov 2026 (header aktif; CSP penuh Report-Only → enforce dengan `CSP_ENFORCE=1`)* | Tidak ada `vercel.json`, `middleware`, atau `headers()` di `next.config.js`. Akibat: tidak ada `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors` (clickjacking pada dashboard), `Referrer-Policy` (URL `/bukti?t=<token>` ikut bocor lewat Referer), `Permissions-Policy`. | Tambah `headers()` di `next.config.js`: CSP (mulai mode *report-only*; skrip tema inline perlu hash/nonce), `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options`, `Permissions-Policy` |
 | **S-04** | **RPC/Edge Function publik tanpa pembatas laju yang memadai** | `tga_request_public`: batas 5/jam **per nama** → penyerang cukup mengganti nama (banjir antrian TGA). `send-gift-passcode`: tanpa login, hanya memeriksa email pendaftar ≤ 15 menit; angka passcode **diterima dari pemanggil** (tidak dicocokkan ke DB) dan `nama`/`eventName` bebas → email palsu dari akun SMTP perusahaan. 51 fungsi `SECURITY DEFINER` dapat dipanggil anon (replika). | Pembatas per IP/WAF (Vercel Firewall / Cloudflare), CAPTCHA pada form publik, batas global per jam, verifikasi nilai passcode ke DB, hapus parameter yang tidak perlu |
 | **S-05** | **Jejak audit lemah** | `activity_log` **dan trigger-nya tidak ada di repo** (cakupan tidak bisa dibuktikan). Policy `staff_write` mengizinkan **staf mana pun `INSERT`** → log dapat dipalsukan. Tidak ada pencatatan: login gagal, pelihat password wifi, ekspor data, perubahan role. Tidak ada kebijakan retensi/proteksi log. | Pindahkan DDL log ke repo; isi log hanya lewat trigger `SECURITY DEFINER` (cabut `INSERT` langsung); catat peristiwa sensitif; salin ke penyimpanan terpisah; tetapkan retensi (≥ 12 bulan) |
 | **S-06** | **Rahasia & CI/CD** | (a) `vapid-keys.yml` & `android-apk.yml` mengunggah **kunci privat (VAPID, keystore + password)** sebagai artifact (1–3 hari) yang bisa diunduh semua kolaborator repo. (b) `demo-database.yml` memakai `CIKOPS_DB_URL` (kredensial produksi) hanya untuk membaca struktur. (c) Backup memakai connection string pemilik DB. (d) Seluruh `actions/*@v4` dipin dengan tag, bukan SHA. | Buat kunci secara offline lalu simpan di Secrets/brankas; buat peran DB **baca-saja** khusus backup/demo; pin action dengan SHA; pakai *Environment secrets* dengan persetujuan |
 | **S-07** | **Repo bukan sumber kebenaran skema (IaC tidak lengkap)** | Menjalankan `01_dasar.sql` gagal 28× karena `atk_items`, `atk_requests`, `atk_restocks`, `vehicle_gate_logs`, fungsi gate/locker/gift, dan kolom `drivers.plant` dibuat langsung di Supabase. Pemulihan bencana dan audit tidak dapat dibangun ulang dari repo. | Ekspor skema produksi (`pg_dump --schema-only`) ke repo sebagai baseline; semua perubahan lewat migrasi bernomor |
 | **S-08** | **`/api/gc-nc` bisa dipakai semua akun staf** | `requireDashboardUser` hanya memeriksa "punya profil", bukan peran Security. Mode alternatif memakai `GC_SUPABASE_SERVICE_ROLE_KEY` (hak penuh proyek lain). | Wajib `staff_can('security')`; hanya pakai akun baca-saja, jangan service role |
 | **S-09** | **Penyimpanan kredensial** | Password sementara driver dikirim **plaintext lewat email** (`send-driver-credentials`); `rcp_wifi_accounts.password` plaintext (kebutuhan fungsional); `tga_sessions.token` plaintext dan berlaku **120 hari**; `atk_sync_config.sync_key` / `ga_sync_config.sync_key` plaintext; bcrypt `gen_salt('bf')` memakai cost bawaan (6). | Wajib ganti password saat login pertama; simpan token sesi sebagai hash; kurangi masa sesi (≤ 30 hari); cost bcrypt ≥ 10 |
-| **S-10** | **Tidak ada pengujian & pemindaian otomatis** | Tidak ada berkas tes; workflow hanya Android/backup/demo/VAPID. Tidak ada CI untuk `build`/`lint`, Dependabot, CodeQL/SAST, atau *secret scanning*. 14 kerentanan dependensi menumpuk tanpa terdeteksi. | Workflow `build` + `npm audit` pada PR; aktifkan Dependabot, secret scanning & push protection, CodeQL |
+| **S-10** | **Tidak ada pengujian & pemindaian otomatis** — *sebagian diperbaiki 4 Nov 2026: `.github/workflows/ci.yml` (tsc, build, uji header, `npm audit --audit-level=high`) dan `.github/dependabot.yml`; masih perlu: secret scanning, CodeQL, uji otomatis* | Tidak ada berkas tes; workflow hanya Android/backup/demo/VAPID. Tidak ada CI untuk `build`/`lint`, Dependabot, CodeQL/SAST, atau *secret scanning*. 14 kerentanan dependensi menumpuk tanpa terdeteksi. | Workflow `build` + `npm audit` pada PR; aktifkan Dependabot, secret scanning & push protection, CodeQL |
 | **S-11** | **ISMS belum ada** | Tidak ada kebijakan keamanan, register risiko, SoA, prosedur insiden, tinjauan akses, perjanjian pemroses data, pelatihan (kata kunci `insiden`, `RTO`, `kebijakan`, `retensi`, `PDP` = 0 di `docs/`). | Lihat Bagian 6 |
 
 ### 3.3 Rendah
@@ -306,17 +309,17 @@ Umumnya **tidak berlaku** (SaaS cloud). Catatan: layar TV `Command Center` menam
 |  | Keputusan gift / gate / locker / kantin (tabel Bagian 1A) lalu perbaiki | P-06, P-07, P-11, S-01 | 1–2 hari |
 |  | Pisahkan akun driver & staf, email perusahaan, MFA admin | P-10 | 1 jam |
 |  | Escape semua HTML cetak (**selesai di kode**: struk permintaan, label gift, bukti Receptionist) + validasi panjang pada RPC publik | T-01 | selesai / 0,5 hari |
-| | Naikkan Next.js ke 16.4.5 + uji | T-02 | 0,5 hari |
+| | Naikkan Next.js ke 16.4.5 + uji (**selesai**) | T-02 | selesai |
 | | Cabut tulis anonim kantin → kode petugas + `CHECK` | S-01 | 1 hari |
 | | `atk_employees_read` → `staff_can('facility')` (**ada di SQL 06**) | S-02 | selesai |
 | | Putar kunci yang pernah lewat artifact (VAPID, keystore bila dibuat lewat workflow); pindahkan ke Secrets | S-06 | 0,5 hari |
 | | Jalankan `cek_audit_keamanan.sql` di produksi & simpan hasil | §2.3 | 1 jam |
 | **8–30 hari** | Batasi baca per peran (policy `SELECT`), sembunyikan `pin_hash` | T-03 | 3–5 hari |
-| | Header keamanan + CSP *report-only* → enforce | S-03 | 2 hari |
-| | CI: build + `npm audit`, Dependabot, secret scanning, CodeQL | S-10 | 1 hari |
+| | Header keamanan + CSP *report-only* (**selesai**) → pantau log Vercel beberapa hari → `CSP_ENFORCE=1` | S-03 | selesai / 15 menit |
+| | CI: build + `npm audit`, Dependabot (**selesai**); aktifkan secret scanning & push protection di GitHub, CodeQL bila tersedia | S-10 | selesai / 30 menit |
 | | Pembatas laju & CAPTCHA form publik; verifikasi passcode di DB | S-04 | 2 hari |
 | | Baseline skema produksi ke repo | S-07 | 1–2 hari |
-| | jsPDF/exceljs/DOMPurify terbaru + uji ekspor | T-04 | 2 hari |
+| | jsPDF/DOMPurify terbaru + uji ekspor (**selesai**); `exceljs` → pantau | T-04 | selesai |
 | | Peran DB baca-saja untuk backup/demo, pin action ke SHA | S-06 | 1 hari |
 | **31–90 hari** | Perkuat `activity_log` (trigger-only, peristiwa sensitif, retensi), alarm anomali | S-05 | 3–4 hari |
 | | Password sementara → wajib ganti; sesi TGA ≤ 30 hari; token disimpan hash | S-09 | 2 hari |
