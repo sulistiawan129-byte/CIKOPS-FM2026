@@ -135,9 +135,9 @@ export function GateLogPanel(p: {
           <span>–</span>
           <input type="date" value={p.dateTo} onChange={(e) => p.onDateTo(e.target.value)} aria-label={L("Sampai tanggal", "To date")} />
         </div>
-        <div className={g.seg} role="group" aria-label="Plant">
+        <div className={g.seg} role="group" aria-label={L("Kendaraan dari plant", "Vehicle's plant")} title={L("Pos gate ada di CIK; pemilih ini menyaring berdasarkan plant asal kendaraan", "The gate post is at CIK; this filters by the vehicle's home plant")}>
           {(["all", "CIK", "PRB"] as const).map((v) => (
-            <button key={v} type="button" className={p.plant === v ? g.segOn : ""} onClick={() => p.onPlant(v)}>{v === "all" ? L("Semua", "All") : v}</button>
+            <button key={v} type="button" className={p.plant === v ? g.segOn : ""} onClick={() => p.onPlant(v)}>{v === "all" ? L("Semua kendaraan", "All vehicles") : L(`Kendaraan ${v}`, `${v} vehicles`)}</button>
           ))}
         </div>
         <div className={g.seg} role="group" aria-label="Status">

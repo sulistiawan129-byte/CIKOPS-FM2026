@@ -209,7 +209,8 @@ export function HomeTab({
     async function loadGate() {
       try {
         const d = todayStr();
-        const logs = await getVehicleGateLogs({ plant: myProfile?.plantScope ?? null, dateFrom: d, dateTo: d });
+        // pos gate ada di CIK → semua log (kendaraan CIK & PRB); akun PRB tidak memuatnya (lihat prbOnly di bawah)
+        const logs = await getVehicleGateLogs({ plant: null, dateFrom: d, dateTo: d });
         if (alive) { setGateLogs(logs); setGateLoadedAt(Date.now()); }
       } catch (e) {
         console.warn("Failed to load gate activity:", e);
@@ -219,7 +220,7 @@ export function HomeTab({
     loadGate();
     const id = setInterval(loadGate, 20000);
     return () => { alive = false; clearInterval(id); };
-  }, [myProfile?.plantScope, prbOnly]);
+  }, [prbOnly]);
 
   useEffect(() => {
     (async () => {
@@ -246,14 +247,16 @@ export function HomeTab({
           return;
         }
 
+        // Scope plant akun (CIK/PRB) berlaku untuk semua angka; akun tanpa scope melihat gabungan kedua plant.
+        const sc = myProfile?.plantScope ?? null;
         const [claims, tasksToday, canteenMonth, kantongCik, kantongPrb, vehicles, drivers] = await Promise.all([
-          getClaims(),
-          getTasksByRange(todayS, todayS, null),
+          getClaims(sc),
+          getTasksByRange(todayS, todayS, sc),
           getCanteenReportsForMonth(monthStr),
-          getCurrentKantong("CIK").catch(() => null),
-          getCurrentKantong("PRB").catch(() => null),
-          getVehicles(),
-          getDrivers(),
+          !sc || sc === "CIK" ? getCurrentKantong("CIK").catch(() => null) : Promise.resolve(null),
+          !sc || sc === "PRB" ? getCurrentKantong("PRB").catch(() => null) : Promise.resolve(null),
+          getVehicles(sc),
+          getDrivers(sc),
         ]);
 
         const claimWeekTotal = claims
@@ -278,7 +281,7 @@ export function HomeTab({
         console.warn("Failed to load Home KPIs:", e);
       }
     })();
-  }, [prbOnly]);
+  }, [prbOnly, myProfile?.plantScope]);
 
   async function handleAddAnnouncement(a: { title: string; body: string }) {
     try {
@@ -636,12 +639,12 @@ export function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: Das
       from30d.setDate(from30d.getDate() - 29);
       try {
         const [v, c, ot, d, kCik, kPrb, t, g, tt, canteen, lockers] = await Promise.all([
-          getAllVehiclesFull(),
+          getAllVehiclesFull(myProfile?.plantScope ?? null),
           getClaims(myProfile?.plantScope ?? null),
           getOvertimes(myProfile?.plantScope ?? null),
           getDrivers(myProfile?.plantScope ?? null),
-          getCurrentKantong("CIK"),
-          getCurrentKantong("PRB"),
+          !myProfile?.plantScope || myProfile.plantScope === "CIK" ? getCurrentKantong("CIK") : Promise.resolve(null),
+          !myProfile?.plantScope || myProfile.plantScope === "PRB" ? getCurrentKantong("PRB") : Promise.resolve(null),
           getDriverTiers(),
           getGasStations(),
           getTasksByRange(toLocalISODate(from30d), todayStr(), myProfile?.plantScope ?? null),

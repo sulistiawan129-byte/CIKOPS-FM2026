@@ -64,7 +64,8 @@ export async function buildMgmtReport(p: {
       const [allTasks, vehicles, gateLogs] = await Promise.all([
         safe(() => getTasksByRange(winFrom, to, p.plant), []),
         safe(() => getAllVehiclesFull(p.plant), []),
-        safe(() => getVehicleGateLogs({ plant: p.plant, dateFrom: p.from, dateTo: to }), []),
+        // pos gate hanya ada di CIK: log mencakup kendaraan CIK & PRB yang masuk CIK; laporan khusus PRB tidak memuat gate
+        p.plant === "PRB" ? Promise.resolve([]) : safe(() => getVehicleGateLogs({ plant: null, dateFrom: p.from, dateTo: to }), []),
       ]);
       use();
       const A = assess(allTasks.map((t) => t.tanggal), allTasks.map((t) => t.created_at));
@@ -164,6 +165,7 @@ export async function buildMgmtReport(p: {
     from: p.from,
     to,
     scopeLabel: p.plant === "PRB" || p.plant === "CIK" ? plantFull(p.plant) : tr("Semua plant", "All plants"),
+    plant: p.plant === "PRB" || p.plant === "CIK" ? p.plant : null,
     generatedAt: now.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" }) + " " + now.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", hour12: false }).replace(".", ":"),
     generatedBy: p.generatedBy,
     modules,
@@ -171,5 +173,6 @@ export async function buildMgmtReport(p: {
 }
 
 export function reportFilename(r: MgmtReport): string {
-  return r.lang === "en" ? `Management_Report_${r.from}_to_${r.to}` : `Laporan_Manajemen_${r.from}_sd_${r.to}`;
+  const pl = r.plant ? `_${r.plant}` : "";
+  return r.lang === "en" ? `Management_Report${pl}_${r.from}_to_${r.to}` : `Laporan_Manajemen${pl}_${r.from}_sd_${r.to}`;
 }

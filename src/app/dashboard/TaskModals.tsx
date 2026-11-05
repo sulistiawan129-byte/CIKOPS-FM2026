@@ -17,6 +17,8 @@ import of from "./opfund.module.css";
 import { formatDateLabel } from "./dashboardShared";
 
 import { loc , L} from "@/lib/i18n";
+import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
+import { plantFull } from "@/lib/brand";
 /** Shimmering placeholder rows shown while a table/list is loading —
  *  replaces plain "Loading..." text everywhere in the dashboard so the
  *  screen doesn't feel frozen while data comes in. */
@@ -58,27 +60,33 @@ export function ReportModal({
   const { from: dateFrom, to: dateTo } = reportRangeToDates(range);
   const [reportTasks, setReportTasks] = useState<TaskDetail[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // Plant: akun CIK/PRB dikunci ke plant-nya; akun lain memilih Semua / CIK / PRB
+  const lockedPlant = myProfile?.plantScope ?? null;
+  const [plantSel, setPlantSel] = useState<PlantSel>("all");
+  const plant = effectivePlant(lockedPlant, plantSel);
 
   const loadPreview = useCallback(async () => {
     if (!dateFrom || !dateTo) return;
     setLoadingPreview(true);
     try {
-      const data = await getTasksByRange(dateFrom, dateTo, myProfile?.plantScope ?? null);
+      const data = await getTasksByRange(dateFrom, dateTo, plant);
       setReportTasks(data); // ⚠️ sebelumnya data hasil fetch tidak pernah disimpan ke state — makanya preview & export selalu kosong
     } catch (e) {
       onError(e instanceof Error ? e.message : L("Gagal memuat data laporan", "Failed to load report data"));
     } finally {
       setLoadingPreview(false);
     }
-  }, [dateFrom, dateTo, onError, myProfile?.plantScope]);
+  }, [dateFrom, dateTo, onError, plant]);
 
   useEffect(() => {
     loadPreview();
   }, [loadPreview]);
 
+  // daftar driver juga dibatasi plant supaya "Driver Aktif" & rekap per driver tidak memuat driver plant lain
+  const plantDrivers = useMemo(() => (plant ? drivers.filter((d) => (d.plant ?? "CIK") === plant) : drivers), [drivers, plant]);
   const analytics = useMemo(
-    () => computeReportAnalytics(reportTasks, drivers),
-    [reportTasks, drivers]
+    () => computeReportAnalytics(reportTasks, plantDrivers),
+    [reportTasks, plantDrivers]
   );
 
   const driverNameMap = useMemo(() => new Map(drivers.map((d) => [d.id, d.nama])), [drivers]);
@@ -97,8 +105,8 @@ export function ReportModal({
     const periodLabel = reportRangeLabel(range, exportLang);
     const opts = {
       lang: exportLang,
-      titleId: "Laporan Tugas Driver", titleEn: "Driver Task Report",
-      periodLabel, filename: "Laporan_Tugas_Driver",
+      titleId: plant ? `Laporan Tugas Driver — ${plantFull(plant)}` : "Laporan Tugas Driver — Semua Plant", titleEn: plant ? `Driver Task Report — ${plantFull(plant)}` : "Driver Task Report — All Plants",
+      periodLabel, filename: plant ? `Laporan_Tugas_Driver_${plant}` : "Laporan_Tugas_Driver",
       kpis: [
         { labelId: "Total Tugas", labelEn: "Total Tasks", value: analytics.totalTask },
         { labelId: "Selesai", labelEn: "Completed", value: analytics.done },
@@ -154,6 +162,7 @@ export function ReportModal({
         <div className={styles.reportBody}>
           <div className={styles.reportFilterRow}>
             <ReportRangePicker value={range} onChange={setRange} inputClassName={styles.toolbarDateInput} />
+            <PlantSwitch value={plantSel} onChange={setPlantSel} locked={lockedPlant} />
           </div>
 
           <div className={styles.reportActionRow}>

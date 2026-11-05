@@ -129,3 +129,7 @@
 .note summary { cursor: pointer; font-weight: 700; color: var(--t2, #475569); }
 .note ul { margin: 6px 0 0; padding-left: 18px; }
 .note li { margin: 2px 0; }
+
+.plantRow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 18px; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px dashed var(--border); }
+.plantHint { margin: 0; flex: 1; min-width: 220px; font-size: 12.5px; line-height: 1.5; color: var(--t3); }
+.subTitle { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }

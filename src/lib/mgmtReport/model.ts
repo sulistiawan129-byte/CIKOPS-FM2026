@@ -5,6 +5,9 @@
 
 export type ModuleKey = "fleet" | "claims" | "canteen" | "atk" | "ga" | "tga" | "receptionist" | "security";
 
+/** Modul yang datanya dipisah per plant (tugas/armada/driver/klaim). Modul lain (kantin, ATK, C&G, TGA, Receptionist, Security) adalah fasilitas satu lokasi (CIK) dan tidak punya data PRB. */
+export const PLANT_MODULES: ModuleKey[] = ["fleet", "claims"];
+
 /** Kelompok laporan — sama dengan kategori menu dashboard. */
 export type CategoryKey = "fleet" | "finance" | "facility" | "security";
 export const CATEGORIES: { key: CategoryKey; id: string; en: string; modules: ModuleKey[] }[] = [
@@ -128,6 +131,8 @@ export interface MgmtReport {
   from: string;
   to: string;
   scopeLabel: string;
+  /** plant yang dilaporkan; null = semua plant */
+  plant: "CIK" | "PRB" | null;
   generatedAt: string;
   generatedBy: string;
   modules: ModuleReport[];
