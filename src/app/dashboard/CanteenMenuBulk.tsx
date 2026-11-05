@@ -156,7 +156,7 @@ export default function CanteenMenuBulk({ weekStart, menu, dirty, onClose, onApp
               <button type="button" className={m.ghost} onClick={() => fileRef.current?.click()}>{L("Unggah file…", "Upload file…")}</button>
               <input ref={fileRef} type="file" accept=".xlsx,.csv,.txt" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void readFile(f); e.target.value = ""; }} />
             </div>
-            <textarea className={m.area} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false}
+            <textarea data-nocaps className={m.area} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false}
               placeholder={"Hari;Jenis;Menu;Kkal;Gram\nSenin;Snack;Bubur Kacang Hijau;180;150\nSenin;Daging;Rendang Sapi;285;70\nSenin;Buah;Pisang;90;100\nSemua;Pendamping;Tempe Orek;120;40\n2026-11-12;Snack;Pisang Goreng;210;100\n-;Tetap;Nasi Putih;260;200"} />
 
             {parsed.rows.length > 0 && (

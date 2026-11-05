@@ -389,9 +389,9 @@ function AccountModal({ a, onClose, onSaved }: { a: WifiAccount | null; onClose:
         </div>
         <div className={r.form}>
           <div className={r.section}>Kredensial</div>
-          <label className={r.field}><span>Username *</span><input className={`${r.input} ${r.mono}`} value={v.username} onChange={(e) => set("username", e.target.value)} autoFocus={!a} required /></label>
+          <label className={r.field}><span>Username *</span><input data-nocaps className={`${r.input} ${r.mono}`} value={v.username} onChange={(e) => set("username", e.target.value)} autoFocus={!a} required /></label>
           <label className={r.field}><span>Password</span>
-            <span className={r.row} style={{ gap: 6, flexWrap: "nowrap" }}><input className={`${r.input} ${r.mono}`} type={showPw ? "text" : "password"} value={v.password} onChange={(e) => set("password", e.target.value)} />
+            <span className={r.row} style={{ gap: 6, flexWrap: "nowrap" }}><input data-nocaps className={`${r.input} ${r.mono}`} type={showPw ? "text" : "password"} value={v.password} onChange={(e) => set("password", e.target.value)} />
               <button type="button" className={r.iconBtn} style={{ width: 40, height: 40 }} onClick={() => setShowPw((x) => !x)} aria-label={L("Tampilkan password", "Show password")}>{showPw ? "🙈" : "👁"}</button></span>
           </label>
           <div className={r.section}>{L("Masa berlaku", "Validity")}</div>
@@ -471,7 +471,7 @@ function ImportModal({ onClose, reload }: { onClose: () => void; reload: () => P
           <label className={r.field}><span>{L("Slot per akun", "Slots per account")}</span><input className={r.input} type="number" min={1} max={10} value={slots} onChange={(e) => setSlots(Math.min(10, Math.max(1, Number(e.target.value) || 2)))} /></label>
           <label className={r.field}><span>{L("Batch / keterangan", "Batch / note")}</span><input className={r.input} value={batch} onChange={(e) => setBatch(e.target.value)} placeholder={L("mis. Okt 2026 · 30 hari", "e.g. Oct 2026 · 30 days")} /></label>
           <label className={`${r.field} ${r.full}`}><span>{L("Data akun", "Account data")}</span>
-            <textarea className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={L("Username\tPassword\tBerlaku sampai\nguest001\tAbc123\t31/10/2026", "Username\tPassword\tValid until\nguest001\tAbc123\t31/10/2026")} />
+            <textarea data-nocaps className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={L("Username\tPassword\tBerlaku sampai\nguest001\tAbc123\t31/10/2026", "Username\tPassword\tValid until\nguest001\tAbc123\t31/10/2026")} />
           </label>
           <label className={`${r.field} ${r.full}`}><span>{L("…atau unggah file", "…or upload a file")}</span><input type="file" accept=".xlsx,.csv,.txt" onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])} /></label>
         </div>

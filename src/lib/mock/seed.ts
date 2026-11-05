@@ -114,7 +114,7 @@ export function buildSeed(): MockDB {
   for (let i = 1; i <= 17; i++) {
     const dv: Row = {
       id: uuid(), nama: DRIVER_NAMES[i - 1], plant: i <= 12 ? "CIK" : "PRB",
-      driver_type: [10, 11, 12].includes(i) ? "user" : i === 9 ? "support" : "operational",
+      driver_type: [10, 11, 12].includes(i) ? "user" : "operational",
       tier_id: i % 3 === 0 ? tierGold : i % 3 === 1 ? tierSilver : tierBronze,
       aktif: true, no_hp: `0813${pad(5500000 + i * 4211, 8)}`, avatar_emoji: null,
       email: i === 1 ? "driver.andi@demo.cikops.id" : `driver${i}@demo.cikops.id`,
@@ -203,7 +203,7 @@ export function buildSeed(): MockDB {
   }
 
   /* ════ Klaim driver mingguan (10 minggu) + Self-Claim ════ */
-  for (const dv of drv.filter((x) => x.driver_type !== "support")) {
+  for (const dv of drv) {
     for (let k = 0; k <= 9; k++) {
       const d = addDays(today, -(k * 7 + 3));
       const exprs = [

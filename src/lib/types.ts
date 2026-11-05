@@ -17,8 +17,8 @@ export interface Driver {
   assigned_user_title?: string | null;
 }
 
-/** operational = Driver Pool, user = Driver User, support = Driver Support (migrasi 030). */
-export type DriverType = "operational" | "user" | "support";
+/** operational = Driver Pool, user = Driver User. (Tipe "support" lama dihapus — baris lama dibaca sebagai Driver Pool; lihat supabase/07_kategori_driver.sql.) */
+export type DriverType = "operational" | "user";
 
 export interface Vehicle {
   id: string;

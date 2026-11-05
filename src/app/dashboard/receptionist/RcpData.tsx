@@ -215,7 +215,7 @@ function EmployeeImport({ rows, onClose, reload }: { rows: RcpEmployee[]; onClos
       <div className={r.modal} role="dialog" aria-modal="true" aria-labelledby="rcp-empimp-title">
         <div className={r.modalHead}><div><h2 id="rcp-empimp-title">{L("Impor data karyawan", "Import employee data")}</h2><p>Tempel dari Excel — nama yang sudah ada hanya dilengkapi (tidak ditimpa)</p></div><button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
         <p className={r.hint}>Kolom yang dikenali: <b>{L("Nama", "Name")}</b>, <b>NIK</b>, <b>{L("Departemen", "Department")}</b>, <b>Jabatan</b>, <b>Email</b>, <b>{L("No HP", "Phone")}</b> (urutan bebas, dengan baris judul). Tanpa judul: nama, departemen, email, no HP.</p>
-        <textarea className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={L("Nama\tDepartemen\tEmail\tNo HP\nBudi Santoso\tHR\tbudi@ffi.co.id\t0812…", "Name\tDepartment\tEmail\tPhone\nBudi Santoso\tHR\tbudi@ffi.co.id\t0812…")} />
+        <textarea data-nocaps className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={L("Nama\tDepartemen\tEmail\tNo HP\nBudi Santoso\tHR\tbudi@ffi.co.id\t0812…", "Name\tDepartment\tEmail\tPhone\nBudi Santoso\tHR\tbudi@ffi.co.id\t0812…")} />
         {parsed.length > 0 && (
           <div className={r.previewBox}>
             <table className={r.table}>

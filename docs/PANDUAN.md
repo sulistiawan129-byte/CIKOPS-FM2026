@@ -12,6 +12,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/03_data_impor.sql` | Impor data lama sekali pakai (riwayat security, klaim Jan–Jun 2026) | Sudah berjalan. Tidak perlu untuk project baru yang datanya disalin |
 | `supabase/06_perbaikan_audit_2026-11.sql` | Perbaikan temuan audit keamanan: tutup fungsi yang bisa dipanggil tanpa login (buat/hapus tugas Fleet, data klaim & driver), batasi aksi admin locker, kunci 15 menit setelah 5× PIN locker salah, policy "semua akun login" → staf saja, batas wajar angka kantin | **Jalankan sekali di Supabase produksi, sesudah file 04.** Aman diulang. Lihat bab *Keamanan: menjalankan SQL 06* |
 | `supabase/05_data_demo.sql` | Akun & data **fiktif** untuk deployment DEMO (lihat bab *Deployment DEMO*) | **Hanya di project Supabase DEMO** — berhenti sendiri bila dijalankan di database yang berisi akun asli |
+| `supabase/07_kategori_driver.sql` | Kategori driver jadi 2 (Driver Pool & Driver User): driver bertipe *Support* diubah jadi Pool, constraint diperketat | **Jalankan sekali SESUDAH aplikasi versi baru ter-deploy (merge ke main).** Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -1468,4 +1469,12 @@ Ada dua plant: **CIK** dan **PRB**. Cara aplikasi memisahkan datanya:
 **Gate Log = plant CIK.** Pos gate ada di CIK, jadi seluruh log gate (kendaraan CIK keluar-masuk plant **dan** kendaraan PRB yang masuk CIK) adalah data plant CIK. Akun CIK, Master, dan Management melihat semuanya; pemilih "Semua kendaraan / Kendaraan CIK / Kendaraan PRB" hanya menyaring asal kendaraan. **Akun PRB tidak punya menu Gate Log**, dan Laporan Manajemen khusus PRB tidak memuat data gate. CSV Gate Log diberi nama `GateLog_PosCIK…` dan kolom `plant_kendaraan`.
 
 > **Catatan keamanan:** pemisahan plant saat ini ditegakkan **di aplikasi** (filter data & menu). Database belum menolak akun CIK yang meminta data PRB lewat API langsung. Bila diperlukan isolasi tegas, langkah berikutnya adalah menambah policy baca per plant di database (lihat audit keamanan, T-03).
+
+## Kategori driver, huruf kapital otomatis, dan email Receptionist
+
+**Kategori driver: hanya 2.** *Driver Pool* (menerima penugasan) dan *Driver User* (khusus 1 user, On Duty otomatis 08.00–16.30 WIB). Kategori *Support* dihapus dari semua tampilan (Master Data, Receptionist → Data, Command Center). Driver lama bertipe Support otomatis dibaca sebagai Pool; untuk merapikan database jalankan `supabase/07_kategori_driver.sql` **setelah** aplikasi di-deploy.
+
+**Huruf kapital otomatis.** Semua isian teks (nama, tujuan, keterangan, perihal, plat, dll.) — termasuk form Gate Log, `/request`, Receptionist, Klaim, TGA — otomatis menjadi **HURUF BESAR** saat diketik, dan keyboard HP diminta huruf besar. Tidak dikapitalkan (karena akan merusak data): email, password, username, URL/link, token, kode/PIN, SSID wifi, angka/tanggal/jam, dan kotak pencarian. Kolom tempel data massal (menu TV, impor wifi/driver) juga tidak diubah. Data lama tidak berubah sampai diedit.
+
+**Email Receptionist berisi `=20`.** Penyebabnya bug pada pustaka pengirim email (denomailer): spasi di ujung baris diubah menjadi `=20` lalu tanda `=` di-encode ulang, sehingga penerima melihat `=20`. Perbaikan: isi email dikirim sebagai base64 (tanpa quoted-printable), subjek dan nama pengirim dibuat ASCII murni. **Wajib deploy ulang fungsi** (Edge Function tidak ikut Vercel): `supabase functions deploy send-receptionist-email`, atau tempel isi `supabase/functions/send-receptionist-email/index.ts` di Supabase → Edge Functions → send-receptionist-email → Deploy.
 

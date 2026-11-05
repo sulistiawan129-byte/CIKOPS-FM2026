@@ -8,7 +8,8 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const GMAIL_USER = Deno.env.get("GMAIL_USER") ?? "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-const FROM_NAME = "Facility Management — Receptionist";
+// ASCII murni: nama pengirim non-ASCII ikut di-encode oleh denomailer (quoted-printable) dan tampil rusak di sebagian aplikasi email.
+const FROM_NAME = "Facility Management - Receptionist";
 const LOGO_URL = "https://www.frisianflag.com/storage/app/media/logo-frisianflag-resize.png";
 
 const corsHeaders = {
@@ -185,10 +186,27 @@ function bookingTemplate(p: Payload) {
   return { subject, html };
 }
 
-/** Rapatkan HTML jadi satu baris. denomailer mengirim HTML sebagai quoted-printable; baris
- *  ber-indentasi dari template membuat spasi di awal/akhir baris tampil sebagai "=20" di
- *  sebagian aplikasi email. Baris baru + indentasi diganti satu spasi (aman untuk teks). */
+/** Rapatkan HTML jadi satu baris (baris baru + indentasi template → satu spasi; aman untuk teks). */
 const compactHtml = (h: string) => h.replace(/\s*\n\s*/g, " ").replace(/>\s+</g, "> <").trim();
+
+/** PENYEBAB "=20" DI EMAIL — bug encoder quoted-printable denomailer 1.6.0:
+ *  spasi di ujung baris diganti "=20" LALU tanda "=" itu di-encode lagi menjadi "=3D" → penerima membaca "=20" mentah.
+ *  Perbaikan: jangan pakai encoder itu. Bagian teks & HTML dikirim sebagai BASE64 lewat `mimeContent`
+ *  (tidak ada quoted-printable sama sekali), subjek & nama pengirim dibuat ASCII murni. */
+function b64Part(mimeType: string, text: string) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const b64 = btoa(bin);
+  // baris maksimal 76 karakter (RFC 2045)
+  return { mimeType: `${mimeType}; charset="utf-8"`, content: (b64.match(/.{1,76}/g) ?? []).join("\r\n"), transferEncoding: "base64" };
+}
+
+/** Subjek ASCII murni: tanda pisah & titik tengah diganti, aksen dibuang. */
+const asciiSubject = (s: string) =>
+  s.replace(/[\u2012-\u2015\u2212]/g, "-").replace(/[\u00b7\u2022\u2219]/g, "-")
+    .replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"')
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "").replace(/\s+/g, " ").trim();
 
 /** Versi teks biasa (alternatif untuk aplikasi email tanpa HTML). */
 function textOf(h: string): string {
@@ -234,7 +252,10 @@ serve(async (req) => {
       connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD } },
     });
     const html = compactHtml(t.html);
-    await client.send({ from: `${FROM_NAME} <${GMAIL_USER}>`, to: p.toEmail, subject: t.subject, content: textOf(html), html });
+    await client.send({
+      from: `${FROM_NAME} <${GMAIL_USER}>`, to: p.toEmail, subject: asciiSubject(t.subject),
+      mimeContent: [b64Part("text/plain", textOf(html)), b64Part("text/html", html)],
+    });
     await client.close();
     return json({ success: true });
   } catch (err) {

@@ -383,7 +383,7 @@ function DriverRow({ r, plant, delay }: { r: Row; plant: Plant; delay: number })
       <div className="av">{initials(r.driver.nama)}</div>
       <div className="d-main">
         <div className="d-top">
-          <div className="d-name">{shortName(r.driver.nama)}{driverTypeOf(r.driver) === "support" && <span className="d-type">Support</span>}</div>
+          <div className="d-name">{shortName(r.driver.nama)}</div>
           <span className="chip">{(r.state === "go" || r.state === "long") && <i className="pdot" />}{chip}</span>
         </div>
         {t ? (
@@ -434,7 +434,7 @@ function IdleGroupRow({ rows, delay }: { rows: Row[]; delay: number }) {
           <span className="chip">Siap</span>
         </div>
         <div className="u-list">
-          {rows.map((r) => <span key={r.driver.id}><b>{shortName(r.driver.nama)}</b>{driverTypeOf(r.driver) === "support" ? " (support)" : ""}</span>)}
+          {rows.map((r) => <span key={r.driver.id}><b>{shortName(r.driver.nama)}</b></span>)}
         </div>
         <div className="d-meta">{L("Belum ada tugas hari ini · siap ditugaskan", "No tasks today · ready to be assigned")}</div>
       </div>
@@ -710,7 +710,6 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
     return {
       going, assigned, done, masuk, keluar, gate, gateReady, alerts, activeDrivers, out, opCount: opRows.length, userRows,
       poolRows: allRows.filter((r) => driverTypeOf(r.driver) === "operational").length,
-      supportRows: allRows.filter((r) => driverTypeOf(r.driver) === "support").length,
       totalDrivers: data?.drivers.length ?? 0,
       ready: allRows.filter((r) => r.state === "idle").length,
       vehiclesActive: (data?.vehicles ?? []).filter((v) => v.aktif).length,
@@ -957,7 +956,7 @@ export default function OpsBoard({ embedded = false, light = false }: { embedded
         {error && <div className="err">{L("Gagal memuat data terbaru", "Failed to load the latest data")}: {error} — {L("menampilkan data terakhir yang berhasil dimuat.", "showing the last data that loaded successfully.")}</div>}
 
         <section className="kpis">
-          <Kpi tone="blue" label={L("Driver aktif", "Active drivers")} value={m.activeDrivers} sub={`${m.poolRows} pool · ${m.supportRows} support · ${m.userRows} user`} />
+          <Kpi tone="blue" label={L("Driver aktif", "Active drivers")} value={m.activeDrivers} sub={`${m.poolRows} pool · ${m.userRows} user`} />
           <Kpi tone="green" label="Standby" value={m.opCount - m.out} sub={L(`${m.ready} belum ada tugas`, `${m.ready} without a task`)} />
           <Kpi tone="cyan" label={L("Sedang bertugas", "On duty")} value={m.out} sub={L("tugas ON GOING", "ON GOING tasks")} />
           <Kpi tone="amber" label={L("Menunggu berangkat", "Waiting to depart")} value={m.assigned.length} sub={L("belum diterima driver", "not yet accepted by the driver")} />

@@ -276,7 +276,7 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
         <button className="pillBtn" onClick={openAdd}>+ {lang === "en" ? "Add Driver" : "Tambah Driver"}</button>
       </div>
 
-      {/* Klasifikasi: Driver Pool / Driver User / Driver Support */}
+      {/* Klasifikasi: Driver Pool / Driver User */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }} role="group" aria-label={lang === "en" ? "Driver type" : "Tipe driver"}>
         {(["all", ...DRIVER_TYPES] as ("all" | DriverType)[]).map((k) => {
           const n = k === "all" ? drivers.length : drivers.filter((d) => driverTypeOf(d) === k).length;
@@ -412,7 +412,6 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
                   {([
                     ["operational", DRIVER_TYPE_LABEL.operational, lang === "en" ? "Pool — takes task assignments" : "Pool — menerima penugasan"],
                     ["user", DRIVER_TYPE_LABEL.user, lang === "en" ? "Dedicated to one user" : "Khusus untuk 1 user"],
-                    ["support", DRIVER_TYPE_LABEL.support, lang === "en" ? "Support / backup — takes assignments" : "Pendukung / cadangan — menerima penugasan"],
                   ] as [DriverType, string, string][]).map(([val, title, sub]) => (
                     <button
                       key={val}
