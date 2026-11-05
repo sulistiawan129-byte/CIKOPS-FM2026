@@ -19,6 +19,7 @@ import { OpFundTab } from "./OpFundTab";
 import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 import { plantShort } from "@/lib/brand";
+import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
 
 import { loc , L} from "@/lib/i18n";
 /** Which of the month's 4 work-weeks (1–4) a date falls into — see
@@ -117,6 +118,9 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [driverFilter, setDriverFilter] = useState<string>("all");
+  // Plant: akun CIK/PRB dikunci; akun tanpa scope bisa menyaring per plant (rekap, tanda terima & ekspor ikut)
+  const [plantSel, setPlantSel] = useState<PlantSel>("all");
+  const plantF = effectivePlant(myProfile?.plantScope ?? null, plantSel);
   const [periodMode, setPeriodMode] = useState<"all" | "week" | "date">("all");
   const [filterDate, setFilterDate] = useState(todayStr());
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -298,6 +302,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
 
   const filtered = useMemo(() => {
     let list = driverFilter === "all" ? claims : claims.filter((c) => c.driver_id === driverFilter);
+    if (plantF) list = list.filter((c) => (c.plant ?? "CIK") === plantF);
     if (periodMode === "date") {
       list = list.filter((c) => c.periodDate === filterDate);
     } else if (periodMode === "week") {
@@ -308,7 +313,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       });
     }
     return list;
-  }, [claims, driverFilter, periodMode, filterDate, lang]);
+  }, [claims, driverFilter, plantF, periodMode, filterDate, lang]);
   const totalFiltered = filtered.reduce((s, c) => s + c.total, 0);
   const uniqueDriversFiltered = new Set(filtered.map((c) => c.driver_id)).size;
   const animatedClaimsCount = useCountUp(filtered.length);
@@ -445,16 +450,17 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     setExportingRecap(true);
     try {
       const label = weekRangeOf(filterDate, lang).label + " " + filterDate.slice(0, 4);
-      exportTandaTerima(filtered, `Week ${weekOfMonth(filterDate)} - ${label}`, plantShort("CIK"), driverUserIds, L("id", "en") === "en" ? "en" : "id");
+      exportTandaTerima(filtered, `Week ${weekOfMonth(filterDate)} - ${label}`, plantShort(plantF ?? "CIK"), driverUserIds, L("id", "en") === "en" ? "en" : "id");
     } finally {
       setExportingRecap(false);
     }
   }
 
   function weeklyRecapPeriodLabel(): string {
-    if (periodMode === "week") return `${weekRangeOf(filterDate, lang).label} ${filterDate.slice(0, 4)}`;
-    if (periodMode === "date") return filterDate;
-    return lang === "en" ? "All Time" : "Semua Periode";
+    const pl = plantF ? ` · ${plantShort(plantF)}` : "";
+    if (periodMode === "week") return `${weekRangeOf(filterDate, lang).label} ${filterDate.slice(0, 4)}${pl}`;
+    if (periodMode === "date") return `${filterDate}${pl}`;
+    return (lang === "en" ? "All Time" : "Semua Periode") + pl;
   }
 
   async function handleExportWeeklyRecap(format: "excel" | "pdf") {
@@ -558,9 +564,10 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
       {viewMode !== "wreath" && viewMode !== "requests" && (
         <div className={cs.top}>
           <div className={cs.filters}>
+            {!myProfile?.plantScope && <PlantSwitch compact value={plantSel} onChange={(v) => { setPlantSel(v); setDriverFilter("all"); }} />}
             <select className={cs.select} value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} aria-label="Driver">
               <option value="all">{en ? "All drivers" : "Semua driver"}</option>
-              {drivers.map((d) => (<option key={d.id} value={d.id}>{d.nama}</option>))}
+              {drivers.filter((d) => !plantF || (d.plant ?? "CIK") === plantF).map((d) => (<option key={d.id} value={d.id}>{d.nama}</option>))}
             </select>
             <PeriodSwitch
               value={periodMode}
@@ -819,7 +826,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
             <div className={cs.field}>
               <span>{t.fieldPlant}</span>
               <div className={cs.plants} role="radiogroup">
-                {OT_PLANTS.map((p) => (
+                {(myProfile?.plantScope ? [myProfile.plantScope] : OT_PLANTS).map((p) => (
                   <button key={p} role="radio" aria-checked={wreathPlant === p} className={`${cs.plantBtn} ${wreathPlant === p ? cs.plantBtnOn : ""}`} style={{ ["--c" as string]: PLANT_COLOR[p] }} onClick={() => setWreathPlant(p)}>
                     {p}
                   </button>

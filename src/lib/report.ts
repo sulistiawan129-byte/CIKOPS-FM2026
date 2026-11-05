@@ -105,10 +105,10 @@ function statusLabelGate(log: VehicleGateLog, lang: Lang = "id"): string {
   return log.status === "DONE" ? L("Sudah Check-Out", "Checked Out") : L("Sedang Check-In", "Checked In");
 }
 
-export function exportGateLogsToCsv(logs: VehicleGateLog[], lang: Lang = "id"): void {
+export function exportGateLogsToCsv(logs: VehicleGateLog[], lang: Lang = "id", plantLabel?: string): void {
   const headers = lang === "en"
-    ? ["log_id", "date", "driver_id", "driver_name", "vehicle_plate", "destination", "time_out", "time_in", "status", "Duration"]
-    : ["log_id", "tanggal", "driver_id", "nama_driver", "plat_mobil", "tujuan", "jam_out", "jam_in", "status", "Durasi"];
+    ? ["log_id", "date", "driver_id", "driver_name", "vehicle_plate", "destination", "time_out", "time_in", "status", "Duration", "plant"]
+    : ["log_id", "tanggal", "driver_id", "nama_driver", "plat_mobil", "tujuan", "jam_out", "jam_in", "status", "Durasi", "plant"];
 
   const rows = logs.map((l) => [
     l.id,
@@ -121,6 +121,7 @@ export function exportGateLogsToCsv(logs: VehicleGateLog[], lang: Lang = "id"): 
     fmtJam(l.timeIn, lang),
     statusLabelGate(l, lang),
     fmtDurasi(l.timeOut, l.timeIn, lang),
+    l.plant,
   ]);
 
   const csvLines = [
@@ -133,7 +134,7 @@ export function exportGateLogsToCsv(logs: VehicleGateLog[], lang: Lang = "id"): 
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `GateLog_${todayForFilename()}.csv`;
+  link.download = `GateLog${plantLabel ? `_${plantLabel}` : ""}_${todayForFilename()}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

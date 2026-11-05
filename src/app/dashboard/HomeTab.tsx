@@ -246,14 +246,16 @@ export function HomeTab({
           return;
         }
 
+        // Scope plant akun (CIK/PRB) berlaku untuk semua angka; akun tanpa scope melihat gabungan kedua plant.
+        const sc = myProfile?.plantScope ?? null;
         const [claims, tasksToday, canteenMonth, kantongCik, kantongPrb, vehicles, drivers] = await Promise.all([
-          getClaims(),
-          getTasksByRange(todayS, todayS, null),
+          getClaims(sc),
+          getTasksByRange(todayS, todayS, sc),
           getCanteenReportsForMonth(monthStr),
-          getCurrentKantong("CIK").catch(() => null),
-          getCurrentKantong("PRB").catch(() => null),
-          getVehicles(),
-          getDrivers(),
+          !sc || sc === "CIK" ? getCurrentKantong("CIK").catch(() => null) : Promise.resolve(null),
+          !sc || sc === "PRB" ? getCurrentKantong("PRB").catch(() => null) : Promise.resolve(null),
+          getVehicles(sc),
+          getDrivers(sc),
         ]);
 
         const claimWeekTotal = claims
@@ -278,7 +280,7 @@ export function HomeTab({
         console.warn("Failed to load Home KPIs:", e);
       }
     })();
-  }, [prbOnly]);
+  }, [prbOnly, myProfile?.plantScope]);
 
   async function handleAddAnnouncement(a: { title: string; body: string }) {
     try {
@@ -636,12 +638,12 @@ export function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: Das
       from30d.setDate(from30d.getDate() - 29);
       try {
         const [v, c, ot, d, kCik, kPrb, t, g, tt, canteen, lockers] = await Promise.all([
-          getAllVehiclesFull(),
+          getAllVehiclesFull(myProfile?.plantScope ?? null),
           getClaims(myProfile?.plantScope ?? null),
           getOvertimes(myProfile?.plantScope ?? null),
           getDrivers(myProfile?.plantScope ?? null),
-          getCurrentKantong("CIK"),
-          getCurrentKantong("PRB"),
+          !myProfile?.plantScope || myProfile.plantScope === "CIK" ? getCurrentKantong("CIK") : Promise.resolve(null),
+          !myProfile?.plantScope || myProfile.plantScope === "PRB" ? getCurrentKantong("PRB") : Promise.resolve(null),
           getDriverTiers(),
           getGasStations(),
           getTasksByRange(toLocalISODate(from30d), todayStr(), myProfile?.plantScope ?? null),

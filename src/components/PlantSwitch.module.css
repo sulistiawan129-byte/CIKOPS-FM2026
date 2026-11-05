@@ -1,0 +1,8 @@
+.wrap { display: inline-flex; flex-direction: column; gap: 6px; }
+.label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }
+.seg { display: inline-flex; flex-wrap: wrap; padding: 4px; gap: 2px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); }
+.seg button { min-height: 34px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--t2); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.seg button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.on { background: var(--brand) !important; color: #fff !important; }
+.locked { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border2); background: var(--surface2); color: var(--t1); font-size: 13.5px; font-weight: 700; }
+.locked small { color: var(--t3); font-weight: 600; font-size: 12px; }

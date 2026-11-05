@@ -9,13 +9,15 @@ import { useMemo, useState } from "react";
 import { reportModulesOf, type MyProfile } from "@/lib/api";
 import { useLang } from "@/lib/providers";
 import { L } from "@/lib/i18n";
+import { plantFull, plantShort } from "@/lib/brand";
 import { compareSummary } from "@/lib/mgmtReport/notes";
 import { buildMgmtReport, reportFilename } from "@/lib/mgmtReport/build";
 import { renderChartPNG } from "@/lib/mgmtReport/chartImage";
 import {
-  CATEGORIES, daysBetween, iso, metaOf, parseISO, periodLabelOf, prevRange, resolveGran, withLang,
+  CATEGORIES, PLANT_MODULES, daysBetween, iso, metaOf, parseISO, periodLabelOf, prevRange, resolveGran, withLang,
   type Granularity, type MgmtReport, type ModuleKey, type ReportLang,
 } from "@/lib/mgmtReport/model";
+import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
 import r from "./mgmt.module.css";
 
 type Mode = "week" | "month" | "quarter" | "year" | "range";
@@ -56,9 +58,16 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
   const { lang: appLang } = useLang();
   const MONTHS = appLang === "en" ? MONTHS_EN : MONTHS_ID;
   // modul yang boleh ditarik role ini (mis. Admin ISS hanya Cleaning & Gardening)
-  const ALL = useMemo(() => { const ok = reportModulesOf(myProfile); return ALL_MODULES.filter((k) => ok.includes(k)); }, [myProfile]);
+  const ROLE_ALL = useMemo(() => { const ok = reportModulesOf(myProfile); return ALL_MODULES.filter((k) => ok.includes(k)); }, [myProfile]);
+  // Plant: akun CIK/PRB dikunci ke plant-nya; akun lain (Master, Management, …) memilih Semua / CIK / PRB.
+  const lockedPlant = myProfile?.plantScope ?? null;
+  const [plantSel, setPlantSel] = useState<PlantSel>("all");
+  const plant = effectivePlant(lockedPlant, plantSel);
+  // Plant PRB hanya punya data Fleet & Klaim — modul fasilitas (kantin, ATK, C&G, TGA, Receptionist, Security) adalah CIK.
+  const ALL = useMemo(() => (plant === "PRB" ? ROLE_ALL.filter((k) => PLANT_MODULES.includes(k)) : ROLE_ALL), [ROLE_ALL, plant]);
   const today = iso(new Date());
-  const [mods, setMods] = useState<ModuleKey[]>(ALL);
+  const [mods, setMods] = useState<ModuleKey[]>(ROLE_ALL);
+  const modsOk = useMemo(() => mods.filter((k) => ALL.includes(k)), [mods, ALL]);
   const [mode, setMode] = useState<Mode>("month");
   const [anchor, setAnchor] = useState(today);
   const [rFrom, setRFrom] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 29); return iso(d); });
@@ -71,9 +80,9 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
   const [error, setError] = useState<string | null>(null);
 
   const { from, to } = mode === "range" ? { from: rFrom, to: rTo } : rangeOf(mode, anchor);
-  const valid = mods.length > 0 && !!from && !!to && from <= to;
-  const selKeys = ALL.filter((k) => mods.includes(k)).join();
-  const stale = !!report && (report.from !== from || report.to !== to || report.lang !== lang || report.granularity !== gran || [...new Set(report.modules.map((m) => m.key))].join() !== selKeys);
+  const valid = modsOk.length > 0 && !!from && !!to && from <= to;
+  const selKeys = ALL.filter((k) => modsOk.includes(k)).join();
+  const stale = !!report && ((report.plant ?? null) !== plant || report.from !== from || report.to !== to || report.lang !== lang || report.granularity !== gran || [...new Set(report.modules.map((m) => m.key))].join() !== selKeys);
   const cur = parseISO(anchor);
   const years = useMemo(() => { const y = new Date().getFullYear(); return Array.from({ length: 6 }, (_, i) => y - 4 + i); }, []);
   const periodHint = valid ? withLang(lang, () => periodLabelOf(from, to)) : "";
@@ -82,7 +91,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
   const nDays = valid ? daysBetween(from, to) : 0;
 
   function toggle(k: ModuleKey) {
-    setMods((p) => (p.includes(k) ? p.filter((x) => x !== k) : ALL.filter((x) => x === k || p.includes(x))));
+    setMods((p) => (p.includes(k) ? p.filter((x) => x !== k) : ROLE_ALL.filter((x) => x === k || p.includes(x))));
   }
   function quickRange(days: number | "ytd") {
     const end = new Date();
@@ -95,8 +104,8 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
     setBusy(true); setError(null);
     try {
       setReport(await buildMgmtReport({
-        modules: ALL.filter((k) => mods.includes(k)), from, to, lang, granularity: gran,
-        plant: myProfile?.plantScope ?? null, generatedBy: myProfile?.fullName ?? "",
+        modules: ALL.filter((k) => modsOk.includes(k)), from, to, lang, granularity: gran,
+        plant, generatedBy: myProfile?.fullName ?? "",
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : L("Gagal menyusun laporan", "Failed to build the report"));
@@ -144,7 +153,20 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
         <div className={r.step}>
           <span className={r.stepNo}>1</span>
           <div className={r.stepBody}>
-            <h2>{L("Pilih modul", "Select modules")}</h2>
+            <h2>{L("Plant & modul", "Plant & modules")}</h2>
+            <div className={r.plantRow}>
+              <PlantSwitch value={plantSel} onChange={setPlantSel} locked={lockedPlant} />
+              <p className={r.plantHint}>
+                {lockedPlant
+                  ? L(`Laporan hanya memuat data ${plantFull(lockedPlant)} sesuai akun Anda.`, `The report only contains ${plantFull(lockedPlant)} data, per your account.`)
+                  : plant === "PRB"
+                    ? L(`${plantFull("PRB")} hanya punya data Fleet (tugas, armada, driver) dan Klaim; modul fasilitas (kantin, ATK, C&G, TGA, Receptionist, Security) hanya ada di ${plantShort("CIK")}.`, `${plantFull("PRB")} only has Fleet (tasks, vehicles, drivers) and Claims data; facility modules exist at ${plantShort("CIK")} only.`)
+                    : plant === "CIK"
+                      ? L(`Fleet & Klaim dibatasi ke ${plantShort("CIK")}. Modul fasilitas memang khusus ${plantShort("CIK")}.`, `Fleet & Claims are limited to ${plantShort("CIK")}. Facility modules are ${plantShort("CIK")}-only.`)
+                      : L("Fleet & Klaim menampilkan kedua plant, dengan pembanding per plant.", "Fleet & Claims show both plants, with a per-plant comparison.")}
+              </p>
+            </div>
+            <h3 className={r.subTitle}>{L("Pilih modul", "Select modules")}</h3>
             {CATEGORIES.map((c) => {
               const ks = c.modules.filter((k) => ALL.includes(k));
               if (!ks.length) return null;
@@ -153,7 +175,7 @@ export default function MgmtReportTab({ myProfile }: { myProfile: MyProfile | nu
                   <h4 className={r.catTitle}>{appLang === "en" ? c.en : c.id}</h4>
                   <div className={r.mods}>
                     {ks.map((k) => {
-                      const on = mods.includes(k);
+                      const on = modsOk.includes(k);
                       return (
                         <button key={k} type="button" className={`${r.mod} ${on ? r.modOn : ""}`} style={{ ["--c" as string]: metaOf(k, appLang === "en" ? "en" : "id").accent }} onClick={() => toggle(k)} aria-pressed={on}>
                           <span className={r.modTick}>{on ? Ic.check : null}</span>
