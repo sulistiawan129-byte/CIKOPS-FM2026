@@ -1,3 +1,4 @@
+import AutoCaps from "@/components/AutoCaps";
 import type { Metadata, Viewport } from "next";
 import { Space_Mono, Plus_Jakarta_Sans, JetBrains_Mono, Chakra_Petch, Inter } from "next/font/google";
 import "./globals.css";
@@ -90,6 +91,7 @@ export default function RootLayout({
             <GlobalBack />
             <DemoRibbon />
             <LangSwitch />
+            <AutoCaps />
             {children}
           </AuthProvider>
         </AppProviders>

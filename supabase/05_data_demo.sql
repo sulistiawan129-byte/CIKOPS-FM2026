@@ -218,7 +218,7 @@ begin
       'nama', (array['Andi Kurniawan', 'Bambang Sutejo', 'Cecep Hidayat', 'Dodi Firmansyah', 'Edi Prasetyo', 'Feri Gunawan', 'Gugun Saputra', 'Hari Wibowo',
                      'Iwan Setiadi', 'Jajang Nurdin', 'Komar Sulaeman', 'Lutfi Hakim', 'Mulyadi', 'Nana Suryana', 'Opik Taufik', 'Pardi Santoso', 'Rahmat Hidayat'])[i],
       'plant', case when i <= 12 then 'CIK' else 'PRB' end,
-      'driver_type', case when i in (10, 11, 12) then 'user' when i = 9 then 'support' else 'operational' end,
+      'driver_type', case when i in (10, 11, 12) then 'user' else 'operational' end,
       'tier_id', case when i % 3 = 0 then v_tier_gold when i % 3 = 1 then v_tier_silver else v_tier_bronze end,
       'aktif', true, 'no_hp', '0813' || lpad((5500000 + i * 4211)::text, 8, '0'), 'avatar_emoji', null);
     dv := dv || jsonb_build_object('email', case when i = 1 then 'driver.andi@demo.cikops.id' else 'driver' || i || '@demo.cikops.id' end);

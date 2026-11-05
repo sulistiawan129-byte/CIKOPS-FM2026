@@ -2253,8 +2253,8 @@ export interface DriverInput {
 }
 
 const MIGRATION_014_MSG = () => L("Kolom tipe driver belum ada di database — jalankan supabase/01_dasar.sql (bagian 014) di Supabase SQL Editor dulu.", "The driver type column does not exist in the database yet — run supabase/01_dasar.sql (section 014) in the Supabase SQL Editor first.");
-const MIGRATION_030_MSG = () => L("Tipe Driver Support belum diizinkan database — jalankan supabase/01_dasar.sql (bagian 030) di Supabase SQL Editor dulu.", "The Driver Support type is not allowed by the database yet — run supabase/01_dasar.sql (section 030) in the Supabase SQL Editor first.");
-/** Constraint lama (014) menolak 'support'. */
+const MIGRATION_030_MSG = () => L("Tipe driver tidak diizinkan database (hanya Driver Pool dan Driver User) — jalankan supabase/07_kategori_driver.sql di Supabase SQL Editor.", "The driver type is not allowed by the database (only Driver Pool and Driver User) — run supabase/07_kategori_driver.sql in the Supabase SQL Editor.");
+/** Constraint tipe driver menolak nilai di luar 'operational' | 'user'. */
 function isDriverTypeCheckViolation(error: { message?: string; code?: string } | null): boolean {
   return !!error && (error.code === "23514" || /drivers_driver_type_check/i.test(error.message || ""));
 }
@@ -2288,7 +2288,7 @@ export async function getDriverDutyInfo(
     if (error || !data || data.length === 0) return { driver_type: "operational" };
     const r = data[0] as Pick<Driver, "driver_type" | "assigned_user" | "assigned_user_title">;
     return {
-      driver_type: r.driver_type === "user" || r.driver_type === "support" ? r.driver_type : "operational",
+      driver_type: r.driver_type === "user" ? "user" : "operational",
       assigned_user: r.assigned_user ?? null,
       assigned_user_title: r.assigned_user_title ?? null,
     };

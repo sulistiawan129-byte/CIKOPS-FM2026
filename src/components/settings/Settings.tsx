@@ -79,7 +79,7 @@ function FormModal<T extends Record<string, unknown>>({ title, fields, initial, 
           );
           return (
             <label key={f.key} className={s.field}>{label}
-              {f.type === "textarea" ? <textarea className={s.input} rows={5} value={val} disabled={ro} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} autoFocus={i === 0} />
+              {f.type === "textarea" ? <textarea data-nocaps className={s.input} rows={5} value={val} disabled={ro} placeholder={f.placeholder} onChange={(e) => set(f.key, e.target.value)} autoFocus={i === 0} />
                 : f.type === "select" ? (
                   <select className={s.input} value={val} disabled={ro} onChange={(e) => set(f.key, e.target.value)} autoFocus={i === 0}>
                     <option value="">{L("— pilih —", "— select —")}</option>
