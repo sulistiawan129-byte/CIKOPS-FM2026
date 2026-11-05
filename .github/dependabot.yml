@@ -1,21 +1,29 @@
 # Pembaruan dependensi otomatis (audit ISO 27001, temuan S-10 & T-02/T-04).
-# Dependabot membuat pull request; CI (.github/workflows/ci.yml) memeriksa build sebelum digabung.
+# Dirancang agar TIDAK menumpuk branch/PR: maksimal 1 PR per ekosistem, bulanan, semua pembaruan minor/patch digabung
+# dalam satu PR. Pembaruan MAJOR (mis. TypeScript 5→7, pptxgenjs 3→4, @types/node 22→26) diabaikan karena bisa merusak
+# build — naikkan manual setelah diuji. CI (.github/workflows/ci.yml) memeriksa build sebelum digabung.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
+      interval: monthly
       timezone: Asia/Jakarta
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     groups:
-      minor-patch:
+      semua-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [dependencies]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 1
+    groups:
+      semua-actions:
+        patterns: ["*"]
     labels: [dependencies]

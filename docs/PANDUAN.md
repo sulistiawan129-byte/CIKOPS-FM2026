@@ -1443,7 +1443,7 @@ Laporan lengkap: `docs/AUDIT_KEAMANAN_ISO27001.md` (Bagian 1A = bukti dari datab
 | **CSP penuh** (daftar sumber yang diizinkan) | Dikirim sebagai **Report-Only** — tidak memblokir apa pun, hanya mencatat. Diuji di 38 halaman: nol pelanggaran | Pakai aplikasi normal beberapa hari; cek **Vercel → Logs** dengan kata kunci `csp-violation`. Bila bersih: Vercel → Settings → Environment Variables → `CSP_ENFORCE` = `1` → Redeploy |
 | Variabel opsional | `CSP_FRAME_ANCESTORS` (situs lain yang boleh membingkai aplikasi, bawaan hanya diri sendiri), `CSP_EXTRA_CONNECT` (mis. domain kustom Supabase) | Hanya bila diperlukan |
 | **CI** (`.github/workflows/ci.yml`) | Setiap perubahan: cek tipe → build → uji header → `npm audit` (gagal bila ada celah tinggi/kritis) | Lihat tab *Actions*; jadikan syarat merge di Settings → Branches |
-| **Dependabot** (`.github/dependabot.yml`) | Tiap Senin 06.00 WIB membuat pull request pembaruan dependensi (dikelompokkan), GitHub Actions tiap bulan | Tinjau PR-nya; gabungkan bila CI hijau |
+| **Dependabot** (`.github/dependabot.yml`) | Sebulan sekali, **maksimal 1 PR per ekosistem** (npm, GitHub Actions) yang menggabung semua pembaruan minor/patch. Pembaruan *major* diabaikan (bisa merusak build) | Tinjau PR-nya; gabungkan bila CI hijau. Tip: GitHub → Settings → General → centang **Automatically delete head branches** supaya branch yang sudah digabung hilang sendiri |
 
 Disarankan juga (pengaturan GitHub, tanpa kode): Settings → *Code security* → aktifkan **Secret scanning** dan **Push protection**.
 
