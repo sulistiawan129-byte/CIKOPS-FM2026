@@ -62,8 +62,6 @@ export function GateLogPanel(p: {
   onDateTo: (v: string) => void;
   onQuickRange: (days: number) => void;
   plant: "all" | Plant;
-  /** akun dikunci ke satu plant → pemilih plant diganti penanda (tidak bisa melihat plant lain) */
-  lockedPlant?: Plant | null;
   onPlant: (v: "all" | Plant) => void;
   busyId: string | null;
   onForceClose: (l: VehicleGateLog) => void;
@@ -137,17 +135,11 @@ export function GateLogPanel(p: {
           <span>–</span>
           <input type="date" value={p.dateTo} onChange={(e) => p.onDateTo(e.target.value)} aria-label={L("Sampai tanggal", "To date")} />
         </div>
-        {p.lockedPlant ? (
-          <div className={g.seg} role="group" aria-label="Plant" title={L("Akun ini dibatasi ke satu plant", "This account is limited to one plant")}>
-            <button type="button" className={g.segOn} disabled>🔒 {p.lockedPlant}</button>
-          </div>
-        ) : (
-          <div className={g.seg} role="group" aria-label="Plant">
-            {(["all", "CIK", "PRB"] as const).map((v) => (
-              <button key={v} type="button" className={p.plant === v ? g.segOn : ""} onClick={() => p.onPlant(v)}>{v === "all" ? L("Semua", "All") : v}</button>
-            ))}
-          </div>
-        )}
+        <div className={g.seg} role="group" aria-label={L("Kendaraan dari plant", "Vehicle's plant")} title={L("Pos gate ada di CIK; pemilih ini menyaring berdasarkan plant asal kendaraan", "The gate post is at CIK; this filters by the vehicle's home plant")}>
+          {(["all", "CIK", "PRB"] as const).map((v) => (
+            <button key={v} type="button" className={p.plant === v ? g.segOn : ""} onClick={() => p.onPlant(v)}>{v === "all" ? L("Semua kendaraan", "All vehicles") : L(`Kendaraan ${v}`, `${v} vehicles`)}</button>
+          ))}
+        </div>
         <div className={g.seg} role="group" aria-label="Status">
           {([["all", L("Semua", "All")], ["active", L("Aktif", "Active")], ["done", L("Selesai", "Done")]] as const).map(([v, label]) => (
             <button key={v} type="button" className={status === v ? g.segOn : ""} onClick={() => setStatus(v)}>{label}</button>

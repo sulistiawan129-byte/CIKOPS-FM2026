@@ -107,8 +107,8 @@ function statusLabelGate(log: VehicleGateLog, lang: Lang = "id"): string {
 
 export function exportGateLogsToCsv(logs: VehicleGateLog[], lang: Lang = "id", plantLabel?: string): void {
   const headers = lang === "en"
-    ? ["log_id", "date", "driver_id", "driver_name", "vehicle_plate", "destination", "time_out", "time_in", "status", "Duration", "plant"]
-    : ["log_id", "tanggal", "driver_id", "nama_driver", "plat_mobil", "tujuan", "jam_out", "jam_in", "status", "Durasi", "plant"];
+    ? ["log_id", "date", "driver_id", "driver_name", "vehicle_plate", "destination", "time_out", "time_in", "status", "Duration", "vehicle_plant"]
+    : ["log_id", "tanggal", "driver_id", "nama_driver", "plat_mobil", "tujuan", "jam_out", "jam_in", "status", "Durasi", "plant_kendaraan"];
 
   const rows = logs.map((l) => [
     l.id,

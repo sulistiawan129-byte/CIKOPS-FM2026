@@ -1453,8 +1453,8 @@ Ada dua plant: **CIK** dan **PRB**. Cara aplikasi memisahkan datanya:
 
 | Akun | Plant | Yang terlihat |
 |---|---|---|
-| **Admin GA CIK** | dikunci **CIK** | Beranda (KPI, kendaraan, driver, klaim, dana operasional), Penugasan, Armada, Gate Log, Klaim, Dana Operasional, Master Data (driver), Kalender, Overview, dan **semua laporan** hanya berisi data CIK. Pemilih plant diganti penanda 🔒 |
-| **Admin GA PRB** | dikunci **PRB** | Sama, khusus PRB (Penugasan, Armada, Master Data, Report Fleet) |
+| **Admin GA CIK** | dikunci **CIK** | Beranda (KPI, kendaraan, driver, klaim, dana operasional), Penugasan, Armada, Klaim, Dana Operasional, Master Data (driver), Kalender, Overview, dan **semua laporan** hanya berisi data CIK. Pemilih plant diganti penanda 🔒. **Gate Log** milik plant CIK (lihat di bawah) |
+| **Admin GA PRB** | dikunci **PRB** | Sama, khusus PRB (Penugasan, Armada, Master Data, Report Fleet). **Tidak ada Gate Log** |
 | **Master Admin, Management, role lama tanpa scope** | bebas | Pemilih **Semua plant / CIK / PRB** di Laporan Manajemen, Laporan & Analytics (tugas driver), dan tab Klaim. Dashboard **Executive** dan Command Center tetap **semua plant** |
 
 **Laporan Manajemen** (menu Report): langkah 1 kini *Plant & modul*.
@@ -1463,7 +1463,9 @@ Ada dua plant: **CIK** dan **PRB**. Cara aplikasi memisahkan datanya:
 - **PRB hanya punya Fleet & Klaim.** Modul fasilitas (Kantin, ATK, Cleaning & Gardening, TGA, Receptionist, Security) adalah fasilitas CIK, jadi saat plant PRB dipilih modul itu disembunyikan.
 - Angka CIK + PRB selalu sama dengan angka Semua plant (diuji: 431 + 241 = 672 penugasan).
 
-**Laporan & Analytics (tugas driver)**, **rekap klaim / tanda terima**, dan **CSV Gate Log** mengikuti plant yang dipilih; "Driver Aktif" dan rekap per driver hanya menghitung driver plant itu. CSV Gate Log memuat kolom `plant` dan nama file menyebut plant.
+**Laporan & Analytics (tugas driver)** dan **rekap klaim / tanda terima** mengikuti plant yang dipilih; "Driver Aktif" dan rekap per driver hanya menghitung driver plant itu.
+
+**Gate Log = plant CIK.** Pos gate ada di CIK, jadi seluruh log gate (kendaraan CIK keluar-masuk plant **dan** kendaraan PRB yang masuk CIK) adalah data plant CIK. Akun CIK, Master, dan Management melihat semuanya; pemilih "Semua kendaraan / Kendaraan CIK / Kendaraan PRB" hanya menyaring asal kendaraan. **Akun PRB tidak punya menu Gate Log**, dan Laporan Manajemen khusus PRB tidak memuat data gate. CSV Gate Log diberi nama `GateLog_PosCIK…` dan kolom `plant_kendaraan`.
 
 > **Catatan keamanan:** pemisahan plant saat ini ditegakkan **di aplikasi** (filter data & menu). Database belum menolak akun CIK yang meminta data PRB lewat API langsung. Bila diperlukan isolasi tegas, langkah berikutnya adalah menambah policy baca per plant di database (lihat audit keamanan, T-03).
 

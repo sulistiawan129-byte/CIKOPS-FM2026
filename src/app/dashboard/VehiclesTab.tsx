@@ -59,9 +59,9 @@ export function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
   const cardStyle: CSSProperties = { borderRadius: "var(--r2)" };
   const [gateLogs, setGateLogs] = useState<VehicleGateLog[]>([]);
   const [loadingGateLogs, setLoadingGateLogs] = useState(false);
-  const [gatePlantSel, setGatePlantFilter] = useState<"all" | Plant>(myProfile?.plantScope ?? "all");
-  // scope akun menang atas pilihan di layar (akun CIK/PRB tidak bisa melihat gate log plant lain)
-  const gatePlantFilter: "all" | Plant = myProfile?.plantScope ?? gatePlantSel;
+  // Gate Log = data pos gate di CIK: mencatat kendaraan CIK (keluar-masuk plant) DAN kendaraan PRB yang masuk CIK.
+  // Pemilih ini hanya menyaring plant asal KENDARAAN; akun PRB tidak punya menu Gate Log.
+  const [gatePlantFilter, setGatePlantFilter] = useState<"all" | Plant>("all");
   const [gateDateFrom, setGateDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
     return toLocalISODate(d);
@@ -136,12 +136,11 @@ export function GateTab({ myProfile }: { myProfile: MyProfile | null }) {
           setGateDateFrom(toLocalISODate(from)); setGateDateTo(toLocalISODate(d));
         }}
         plant={gatePlantFilter}
-        lockedPlant={myProfile?.plantScope ?? null}
         onPlant={setGatePlantFilter}
         busyId={busyGateLogId}
         onForceClose={handleForceCloseGateLog}
         onDelete={setConfirmDeleteGateLog}
-        onExport={() => exportGateLogsToCsv(gateLogs, "id", gatePlantFilter === "all" ? "AllPlants" : gatePlantFilter)}
+        onExport={() => exportGateLogsToCsv(gateLogs, "id", gatePlantFilter === "all" ? "PosCIK" : `PosCIK_Kendaraan${gatePlantFilter}`)}
       />
       {confirmDeleteGateLog && (
         <ModalPortal onOverlayClick={() => setConfirmDeleteGateLog(null)} maxWidth={380}>

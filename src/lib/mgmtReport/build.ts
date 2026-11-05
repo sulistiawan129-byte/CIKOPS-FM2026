@@ -64,7 +64,8 @@ export async function buildMgmtReport(p: {
       const [allTasks, vehicles, gateLogs] = await Promise.all([
         safe(() => getTasksByRange(winFrom, to, p.plant), []),
         safe(() => getAllVehiclesFull(p.plant), []),
-        safe(() => getVehicleGateLogs({ plant: p.plant, dateFrom: p.from, dateTo: to }), []),
+        // pos gate hanya ada di CIK: log mencakup kendaraan CIK & PRB yang masuk CIK; laporan khusus PRB tidak memuat gate
+        p.plant === "PRB" ? Promise.resolve([]) : safe(() => getVehicleGateLogs({ plant: null, dateFrom: p.from, dateTo: to }), []),
       ]);
       use();
       const A = assess(allTasks.map((t) => t.tanggal), allTasks.map((t) => t.created_at));

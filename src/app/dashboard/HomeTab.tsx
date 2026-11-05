@@ -209,7 +209,8 @@ export function HomeTab({
     async function loadGate() {
       try {
         const d = todayStr();
-        const logs = await getVehicleGateLogs({ plant: myProfile?.plantScope ?? null, dateFrom: d, dateTo: d });
+        // pos gate ada di CIK → semua log (kendaraan CIK & PRB); akun PRB tidak memuatnya (lihat prbOnly di bawah)
+        const logs = await getVehicleGateLogs({ plant: null, dateFrom: d, dateTo: d });
         if (alive) { setGateLogs(logs); setGateLoadedAt(Date.now()); }
       } catch (e) {
         console.warn("Failed to load gate activity:", e);
@@ -219,7 +220,7 @@ export function HomeTab({
     loadGate();
     const id = setInterval(loadGate, 20000);
     return () => { alive = false; clearInterval(id); };
-  }, [myProfile?.plantScope, prbOnly]);
+  }, [prbOnly]);
 
   useEffect(() => {
     (async () => {
