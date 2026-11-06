@@ -9,10 +9,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  closeGateCheckpoint, getActiveDriversForGate, getActiveVehiclesForGate, getGateLogsPublic, openGateCheckpoint,
+  closeGateCheckpoint, getActiveDriversForGate, getActiveVehiclesForGate, getGateLogsPublic, openGateCheckpoint, openGateCheckpointManual,
 } from "@/lib/api";
 import type { GateDriverOption, GateVehicleOption, Plant, VehicleGateLog } from "@/lib/types";
 import s from "./gate.module.css";
+
+const MANUAL_ID = "__manual__";
 import { plantFull, plantShort } from "@/lib/brand";
 
 import { loc , L} from "@/lib/i18n";
@@ -74,6 +76,8 @@ export default function GatePage() {
   const [ket, setKet] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [autoDriver, setAutoDriver] = useState("");
+  /** plat TIDAK terdaftar di Aset GA → dicatat manual (didaftarkan otomatis sebagai mobil perusahaan non-aset) */
+  const [manualVeh, setManualVeh] = useState<{ jenis: string; plant: Plant } | null>(null);
 
   const [tab, setTab] = useState<Tab>("active");
   const [plantF, setPlantF] = useState<PlantF>("all");
@@ -136,7 +140,15 @@ export default function GatePage() {
   const active = useMemo(() => logs.filter((l) => l.status !== "DONE"), [logs]);
   const done = useMemo(() => logs.filter((l) => l.status === "DONE"), [logs]);
   const busyVehicle = useMemo(() => new Map(active.map((l) => [l.vehicleId, l])), [active]);
-  const selected = vehicles.find((v) => v.id === vehicleId) ?? null;
+  const registered = vehicles.find((v) => v.id === vehicleId) ?? null;
+  const plateClean = plateQ.trim().replace(/\s+/g, " ");
+  const plateNorm = plateClean.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  const plateValid = plateNorm.length >= 3 && /\d/.test(plateNorm) && /[A-Z]/.test(plateNorm);
+  const exactMatch = plateNorm ? vehicles.find((v) => v.nopol.replace(/[^A-Z0-9]/gi, "").toUpperCase() === plateNorm) ?? null : null;
+  const selected: GateVehicleOption | null = registered ?? (manualVeh && plateValid && !exactMatch
+    ? { id: MANUAL_ID, nopol: plateClean.toUpperCase(), jenis: manualVeh.jenis, plant: manualVeh.plant, color: "", kategori: "non_asset" }
+    : null);
+  const isManualSel = selected?.id === MANUAL_ID;
   const vList = useMemo(() => {
     const t = plateQ.replace(/\s+/g, "").toLowerCase();
     return vehicles
@@ -192,9 +204,11 @@ export default function GatePage() {
       else { setManual(true); setDriverManual(last.driverName); setAutoDriver(last.driverName); }
     } else setAutoDriver("");
   }
-  function clearVehicle() { setVehicleId(""); setPlateQ(""); setAutoDriver(""); plateRef.current?.focus(); }
+  function clearVehicle() { setVehicleId(""); setPlateQ(""); setAutoDriver(""); setManualVeh(null); plateRef.current?.focus(); }
   const driverOk = manual ? driverManual.trim() !== "" : driverId !== "";
   const canSubmit = !!selected && driverOk && !submitting && !!tanggal;
+  // plat yang diketik ternyata sudah terdaftar → langsung pakai kendaraan terdaftar (tidak perlu manual)
+  useEffect(() => { if (manualVeh && exactMatch && !registered) { setManualVeh(null); pick(exactMatch); } }, [manualVeh, exactMatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit() {
     if (!canSubmit || !selected) return;
@@ -203,13 +217,24 @@ export default function GatePage() {
       const n = new Date();
       const [y, m, d] = tanggal.split("-").map(Number);
       const ts = new Date(y, m - 1, d, n.getHours(), n.getMinutes(), n.getSeconds()).toISOString();
-      await openGateCheckpoint({
-        vehicleId: selected.id, driverId: manual ? null : driverId, driverNameManual: manual ? driverManual.trim() : null,
-        tujuan: tujuan.trim(), keterangan: ket.trim(), timestamp: ts,
-      });
+      let vidSaved = selected.id;
+      if (isManualSel) {
+        // plat tidak terdaftar di Aset GA: didaftarkan otomatis sebagai mobil perusahaan non-aset, lalu dicatat seperti biasa
+        vidSaved = await openGateCheckpointManual({
+          nopol: selected.nopol, jenis: selected.jenis, plant: selected.plant,
+          driverId: manual ? null : driverId, driverNameManual: manual ? driverManual.trim() : null,
+          tujuan: tujuan.trim(), keterangan: ket.trim(), timestamp: ts,
+        });
+        getActiveVehiclesForGate().then(setVehicles).catch(() => {});
+      } else {
+        await openGateCheckpoint({
+          vehicleId: selected.id, driverId: manual ? null : driverId, driverNameManual: manual ? driverManual.trim() : null,
+          tujuan: tujuan.trim(), keterangan: ket.trim(), timestamp: ts,
+        });
+      }
       setToast({ plate: selected.nopol, text: `${selected.plant === "PRB" ? L("tercatat MASUK CIK", "logged ENTRY to CIK") : L("tercatat KELUAR", "logged EXIT")} · ${pad(n.getHours())}:${pad(n.getMinutes())}` });
-      const vid = selected.id;
-      setVehicleId(""); setPlateQ(""); setDriverId(""); setManual(false); setDriverManual(""); setTujuan(""); setKet(""); setAutoDriver("");
+      const vid = vidSaved;
+      setVehicleId(""); setManualVeh(null); setPlateQ(""); setDriverId(""); setManual(false); setDriverManual(""); setTujuan(""); setKet(""); setAutoDriver("");
       setTab("active");
       const fresh = await getGateLogsPublic(tanggal);
       setLogs(fresh);
@@ -313,7 +338,31 @@ export default function GatePage() {
                 />
                 {plateQ && <button type="button" className={s.plateClear} onClick={clearVehicle} aria-label={L("Hapus", "Clear")}>×</button>}
               </div>
-              {!selected && (
+              {!registered && !manualVeh && !exactMatch && plateQ.trim() && (
+                <button type="button" className={s.manualCta} onClick={() => setManualVeh({ jenis: "", plant: "CIK" })}>
+                  ✍ {L("Plat tidak terdaftar di Aset GA? Catat manual", "Plate not in the GA assets? Log it manually")}{plateValid ? <b> · {plateClean.toUpperCase()}</b> : null}
+                </button>
+              )}
+              {!registered && manualVeh && (
+                <div className={s.manualBox}>
+                  <div className={s.manualHead}>
+                    <b>{L("Kendaraan tidak terdaftar di Aset GA", "Vehicle not in the GA assets")}</b>
+                    <button type="button" className={s.link} onClick={() => setManualVeh(null)}>{L("Batal", "Cancel")}</button>
+                  </div>
+                  <small>{L("Mis. mobil sales / mobil perusahaan lain. Plat otomatis tersimpan sebagai mobil non-aset dan akan diverifikasi GA.", "E.g. sales or other company cars. The plate is saved automatically as a non-asset car and verified by GA later.")}</small>
+                  {!plateValid && <small className={s.manualWarn}>{L("Ketik plat nomor yang lengkap di kolom atas (contoh: B 1234 ABC).", "Type the full plate number above (e.g. B 1234 ABC).")}</small>}
+                  <input className={s.input} value={manualVeh.jenis} onChange={(e) => setManualVeh({ ...manualVeh, jenis: e.target.value })} placeholder={L("Jenis / merek mobil (opsional) — mis. Avanza Putih", "Car type / brand (optional) — e.g. white Avanza")} maxLength={40} />
+                  <div className={s.manualDir} role="group" aria-label={L("Arah kendaraan", "Vehicle direction")}>
+                    <button type="button" aria-pressed={manualVeh.plant === "CIK"} className={manualVeh.plant === "CIK" ? s.manualOn : ""} onClick={() => setManualVeh({ ...manualVeh, plant: "CIK" })}>
+                      <b>{L("KELUAR dulu", "EXIT first")}</b><small>{L("mobil ada di dalam plant, akan kembali", "car is inside the plant, will return")}</small>
+                    </button>
+                    <button type="button" aria-pressed={manualVeh.plant === "PRB"} className={manualVeh.plant === "PRB" ? s.manualOn : ""} onClick={() => setManualVeh({ ...manualVeh, plant: "PRB" })}>
+                      <b>{L("MASUK dulu", "ENTER first")}</b><small>{L("mobil dari luar, akan keluar lagi", "car from outside, will leave again")}</small>
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!selected && !manualVeh && (
                 <div className={s.vgrid}>
                   {vList.length === 0 && <div className={s.vempty}>{L("Plat tidak ditemukan", "Plate not found")}</div>}
                   {vList.slice(0, 60).map((v) => {
@@ -321,7 +370,7 @@ export default function GatePage() {
                     return (
                       <button key={v.id} type="button" className={s.vchip} style={pVar(v.plant)} disabled={!!b} onClick={() => pick(v)} title={b ? `${ev(b).running} ${L("sejak", "since")} ${hhmm(ev(b).first)}` : `${v.nopol} · ${v.jenis}`}>
                         <b>{v.nopol}</b>
-                        {b ? <small style={{ color: "var(--g-prb-text)", fontWeight: 700 }}>{v.plant === "CIK" ? L("Di luar", "Outside") : L("Di dalam", "Inside")} · {hhmm(ev(b).first)}</small> : <small>{v.plant} · {v.jenis}</small>}
+                        {b ? <small style={{ color: "var(--g-prb-text)", fontWeight: 700 }}>{v.plant === "CIK" ? L("Di luar", "Outside") : L("Di dalam", "Inside")} · {hhmm(ev(b).first)}</small> : <small>{v.plant} · {v.jenis}{v.kategori === "non_asset" ? ` · ${L("Non-aset", "Non-asset")}` : ""}</small>}
                       </button>
                     );
                   })}
@@ -332,7 +381,7 @@ export default function GatePage() {
             {selected && (
               <div className={`${s.dir} ${selected.plant === "PRB" ? s.dirPrb : s.dirCik}`}>
                 <i>{selected.plant === "PRB" ? I.in : I.out}</i>
-                <div><b>{selected.plant === "PRB" ? L("MASUK CIK", "ENTER CIK") : L("KELUAR PLANT", "LEAVE PLANT")}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · {L("Kendaraan", "Vehicle")} {plantShort(selected.plant)}</small></div>
+                <div><b>{selected.plant === "PRB" ? L("MASUK CIK", "ENTER CIK") : L("KELUAR PLANT", "LEAVE PLANT")}</b><small>{selected.jenis}{selected.color ? ` · ${selected.color}` : ""} · {isManualSel ? L("Non-aset · dicatat manual", "Non-asset · manual entry") : selected.kategori === "non_asset" ? L("Mobil perusahaan non-aset", "Non-asset company car") : `${L("Kendaraan", "Vehicle")} ${plantShort(selected.plant)}`}</small></div>
                 <span className={s.plate} style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)", fontWeight: 800, fontSize: 15, padding: "6px 10px", borderRadius: 8, border: "2px solid currentColor", whiteSpace: "nowrap" }}>{selected.nopol}</span>
               </div>
             )}
@@ -448,7 +497,7 @@ export default function GatePage() {
                             <b style={{ display: "block", fontSize: 14.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.driverName}</b>
                             <small style={{ display: "block", fontSize: 12, color: "var(--g-t3)" }}>{l.jenis}{l.color ? ` · ${l.color}` : ""}</small>
                           </div>
-                          <span className={`${s.ptag} ${l.plant === "PRB" ? s.ptagPrb : s.ptagCik}`}>{l.plant}</span>
+                          {l.kategori === "non_asset" && <span className={s.ptag} style={{ background: "transparent", border: "1px solid currentColor", marginRight: 6 }} title={L("Mobil perusahaan non-aset GA", "Non-GA-asset company car")}>{L("NON-ASET", "NON-ASSET")}</span>}<span className={`${s.ptag} ${l.plant === "PRB" ? s.ptagPrb : s.ptagCik}`}>{l.plant}</span>
                         </div>
                         <div className={s.tripMeta}>
                           <div>{I.pin}<span>{l.tujuan || L("Tujuan tidak diisi", "Destination not filled in")}{l.keterangan ? <><br /><em>{l.keterangan}</em></> : null}</span></div>

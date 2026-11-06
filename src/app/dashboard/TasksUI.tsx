@@ -14,7 +14,7 @@ import s from "./tasks.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
 import { isUserDriver } from "@/lib/duty";
 import { buildTaskSlipsHtml, taskRefNo } from "@/lib/taskSlip";
-import { plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR } from "@/lib/types";
+import { plantLocation, isAutoCompleted, TASK_CUTOFF_HOUR, isNonAsset } from "@/lib/types";
 import type { Driver, Employee, JobType, Plant, TaskDetail, TaskStatus, Vehicle } from "@/lib/types";
 import { plantFull } from "@/lib/brand";
 
@@ -582,7 +582,7 @@ export function TaskForm(p: {
                 <select className={s.input} value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} aria-label="Kendaraan">
                   <option value="">{vehicles.length === 0 ? L("Tidak ada kendaraan di plant ini", "No vehicles in this plant") : L("— Pilih kendaraan —", "— Select vehicle —")}</option>
                   {vehicles.map((v) => (
-                    <option key={v.id} value={v.id}>{v.nopol}{v.jenis ? ` (${v.jenis})` : ""}</option>
+                    <option key={v.id} value={v.id}>{v.nopol}{v.jenis ? ` (${v.jenis})` : ""}{isNonAsset(v) ? " · NON-ASET" : ""}</option>
                   ))}
                 </select>
               </label>

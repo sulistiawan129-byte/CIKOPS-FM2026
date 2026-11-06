@@ -303,7 +303,7 @@ export const FLEET: Record<string, RpcHandler> = {
   open_gate_checkpoint(a, ctx) {
     const v = table(ctx.db, "vehicles").find((x) => x.id === a.p_vehicle_id);
     if (!v) return fail("Kendaraan tidak ditemukan.");
-    if (v.aktif === false) return fail("Kendaraan ini tidak aktif.");
+    if (v.aktif === false && !v.from_gate) return fail("Kendaraan ini tidak aktif.");
     if (openGateLog(ctx.db, v.id)) {
       return fail(v.plant === "PRB"
         ? `${v.nopol} masih tercatat di dalam CIK — catat keluar dulu.`
@@ -321,6 +321,23 @@ export const FLEET: Record<string, RpcHandler> = {
     };
     table(ctx.db, "vehicle_gate_logs").push(row);
     return row.id;
+  },
+
+  /** Input manual Security untuk plat yang tidak terdaftar di Aset GA (meniru SQL 08). */
+  open_gate_checkpoint_manual(a, ctx) {
+    const vehicles = table(ctx.db, "vehicles");
+    const plat = str(a.p_nopol).trim().replace(/\s+/g, " ").toUpperCase();
+    const norm = plat.replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-Z0-9 -]{3,14}$/.test(plat) || !/[0-9]/.test(norm) || !/[A-Z]/.test(norm)) return fail("Plat nomor tidak valid (contoh: B 1234 ABC).");
+    let v = vehicles.find((x) => str(x.nopol).toUpperCase().replace(/[^A-Z0-9]/g, "") === norm);
+    if (!v) {
+      const hourAgo = Date.now() - 3600_000;
+      if (vehicles.filter((x) => x.from_gate && Date.parse(x.created_at) > hourAgo).length >= 30) return fail("Terlalu banyak plat baru dalam 1 jam — hubungi GA.");
+      v = { id: uuid(), nopol: plat, jenis: str(a.p_jenis).trim().slice(0, 40) || null, plant: str(a.p_plant).toUpperCase() === "PRB" ? "PRB" : "CIK", aktif: false, kategori: "non_asset", from_gate: true, color: null, created_at: nowIso() };
+      vehicles.push(v);
+    }
+    (FLEET.open_gate_checkpoint as (a: Row, c: typeof ctx) => unknown)({ p_vehicle_id: v.id, p_driver_id: a.p_driver_id, p_driver_name_manual: a.p_driver_name_manual, p_tujuan: a.p_tujuan, p_timestamp: a.p_timestamp }, ctx);
+    return v.id;
   },
 
   close_gate_checkpoint(a, ctx) {
@@ -359,15 +376,16 @@ export const FLEET: Record<string, RpcHandler> = {
           log_id: g.id, vehicle_id: g.vehicle_id, nopol: v?.nopol ?? "-", jenis: v?.jenis ?? null, color: v?.color ?? null,
           plant: g.plant ?? v?.plant ?? "CIK", driver_name: gateDriverName(ctx.db, g), tujuan: g.tujuan ?? null,
           time_out: g.time_out ?? null, time_in: g.time_in ?? null, status: g.status, created_at: g.created_at,
+          kategori: v?.kategori ?? "asset_ga",
         };
       });
   },
 
   get_active_vehicles_for_gate(_a, ctx) {
     return table(ctx.db, "vehicles")
-      .filter((v) => v.aktif !== false)
+      .filter((v) => v.aktif !== false || v.from_gate)
       .sort((x, y) => cmp(x.plant, y.plant) || cmp(x.nopol, y.nopol))
-      .map((v) => ({ id: v.id, nopol: v.nopol, jenis: v.jenis ?? "", plant: v.plant ?? "CIK", color: v.color ?? "" }));
+      .map((v) => ({ id: v.id, nopol: v.nopol, jenis: v.jenis ?? "", plant: v.plant ?? "CIK", color: v.color ?? "", kategori: v.kategori ?? "asset_ga" }));
   },
 
   get_active_drivers_for_gate(_a, ctx) {
