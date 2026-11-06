@@ -13,6 +13,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/06_perbaikan_audit_2026-11.sql` | Perbaikan temuan audit keamanan: tutup fungsi yang bisa dipanggil tanpa login (buat/hapus tugas Fleet, data klaim & driver), batasi aksi admin locker, kunci 15 menit setelah 5× PIN locker salah, policy "semua akun login" → staf saja, batas wajar angka kantin | **Jalankan sekali di Supabase produksi, sesudah file 04.** Aman diulang. Lihat bab *Keamanan: menjalankan SQL 06* |
 | `supabase/05_data_demo.sql` | Akun & data **fiktif** untuk deployment DEMO (lihat bab *Deployment DEMO*) | **Hanya di project Supabase DEMO** — berhenti sendiri bila dijalankan di database yang berisi akun asli |
 | `supabase/07_kategori_driver.sql` | Kategori driver jadi 2 (Driver Pool & Driver User): driver bertipe *Support* diubah jadi Pool, constraint diperketat | **Jalankan sekali SESUDAH aplikasi versi baru ter-deploy (merge ke main).** Aman diulang |
+| `supabase/08_kategori_kendaraan_gate_manual.sql` | Kategori kendaraan (Aset GA / Mobil Perusahaan Non-Aset) + input manual plat tidak terdaftar di Gate Log | **Jalankan sekali di Supabase SQL Editor** (bisa sebelum atau sesudah deploy; aplikasi tetap jalan sebelum dijalankan). Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -1477,4 +1478,19 @@ Ada dua plant: **CIK** dan **PRB**. Cara aplikasi memisahkan datanya:
 **Huruf kapital otomatis.** Semua isian teks (nama, tujuan, keterangan, perihal, plat, dll.) — termasuk form Gate Log, `/request`, Receptionist, Klaim, TGA — otomatis menjadi **HURUF BESAR** saat diketik, dan keyboard HP diminta huruf besar. Tidak dikapitalkan (karena akan merusak data): email, password, username, URL/link, token, kode/PIN, SSID wifi, angka/tanggal/jam, dan kotak pencarian. Kolom tempel data massal (menu TV, impor wifi/driver) juga tidak diubah. Data lama tidak berubah sampai diedit.
 
 **Email Receptionist berisi `=20`.** Penyebabnya bug pada pustaka pengirim email (denomailer): spasi di ujung baris diubah menjadi `=20` lalu tanda `=` di-encode ulang, sehingga penerima melihat `=20`. Perbaikan: isi email dikirim sebagai base64 (tanpa quoted-printable), subjek dan nama pengirim dibuat ASCII murni. **Wajib deploy ulang fungsi** (Edge Function tidak ikut Vercel): `supabase functions deploy send-receptionist-email`, atau tempel isi `supabase/functions/send-receptionist-email/index.ts` di Supabase → Edge Functions → send-receptionist-email → Deploy.
+
+## Kategori kendaraan & input manual Gate Log
+
+**Kategori kendaraan** (Dashboard → Fleet → Armada → *Tambah/Ubah kendaraan* → **Kategori**):
+- **Aset GA (Facility Management)** — armada milik GA (bawaan semua kendaraan lama).
+- **Mobil Perusahaan — Non-Aset GA** — mis. **mobil sales**: bukan aset GA, tetapi dipakai driver GA sesuai kebutuhan. Tetap bisa dipilih di Penugasan (diberi label *NON-ASET*).
+
+Yang berbeda untuk mobil non-aset: **tidak dihitung** di KPI Armada, Beranda & Overview, **tidak masuk pengingat KIR/STNK/Service** (email pengingat dokumen), dan di Laporan Manajemen (Fleet) tidak masuk "armada terpakai"; laporan hanya menyebut berapa tugas yang memakai mobil non-aset. Di Armada ada filter **Semua kategori / Aset GA / Non-Aset / Dari gate**.
+
+**Gate Log — plat tidak terdaftar di Aset GA.** Di halaman petugas `/gate`: ketik plat → bila tidak ada di daftar muncul tombol **"Plat tidak terdaftar di Aset GA? Catat manual"**. Petugas mengisi jenis/merek (opsional) dan arah (**KELUAR dulu** = mobil di dalam plant yang akan kembali; **MASUK dulu** = mobil dari luar yang akan keluar lagi), lalu driver & tujuan seperti biasa. Hasilnya:
+- Plat otomatis didaftarkan sebagai mobil **non-aset "dari gate"** (nonaktif, belum diverifikasi) — **tidak muncul di Penugasan** sampai GA memverifikasi. Kedatangan berikutnya plat itu muncul sebagai pilihan biasa (tidak perlu diketik ulang).
+- GA memeriksa di Armada → filter **Dari gate** → tombol **✔ Verifikasi** (jadi mobil perusahaan non-aset aktif) atau **Ubah/Hapus**.
+- Plat yang ternyata sudah ada di master (spasi/huruf besar-kecil berbeda) otomatis memakai data master; tidak dobel.
+- Pengaman (form publik): format plat divalidasi dan maksimal 30 plat baru per jam.
+- Baris Gate Log yang memakai mobil non-aset diberi label **NON-ASET**.
 

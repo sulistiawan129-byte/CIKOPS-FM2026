@@ -150,16 +150,20 @@ export async function getViewOnlySnapshot(): Promise<{
   return { tasks, drivers, vehicles, ...g };
 }
 
+/** Kolom `kategori` (SQL 08) belum ada di database → true; pemanggil mengulang tanpa kolom itu. */
+const isMissingKategoriColumn = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "42703" || e.code === "PGRST204" || /kategori|from_gate/i.test(e.message ?? ""));
+
 export async function getVehicles(plant?: Plant | null): Promise<Vehicle[]> {
-  let q = supabase
-    .from("vehicles")
-    .select("id, nopol, jenis, aktif, plant")
-    .eq("aktif", true)
-    .order("nopol", { ascending: true });
-  if (plant) q = q.eq("plant", plant);
-  const { data, error } = await q;
+  const run = async (cols: string) => {
+    let q = supabase.from("vehicles").select(cols).eq("aktif", true).order("nopol", { ascending: true });
+    if (plant) q = q.eq("plant", plant);
+    return q;
+  };
+  let { data, error } = await run("id, nopol, jenis, aktif, plant, kategori");
+  if (error && isMissingKategoriColumn(error)) ({ data, error } = await run("id, nopol, jenis, aktif, plant"));
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as unknown as Vehicle[];
 }
 
 export async function getEmployees(): Promise<Employee[]> {
@@ -683,12 +687,19 @@ export async function getAllVehiclesFull(plant?: Plant | null): Promise<Vehicle[
 
 export type VehicleInput = Omit<Vehicle, "id">;
 
+const KATEGORI_SQL_MSG = () => L("Kategori kendaraan belum ada di database — jalankan supabase/08_kategori_kendaraan_gate_manual.sql di Supabase SQL Editor dulu.", "The vehicle category column is missing — run supabase/08_kategori_kendaraan_gate_manual.sql in the Supabase SQL Editor first.");
+
 export async function addVehicle(input: VehicleInput): Promise<Vehicle> {
+  // aset GA = nilai bawaan database; kolom baru hanya dikirim bila perlu (aplikasi tetap jalan sebelum SQL 08 dijalankan)
+  const payload: Record<string, unknown> = { ...input };
+  if (payload.kategori !== "non_asset") delete payload.kategori;
+  if (!payload.from_gate) delete payload.from_gate;
   const { data, error } = await supabase
     .from("vehicles")
-    .insert(input)
+    .insert(payload)
     .select()
     .single();
+  if (isMissingKategoriColumn(error)) throw new Error(KATEGORI_SQL_MSG());
   if (error) throw error;
   return data;
 }
@@ -697,7 +708,10 @@ export async function updateVehicle(
   id: string,
   input: Partial<VehicleInput>
 ): Promise<void> {
-  const { data: updated, error } = await supabase.from("vehicles").update(input).eq("id", id).select("id");
+  const payload: Record<string, unknown> = { ...input };
+  if (payload.kategori === undefined) delete payload.kategori;
+  const { data: updated, error } = await supabase.from("vehicles").update(payload).eq("id", id).select("id");
+  if (isMissingKategoriColumn(error)) throw new Error(KATEGORI_SQL_MSG());
   if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
 }
@@ -958,6 +972,7 @@ interface GatePublicLogApiRow {
   time_in: string | null;
   status: "OUT" | "IN" | "DONE";
   created_at: string;
+  kategori?: "asset_ga" | "non_asset" | null;
 }
 
 /** List entri gate untuk tanggal tertentu — dasar dari tampilan
@@ -976,6 +991,7 @@ export async function getGateLogsPublic(date?: string): Promise<VehicleGateLog[]
     driverNameManual: null,
     driverName: r.driver_name,
     plant: r.plant,
+    kategori: r.kategori === "non_asset" ? "non_asset" : "asset_ga",
     tujuan: r.tujuan ?? "",
     keterangan: notes.get(r.log_id) ?? "",
     timeOut: r.time_out,
@@ -1027,6 +1043,39 @@ export async function openGateCheckpoint(input: {
   }
 }
 
+/** Catat kendaraan yang TIDAK terdaftar di Aset GA (input manual Security): plat diketik, jenis opsional, asal CIK/PRB.
+ *  Plat otomatis didaftarkan sebagai mobil perusahaan non-aset "dari gate" (SQL 08); bila plat sudah ada di master, kendaraan itu yang dipakai.
+ *  Mengembalikan id kendaraan. */
+export async function openGateCheckpointManual(input: {
+  nopol: string;
+  jenis?: string;
+  plant: Plant;
+  driverId?: string | null;
+  driverNameManual?: string | null;
+  tujuan: string;
+  keterangan?: string;
+  timestamp?: string;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("open_gate_checkpoint_manual", {
+    p_nopol: input.nopol,
+    p_jenis: input.jenis || null,
+    p_plant: input.plant,
+    p_driver_id: input.driverId || null,
+    p_driver_name_manual: input.driverNameManual || null,
+    p_tujuan: input.tujuan || "",
+    p_timestamp: input.timestamp ?? new Date().toISOString(),
+  });
+  if (error) {
+    const missing = error.code === "PGRST202" || error.code === "42883" || /open_gate_checkpoint_manual/i.test(error.message || "");
+    if (missing) throw new Error(L("Input manual belum aktif di database — minta GA menjalankan supabase/08_kategori_kendaraan_gate_manual.sql.", "Manual entry is not enabled in the database yet — ask GA to run supabase/08_kategori_kendaraan_gate_manual.sql."));
+    throw error;
+  }
+  const vehicleId = String(data);
+  const note = (input.keterangan ?? "").trim();
+  if (note) await supabase.rpc("set_gate_keterangan", { p_vehicle_id: vehicleId, p_keterangan: note });
+  return vehicleId;
+}
+
 /** Tutup catatan (tombol kontrol di list) — satu klik, tidak butuh input. */
 export async function closeGateCheckpoint(vehicleId: string): Promise<void> {
   const { error } = await supabase.rpc("close_gate_checkpoint", { p_vehicle_id: vehicleId });
@@ -1045,7 +1094,7 @@ interface GateLogRow {
   time_in: string | null;
   status: "OUT" | "IN" | "DONE";
   created_at: string;
-  vehicles?: { nopol: string; jenis: string | null; color: string | null } | null;
+  vehicles?: { nopol: string; jenis: string | null; color: string | null; kategori?: string | null } | null;
   drivers?: { nama: string } | null;
 }
 
@@ -1060,6 +1109,7 @@ function mapGateLogRow(r: GateLogRow): VehicleGateLog {
     driverNameManual: r.driver_name_manual,
     driverName: r.driver_name_manual || r.drivers?.nama || "-",
     plant: r.plant,
+    kategori: r.vehicles?.kategori === "non_asset" ? "non_asset" : "asset_ga",
     tujuan: r.tujuan ?? "",
     keterangan: r.keterangan ?? "",
     timeOut: r.time_out,
@@ -1078,24 +1128,25 @@ export async function getVehicleGateLogs(params?: {
    *  supaya log lama yang lupa ditutup tetap terlihat dan bisa ditutup. */
   includeActive?: boolean;
 }): Promise<VehicleGateLog[]> {
-  let q = supabase
-    .from("vehicle_gate_logs")
-    .select("*, vehicles(nopol, jenis, color), drivers(nama)")
-    .order("created_at", { ascending: false });
-  if (params?.plant) q = q.eq("plant", params.plant);
-  if (params?.includeActive && (params.dateFrom || params.dateTo)) {
-    const range = [
-      params.dateFrom ? `created_at.gte.${dayStartWIB(params.dateFrom)}` : "",
-      params.dateTo ? `created_at.lte.${dayEndWIB(params.dateTo)}` : "",
-    ].filter(Boolean).join(",");
-    q = q.or(`status.neq.DONE,and(${range})`);
-  } else {
-    if (params?.dateFrom) q = q.gte("created_at", dayStartWIB(params.dateFrom));
-    if (params?.dateTo) q = q.lte("created_at", dayEndWIB(params.dateTo));
-  }
-  const { data, error } = await q;
+  const build = (sel: string) => {
+    let q = supabase.from("vehicle_gate_logs").select(sel).order("created_at", { ascending: false });
+    if (params?.plant) q = q.eq("plant", params.plant);
+    if (params?.includeActive && (params.dateFrom || params.dateTo)) {
+      const range = [
+        params.dateFrom ? `created_at.gte.${dayStartWIB(params.dateFrom)}` : "",
+        params.dateTo ? `created_at.lte.${dayEndWIB(params.dateTo)}` : "",
+      ].filter(Boolean).join(",");
+      q = q.or(`status.neq.DONE,and(${range})`);
+    } else {
+      if (params?.dateFrom) q = q.gte("created_at", dayStartWIB(params.dateFrom));
+      if (params?.dateTo) q = q.lte("created_at", dayEndWIB(params.dateTo));
+    }
+    return q;
+  };
+  let { data, error } = await build("*, vehicles(nopol, jenis, color, kategori), drivers(nama)");
+  if (error && isMissingKategoriColumn(error)) ({ data, error } = await build("*, vehicles(nopol, jenis, color), drivers(nama)"));
   if (error) throw error;
-  return (data as GateLogRow[] ?? []).map(mapGateLogRow);
+  return ((data ?? []) as unknown as GateLogRow[]).map(mapGateLogRow);
 }
 
 /** Hapus 1 baris gate log — khusus Dashboard Admin (staf login),

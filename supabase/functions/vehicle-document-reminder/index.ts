@@ -116,11 +116,14 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "GMAIL_USER / GMAIL_APP_PASSWORD belum diset" }), { status: 500 });
     }
 
-    const { data: vehicles, error: vErr } = await supabase
-      .from("vehicles")
-      .select("id, nopol, jenis, kir_date, service_date, stnk_date")
-      .eq("aktif", true);
-    if (vErr) throw vErr;
+    // Pengingat KIR/STNK/Service hanya untuk ASET GA — mobil perusahaan non-aset (mobil sales) bukan tanggung jawab GA (SQL 08).
+    // Kolom `kategori` belum ada (SQL 08 belum dijalankan) → ulangi tanpa kolom itu.
+    let vq = await supabase.from("vehicles").select("id, nopol, jenis, kir_date, service_date, stnk_date, kategori").eq("aktif", true);
+    if (vq.error && /kategori/i.test(vq.error.message)) {
+      vq = await supabase.from("vehicles").select("id, nopol, jenis, kir_date, service_date, stnk_date").eq("aktif", true) as typeof vq;
+    }
+    if (vq.error) throw vq.error;
+    const vehicles = ((vq.data ?? []) as (VehicleRow & { kategori?: string | null })[]).filter((v) => v.kategori !== "non_asset");
 
     const { data: settingRow } = await supabase
       .from("app_settings")

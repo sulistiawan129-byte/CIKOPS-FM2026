@@ -5,7 +5,7 @@
 ════════════════════════════════════════════════════════════ */
 
 import type { AtkItem, AtkRequest, AtkRestock, CanteenReport, Claim, Plant, TaskDetail, Vehicle, VehicleGateLog } from "../types";
-import { isAutoCompleted } from "../types";
+import { isAutoCompleted, isNonAsset } from "../types";
 import {
   PALETTE, SERIES_COLORS, buckets, dShort, daysBetween, deltaText, metaOf, perWord, prevRange, tr, withOther,
   fmtNum, fmtPct, fmtRp, fmtRpShort, parseISO, iso,
@@ -46,7 +46,9 @@ export function computeFleet(p: {
 }): ModuleReport {
   const meta = metaOf("fleet");
   const tasks = p.tasks.filter((t) => inRange(t.tanggal, p.from, p.to));
-  const activeVehicles = p.vehicles.filter((v) => v.aktif);
+  // armada = ASET GA saja; mobil perusahaan non-aset (mis. mobil sales) dan plat dari gate dilaporkan terpisah
+  const activeVehicles = p.vehicles.filter((v) => v.aktif && !isNonAsset(v) && !v.from_gate);
+  const nonAssetIds = new Set(p.vehicles.filter((v) => isNonAsset(v) || v.from_gate).map((v) => v.id));
   if (tasks.length === 0 && activeVehicles.length === 0) return emptyModule("fleet", tr("Belum ada data penugasan maupun armada pada periode ini.", "No assignment or fleet data for this period."));
 
   const cancelled = tasks.filter((t) => t.status === "CANCELLED");
@@ -68,6 +70,8 @@ export function computeFleet(p: {
 
   const usedVehicles = new Set(valid.map((t) => t.vehicle_id).filter(Boolean));
   const usedActive = activeVehicles.filter((v) => usedVehicles.has(v.id)).length;
+  const nonAssetTasks = valid.filter((t) => t.vehicle_id && nonAssetIds.has(t.vehicle_id));
+  const nonAssetUnits = new Set(nonAssetTasks.map((t) => t.vehicle_id)).size;
   const util = activeVehicles.length ? (usedActive / activeVehicles.length) * 100 : 0;
   const idle = activeVehicles.filter((v) => !usedVehicles.has(v.id));
 
@@ -157,6 +161,9 @@ export function computeFleet(p: {
   insights.push(tr(
     `${usedActive} dari ${activeVehicles.length} kendaraan aktif dipakai minimal sekali (${fmtPct(util, 0)})${idle.length ? `; ${idle.length} unit tidak dipakai sama sekali` : ""}.`,
     `${usedActive} of ${activeVehicles.length} active vehicles were used at least once (${fmtPct(util, 0)})${idle.length ? `; ${idle.length} units were not used at all` : ""}.`));
+  if (nonAssetTasks.length) insights.push(tr(
+    `${fmtNum(nonAssetTasks.length)} tugas memakai ${fmtNum(nonAssetUnits)} mobil perusahaan non-aset (di luar armada aset GA), mis. mobil sales yang dipinjam driver GA.`,
+    `${fmtNum(nonAssetTasks.length)} tasks used ${fmtNum(nonAssetUnits)} non-asset company car(s) (outside the GA asset fleet), e.g. sales cars borrowed by GA drivers.`));
   if (gateTrips.length) insights.push(tr(
     `${fmtNum(gateTrips.length)} pergerakan kendaraan tercatat di gate${gateDur.length ? `, rata-rata ${fmtNum(gateAvg, 1)} jam di luar` : ""}.`,
     `${fmtNum(gateTrips.length)} vehicle movements logged at the gate${gateDur.length ? `, averaging ${fmtNum(gateAvg, 1)} hrs outside` : ""}.`));

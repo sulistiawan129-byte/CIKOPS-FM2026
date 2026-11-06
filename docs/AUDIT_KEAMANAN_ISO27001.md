@@ -61,6 +61,7 @@ produksi yang sama persis: **sebelum** perbaikan serangan berhasil, **sesudah** 
 | **P-11** | Sedang | `register_locker` publik dapat dipanggil berulang (isi locker kosong dengan data palsu). | Locker kosong bisa "dihabiskan" oleh skrip. | **Butuh keputusan** (CAPTCHA / pembatas laju di Vercel WAF) |
 | **P-12** | Rendah | Trigger `on_auth_user_created` masih ada walau fungsinya sudah kosong (sengaja, SQL 02). | Tidak berbahaya; membingungkan saat tinjauan. | Opsional: `drop trigger` |
 | **P-13** | Rendah | `generate_unique_locker_pin` memakai `random()` (bukan sumber acak kriptografis) dan hanya 3 digit. | Memperlemah P-05 bila batas coba dilewati. | Perpanjang PIN menjadi 4–6 digit (perlu perubahan form & label cetak) |
+| **P-14** | Rendah | *(baru, 6 Nov 2026)* RPC publik `open_gate_checkpoint_manual` (input manual plat tak terdaftar di /gate) dapat mendaftarkan kendaraan baru tanpa login. | Banjir data kendaraan palsu oleh pihak tak berwenang. | **Dimitigasi di SQL 08**: validasi format plat, batas panjang, maks. 30 plat baru/jam, plat baru dinonaktifkan (`aktif=false`, `from_gate=true`) dan tidak masuk Penugasan sebelum diverifikasi GA. Keputusan CAPTCHA/pembatas laju (P-11) berlaku juga di sini |
 
 **Catatan P-05.** Batas 5 salah → kunci 15 menit membuat menebak 900 kemungkinan memakan rata-rata ±22 jam per locker (bukan 2 menit). Konsekuensi yang
 diterima: orang lain bisa *mengunci sementara* locker seseorang dengan menebak salah — admin Fasilitas tetap bisa membukanya lewat dashboard.

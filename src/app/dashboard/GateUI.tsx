@@ -169,7 +169,7 @@ export function GateLogPanel(p: {
                   <article key={l.id} className={`${g.row} ${done ? g.rowDone : g.rowLive}`}>
                     <div className={g.veh}>
                       <span className={g.plate}>{l.nopol}</span>
-                      <span className={`${g.plantTag} ${l.plant === "PRB" ? g.prb : ""}`}>{l.plant}</span>
+                      <span className={`${g.plantTag} ${l.plant === "PRB" ? g.prb : ""}`}>{l.plant}</span>{l.kategori === "non_asset" && <span className={g.plantTag} style={{ marginLeft: 4, background: "transparent", border: "1px solid currentColor" }} title={L("Mobil perusahaan non-aset GA (mis. mobil sales / dicatat manual)", "Non-GA-asset company car (e.g. sales car / manual entry)")}>{L("NON-ASET", "NON-ASSET")}</span>}
                       <small>{l.jenis}{l.color ? ` · ${l.color}` : ""}</small>
                     </div>
                     <div className={g.who}>

@@ -6,7 +6,8 @@ import styles from "./dashboard.module.css";
 import { GateLogPanel } from "./GateUI";
 import { ModalPortal } from "@/components/ModalPortal";
 import { getDrivers, type MyProfile, getAllVehiclesFull, addVehicle, updateVehicle, deleteVehicle, getVehicleGateLogs, deleteGateLog, forceCloseGateLog } from "@/lib/api";
-import type { Plant, VehicleGateLog } from "@/lib/types";
+import type { Plant, VehicleGateLog, VehicleKategori } from "@/lib/types";
+import { vehicleKategoriOf, isNonAsset } from "@/lib/types";
 import { exportGateLogsToCsv } from "@/lib/report";
 import type { Driver, Vehicle } from "@/lib/types";
 import { useLang } from "@/lib/providers";
@@ -34,6 +35,7 @@ type VehicleFormState = {
   dept: string;
   default_driver_id: string;
   plant: Plant;
+  kategori: VehicleKategori;
 };
 
 const BLANK_VEHICLE_FORM: VehicleFormState = {
@@ -50,6 +52,7 @@ const BLANK_VEHICLE_FORM: VehicleFormState = {
   dept: "",
   default_driver_id: "",
   plant: "CIK",
+  kategori: "asset_ga",
 };
 
 /* ── GATE LOG — modul sendiri (dulu tab di dalam Armada) ── */
@@ -206,6 +209,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
   // Filter & tampilan
   const [q, setQ] = useState("");
   const [plantF, setPlantF] = useState<"all" | Plant>("all");
+  const [kategoriF, setKategoriF] = useState<"all" | "asset_ga" | "non_asset" | "from_gate">("all");
   const [statusF, setStatusF] = useState<"all" | "active" | "maint" | "attention" | "over">("all");
   const [sortBy, setSortBy] = useState<"due" | "nopol" | "odo" | "year">("due");
   const [view, setView] = useState<"grid" | "table">(() => {
@@ -260,6 +264,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       dept: v.dept || "",
       default_driver_id: v.default_driver_id || "",
       plant: v.plant || "CIK",
+      kategori: vehicleKategoriOf(v),
     });
     setShowForm(true);
   }
@@ -283,6 +288,9 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       dept: form.dept || null,
       default_driver_id: form.default_driver_id || null,
       plant: myProfile?.plantScope ?? form.plant,
+      kategori: form.kategori,
+      // kendaraan dari gate yang dilengkapi & diaktifkan GA = sudah terverifikasi
+      ...(editing?.from_gate && form.aktif ? { from_gate: false } : {}),
     };
     try {
       if (editing) {
@@ -296,6 +304,16 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       alert(e instanceof Error ? e.message : L("Gagal menyimpan kendaraan", "Failed to save the vehicle"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** Plat yang dicatat manual Security (belum terdaftar) → resmi jadi mobil perusahaan non-aset yang aktif. */
+  async function verifyGateVehicle(v: Vehicle) {
+    try {
+      await updateVehicle(v.id, { aktif: true, from_gate: false, kategori: "non_asset" });
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : L("Gagal memverifikasi kendaraan", "Failed to verify the vehicle"));
     }
   }
 
@@ -317,22 +335,32 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
     return { v, docs, worst: worstDoc(docs) };
   }), [vehicles]);
 
+  // KPI & pengingat dokumen = ARMADA ASET GA saja. Mobil perusahaan non-aset (mis. mobil sales) dan plat dari gate tidak dihitung.
+  const assetRows = useMemo(() => rows.filter((r) => !isNonAsset(r.v) && !r.v.from_gate), [rows]);
+  const kCount = useMemo(() => ({
+    asset: assetRows.length,
+    non: rows.filter((r) => isNonAsset(r.v) && !r.v.from_gate).length,
+    gate: rows.filter((r) => r.v.from_gate).length,
+  }), [rows, assetRows]);
   const stats = useMemo(() => ({
-    total: rows.length,
-    active: rows.filter((r) => r.v.aktif).length,
-    maint: rows.filter((r) => !r.v.aktif).length,
-    over: rows.filter((r) => r.docs.some((d) => d.level === "over")).length,
-    attention: rows.filter((r) => r.docs.some((d) => d.level === "due" || d.level === "soon")).length,
-    noDocs: rows.filter((r) => r.docs.every((d) => d.level === "none")).length,
-  }), [rows]);
+    total: assetRows.length,
+    active: assetRows.filter((r) => r.v.aktif).length,
+    maint: assetRows.filter((r) => !r.v.aktif).length,
+    over: assetRows.filter((r) => r.docs.some((d) => d.level === "over")).length,
+    attention: assetRows.filter((r) => r.docs.some((d) => d.level === "due" || d.level === "soon")).length,
+    noDocs: assetRows.filter((r) => r.docs.every((d) => d.level === "none")).length,
+  }), [assetRows]);
 
-  const upcoming = useMemo(() => rows.flatMap((r) => r.docs.filter((d) => d.next && d.level !== "ok").map((d) => ({ v: r.v, d })))
-    .sort((a, b) => (a.d.days ?? 0) - (b.d.days ?? 0)).slice(0, 8), [rows]);
+  const upcoming = useMemo(() => assetRows.flatMap((r) => r.docs.filter((d) => d.next && d.level !== "ok").map((d) => ({ v: r.v, d })))
+    .sort((a, b) => (a.d.days ?? 0) - (b.d.days ?? 0)).slice(0, 8), [assetRows]);
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const out = rows.filter(({ v, docs }) => {
       if (plantF !== "all" && (v.plant || "CIK") !== plantF) return false;
+      if (kategoriF === "asset_ga" && (isNonAsset(v) || v.from_gate)) return false;
+      if (kategoriF === "non_asset" && (!isNonAsset(v) || v.from_gate)) return false;
+      if (kategoriF === "from_gate" && !v.from_gate) return false;
       if (statusF === "active" && !v.aktif) return false;
       if (statusF === "maint" && v.aktif) return false;
       if (statusF === "over" && !docs.some((d) => d.level === "over")) return false;
@@ -347,7 +375,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       return DOC_RANK[a.worst.level] - DOC_RANK[b.worst.level] || (a.worst.days ?? 9999) - (b.worst.days ?? 9999);
     });
     return out;
-  }, [rows, q, plantF, statusF, sortBy, drivers]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, q, plantF, kategoriF, statusF, sortBy, drivers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmtD = (ds: string | null) => (ds ? new Date(ds).toLocaleDateString(lang === "en" ? "en-GB" : "id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—");
   const dueText = (d: DocState) => d.level === "none" ? L("Belum diisi", "Not set") : (d.days ?? 0) <= 0 ? L(`Lewat ${Math.abs(d.days ?? 0)} hr`, `${Math.abs(d.days ?? 0)}d overdue`) : L(`${d.days} hari lagi`, `in ${d.days}d`);
@@ -355,7 +383,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
   const lockedPlant = myProfile?.plantScope ?? null;
 
   const KPIS: { id: typeof statusF; label: string; value: number; foot: string; tone: string; icon: string }[] = [
-    { id: "all", label: L("Total armada", "Fleet"), value: stats.total, foot: stats.noDocs ? `${stats.noDocs} ${L("belum ada data dokumen", "without document data")}` : `${stats.active} ${L("aktif", "active")} · ${stats.maint} maint.`, tone: "brand", icon: "🚗" },
+    { id: "all", label: L("Armada aset GA", "GA asset fleet"), value: stats.total, foot: stats.noDocs ? `${stats.noDocs} ${L("belum ada data dokumen", "without document data")}` : `${stats.active} ${L("aktif", "active")} · ${stats.maint} maint.`, tone: "brand", icon: "🚗" },
     { id: "active", label: L("Siap jalan", "Ready"), value: stats.active, foot: stats.total ? `${Math.round((stats.active / stats.total) * 100)}% ${L("dari armada", "of fleet")}` : "—", tone: "green", icon: "✅" },
     { id: "maint", label: "Maintenance", value: stats.maint, foot: L("sedang tidak beroperasi", "out of service"), tone: "orange", icon: "🔧" },
     { id: "attention", label: L("Dokumen segera", "Docs due soon"), value: stats.attention, foot: L("KIR / service / STNK ≤ 30 hari", "KIR / service / STNK ≤ 30 days"), tone: "gold", icon: "⏳" },
@@ -405,6 +433,11 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari nopol, tipe, driver, departemen…", "Search plate, type, driver, department…")} />
           {q && <button type="button" onClick={() => setQ("")} aria-label={L("Hapus", "Clear")}>✕</button>}
         </div>
+        <div className={vh.seg} role="group" aria-label={L("Kategori kendaraan", "Vehicle category")}>
+          {([["all", L("Semua kategori", "All categories"), rows.length], ["asset_ga", L("Aset GA", "GA asset"), kCount.asset], ["non_asset", L("Non-Aset", "Non-asset"), kCount.non], ...(kCount.gate ? [["from_gate", L("Dari gate", "From gate"), kCount.gate]] : [])] as [typeof kategoriF, string, number][]).map(([k, label, n]) => (
+            <button key={k} type="button" className={kategoriF === k ? vh.segOn : ""} onClick={() => setKategoriF(k)} aria-pressed={kategoriF === k}>{label} <small>{n}</small></button>
+          ))}
+        </div>
         {!lockedPlant && (
           <div className={vh.seg}>
             {(["all", "CIK", "PRB"] as const).map((p) => (
@@ -426,7 +459,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
           <button type="button" className={view === "table" ? vh.segOn : ""} onClick={() => setView("table")} aria-pressed={view === "table"}>☰ {L("Tabel", "Table")}</button>
         </div>
       </div>
-      <p className={vh.count}>{list.length} {L("dari", "of")} {stats.total} {L("kendaraan", "vehicles")}{statusF !== "all" && <> · <button type="button" className={vh.linkBtn} onClick={() => setStatusF("all")}>{L("hapus filter", "clear filter")}</button></>}</p>
+      <p className={vh.count}>{list.length} {L("dari", "of")} {rows.length} {L("kendaraan", "vehicles")}{statusF !== "all" && <> · <button type="button" className={vh.linkBtn} onClick={() => setStatusF("all")}>{L("hapus filter", "clear filter")}</button></>}</p>
 
       {loading ? (
         <div className={vh.grid}>{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={vh.skel} />)}</div>
@@ -447,7 +480,8 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
               <article key={v.id} className={`${vh.card} ${v.aktif ? "" : vh.cardMaint} ${open ? vh.cardOpen : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 0.03}s` }}>
                 <div className={`${vh.cardTop} ${vh["lv_" + worst.level]}`}>
                   <span className={vh.statusDot} />
-                  <span>{v.aktif ? L("Aktif", "Active") : "Maintenance"}</span>
+                  <span>{v.from_gate ? L("Menunggu verifikasi", "Awaiting verification") : v.aktif ? L("Aktif", "Active") : "Maintenance"}</span>
+                  {(isNonAsset(v) || v.from_gate) && <span className={vh.katPill} title={L("Mobil perusahaan bukan aset GA — dipakai driver GA sesuai kebutuhan", "Company car, not a GA asset — used by GA drivers as needed")}>{v.from_gate ? L("DARI GATE", "FROM GATE") : L("NON-ASET", "NON-ASSET")}</span>}
                   <span className={vh.cardTopRight}>{worst.level === "ok" ? L("Dokumen aman", "Docs OK") : worst.level === "none" ? L("Dokumen belum diisi", "No document data") : `${worst.key} · ${dueText(worst)}`}</span>
                 </div>
                 <div className={vh.cardBody}>
@@ -490,6 +524,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                 <div className={vh.cardFoot}>
                   <button type="button" className={vh.linkBtn} onClick={() => setOpenId(open ? null : v.id)}>{open ? L("Tutup detail", "Hide details") : L("Detail dokumen", "Document details")}</button>
                   <span className={vh.grow} />
+                  {v.from_gate && <button type="button" className={vh.btn} onClick={() => verifyGateVehicle(v)} title={L("Jadikan mobil perusahaan non-aset yang aktif (bisa dipakai di penugasan)", "Make it an active non-asset company car (usable in assignments)")}>✔ {L("Verifikasi", "Verify")}</button>}
                   <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️ {t.actionEdit}</button>
                   {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
                 </div>
@@ -508,12 +543,13 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                 <tr key={v.id}>
                   <td><span className={vh.plateSm}>{v.nopol}</span></td>
                   <td><b>{v.jenis || "—"}</b><br /><small>{[v.year, v.fuel, v.plant].filter(Boolean).join(" · ")}</small></td>
-                  <td><span className={`${vh.pill} ${v.aktif ? vh.pillOk : vh.pillWarn}`}>{v.aktif ? L("Aktif", "Active") : "Maint."}</span></td>
+                  <td><span className={`${vh.pill} ${v.aktif ? vh.pillOk : vh.pillWarn}`}>{v.from_gate ? L("Verifikasi", "Verify") : v.aktif ? L("Aktif", "Active") : "Maint."}</span>{(isNonAsset(v) || v.from_gate) && <> <span className={vh.katPill}>{v.from_gate ? L("DARI GATE", "FROM GATE") : L("NON-ASET", "NON-ASSET")}</span></>}</td>
                   <td>{driverName(v.default_driver_id)}</td>
                   <td>{v.dept || "—"}</td>
                   <td className={vh.num}>{fmtRp(v.odometer || 0)} km</td>
                   {docs.map((d) => <td key={d.key}><span className={`${vh.pill} ${vh["pl_" + d.level]}`}>{d.level === "none" ? "—" : dueText(d)}</span></td>)}
                   <td className={vh.rowAct}>
+                    {v.from_gate && <button type="button" className={vh.btn} onClick={() => verifyGateVehicle(v)}>✔</button>}
                     <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️</button>
                     {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
                   </td>
@@ -613,7 +649,14 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                     <option value="maintenance">Maintenance</option>
                   </select>
                 </div>
-                <div />
+                <div>
+                  <label>{L("Kategori", "Category")}</label>
+                  <select className={styles.formSelect} value={form.kategori} onChange={(e) => setForm({ ...form, kategori: e.target.value as VehicleKategori })}>
+                    <option value="asset_ga">{L("Aset GA (Facility Management)", "GA asset (Facility Management)")}</option>
+                    <option value="non_asset">{L("Mobil Perusahaan — Non-Aset GA", "Company car — non-GA asset")}</option>
+                  </select>
+                  {form.kategori === "non_asset" && <small style={{ display: "block", marginTop: 4, color: "var(--t3)", fontSize: 11.5 }}>{L("Mis. mobil sales: bukan aset GA tetapi dipakai driver GA sesuai kebutuhan. Tidak masuk hitungan armada & pengingat dokumen GA.", "E.g. sales cars: not a GA asset but used by GA drivers as needed. Excluded from GA fleet counts and document reminders.")}</small>}
+                </div>
               </div>
 
               <div style={{ marginTop: 16, padding: 14, background: "var(--bg2)", borderRadius: 12 }}>

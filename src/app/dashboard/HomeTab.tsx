@@ -7,7 +7,7 @@ import hm from "./home.module.css";
 import { canAccessTab, isPrbOnly, getDrivers, type MyProfile, getCanteenReportsForMonth, getTasksByRange, getVehicles, getAllVehiclesFull, getClaims, getVehicleGateLogs, withOrigins, getAnnouncements, addAnnouncement, getOvertimes, getCurrentKantong, getDriverTiers, getGasStations } from "@/lib/api";
 import type { Claim, Overtime, Kantong, DriverTier, GasStation, CanteenReport, VehicleGateLog, Announcement } from "@/lib/types";
 import type { Driver, TaskDetail, Vehicle } from "@/lib/types";
-import { plantLocation } from "@/lib/types";
+import { plantLocation, isNonAsset } from "@/lib/types";
 import { useLang } from "@/lib/providers";
 import { getLockerStatusGrid } from "@/lib/lockerApi";
 import CalendarAgenda from "./CalendarAgenda";
@@ -241,7 +241,7 @@ export function HomeTab({
           ]);
           setKpi({
             claimWeekTotal: 0, tasksToday: tasksToday.length, canteenTodaySnack: 0, canteenTodayMeal: 0, opBudgetAvailable: 0,
-            vehiclesActive: vehicles.filter((v) => v.aktif).length,
+            vehiclesActive: vehicles.filter((v) => v.aktif && !isNonAsset(v)).length,
             driversActive: drivers.filter((d) => d.aktif).length,
           });
           return;
@@ -274,7 +274,7 @@ export function HomeTab({
           canteenTodaySnack,
           canteenTodayMeal,
           opBudgetAvailable,
-          vehiclesActive: vehicles.filter((v) => v.aktif).length,
+          vehiclesActive: vehicles.filter((v) => v.aktif && !isNonAsset(v)).length,   // armada ASET GA (mobil non-aset tidak dihitung)
           driversActive: drivers.filter((d) => d.aktif).length,
         });
       } catch (e) {
@@ -651,7 +651,7 @@ export function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: Das
           getCanteenReportsForMonth(monthStr).catch(() => []),
           getLockerStatusGrid().catch(() => []),
         ]);
-        setVehicles(v);
+        setVehicles(v.filter((x) => !isNonAsset(x) && !x.from_gate));   // armada & pengingat dokumen = aset GA saja
         setClaims(c);
         setOvertimes(ot);
         setDrivers(d);

@@ -155,6 +155,9 @@ export function buildSeed(): MockDB {
     if (i <= 9) vh.default_driver_id = drv[i - 1].id;
     veh.push(put("vehicles", vh));
   }
+  // mobil perusahaan NON-ASET GA (mobil sales) — tidak masuk daftar `veh` sehingga data tugas demo lainnya tidak berubah
+  put("vehicles", { id: uuid(), nopol: "B 9201 SLS", jenis: "Toyota Avanza Veloz", plant: "CIK", aktif: true, kategori: "non_asset", from_gate: false, color: "Putih", fuel: "Bensin", odometer: 41200, dept: "Sales", created_at: ago(24 * 60), updated_at: ago(24 * 20) });
+  put("vehicles", { id: uuid(), nopol: "B 9340 SLS", jenis: "Mitsubishi Xpander", plant: "CIK", aktif: true, kategori: "non_asset", from_gate: false, color: "Hitam", fuel: "Bensin", odometer: 28800, dept: "Sales", created_at: ago(24 * 60), updated_at: ago(24 * 20) });
 
   /* ════ Tugas driver 45 hari terakhir + hari ini + 5 hari ke depan (+ log gate) ════ */
   for (let off = -45; off <= 5; off++) {

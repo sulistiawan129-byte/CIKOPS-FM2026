@@ -36,7 +36,17 @@ export interface Vehicle {
   dept?: string | null;
   default_driver_id?: string | null;
   plant?: Plant;
+  /** asset_ga = aset GA (bawaan) | non_asset = mobil perusahaan bukan aset GA (mis. mobil sales) yang dipakai driver GA sesuai kebutuhan. Kosong = aset GA. */
+  kategori?: VehicleKategori;
+  /** true = didaftarkan otomatis dari input manual Security di /gate, belum diverifikasi GA (aktif=false). */
+  from_gate?: boolean;
 }
+
+export type VehicleKategori = "asset_ga" | "non_asset";
+export const VEHICLE_KATEGORI: VehicleKategori[] = ["asset_ga", "non_asset"];
+/** Kategori ternormalisasi (kosong / tak dikenal → aset GA). */
+export const vehicleKategoriOf = (v?: { kategori?: string | null } | null): VehicleKategori => (v?.kategori === "non_asset" ? "non_asset" : "asset_ga");
+export const isNonAsset = (v?: { kategori?: string | null } | null) => vehicleKategoriOf(v) === "non_asset";
 
 export interface Employee {
   id: string;
@@ -264,6 +274,8 @@ export interface VehicleGateLog {
   driverNameManual: string | null;
   driverName: string; // resolved: driverNameManual jika ada, kalau tidak nama driver terdaftar
   plant: Plant;
+  /** kategori kendaraan (non_asset = bukan aset GA). Kosong = aset GA. */
+  kategori?: VehicleKategori;
   tujuan: string;
   keterangan?: string;
   timeOut: string | null;
@@ -282,6 +294,7 @@ export interface GateVehicleOption {
   jenis: string;
   plant: Plant;
   color: string;
+  kategori?: VehicleKategori;
 }
 export interface GateDriverOption {
   id: string;

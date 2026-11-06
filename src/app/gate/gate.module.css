@@ -273,3 +273,16 @@
   .seg button span { margin-left: 4px; }
   .cards { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ── input manual: plat tidak terdaftar di Aset GA ── */
+.manualCta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 10px; padding: 11px 14px; border-radius: 12px; border: 1.5px dashed var(--g-brand, #2d5bff); background: color-mix(in srgb, var(--g-brand, #2d5bff) 8%, transparent); color: var(--g-brand, #2d5bff); font: inherit; font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; }
+.manualCta:hover { background: color-mix(in srgb, var(--g-brand, #2d5bff) 15%, transparent); }
+.manualBox { display: grid; gap: 10px; margin-top: 10px; padding: 14px; border-radius: 14px; border: 1.5px solid var(--g-brand, #2d5bff); background: color-mix(in srgb, var(--g-brand, #2d5bff) 6%, transparent); }
+.manualHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.manualBox small { color: var(--g-t3); font-size: 12px; line-height: 1.45; }
+.manualWarn { color: var(--g-prb-text, #c2410c) !important; font-weight: 700; }
+.manualDir { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.manualDir button { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--g-line, #d0d5e2); background: transparent; color: var(--g-t1); font: inherit; text-align: left; cursor: pointer; }
+.manualDir button b { font-size: 13.5px; }
+.manualDir button small { font-size: 11.5px; }
+.manualDir .manualOn { border-color: var(--g-brand, #2d5bff); background: color-mix(in srgb, var(--g-brand, #2d5bff) 14%, transparent); }
