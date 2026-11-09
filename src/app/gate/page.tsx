@@ -238,6 +238,7 @@ export default function GatePage() {
       setTab("active");
       const fresh = await getGateLogsPublic(tanggal);
       setLogs(fresh);
+      setShown((n) => Math.max(n, fresh.length));   // entri baru (urutan terbawah di tab Aktif) harus langsung terlihat
       const nl = fresh.filter((l) => l.vehicleId === vid && l.status !== "DONE")[0];
       if (nl) { setFlashId(nl.id); setTimeout(() => setFlashId(null), 1800); }
       plateRef.current?.focus();
