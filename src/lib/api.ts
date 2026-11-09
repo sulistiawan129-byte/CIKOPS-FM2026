@@ -949,7 +949,11 @@ export async function deleteWreath(id: string): Promise<void> {
 export async function getActiveVehiclesForGate(): Promise<GateVehicleOption[]> {
   const { data, error } = await supabase.rpc("get_active_vehicles_for_gate");
   if (error) throw error;
-  return (data ?? []) as GateVehicleOption[];
+  // kolom di database boleh kosong (mis. plat yang dicatat manual tanpa jenis) → normalkan supaya tampilan tidak error
+  return ((data ?? []) as Partial<GateVehicleOption>[]).map((v) => ({
+    id: String(v.id), nopol: v.nopol ?? "", jenis: v.jenis ?? "", color: v.color ?? "",
+    plant: (v.plant === "PRB" ? "PRB" : "CIK") as Plant, kategori: v.kategori === "non_asset" ? "non_asset" as const : "asset_ga" as const,
+  }));
 }
 
 /** Daftar driver aktif untuk dropdown di form input operator. */

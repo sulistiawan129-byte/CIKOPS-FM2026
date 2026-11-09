@@ -385,7 +385,7 @@ export const FLEET: Record<string, RpcHandler> = {
     return table(ctx.db, "vehicles")
       .filter((v) => v.aktif !== false || v.from_gate)
       .sort((x, y) => cmp(x.plant, y.plant) || cmp(x.nopol, y.nopol))
-      .map((v) => ({ id: v.id, nopol: v.nopol, jenis: v.jenis ?? "", plant: v.plant ?? "CIK", color: v.color ?? "", kategori: v.kategori ?? "asset_ga" }));
+      .map((v) => ({ id: v.id, nopol: v.nopol, jenis: v.jenis ?? null, plant: v.plant ?? "CIK", color: v.color ?? null, kategori: v.kategori ?? "asset_ga" }));   // NULL seperti database sungguhan
   },
 
   get_active_drivers_for_gate(_a, ctx) {

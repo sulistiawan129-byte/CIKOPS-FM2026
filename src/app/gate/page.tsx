@@ -152,8 +152,8 @@ export default function GatePage() {
   const vList = useMemo(() => {
     const t = plateQ.replace(/\s+/g, "").toLowerCase();
     return vehicles
-      .filter((v) => !t || v.nopol.replace(/\s+/g, "").toLowerCase().includes(t) || v.jenis.toLowerCase().includes(t))
-      .sort((a, b) => Number(busyVehicle.has(a.id)) - Number(busyVehicle.has(b.id)) || a.plant.localeCompare(b.plant) || a.nopol.localeCompare(b.nopol));
+      .filter((v) => !t || (v.nopol ?? "").replace(/\s+/g, "").toLowerCase().includes(t) || (v.jenis ?? "").toLowerCase().includes(t))
+      .sort((a, b) => Number(busyVehicle.has(a.id)) - Number(busyVehicle.has(b.id)) || (a.plant ?? "").localeCompare(b.plant ?? "") || (a.nopol ?? "").localeCompare(b.nopol ?? ""));
   }, [vehicles, plateQ, busyVehicle]);
   const tujuanChips = useMemo(() => {
     const m = new Map<string, number>();
