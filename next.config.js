@@ -10,6 +10,7 @@
  *     CSP_ENFORCE=1            CSP penuh ditegakkan (bukan Report-Only)
  *     CSP_FRAME_ANCESTORS      daftar asal yang boleh membingkai aplikasi (bawaan: 'self'), mis. "'self' https://portal.perusahaan.com"
  *     CSP_EXTRA_CONNECT        asal tambahan untuk connect-src (dipisah spasi), mis. domain kustom Supabase
+ *     GATE_REDIRECT_URL        alihkan /gate ke aplikasi petugas Security Desk (lihat di bawah)
  */
 
 const isProd = process.env.NODE_ENV === "production";
@@ -51,6 +52,10 @@ function buildCsp() {
   return { full, light, frameAncestors };
 }
 
+/* Gate kendaraan sekarang dicatat petugas di Security Desk (/pos/kendaraan). Bila GATE_REDIRECT_URL diisi (mis.
+ *   https://cik-g4s.vercel.app/pos/kendaraan), halaman publik /gate dialihkan ke sana. Kosong = /gate lama tetap berjalan (cadangan / demo). */
+const GATE_REDIRECT = (process.env.GATE_REDIRECT_URL || "").trim();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -61,6 +66,9 @@ const nextConfig = {
   async rewrites() {
     // Digital Asset Links untuk APK Android (lihat src/app/api/assetlinks/route.ts)
     return [{ source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" }];
+  },
+  async redirects() {
+    return /^https?:\/\//.test(GATE_REDIRECT) ? [{ source: "/gate", destination: GATE_REDIRECT, permanent: false }] : [];
   },
   async headers() {
     if (!isProd) return []; // dev: HMR memakai eval/WebSocket — header hanya untuk build produksi

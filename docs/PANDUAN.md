@@ -14,6 +14,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/05_data_demo.sql` | Akun & data **fiktif** untuk deployment DEMO (lihat bab *Deployment DEMO*) | **Hanya di project Supabase DEMO** — berhenti sendiri bila dijalankan di database yang berisi akun asli |
 | `supabase/07_kategori_driver.sql` | Kategori driver jadi 2 (Driver Pool & Driver User): driver bertipe *Support* diubah jadi Pool, constraint diperketat | **Jalankan sekali SESUDAH aplikasi versi baru ter-deploy (merge ke main).** Aman diulang |
 | `supabase/08_kategori_kendaraan_gate_manual.sql` | Kategori kendaraan (Aset GA / Mobil Perusahaan Non-Aset) + input manual plat tidak terdaftar di Gate Log | **Jalankan sekali di Supabase SQL Editor** (bisa sebelum atau sesudah deploy; aplikasi tetap jalan sebelum dijalankan). Aman diulang |
+| `supabase/09_gate_pos.sql` | Fungsi `get_gate_logs_pos` untuk aplikasi petugas Security Desk: hari mengikuti WIB dan kendaraan yang masih aktif dari hari sebelumnya ikut tampil | **Jalankan sekali di Supabase SQL Editor CIKOPS** (sesudah 08). Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -1493,4 +1494,20 @@ Yang berbeda untuk mobil non-aset: **tidak dihitung** di KPI Armada, Beranda & O
 - Plat yang ternyata sudah ada di master (spasi/huruf besar-kecil berbeda) otomatis memakai data master; tidak dobel.
 - Pengaman (form publik): format plat divalidasi dan maksimal 30 plat baru per jam.
 - Baris Gate Log yang memakai mobil non-aset diberi label **NON-ASET**.
+
+## Satu panel untuk petugas: gate kendaraan pindah ke Security Desk
+
+Petugas security sekarang hanya memakai **Security Desk** (`/pos`). Gate kendaraan perusahaan yang dulu di halaman `/gate` CIKOPS ada di **`/pos/kendaraan`** ("Kendaraan perusahaan" di menu petugas) — bersama gate transporter, input NC, dan total pemeriksaan. **Data tetap tersimpan di CIKOPS** (armada, driver, dan tugas ada di sana), jadi Fleet → Gate Log, Beranda, Command Center, dan Laporan Manajemen terisi seperti biasa. CIKOPS tetap hanya menampilkan hasilnya.
+
+Fitur di halaman petugas: catat keluar/masuk, driver terisi otomatis dari catatan terakhir mobil itu, tujuan cepat, **input manual plat yang tidak terdaftar di Aset GA** (otomatis jadi mobil non-aset "dari gate"), tutup catatan dengan 2 ketukan, dan daftar aktif yang juga memuat mobil dari hari sebelumnya. Layar ruang Security (`/display`) menampilkan ringkasan "Mobil perusahaan · di luar".
+
+**Langkah pemasangan (urut):**
+1. **Supabase CIKOPS → SQL Editor:** jalankan `08_kategori_kendaraan_gate_manual.sql` (bila belum) lalu `09_gate_pos.sql`.
+2. **Repo CIK-G4S:** merge branch `claude/gate-kendaraan` ke `main` (Vercel Security Desk deploy otomatis).
+3. **Vercel Security Desk → Environment Variables:** tambahkan `NEXT_PUBLIC_CIKOPS_SUPABASE_URL` dan `NEXT_PUBLIC_CIKOPS_SUPABASE_ANON_KEY` (nilainya **sama** dengan `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` di Vercel CIKOPS; keduanya nilai publik) → **Redeploy**.
+4. **Akun petugas:** Security Desk → menu **Pengguna** → buat akun → peran **Petugas Gate** (hanya site Cikarang). Petugas membuka `https://cik-g4s.vercel.app/pos`, login, lalu menu **Kendaraan perusahaan**.
+5. **Uji:** catat satu mobil terdaftar dan satu plat manual, tutup keduanya, lalu cek di CIKOPS → Fleet → Gate Log.
+6. **Alihkan `/gate` lama:** Vercel CIKOPS → Environment Variables → `GATE_REDIRECT_URL` = `https://cik-g4s.vercel.app/pos/kendaraan` → Redeploy. Sejak itu siapa pun yang membuka `/gate` CIKOPS otomatis pindah ke Security Desk. **Kosongkan variabel ini bila perlu kembali ke halaman lama** (cadangan).
+
+**Catatan:** mode offline untuk aplikasi petugas belum termasuk (ditunda). Tanpa sinyal, halaman menampilkan pesan dan petugas mengulang saat sinyal kembali. Fungsi gate di CIKOPS bersifat publik seperti sebelumnya (lihat audit keamanan P-14); pembatasan lebih ketat bisa ditambahkan belakangan.
 
