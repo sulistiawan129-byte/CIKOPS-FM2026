@@ -1,7 +1,7 @@
 # CIKOPS — Facility Management Plant Cikarang
 
 Satu aplikasi untuk operasional GA/FM: fleet & driver, klaim & dana operasional,
-fasilitas (locker, gift, printer, ATK, kantin, receptionist), Cleaning & Gardening + TGA,
+fasilitas (locker, kunci loker karyawan, gift, printer, ATK, kantin, receptionist), Cleaning & Gardening + TGA,
 Security (tersinkron dengan Security Desk G4S), report manajemen, dan Command Center.
 
 - **Teknologi:** Next.js 16 (App Router) di Vercel · Supabase (Postgres, Auth, Realtime, Edge Functions)

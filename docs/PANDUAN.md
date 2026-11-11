@@ -15,6 +15,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/07_kategori_driver.sql` | Kategori driver jadi 2 (Driver Pool & Driver User): driver bertipe *Support* diubah jadi Pool, constraint diperketat | **Jalankan sekali SESUDAH aplikasi versi baru ter-deploy (merge ke main).** Aman diulang |
 | `supabase/08_kategori_kendaraan_gate_manual.sql` | Kategori kendaraan (Aset GA / Mobil Perusahaan Non-Aset) + input manual plat tidak terdaftar di Gate Log | **Jalankan sekali di Supabase SQL Editor** (bisa sebelum atau sesudah deploy; aplikasi tetap jalan sebelum dijalankan). Aman diulang |
 | `supabase/09_gate_pos.sql` | Fungsi `get_gate_logs_pos` untuk aplikasi petugas Security Desk: hari mengikuti WIB dan kendaraan yang masih aktif dari hari sebelumnya ikut tampil | **Jalankan sekali di Supabase SQL Editor CIKOPS** (sesudah 08). Aman diulang |
+| `supabase/10_kunci_loker_karyawan.sql` | Modul **Kunci Loker Karyawan**: tabel `locker_keys` + riwayat otomatis `locker_key_logs`, fungsi pinjam/kembalikan kunci serep & impor Excel. Hak akses hanya Master Admin & Admin GA (tabel berisi nama & NIK) | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang. Data awal diisi dari aplikasi (Impor Excel) |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -45,7 +46,7 @@ Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase se
 | Role | Kelola | Halaman awal | Kelola akun untuk |
 |---|---|---|---|
 | **Master Admin** | Semua modul (termasuk Kantin), Log Aktivitas | Beranda | Semua role |
-| **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
+| **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Kunci Loker, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
 | **Admin GA PRB** | Penugasan, Armada, Master Data (driver, pegawai, pengaturan), Kalender, Report Fleet — **data PRB saja** | Beranda (versi PRB) | Admin GA PRB |
 | **Admin / SPV ISS** | Cleaning & Gardening, TGA, Report Cleaning & Gardening dan TGA | Cleaning & Gardening | Admin / SPV ISS |
 | **Admin / SPV Security** | Laporan Security, Report Security | Laporan Security | Admin / SPV Security |
@@ -559,6 +560,37 @@ Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.
   Ganti kode bila ada staf yang keluar, atau **Nonaktifkan form** kapan saja.
 - Karyawan non-GA tetap memakai `/request` (permintaan masuk ke *Belum diambil*).
 
+
+---
+
+## Kunci Loker Karyawan (Fasilitas → Kunci Loker)
+
+Untuk mencari kunci loker karyawan dengan cepat. Terpisah dari menu **Locker** (loker ber-PIN yang dipesan karyawan).
+Satu baris = satu pintu loker: blok, no. slot kunci, pintu, nama karyawan, NIK, no. kunci, departemen, status, keterangan.
+
+### Pasang (sekali saja)
+1. Jalankan `supabase/10_kunci_loker_karyawan.sql` di Supabase SQL Editor (aman diulang).
+2. Deploy aplikasi, buka **Fasilitas → Kunci Loker**, klik **Impor Excel**, pilih file `Master_Loker_Karyawan` (sheet **Master**).
+   Pratinjau menampilkan jumlah loker (terisi / kosong / serep dipinjam) dan perbaikan otomatis; pilih **Ganti semua data** lalu **Impor**.
+   Data karyawan tidak disimpan di repo — hanya di database.
+
+### Pemakaian harian
+| Mau apa | Caranya |
+|---|---|
+| **Cari kunci** | Tab **Cari Kunci**: ketik nama, NIK, no. kunci, pintu (mis. `A5`), blok, atau dept — beberapa kata boleh (`budi scm`). Hasil menyorot kata yang cocok. Saring dengan status, blok, atau dept |
+| **Tambah / ubah / hapus loker** | **+ Tambah loker**, ikon ✏️ dan 🗑 pada baris. Nama bisa dipilih dari Master Karyawan (NIK & dept terisi otomatis). Status otomatis: ada nama = Terisi, tanpa nama = Kosong |
+| **Pinjam kunci serep** | Tombol **🔑 Pinjam serep** → isi peminjam & tanggal. Status jadi *Dipinjam*. Kembalikan dengan **↩ Kembalikan** |
+| **Pantau serep yang belum kembali** | Tab **Serep Dipinjam** (diurutkan dari yang paling lama; > 30 hari berwarna merah) |
+| **Lihat denah** | Tab **Peta Blok**: kotak per pintu berwarna (hijau terisi, abu kosong, kuning serep dipinjam); ketuk pintu untuk membuka datanya |
+| **Siapa mengubah apa** | Tab **Riwayat**: tambah, ubah, hapus, pinjam, kembali, dan impor — otomatis dari database, tidak bisa diubah dari aplikasi |
+| **Ekspor** | **Ekspor Excel** mengunduh daftar yang sedang tampil (sesuai pencarian & filter) |
+
+### Aturan & keamanan
+- Hanya **Master Admin** dan **Admin GA CIK** yang bisa membuka menu ini (membaca maupun mengubah). Management, Admin PRB, ISS, Security, dan Receptionist tidak. Tanpa login: tidak ada akses.
+- Impor membetulkan data file otomatis: kolom **NO.KUNCI/DEPT tertukar**, dept berisi angka, NIK tidak valid, dan teks liar di kolom kunci (dipindah ke Keterangan). Nama, dept, blok, dan pintu disimpan HURUF KAPITAL.
+- Status di file ditentukan dari isi: tanpa nama = **Kosong**; keterangan memuat kata *pinjam* (dan bukan "sudah dibalikin") = **Dipinjam**; selain itu **Terisi**. Contoh file Master_Loker_Karyawan_v2: 1.135 loker — 918 terisi, 142 kosong, 75 dipinjam, 93 blok.
+- **Ganti semua data** menghapus data lama (peminjaman serep & koreksi manual yang belum ada di file ikut hilang) — ekspor dulu bila perlu. Satu catatan ringkas masuk Riwayat.
+- Bila menu menampilkan "belum aktif di database", SQL 10 belum dijalankan.
 
 ---
 

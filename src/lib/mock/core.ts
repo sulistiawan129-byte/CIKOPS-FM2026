@@ -20,6 +20,9 @@ export interface MockCtx {
 }
 export type RpcHandler = (args: Row, ctx: MockCtx) => unknown;
 
+/** Pengait yang diisi client.ts (hindari import melingkar): nama staf yang sedang "login". */
+export const mockHooks: { actor: () => string } = { actor: () => "Admin" };
+
 /** Error yang meniru PostgrestError */
 export class MockError extends Error {
   code: string;

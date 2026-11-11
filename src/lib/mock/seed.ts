@@ -357,6 +357,30 @@ export function buildSeed(): MockDB {
     }
   }
 
+  /* ════ Kunci Loker Karyawan (96 pintu: blok A–H × 12) ════ */
+  {
+    const KEY_DEPT = ["PRODUKSI", "QUALITY ASSURANCE", "ENGINEERING", "SUPPLY CHAIN", "WAREHOUSE", "HSE", "QC", "HR & GA"];
+    let rowNo = 0;
+    for (let b = 0; b < 8; b++) {
+      const blok = String.fromCharCode(65 + b);
+      for (let d = 1; d <= 12; d++) {
+        rowNo++;
+        const k = b * 12 + d;
+        const empty = k % 7 === 0 || k % 11 === 0;
+        const e = emp[(k * 3) % emp.length];
+        const borrowed = !empty && k % 17 === 0;
+        put("locker_keys", {
+          id: uuid(), row_no: rowNo, blok, slot: Math.ceil(rowNo / 2), pintu: `${blok}${d}`,
+          nama: empty ? "" : String(e.nama).toUpperCase(), nik: empty ? "" : String(e.nik), dept: empty ? "" : KEY_DEPT[k % KEY_DEPT.length],
+          no_kunci: String(19200 + k * 7), status: empty ? "Kosong" : borrowed ? "Dipinjam" : "Terisi",
+          borrowed_by: borrowed ? String(emp[(k + 5) % emp.length].nama).toUpperCase() : "", borrowed_at: borrowed ? addDays(today, -(k % 40) - 2) : null,
+          keterangan: borrowed ? "KUNCI UTAMA KETINGGALAN" : k % 13 === 0 && !empty ? "TIDAK ADA KUNCI SEREP" : "", created_at: ago(24 * 30), updated_at: ago(24 * 30),
+        });
+      }
+    }
+    put("locker_key_logs", { id: uuid(), locker_key_id: null, blok: "", pintu: "", nama: "", action: "impor", detail: `${rowNo} baris diimpor dari Excel (semua data lama diganti)`, actor: "Dimas Pratama (Admin GA)", created_at: ago(24 * 30) });
+  }
+
   /* ════ Printer & permintaan printer ════ */
   const PRN_LOC = ["Lobby - Resepsionis", "Lantai 2 - Finance", "Lantai 2 - HR & GA", "Lantai 3 - Marketing", "Produksi - Office", "QA Laboratorium", "Gudang - Admin", "Ruang Direksi"];
   for (let i = 1; i <= 8; i++) {

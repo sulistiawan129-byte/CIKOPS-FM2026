@@ -11,6 +11,7 @@ import type { Driver, Employee, JobType, TaskDetail, TaskStatus, Vehicle } from 
 import { computeStats, plantLocation } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import LockerTab from "./LockerTab";
+import LockerKeyTab from "./LockerKeyTab";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
 import SecurityTab from "./SecurityTab";
@@ -686,6 +687,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 )}
           {activeTab === "canteen" && <CanteenTab />}
           {activeTab === "locker" && <LockerTab />}
+          {activeTab === "lockerkey" && <LockerKeyTab />}
           {activeTab === "gift" && (
             <ModulePage>
               <ModuleHeader

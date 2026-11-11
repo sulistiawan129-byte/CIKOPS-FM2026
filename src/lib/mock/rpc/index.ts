@@ -3,5 +3,6 @@ import type { RpcHandler } from "../core";
 import { FLEET } from "./fleet";
 import { FACILITY } from "./facility";
 import { FIELD } from "./field";
+import { LOCKERKEY } from "./lockerkeys";
 
-export const RPC: Record<string, RpcHandler> = { ...FLEET, ...FACILITY, ...FIELD };
+export const RPC: Record<string, RpcHandler> = { ...FLEET, ...FACILITY, ...FIELD, ...LOCKERKEY };

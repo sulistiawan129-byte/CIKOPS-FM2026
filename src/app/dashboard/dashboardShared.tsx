@@ -31,6 +31,7 @@ export type DashboardTab =
   | "masterdata"
   | "canteen"
   | "locker"
+  | "lockerkey"
   | "gift"
   | "printer"
   | "employeerequests"
@@ -78,6 +79,7 @@ export const NAV_GROUPS: NavGroup[] = [
     tabs: [
       { id: "canteen", icon: "🍱", labelId: "Kantin", labelEn: "Canteen", descId: "Manajemen kantin perusahaan", descEn: "Company canteen management" },
       { id: "locker", icon: "🔐", labelId: "Locker", labelEn: "Locker", descId: "Pemesanan & pengelolaan locker", descEn: "Locker booking & management" },
+      { id: "lockerkey", icon: "🗝️", labelId: "Kunci Loker", labelEn: "Locker Keys", descId: "Cari kunci loker karyawan, kelola data & kunci serep", descEn: "Find employee locker keys, manage data & spare keys" },
       { id: "gift", icon: "🎁", labelId: "Pembagian", labelEn: "Gift Dist.", descId: "Distribusi barang & perlengkapan", descEn: "Item & supply distribution" },
       { id: "printer", icon: "🖨️", labelId: "Printer", labelEn: "Printer", descId: "Manajemen printer & permintaan", descEn: "Printer management & requests" },
       { id: "employeerequests", icon: "📨", labelId: "Permintaan Karyawan", labelEn: "Employee Requests", descId: "Pengajuan permintaan dari karyawan", descEn: "Employee-submitted requests" },

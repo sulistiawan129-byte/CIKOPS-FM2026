@@ -3,7 +3,7 @@
    driver demo. Ganti role lewat bar demo (MockBar) atau panel "Coba akun demo". */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { getDb, MockError, saveDb, setSeedBuilder, table, type MockCtx, type Row } from "./core";
+import { getDb, MockError, mockHooks, saveDb, setSeedBuilder, table, type MockCtx, type Row } from "./core";
 import { MockQuery } from "./query";
 import { RPC } from "./rpc";
 import { FUNCTIONS } from "./rpc/functions";
@@ -61,6 +61,8 @@ export function currentCtx(): MockCtx {
     save: saveDb,
   };
 }
+
+mockHooks.actor = () => String(currentCtx().profile?.full_name ?? "Staf");
 
 type Listener = (event: string, session: any) => void;
 const listeners = new Set<Listener>();
