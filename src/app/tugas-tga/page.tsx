@@ -105,7 +105,7 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
     try {
       const r = await tgaAssignPublic(code, d.userId || null, {
         assigned_by: d.by.trim(), kategori: d.kategori || "Lainnya", activity: d.activity, lokasi: d.lokasi,
-        prioritas: d.urgent ? "urgent" : "normal", request_by: d.reqName, requestor_id: d.reqId || null,
+        prioritas: d.urgent ? "urgent" : "normal", request_by: d.reqName, requestor_id: null,
         departemen: d.dept, request_phone: d.phone, catatan: d.catatan,
       });
       put(NAME_KEY, d.by.trim());
@@ -194,12 +194,11 @@ function AssignForm({ info, onInfo, code, themeBtn, onLogout, onCodeInvalid }: {
         <section className={s.sec}>
           <span className={s.label}><i>5</i> Requestor <span>{L("opsional · dari Data Karyawan", "optional · from Employee Data")}</span></span>
           <div className={s.reqWrap}>
-            <input className={s.input} value={d.reqName} onChange={(e) => setD((x) => ({ ...x, reqName: e.target.value, reqId: "" }))} placeholder="Ketik nama karyawan…" aria-label="Requestor" />
-            {d.reqId && <span className={s.linked}>{L("✓ data karyawan", "✓ employee data")}</span>}
+            <input className={s.input} value={d.reqName} onChange={(e) => setD((x) => ({ ...x, reqName: e.target.value, reqId: "" }))} placeholder={L("Ketik nama requestor (saran dari riwayat)", "Type the requestor name (suggestions from history)")} aria-label="Requestor" />
             {reqMatches.length > 0 && (
               <ul className={s.sugg}>
                 {reqMatches.map((e) => (
-                  <li key={e.id}><button type="button" onClick={() => setD((x) => ({ ...x, reqName: e.nama, reqId: e.id, dept: e.dept || x.dept }))}><b>{e.nama}</b><small>{e.dept}</small></button></li>
+                  <li key={e.nama}><button type="button" onClick={() => setD((x) => ({ ...x, reqName: e.nama, reqId: "dipilih", dept: e.dept || x.dept }))}><b>{e.nama}</b><small>{e.dept}</small></button></li>
                 ))}
               </ul>
             )}

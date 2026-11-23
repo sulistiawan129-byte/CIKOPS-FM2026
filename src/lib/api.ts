@@ -167,13 +167,42 @@ export async function getVehicles(plant?: Plant | null): Promise<Vehicle[]> {
   return (data ?? []) as unknown as Vehicle[];
 }
 
-export async function getEmployees(): Promise<Employee[]> {
+/** Saran nama requestor untuk form Penugasan: diambil dari RIWAYAT penugasan (bukan Master Karyawan).
+ *  Nama baru cukup diketik manual (nama + departemen); setelah tersimpan otomatis muncul sebagai saran. */
+export async function getRecentRequestors(): Promise<Employee[]> {
   const { data, error } = await supabase
-    .from("employees")
-    .select("id, nama, departement")
-    .order("nama", { ascending: true });
+    .from("tasks")
+    .select("requestor, departement")
+    .order("created_at", { ascending: false })
+    .limit(1500);
   if (error) throw error;
-  return data ?? [];
+  return dedupePeople(data ?? [], "requestor", "departement");
+}
+
+/** Saran requestor untuk modul TGA dari riwayat kegiatan TGA. */
+export async function getRecentTgaRequestors(): Promise<Employee[]> {
+  const { data, error } = await supabase
+    .from("tga_activities")
+    .select("request_by, departemen")
+    .order("created_at", { ascending: false })
+    .limit(1500);
+  if (error) throw error;
+  return dedupePeople(data ?? [], "request_by", "departemen");
+}
+
+/** Nama unik (tanpa membedakan huruf besar/kecil); yang terbaru dipakai untuk departemennya. */
+function dedupePeople(rows: Record<string, unknown>[], nameKey: string, deptKey: string): Employee[] {
+  const seen = new Set<string>();
+  const out: Employee[] = [];
+  for (const r of rows) {
+    const nama = String(r[nameKey] ?? "").trim();
+    if (!nama) continue;
+    const k = nama.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ id: `h:${k}`, nama, departement: String(r[deptKey] ?? "").trim() || null });
+  }
+  return out.sort((x, y) => x.nama.localeCompare(y.nama));
 }
 
 export async function getJobTypes(): Promise<JobType[]> {
@@ -2340,67 +2369,6 @@ export async function deleteDriver(id: string): Promise<void> {
       L("Penghapusan tidak diizinkan — akun Anda mungkin tidak memiliki hak akses admin untuk menghapus driver.", "Deletion is not allowed — your account may not have admin rights to delete drivers.")
     );
   }
-}
-
-export async function getAllEmployeesFull(): Promise<Employee[]> {
-  const { data, error } = await supabase.from("employees").select("*").order("nama", { ascending: true });
-  if (error) throw error;
-  return data ?? [];
-}
-
-export interface EmployeeInput {
-  nama: string;
-  departement: string | null;
-  nik?: string | null;
-}
-
-export async function addEmployee(input: EmployeeInput): Promise<void> {
-  const { error } = await supabase.from("employees").insert(input);
-  if (error) throw error;
-}
-
-export async function updateEmployee(id: string, input: EmployeeInput): Promise<void> {
-  const { data: updated, error } = await supabase.from("employees").update(input).eq("id", id).select("id");
-  if (!error && !updated?.length) throw noChangeError();
-  if (error) throw error;
-}
-
-export interface EmployeeDupPair { keepId: string; nama: string; keep: { nik: string; dept: string }; drop: { nik: string; dept: string }; result: { nik: string; dept: string } }
-export interface EmployeeDupGroup { nama: string; rows: { id: string; nik: string; dept: string }[] }
-
-function dupRpcError(e: { code?: string; message: string }): Error {
-  return new Error(e.code === "PGRST202" || e.code === "42883"
-    ? L("Fungsi pemeriksa dobel belum ada — jalankan supabase/04_aplikasi_lapangan.sql (bagian 053) di Supabase SQL Editor.", "The duplicate checker is missing — run supabase/04_aplikasi_lapangan.sql (section 053) in the Supabase SQL Editor.")
-    : e.message);
-}
-
-/** Pratinjau karyawan dobel: `auto` = pasangan yang aman digabung, `manual` = nama kembar yang harus dicek sendiri. Tidak mengubah data. */
-export async function previewEmployeeDuplicates(): Promise<{ auto: EmployeeDupPair[]; manual: EmployeeDupGroup[] }> {
-  const { data, error } = await supabase.rpc("employees_dedupe");
-  if (error) throw dupRpcError(error);
-  type Side = { nik?: unknown; dept?: unknown };
-  type RawGroup = { nama?: unknown; rows?: { id?: unknown; nik?: unknown; dept?: unknown }[] };
-  const d = (data ?? {}) as { auto?: { keep_id?: unknown; nama?: unknown; keep?: Side; drop?: Side; result?: Side }[]; manual?: RawGroup[] };
-  const t = (v: unknown) => (v == null ? "" : String(v));
-  return {
-    auto: (d.auto ?? []).map((x) => ({
-      keepId: t(x.keep_id), nama: t(x.nama),
-      keep: { nik: t(x.keep?.nik), dept: t(x.keep?.dept) }, drop: { nik: t(x.drop?.nik), dept: t(x.drop?.dept) }, result: { nik: t(x.result?.nik), dept: t(x.result?.dept) },
-    })),
-    manual: (d.manual ?? []).map((g) => ({ nama: t(g.nama), rows: (g.rows ?? []).map((r) => ({ id: t(r.id), nik: t(r.nik), dept: t(r.dept) })) })),
-  };
-}
-
-/** Gabungkan pasangan dobel yang dipilih (id baris yang dipertahankan). Mengembalikan jumlah yang tergabung. */
-export async function mergeEmployeeDuplicates(keepIds: string[]): Promise<number> {
-  const { data, error } = await supabase.rpc("employees_dedupe", { p_apply: keepIds });
-  if (error) throw dupRpcError(error);
-  return Number(((data ?? {}) as { merged?: number }).merged ?? 0);
-}
-
-export async function deleteEmployee(id: string): Promise<void> {
-  const { error } = await supabase.from("employees").delete().eq("id", id);
-  if (error) throw error;
 }
 
 export async function getAllJobTypesFull(): Promise<JobType[]> {

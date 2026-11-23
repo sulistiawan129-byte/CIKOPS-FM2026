@@ -75,6 +75,19 @@ function newActivity(db: MockDB, f: Row): Row {
 
 const empActive = (e: Row) => t(e.nama) !== "" && e.aktif !== false;
 const byNama = (a: Row, b: Row) => s(a.nama).localeCompare(s(b.nama));
+/** Saran requestor = RIWAYAT kegiatan TGA (nama unik, departemen terbaru) — tidak ada master karyawan (mirror SQL 13). */
+function recentRequestors(db: MockDB): { nama: string; dept: string }[] {
+  const seen = new Set<string>();
+  const out: { nama: string; dept: string }[] = [];
+  const rows = [...table(db, "tga_activities")].sort((x, y) => s2(y.created_at).localeCompare(s2(x.created_at)));
+  for (const r of rows) {
+    const nama = s2(r.request_by).trim(); const k = nama.toLowerCase();
+    if (!nama || seen.has(k)) continue;
+    seen.add(k); out.push({ nama, dept: s2(r.departemen).trim() });
+  }
+  return out.sort((x, y) => x.nama.localeCompare(y.nama));
+}
+const s2 = (v: unknown) => (v == null ? "" : String(v));
 const employeeOf = (db: MockDB, id: unknown) => table(db, "employees").find((e) => e.id === id);
 
 /** requestor_id → nama & departemen dari Data Karyawan. */
@@ -211,8 +224,7 @@ export const FIELD: Record<string, RpcHandler> = {
 
   tga_requestors: ({ p_token }, { db }) => {
     userOf(db, p_token);
-    return table(db, "employees").filter(empActive).sort(byNama)
-      .map((e) => ({ id: e.id, nama: e.nama, dept: e.departement ?? "", nik: e.nik ?? "", jabatan: e.jabatan ?? "" }));
+    return recentRequestors(db);
   },
 
   tga_push_subscribe: ({ p_token, p_endpoint, p_p256dh, p_auth, p_ua }, { db }) => {
@@ -411,7 +423,7 @@ export const FIELD: Record<string, RpcHandler> = {
         const busy = mine.filter((a) => a.status === "proses").sort((a, b) => s(b.accepted_at).localeCompare(s(a.accepted_at)));
         return { id: u.id, nama: u.nama, open: mine.filter((a) => OPEN.includes(a.status)).length, busy: busy.length > 0, busy_ref: busy[0]?.ref_no ?? null };
       }),
-      employees: table(db, "employees").filter(empActive).sort(byNama).map((e) => ({ id: e.id, nama: e.nama, dept: e.departement ?? "" })),
+      employees: recentRequestors(db),
     };
   },
 

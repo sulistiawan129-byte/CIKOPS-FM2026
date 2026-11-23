@@ -1,7 +1,6 @@
 "use client";
 
-/* DATA MASTER Receptionist — tiga CRUD terpisah:
-   • Karyawan  : tabel employees CIKOPS (+ email, no HP, jabatan, aktif — migrasi 033)
+/* DATA MASTER Receptionist — dua CRUD terpisah (tidak ada master karyawan; nama diketik manual):
    • Akun Wifi : akun dari IT (tambah / ubah / impor / nonaktifkan / hapus)
    • Driver    : tabel drivers CIKOPS yang sama → otomatis sinkron dengan menu Driver CIKOPS */
 
@@ -10,20 +9,19 @@ import { ModalPortal } from "@/components/ModalPortal";
 import { addDriver, deleteDriver, getAllDriversFull, resetDriverPin, updateDriver, type DriverInput } from "@/lib/api";
 import { DRIVER_TYPES, DRIVER_TYPE_COLOR, DRIVER_TYPE_LABEL, driverTypeOf } from "@/lib/duty";
 import type { Driver, DriverType, Plant } from "@/lib/types";
-import { deleteRcpEmployee, importRcpEmployees, saveRcpEmployee, type RcpEmployeeInput } from "@/lib/receptionist/api";
-import type { RcpEmployee, WifiAccount } from "@/lib/receptionist/model";
+import type { WifiAccount } from "@/lib/receptionist/model";
 import { Accounts } from "./RcpWifi";
 import { ExportButtons, col, hueOf, initialsOf } from "./shared";
 import r from "./receptionist.module.css";
 import { plantShort } from "@/lib/brand";
 
 import { L } from "@/lib/i18n";
-type Sub = "employees" | "wifi" | "drivers";
+type Sub = "wifi" | "drivers";
 
-export default function RcpData({ employees, accounts, reloadEmployees, reloadWifi }: {
-  employees: RcpEmployee[]; accounts: WifiAccount[]; reloadEmployees: () => Promise<void>; reloadWifi: () => Promise<void>;
+export default function RcpData({ accounts, reloadWifi }: {
+  accounts: WifiAccount[]; reloadWifi: () => Promise<void>;
 }) {
-  const [sub, setSub] = useState<Sub>("employees");
+  const [sub, setSub] = useState<Sub>("wifi");
   const [drivers, setDrivers] = useState<Driver[] | null>(null);
   const [drvErr, setDrvErr] = useState("");
   const loadDrivers = useCallback(async () => {
@@ -32,7 +30,6 @@ export default function RcpData({ employees, accounts, reloadEmployees, reloadWi
   useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
   const cards: { k: Sub; icon: string; title: string; desc: string; n: number | string; c: string }[] = [
-    { k: "employees", icon: "👥", title: L("Data Karyawan", "Employee Data"), get desc() { return L("Nama, departemen, email & no HP requestor", "Name, department, email & phone of the requestor"); }, n: employees.length, c: "var(--brand)" },
     { k: "wifi", icon: "📶", title: L("Data Akun Wifi", "Wifi Account Data"), get desc() { return L("Akun tamu dari IT & masa berlakunya", "Guest accounts from IT & their validity"); }, n: accounts.length, c: "var(--purple)" },
     { k: "drivers", icon: "🚘", title: L("Data Driver", "Driver Data"), desc: L("Sinkron dengan driver CIKOPS", "Synced with CIKOPS drivers"), n: drivers ? drivers.length : "…", c: "var(--green)" },
   ];
@@ -47,193 +44,9 @@ export default function RcpData({ employees, accounts, reloadEmployees, reloadWi
           </button>
         ))}
       </nav>
-      {sub === "employees" && <Employees rows={employees} reload={reloadEmployees} />}
       {sub === "wifi" && <Accounts accounts={accounts} reload={reloadWifi} />}
       {sub === "drivers" && <Drivers rows={drivers} error={drvErr} reload={loadDrivers} />}
     </>
-  );
-}
-
-/* ═════════════════ KARYAWAN ═════════════════ */
-const EMPTY_EMP: RcpEmployeeInput = { nama: "", nik: "", departement: "", email: "", noHp: "", jabatan: "", aktif: true };
-
-function Employees({ rows, reload }: { rows: RcpEmployee[]; reload: () => Promise<void> }) {
-  const [q, setQ] = useState("");
-  const [f, setF] = useState<"all" | "noEmail" | "inactive">("all");
-  const [dept, setDept] = useState("");
-  const [edit, setEdit] = useState<{ id: string | null; v: RcpEmployeeInput } | null>(null);
-  const [imp, setImp] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
-  const depts = useMemo(() => [...new Set(rows.map((x) => x.departement).filter(Boolean))].sort(), [rows]);
-  const withEmail = rows.filter((x) => x.email).length;
-  const list = rows.filter((x) =>
-    (f === "all" || (f === "noEmail" ? !x.email : !x.aktif)) && (!dept || x.departement === dept) &&
-    (!q || [x.nama, x.nik, x.departement, x.email, x.jabatan, x.noHp].join(" ").toLowerCase().includes(q.toLowerCase())));
-
-  async function toggle(x: RcpEmployee) {
-    setBusy(x.id);
-    try { await saveRcpEmployee(x.id, { ...x, aktif: !x.aktif }); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
-  }
-  async function del(x: RcpEmployee) {
-    if (!confirm(L(`Hapus karyawan "${x.nama}"?`, `Delete employee "${x.nama}"?`))) return;
-    try { await deleteRcpEmployee(x.id); await reload(); } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
-  }
-  return (
-    <section className={r.card}>
-      <div className={r.cardHead}>
-        <div><h2>{L("Data Karyawan", "Employee Data")}</h2><p>{L("Dipakai untuk mengisi email & departemen requestor secara otomatis. Tersimpan di master karyawan CIKOPS.", "Used to auto-fill the requestor email & department. Stored in the CIKOPS employee master.")}</p></div>
-        <span className={r.row}>
-          <ExportButtons rows={list} title={L("Data Karyawan", "Employee Data")} filename="Data_Karyawan" columns={[
-            col<RcpEmployee>("n", L("Nama", "Name"), (x) => x.nama), col<RcpEmployee>("nik", "NIK", (x) => x.nik), col<RcpEmployee>("d", L("Departemen", "Department"), (x) => x.departement),
-            col<RcpEmployee>("j", "Jabatan", (x) => x.jabatan), col<RcpEmployee>("e", "Email", (x) => x.email), col<RcpEmployee>("h", L("No HP", "Phone"), (x) => x.noHp),
-            col<RcpEmployee>("a", "Status", (x) => (x.aktif ? L("Aktif", "Active") : L("Nonaktif", "Inactive")))]} />
-          <button type="button" className={r.ghost} onClick={() => setImp(true)}>Impor</button>
-          <button type="button" className={`${r.btn} ${r.btnSm}`} onClick={() => setEdit({ id: null, v: { ...EMPTY_EMP } })}>{L("+ Karyawan", "+ Employee")}</button>
-        </span>
-      </div>
-      <div className={r.stats}>
-        <button type="button" className={r.stat} aria-pressed={f === "all"} onClick={() => setF("all")}><i /><b>{rows.length}</b>total</button>
-        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--green)" }} aria-pressed={false} onClick={() => setF("all")}><i /><b>{rows.length ? Math.round((withEmail / rows.length) * 100) : 0}%</b>punya email</button>
-        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--orange)" }} aria-pressed={f === "noEmail"} onClick={() => setF(f === "noEmail" ? "all" : "noEmail")}><i /><b>{rows.length - withEmail}</b>{L("belum ada email", "no email yet")}</button>
-        <button type="button" className={r.stat} style={{ ["--c" as string]: "var(--t3)" }} aria-pressed={f === "inactive"} onClick={() => setF(f === "inactive" ? "all" : "inactive")}><i /><b>{rows.filter((x) => !x.aktif).length}</b>{L("nonaktif", "inactive")}</button>
-      </div>
-      <div className={r.toolbar}>
-        <label className={r.search}><span>⌕</span><input className={r.input} value={q} onChange={(e) => setQ(e.target.value)} placeholder={L("Cari nama, NIK, email, departemen…", "Search name, NIK, email, department…")} /></label>
-        <select className={r.input} style={{ width: 220 }} value={dept} onChange={(e) => setDept(e.target.value)} aria-label={L("Departemen", "Department")}>
-          <option value="">{L("Semua departemen", "All departments")}</option>{depts.map((d) => <option key={d}>{d}</option>)}
-        </select>
-        <span className={r.mute} style={{ fontSize: 13 }}>{list.length} ditampilkan</span>
-      </div>
-      {list.length === 0 ? <p className={r.empty}>{rows.length ? L("Tidak ada yang cocok dengan filter.", "Nothing matches the filter.") : L("Belum ada data karyawan. Klik “+ Karyawan” atau “Impor”.", "No employee data yet. Click “+ Employee” or “Import”.")}</p> : (
-        <div className={r.tableBox}>
-          <table className={r.table}>
-            <thead><tr><th>{L("Karyawan", "Employee")}</th><th>{L("Departemen", "Department")}</th><th>Email</th><th>{L("No HP", "Phone")}</th><th>{L("Aktif", "Active")}</th><th /></tr></thead>
-            <tbody>
-              {list.slice(0, 400).map((x) => (
-                <tr key={x.id} className={`${r.clickRow} ${x.aktif ? "" : r.rowOff}`} onClick={() => setEdit({ id: x.id, v: { nama: x.nama, nik: x.nik, departement: x.departement, email: x.email, noHp: x.noHp, jabatan: x.jabatan, aktif: x.aktif } })}>
-                  <td><span className={r.who}><span className={r.avatar} style={{ ["--hue" as string]: hueOf(x.nama) }}>{initialsOf(x.nama)}</span><span><b>{x.nama}</b><small>{[x.jabatan, x.nik && `NIK ${x.nik}`].filter(Boolean).join(" · ") || "—"}</small></span></span></td>
-                  <td>{x.departement || <span className={r.mute}>–</span>}</td>
-                  <td>{x.email ? x.email : <span className={`${r.pill} ${r.pOrange}`}>belum ada</span>}</td>
-                  <td className={r.nowrap}>{x.noHp || <span className={r.mute}>–</span>}</td>
-                  <td onClick={(e) => e.stopPropagation()}><button type="button" role="switch" aria-checked={x.aktif} aria-label={L(`Aktif ${x.nama}`, `Active ${x.nama}`)} className={r.switch} disabled={busy === x.id} onClick={() => toggle(x)} /></td>
-                  <td className={r.num} onClick={(e) => e.stopPropagation()}><span className={r.rowActs}>
-                    <button type="button" className={r.link} onClick={() => setEdit({ id: x.id, v: { nama: x.nama, nik: x.nik, departement: x.departement, email: x.email, noHp: x.noHp, jabatan: x.jabatan, aktif: x.aktif } })}>{L("Ubah", "Edit")}</button>
-                    <button type="button" className={`${r.link} ${r.danger}`} onClick={() => del(x)}>{L("Hapus", "Delete")}</button>
-                  </span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {list.length > 400 && <p className={r.hint}>{L("Menampilkan 400 pertama — persempit dengan pencarian.", "Showing the first 400 — narrow down with search.")}</p>}
-        </div>
-      )}
-      {edit && <EmployeeModal init={edit} depts={depts} rows={rows} onClose={() => setEdit(null)} onSaved={async () => { setEdit(null); await reload(); }} />}
-      {imp && <EmployeeImport rows={rows} onClose={() => setImp(false)} reload={reload} />}
-    </section>
-  );
-}
-
-function EmployeeModal({ init, depts, rows, onClose, onSaved }: { init: { id: string | null; v: RcpEmployeeInput }; depts: string[]; rows: RcpEmployee[]; onClose: () => void; onSaved: () => Promise<void> }) {
-  const [v, setV] = useState(init.v);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const set = <K extends keyof RcpEmployeeInput>(k: K, x: RcpEmployeeInput[K]) => setV((o) => ({ ...o, [k]: x }));
-  const dup = rows.some((x) => x.id !== init.id && x.nama.trim().toLowerCase() === v.nama.trim().toLowerCase());
-  const badEmail = !!v.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email.trim());
-  const ok = v.nama.trim() && !badEmail && !busy;
-  async function save() {
-    if (!ok) return;
-    setBusy(true); setErr("");
-    try { await saveRcpEmployee(init.id, v); await onSaved(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); }
-  }
-  return (
-    <ModalPortal onOverlayClick={onClose} maxWidth={560}>
-      <form className={r.modal} onSubmit={(e) => { e.preventDefault(); save(); }} role="dialog" aria-modal="true" aria-labelledby="rcp-emp-title">
-        <div className={r.modalHead}>
-          <div className={r.who}><span className={r.avatar} style={{ ["--hue" as string]: hueOf(v.nama || "?"), width: 44, height: 44, fontSize: 15 }}>{initialsOf(v.nama)}</span>
-            <div><h2 id="rcp-emp-title">{init.id ? L("Ubah karyawan", "Edit employee") : L("Karyawan baru", "New employee")}</h2><p>{v.nama || L("Isi nama karyawan", "Enter the employee name")}</p></div></div>
-          <button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button>
-        </div>
-        <div className={r.form}>
-          <div className={r.section}>Identitas</div>
-          <label className={`${r.field} ${r.full}`}><span>{L("Nama lengkap *", "Full name *")}</span><input className={r.input} value={v.nama} onChange={(e) => set("nama", e.target.value)} autoFocus required />{dup && <small className={r.danger} style={{ fontSize: 12 }}>Nama ini sudah ada di data karyawan.</small>}</label>
-          <label className={r.field}><span>NIK</span><input className={r.input} value={v.nik} onChange={(e) => set("nik", e.target.value)} /></label>
-          <label className={r.field}><span>Jabatan</span><input className={r.input} value={v.jabatan} onChange={(e) => set("jabatan", e.target.value)} /></label>
-          <label className={`${r.field} ${r.full}`}><span>{L("Departemen", "Department")}</span><input className={r.input} list="rcp-depts" value={v.departement} onChange={(e) => set("departement", e.target.value)} /></label>
-          <datalist id="rcp-depts">{depts.map((d) => <option key={d} value={d} />)}</datalist>
-          <div className={r.section}>{L("Kontak", "Contact")} <em style={{ fontStyle: "normal", textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>— untuk email & WhatsApp bukti permintaan</em></div>
-          <label className={r.field}><span>Email</span><input className={r.input} type="email" value={v.email} onChange={(e) => set("email", e.target.value)} placeholder="nama@perusahaan.com" aria-invalid={badEmail} />{badEmail && <small className={r.danger} style={{ fontSize: 12 }}>Format email tidak valid.</small>}</label>
-          <label className={r.field}><span>No HP / WhatsApp</span><input className={r.input} inputMode="tel" value={v.noHp} onChange={(e) => set("noHp", e.target.value)} placeholder="08…" /></label>
-          <div className={`${r.field} ${r.full}`}><span>Status</span>
-            <label className={r.check}><button type="button" role="switch" aria-checked={v.aktif} className={r.switch} onClick={() => set("aktif", !v.aktif)} /> {v.aktif ? L("Aktif — muncul di saran nama", "Active — appears in name suggestions") : L("Nonaktif — tidak muncul di saran nama", "Inactive — hidden from name suggestions")}</label>
-          </div>
-        </div>
-        {err && <div className={r.err}>{err}</div>}
-        <div className={r.modalFoot}>
-          <span className={r.hint}>Tersimpan di master karyawan CIKOPS.</span><span className={r.grow} />
-          <button type="button" className={r.ghost} onClick={onClose}>{L("Batal", "Cancel")}</button>
-          <button type="submit" className={r.btn} disabled={!ok}>{busy ? L("Menyimpan…", "Saving…") : L("Simpan", "Save")}</button>
-        </div>
-      </form>
-    </ModalPortal>
-  );
-}
-
-function parseEmployees(text: string): (RcpEmployeeInput & { error?: string })[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (!lines.length) return [];
-  const split = (l: string) => (l.includes("\t") ? l.split("\t") : l.split(/[;,]/)).map((x) => x.trim().replace(/^"|"$/g, ""));
-  const head = split(lines[0]).map((x) => x.toLowerCase());
-  const find = (...k: string[]) => head.findIndex((h) => k.some((x) => h.includes(x)));
-  const hasHead = find("nama", "name", "email", "dept", "departemen") >= 0;
-  const c = hasHead
-    ? { n: find("nama", "name"), nik: find("nik", "id kar", "nip"), d: find("dept", "departemen", "divisi", "bagian"), j: find("jabatan", "posisi", "title"), e: find("email", "mail"), h: find("hp", "phone", "telp", "wa") }
-    : { n: 0, nik: -1, d: 1, j: -1, e: 2, h: 3 };
-  return lines.slice(hasHead ? 1 : 0).map((l) => {
-    const x = split(l); const g = (i: number) => (i >= 0 ? x[i] ?? "" : "");
-    const row = { nama: g(c.n), nik: g(c.nik), departement: g(c.d), jabatan: g(c.j), email: g(c.e).toLowerCase(), noHp: g(c.h), aktif: true } as RcpEmployeeInput & { error?: string };
-    if (!row.nama) row.error = "nama kosong";
-    else if (row.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.email)) row.error = "email tidak valid";
-    return row;
-  });
-}
-
-function EmployeeImport({ rows, onClose, reload }: { rows: RcpEmployee[]; onClose: () => void; reload: () => Promise<void> }) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  const parsed = useMemo(() => parseEmployees(text), [text]);
-  const ok = parsed.filter((x) => !x.error);
-  const known = new Set(rows.map((x) => x.nama.trim().toLowerCase()));
-  async function go() {
-    setBusy(true); setMsg("");
-    try { const res = await importRcpEmployees(ok, rows); await reload(); setMsg(`✓ ${res.created} karyawan baru, ${res.updated} dilengkapi.`); setText(""); }
-    catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
-  }
-  return (
-    <ModalPortal onOverlayClick={onClose} maxWidth={760}>
-      <div className={r.modal} role="dialog" aria-modal="true" aria-labelledby="rcp-empimp-title">
-        <div className={r.modalHead}><div><h2 id="rcp-empimp-title">{L("Impor data karyawan", "Import employee data")}</h2><p>Tempel dari Excel — nama yang sudah ada hanya dilengkapi (tidak ditimpa)</p></div><button type="button" className={r.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
-        <p className={r.hint}>Kolom yang dikenali: <b>{L("Nama", "Name")}</b>, <b>NIK</b>, <b>{L("Departemen", "Department")}</b>, <b>Jabatan</b>, <b>Email</b>, <b>{L("No HP", "Phone")}</b> (urutan bebas, dengan baris judul). Tanpa judul: nama, departemen, email, no HP.</p>
-        <textarea data-nocaps className={r.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={L("Nama\tDepartemen\tEmail\tNo HP\nBudi Santoso\tHR\tbudi@ffi.co.id\t0812…", "Name\tDepartment\tEmail\tPhone\nBudi Santoso\tHR\tbudi@ffi.co.id\t0812…")} />
-        {parsed.length > 0 && (
-          <div className={r.previewBox}>
-            <table className={r.table}>
-              <thead><tr><th>{L("Nama", "Name")}</th><th>{L("Departemen", "Department")}</th><th>Email</th><th>{L("No HP", "Phone")}</th><th /></tr></thead>
-              <tbody>{parsed.slice(0, 200).map((x, i) => (
-                <tr key={i}><td>{x.nama || "–"}</td><td>{x.departement}</td><td>{x.email}</td><td>{x.noHp}</td>
-                  <td>{x.error ? <span className={`${r.pill} ${r.pRed}`}>{x.error}</span> : known.has(x.nama.trim().toLowerCase()) ? <span className={`${r.pill} ${r.pBlue}`}>lengkapi</span> : <span className={`${r.pill} ${r.pGreen}`}>baru</span>}</td></tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-        {msg && <div className={msg.startsWith("✓") ? r.ok : r.err}>{msg}</div>}
-        <div className={r.modalFoot}>
-          <button type="button" className={r.ghost} onClick={onClose}>{L("Tutup", "Close")}</button>
-          <button type="button" className={r.btn} disabled={!ok.length || busy} onClick={go}>{busy ? "Mengimpor…" : `Impor ${ok.length} baris`}</button>
-        </div>
-      </div>
-    </ModalPortal>
   );
 }
 

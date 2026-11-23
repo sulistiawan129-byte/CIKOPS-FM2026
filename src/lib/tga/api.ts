@@ -56,7 +56,7 @@ export interface TgaDraft {
 
 export interface TgaMyData { nama: string; today: string; activities: TgaActivity[]; pool?: TgaActivity[]; month_count: number }
 /** Karyawan dari Data Karyawan (employees). id kosong bila 035 belum dijalankan. */
-export interface TgaRequestor { id?: string; nama: string; dept: string; nik?: string; jabatan?: string }
+export interface TgaRequestor { id?: string; nama: string; dept: string }
 
 export interface TgaUserRow {
   id: string;
@@ -188,7 +188,7 @@ export const tgaAdminDeleteActivity = (id: string) => rpc<null>("tga_admin_delet
 export interface TgaAssignConfig { aktif: boolean; has_code: boolean; updated_at: string | null; updated_by: string; locked: boolean; today: number }
 export const tgaAdminAssignConfig = () => rpc<TgaAssignConfig>("tga_admin_assign_config");
 export const tgaAdminSetAssignCode = (code: string, aktif: boolean) => rpc<null>("tga_admin_set_assign_code", { p_code: code, p_aktif: aktif });
-export interface TgaAssignInfo { technicians: { id: string; nama: string; open: number; busy?: boolean; busy_ref?: string }[]; employees: { id: string; nama: string; dept: string }[] }
+export interface TgaAssignInfo { technicians: { id: string; nama: string; open: number; busy?: boolean; busy_ref?: string }[]; employees: { id?: string; nama: string; dept: string }[] }
 /** Error kode (salah / terkunci / belum aktif) dikembalikan sebagai Error biasa. */
 export async function tgaAssignPublicInfo(code: string): Promise<TgaAssignInfo> {
   const r = await rpc<TgaAssignInfo & { error?: string }>("tga_assign_public_info", { p_code: code });

@@ -5,7 +5,7 @@ import { L } from "@/lib/i18n";
 import { useLang } from "@/lib/providers";
 import { ModalPortal } from "@/components/ModalPortal";
 import { SearchPick, type PickOption } from "@/components/SearchPick";
-import { getAllEmployeesFull, type MyProfile } from "@/lib/api";
+import { type MyProfile } from "@/lib/api";
 import {
   cardStatusLabel, csvEscape, fmtDate, logActionLabel, requestStatusLabel, tipeName, TIPES, TIPE_ICON, TIPE_LABEL, wibToday,
   type CardStatus, type CardTipe, type IdCard, type IdCardLog, type IdHandover, type IdRequest, type RequestStatus,
@@ -13,7 +13,7 @@ import {
 import { buildCardsPdf, cardContent, designKindOf, getDefaultDesign, preloadDesign, renderCard, type CardDesign, type DesignKind } from "@/lib/idcard/render";
 import { printHandoverReceipt, printRequestReceipt } from "@/lib/idcard/documents";
 import {
-  createHandover, createRequest, deleteHandover, deleteRequest, getCardCounts, getCardLogs, getCardsOfRequest, getDesigns, getHandovers, getRequests, type Designs,
+  createHandover, createRequest, deleteHandover, deleteRequest, getCardCounts, getCardLogs, getCardsOfRequest, getDesigns, getHandovers, getRecentPics, getRequests, type Designs,
   markPrinted, peekNextSeq, previewNumber, searchCards, setCardStatus, setRequestStatus,
 } from "@/lib/idcardApi";
 import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
@@ -421,7 +421,7 @@ function HandoverPane({ requests, handovers, prefill, clearPrefill, notify, onCh
   const [legacy, setLegacy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [emps, setEmps] = useState<PickOption[]>([]);
-  useEffect(() => { let alive = true; getAllEmployeesFull().then((l) => alive && setEmps(l.filter((e) => e.aktif !== false).map((e) => ({ key: e.id, name: e.nama, hint: `${e.nik ?? ""} ${e.departement ?? ""}`.trim() })))).catch(() => {}); return () => { alive = false; }; }, []);
+  useEffect(() => { let alive = true; getRecentPics().then((l) => { if (alive) setEmps(l); }).catch(() => {}); return () => { alive = false; }; }, []);
 
   const apply = useCallback((r: IdRequest) => {
     setPerusahaan(r.perusahaan); setPic(r.pic); setPhone(r.phone); setTipe(r.tipe); setJumlah(String(r.jumlah)); setFrom(r.cardFrom); setTo(r.cardTo); setRef(r.id); setLegacy(false);

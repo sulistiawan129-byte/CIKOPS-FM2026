@@ -16,6 +16,7 @@ import { notifyTgaTask } from "@/lib/push";
 import a from "./atk.module.css";
 import b from "./tgatasks.module.css";
 import { SearchPick } from "@/components/SearchPick";
+import { getRecentTgaRequestors } from "@/lib/api";
 
 type Lang = "id" | "en";
 interface Emp { id: string; nama: string; departement: string | null }
@@ -53,8 +54,7 @@ export default function TgaTasks({ lang, onChanged, tick = 0, presence }: { lang
   useEffect(() => {
     load();
     tgaAdminUsers().then((u) => setUsers(u.filter((x) => x.aktif))).catch(() => {});
-    supabase.from("employees").select("id, nama, departement").order("nama").limit(3000)
-      .then(({ data }) => setEmps(((data ?? []) as Emp[]).filter((e) => (e as unknown as { aktif?: boolean }).aktif !== false)));
+    getRecentTgaRequestors().then((l) => setEmps(l as Emp[])).catch(() => {});
     const id = setInterval(load, 30000);
     return () => clearInterval(id);
   }, [load]);
@@ -234,12 +234,11 @@ function AssignModal({ lang, initial, users, emps, presence, onClose, onSaved }:
         </div>
 
         <div className={a.fields2}>
-          <label className={a.field}><span>{L("Requestor (Data Karyawan)", "Requestor (employee)")}</span>
+          <label className={a.field}><span>{L("Requestor (nama)", "Requestor (name)")}</span>
             <SearchPick inputClassName={a.input} ariaLabel="Requestor" value={d.requestBy} onChange={pickRequestor}
               onPick={(o) => setD((x) => ({ ...x, requestBy: o.name, requestorId: o.key, departemen: o.hint ?? x.departemen }))}
-              placeholder={L("Cari nama karyawan…", "Search employee name…")} options={emps.map((e) => ({ key: e.id, name: e.nama, hint: e.departement ?? undefined }))} />
-            {d.requestBy && <small className={d.requestorId ? a.tGreen : a.mute}>{d.requestorId ? L("✓ terhubung ke data karyawan", "✓ linked to employee") : L("di luar data karyawan", "not in employee data")}</small>}
-          </label>
+              placeholder={L("Ketik nama requestor (saran dari riwayat)", "Type requestor name (suggestions from history)")} options={emps.map((e) => ({ key: e.id, name: e.nama, hint: e.departement ?? undefined }))} />
+                      </label>
           <label className={a.field}><span>{L("Departemen", "Department")}</span><input className={a.input} value={d.departemen} onChange={(e) => set("departemen", e.target.value)} /></label>
         </div>
         <div className={a.fields2}>

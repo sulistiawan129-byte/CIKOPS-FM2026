@@ -843,17 +843,12 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
   const [d, setD] = useState<TgaDraft>(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [picker, setPicker] = useState(false);
   const [more, setMore] = useState(Boolean(initial.catatan));
   const actRef = useRef<HTMLTextAreaElement>(null);
   const set = <K extends keyof TgaDraft>(k: K, v: TgaDraft[K]) => setD((x) => ({ ...x, [k]: v }));
   const cat = TGA_CATEGORIES.find((c) => c.id === d.kategori);
 
   // Requestor terhubung ke Data Karyawan? (tanpa id = 035 belum dijalankan → cocokkan nama)
-  const emp = d.requestor_id
-    ? requestors.find((r) => r.id === d.requestor_id) ?? { id: d.requestor_id, nama: d.request_by, dept: d.departemen }
-    : requestors.find((r) => !r.id && r.nama === d.request_by);
-
   async function submit() {
     if (!d.activity.trim()) { setErr(L("Isi dulu kegiatan yang dikerjakan.", "Enter the activity you worked on first.")); actRef.current?.focus(); return; }
     if (d.jam_mulai && d.jam_selesai && d.jam_selesai < d.jam_mulai) { setErr(L("Jam selesai lebih awal dari jam mulai.", "The end time is earlier than the start time.")); return; }
@@ -904,37 +899,17 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
         </section>
 
         <section className={s.fSec}>
-          <label className={s.fLabel}><span className={s.step}>4</span> Requestor <span className={s.opt}>{L("dari Data Karyawan", "from Employee Data")}</span></label>
-          {emp ? (
-            <div className={s.reqCard}>
-              <span className={s.avatar} style={{ ["--h" as string]: hueOf(emp.nama) }}>{initials(emp.nama)}</span>
-              <div className={s.reqInfo}>
-                <b>{emp.nama}</b>
-                <small>{[emp.jabatan, emp.dept || d.departemen].filter(Boolean).join(" · ") || "—"}</small>
-                <em className={s.reqLinked}>✓ Data karyawan{emp.nik ? ` · NIK ${emp.nik}` : ""}</em>
-              </div>
-              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>{L("Ganti", "Change")}</button>
-            </div>
-          ) : d.request_by ? (
-            <div className={`${s.reqCard} ${s.reqGuest}`}>
-              <span className={s.avatar} style={{ ["--h" as string]: 30 }}>{initials(d.request_by)}</span>
-              <div className={s.reqInfo}>
-                <b>{d.request_by}</b>
-                <input className={s.inputSm} placeholder={L("Perusahaan / departemen", "Company / department")} value={d.departemen} onChange={(e) => set("departemen", e.target.value)} />
-                <em className={s.reqOut}>{L("Di luar data karyawan", "Not in the employee data")}</em>
-              </div>
-              <button type="button" className={s.reqChange} onClick={() => setPicker(true)}>{L("Ganti", "Change")}</button>
-            </div>
-          ) : (
-            <button type="button" className={s.reqPick} onClick={() => setPicker(true)}>
-              <span>👤</span>
-              <span><b>{L("Pilih requestor", "Select requestor")}</b><small>{L("Cari nama, NIK, atau departemen karyawan", "Search by employee name, NIK or department")}</small></span>
-              <i>›</i>
-            </button>
-          )}
-          {(emp || d.request_by) && (
-            <button type="button" className={s.addNote} style={{ marginTop: 8 }} onClick={() => setD((x) => ({ ...x, request_by: "", requestor_id: null, departemen: "" }))}>✕ Kosongkan requestor</button>
-          )}
+          <label className={s.fLabel}><span className={s.step}>4</span> Requestor <span className={s.opt}>{L("ketik nama & departemen", "type name & department")}</span></label>
+          <div className={s.reqCard} style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+            <input className={s.inputSm} list="tga-req-names" autoComplete="off" placeholder={L("Nama requestor (saran dari riwayat)", "Requestor name (suggestions from history)")} value={d.request_by} maxLength={80}
+              onChange={(e) => {
+                const v = e.target.value;
+                const hit = requestors.find((r) => r.nama.trim().toLowerCase() === v.trim().toLowerCase());
+                setD((x) => ({ ...x, request_by: v, requestor_id: null, departemen: hit?.dept && !x.departemen.trim() ? hit.dept : x.departemen }));
+              }} />
+            <datalist id="tga-req-names">{requestors.slice(0, 300).map((r) => <option key={r.nama} value={r.nama}>{r.dept}</option>)}</datalist>
+            <input className={s.inputSm} placeholder={L("Departemen", "Department")} value={d.departemen} maxLength={80} onChange={(e) => set("departemen", e.target.value)} />
+          </div>
         </section>
 
         <section className={s.fSec}>
@@ -977,12 +952,6 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
         </section>
       </div>
 
-      {picker && (
-        <RequestorPicker requestors={requestors} error={reqErr} onRetry={onRetryReq} recentIds={recentReqIds} current={d.requestor_id}
-          onClose={() => setPicker(false)}
-          onPick={(r) => { setD((x) => ({ ...x, request_by: r.nama, requestor_id: r.id ?? null, departemen: r.dept || "" })); setPicker(false); }}
-          onGuest={(nama) => { setD((x) => ({ ...x, request_by: nama, requestor_id: null, departemen: x.requestor_id ? "" : x.departemen })); setPicker(false); }} />
-      )}
 
       <footer className={s.formFoot}>
         {err && <div className={s.errBox}>{err}</div>}
@@ -995,88 +964,6 @@ function FormSheet({ id, initial, today, recentLokasi, requestors, reqErr, onRet
 }
 
 /* ════════════ PILIH REQUESTOR (Data Karyawan) ════════════ */
-function RequestorPicker({ requestors, error, onRetry, recentIds, current, onClose, onPick, onGuest }: {
-  requestors: TgaRequestor[]; error: string | null; onRetry: () => void; recentIds: string[]; current: string | null;
-  onClose: () => void; onPick: (r: TgaRequestor) => void; onGuest: (nama: string) => void;
-}) {
-  const [q, setQ] = useState("");
-  const [dept, setDept] = useState("");
-  const depts = useMemo(() => {
-    const m = new Map<string, number>();
-    requestors.forEach((r) => { if (r.dept) m.set(r.dept, (m.get(r.dept) ?? 0) + 1); });
-    return [...m.entries()].sort((x, y) => y[1] - x[1]).map(([k]) => k);
-  }, [requestors]);
-  const needle = q.trim().toLowerCase();
-  const list = requestors.filter((r) => (!dept || r.dept === dept) &&
-    (!needle || [r.nama, r.nik, r.dept, r.jabatan].join(" ").toLowerCase().includes(needle)));
-  const recent = !needle && !dept ? recentIds.map((id) => requestors.find((r) => r.id === id)).filter((r): r is TgaRequestor => !!r) : [];
-  const exact = requestors.some((r) => r.nama.trim().toLowerCase() === needle);
-  const LIMIT = 120;
-
-  const Row = ({ r }: { r: TgaRequestor }) => (
-    <button type="button" className={`${s.empRow} ${r.id && r.id === current ? s.empOn : ""}`} onClick={() => onPick(r)}>
-      <span className={s.avatar} style={{ ["--h" as string]: hueOf(r.nama) }}>{initials(r.nama)}</span>
-      <span className={s.empInfo}>
-        <b>{r.nama}</b>
-        <small>{[r.jabatan, r.dept, r.nik && `NIK ${r.nik}`].filter(Boolean).join(" · ") || "—"}</small>
-      </span>
-      {r.id && r.id === current && <i className={s.empCheck}>✓</i>}
-    </button>
-  );
-
-  return (
-    <div className={s.pickerWrap}>
-      <header className={s.formHead}>
-        <button type="button" className={s.iconBtnDark} onClick={onClose} aria-label={L("Tutup", "Close")}>‹</button>
-        <div><b>{L("Pilih requestor", "Select requestor")}</b><small>{requestors.length} {L("karyawan · Data Karyawan", "employees · Employee Data")}</small></div>
-      </header>
-      <div className={s.pickerTop}>
-        <div className={s.searchBox}>
-          <span>⌕</span>
-          <input autoFocus placeholder={L("Cari nama, NIK, departemen…", "Search name, NIK, department…")} value={q} onChange={(e) => setQ(e.target.value)} />
-          {q && <button type="button" onClick={() => setQ("")} aria-label={L("Hapus pencarian", "Clear search")}>✕</button>}
-        </div>
-        {depts.length > 1 && (
-          <div className={s.chips}>
-            <button type="button" className={!dept ? s.chipOn : ""} onClick={() => setDept("")}>{L("Semua", "All")}</button>
-            {depts.map((x) => <button key={x} type="button" className={dept === x ? s.chipOn : ""} onClick={() => setDept(dept === x ? "" : x)}>{x}</button>)}
-          </div>
-        )}
-      </div>
-      <div className={s.pickerList}>
-        {recent.length > 0 && (
-          <>
-            <p className={s.pickerHead}>Sering meminta</p>
-            {recent.map((r) => <Row key={"r" + (r.id ?? r.nama)} r={r} />)}
-            <p className={s.pickerHead}>{L("Semua karyawan", "All employees")}</p>
-          </>
-        )}
-        {requestors.length === 0 && (error ? (
-          <div className={s.emptyBox}>
-            <b>{L("Gagal memuat data karyawan", "Failed to load employee data")}</b>
-            <small>{error}</small>
-            <button type="button" className={s.ghostBtn} style={{ marginTop: 10 }} onClick={onRetry}>⟳ {L("Coba lagi", "Try again")}</button>
-          </div>
-        ) : (
-          <div className={s.emptyBox}>
-            <b>{L("Memuat data karyawan…", "Loading employee data…")}</b>
-            <small>{L("Diambil dari Master Data Karyawan (sama dengan dashboard & driver).", "Taken from the Employee Master Data (same as the dashboard & driver).")}</small>
-          </div>
-        ))}
-        {list.slice(0, LIMIT).map((r) => <Row key={r.id ?? r.nama} r={r} />)}
-        {list.length > LIMIT && <p className={s.count} style={{ textAlign: "center", padding: 10 }}>+{list.length - LIMIT} {L("lainnya — ketik nama untuk mempersempit", "more — type a name to narrow down")}</p>}
-        {requestors.length > 0 && list.length === 0 && <p className={s.count} style={{ textAlign: "center", padding: 14 }}>{L("Tidak ada karyawan yang cocok.", "No matching employees.")}</p>}
-        {needle && !exact && (
-          <button type="button" className={s.guestBtn} onClick={() => onGuest(q.trim())}>
-            <span>＋</span>
-            <span><b>{L("Pakai", "Use")} &ldquo;{q.trim()}&rdquo;</b><small>{L("Tamu / vendor — di luar data karyawan", "Guest / vendor — not in the employee data")}</small></span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ════════════ SUKSES ════════════ */
 function Success({ a, isNew, onClose, onAnother }: { a: TgaActivity; isNew: boolean; onClose: () => void; onAnother: () => void }) {
   const c = tgaCategory(a.kategori);

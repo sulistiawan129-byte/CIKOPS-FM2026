@@ -3,7 +3,7 @@
 import { supabase } from "../supabaseClient";
 import { L } from "@/lib/i18n";
 import {
-  DEFAULT_SETTINGS, receiptUrl, type Contact, type ImportRow, type Parcel, type ParcelDirection, type RcpEmployee, type RcpSettings, type ReceiptData,
+  DEFAULT_SETTINGS, receiptUrl, type Contact, type ImportRow, type Parcel, type ParcelDirection, type RcpSettings, type ReceiptData,
   type RoomBooking, type Visitor, type WifiAccount, type WifiGrant, type WifiGrantResult, type WifiSuggestion,
 } from "./model";
 
@@ -172,65 +172,6 @@ export async function getReceipt(token: string): Promise<ReceiptData | null> {
   const { data, error } = await supabase.rpc("rcp_receipt", { p_token: token });
   if (error) throw friendly(error);
   return (data as ReceiptData | null) ?? null;
-}
-
-/* ── Data Karyawan (employees) ── */
-interface EmpRow { id: string; nama: string; nik: string | null; departement: string | null; email?: string | null; no_hp?: string | null; jabatan?: string | null; aktif?: boolean | null; created_at: string }
-export async function getRcpEmployees(): Promise<RcpEmployee[]> {
-  const { data, error } = await supabase.from("employees").select("*").order("nama");
-  if (error) throw friendly(error);
-  return ((data ?? []) as EmpRow[]).map((r) => ({ id: r.id, nama: r.nama, nik: r.nik ?? "", departement: r.departement ?? "", email: r.email ?? "", noHp: r.no_hp ?? "", jabatan: r.jabatan ?? "", aktif: r.aktif ?? true, createdAt: r.created_at }));
-}
-export type RcpEmployeeInput = Omit<RcpEmployee, "id" | "createdAt">;
-/** Pesan bila kolom migrasi 033 tidak dikenali — sertakan error asli supaya penyebabnya jelas. */
-const migration033Msg = (e: { code?: string; message?: string }) =>
-  e.code === "PGRST204"
-    ? `Kolom karyawan belum dikenali API Supabase (cache skema lama). Jalankan di SQL Editor:  notify pgrst, 'reload schema';  lalu coba lagi. Bila masih gagal, pastikan supabase/01_dasar.sql (bagian 033) sudah berhasil dijalankan. [${e.code}: ${e.message ?? ""}]`
-    : `Kolom email/no HP karyawan belum ada — jalankan supabase/01_dasar.sql (bagian 033) di Supabase SQL Editor. [${e.code ?? ""}: ${e.message ?? ""}]`;
-const empRow = (e: RcpEmployeeInput) => ({
-  nama: e.nama.trim(), nik: e.nik.trim() || null, departement: e.departement.trim() || null, email: e.email.trim().toLowerCase() || null,
-  no_hp: e.noHp.trim() || null, jabatan: e.jabatan.trim() || null, aktif: e.aktif,
-});
-const missingCol = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42703" || e.code === "PGRST204" || /column .* (does not exist|could not find)/i.test(e.message ?? ""));
-export async function saveRcpEmployee(id: string | null, e: RcpEmployeeInput): Promise<void> {
-  const row = { ...empRow(e), ...(id ? { updated_at: new Date().toISOString() } : {}) };
-  const { error } = id ? await supabase.from("employees").update(row).eq("id", id) : await supabase.from("employees").insert(row);
-  if (missingCol(error)) throw new Error(migration033Msg(error!));
-  if (error) throw friendly(error);
-}
-export async function importRcpEmployees(rows: RcpEmployeeInput[], existing: RcpEmployee[]): Promise<{ created: number; updated: number }> {
-  const byName = new Map(existing.map((x) => [x.nama.trim().toLowerCase(), x]));
-  let created = 0, updated = 0;
-  const inserts: ReturnType<typeof empRow>[] = [];
-  for (const r of rows) {
-    const hit = byName.get(r.nama.trim().toLowerCase());
-    if (hit) {
-      // hanya melengkapi kolom yang masih kosong, tidak menimpa data lama
-      const patch: Record<string, string> = {};
-      if (!hit.email && r.email) patch.email = r.email.trim().toLowerCase();
-      if (!hit.noHp && r.noHp) patch.no_hp = r.noHp.trim();
-      if (!hit.departement && r.departement) patch.departement = r.departement.trim();
-      if (!hit.nik && r.nik) patch.nik = r.nik.trim();
-      if (!hit.jabatan && r.jabatan) patch.jabatan = r.jabatan.trim();
-      if (Object.keys(patch).length) {
-        const { error } = await supabase.from("employees").update(patch).eq("id", hit.id);
-        if (missingCol(error)) throw new Error(migration033Msg(error!));
-        if (error) throw friendly(error);
-        updated++;
-      }
-    } else inserts.push(empRow(r));
-  }
-  for (let i = 0; i < inserts.length; i += 300) {
-    const { error } = await supabase.from("employees").insert(inserts.slice(i, i + 300));
-    if (missingCol(error)) throw new Error(migration033Msg(error!));
-    if (error) throw friendly(error);
-    created += inserts.slice(i, i + 300).length;
-  }
-  return { created, updated };
-}
-export async function deleteRcpEmployee(id: string): Promise<void> {
-  const { error } = await supabase.from("employees").delete().eq("id", id);
-  if (error) throw new Error(error.code === "23503" ? L("Karyawan ini sudah dipakai di data lain (mis. penugasan) — nonaktifkan saja.", "This employee is used in other data (e.g. assignments) — just deactivate them.") : friendly(error).message);
 }
 
 /* ── Data Akun Wifi (tambah / ubah satu per satu) ── */
