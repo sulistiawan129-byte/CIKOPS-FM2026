@@ -10,10 +10,10 @@
 import { SettingsGroup, SettingsPage } from "@/components/settings/Settings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MyProfile } from "@/lib/api";
-import { getBookings, getContacts, getRcpEmployees, getParcels, getRcpSettings, getVisitors, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
+import { getBookings, getContacts, getParcels, getRcpSettings, getVisitors, getWifiAccounts, getWifiGrants, saveRcpSettings } from "@/lib/receptionist/api";
 import {
   DEFAULT_SETTINGS, addDays, addMonths, toMin, todayISO, wibDay,
-  type Contact, type Parcel, type RcpEmployee, type RcpSettings, type RoomBooking, type Visitor, type WifiAccount, type WifiGrant } from "@/lib/receptionist/model";
+  type Contact, type Parcel, type RcpSettings, type RoomBooking, type Visitor, type WifiAccount, type WifiGrant } from "@/lib/receptionist/model";
 import RcpWifi from "./RcpWifi";
 import RcpParcels from "./RcpParcels";
 import RcpRoom from "./RcpRoom";
@@ -38,7 +38,6 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [visError, setVisError] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [employees, setEmployees] = useState<RcpEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // hari yang dilihat: null = "ikut hari ini" (otomatis berganti saat lewat tengah malam WIB), selain itu tanggal pilihan pengguna
@@ -84,7 +83,6 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
       const [s] = await Promise.all([getRcpSettings(), loadWifi(), loadParcels(), loadRange(), loadContacts()]);
       setSettings(s);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setLoading(false); }
-    getRcpEmployees().then(setEmployees).catch(() => {});
   }, [loadWifi, loadParcels, loadRange, loadContacts]);
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -117,13 +115,12 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
 
   const goTo = useCallback((v: View, o?: { parcelDir?: "in" | "out" }) => { if (o?.parcelDir) setParcelDir(o.parcelDir); setView(v); }, []);
 
-  const dir: Directory = useMemo(() => ({ contacts, employees }), [contacts, employees]);
+  const dir: Directory = useMemo(() => ({ contacts }), [contacts]);
   const reloadWifi = useCallback(async () => { await Promise.all([loadWifi(), loadContacts()]); }, [loadWifi, loadContacts]);
   const reloadParcels = useCallback(async () => { await Promise.all([loadParcels(), loadContacts()]); }, [loadParcels, loadContacts]);
 
   const waiting = parcels.filter((p) => p.status === "waiting").length;
   const insideNow = visitors.filter((v) => v.visitDate === today && !v.checkedOutAt).length;
-  const reloadEmployees = useCallback(async () => { setEmployees(await getRcpEmployees()); }, []);
   const TABS: [View, string, number?][] = [["dashboard", "Dashboard"], ["visitors", L("Tamu", "Visitors"), insideNow], ["wifi", "Wifi Guest"], ["parcels", L("Barang & Surat", "Items & Mail"), waiting], ["room", settings.roomName], ["data", L("Data Master", "Master Data")], ["settings", L("Pengaturan", "Settings")]];
 
   return (
@@ -154,7 +151,7 @@ export default function ReceptionistTab({ myProfile }: { myProfile: MyProfile | 
       {view === "wifi" && <RcpWifi settings={settings} accounts={accounts} grants={grants} dir={dir} reload={reloadWifi} />}
       {view === "parcels" && <RcpParcels parcels={parcels} dir={dir} reload={reloadParcels} day={day} setDay={setDay} dirFilter={parcelDir} setDirFilter={setParcelDir} />}
       {view === "room" && <RcpRoom settings={settings} dir={dir} onChanged={() => loadRange().catch(() => {})} />}
-      {view === "data" && <RcpData employees={employees} accounts={accounts} reloadEmployees={reloadEmployees} reloadWifi={reloadWifi} />}
+      {view === "data" && <RcpData accounts={accounts} reloadWifi={reloadWifi} />}
       {view === "settings" && <Settings settings={settings} onSaved={(s) => setSettings(s)} />}
 
       {vm && (

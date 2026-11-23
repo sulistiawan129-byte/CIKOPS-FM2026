@@ -2,8 +2,7 @@
    (select + embed, filter, order, range, insert/update/upsert/delete, count). */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { MockError, mockHooks, nowIso, table, uuid, type MockDB, type Row } from "./core";
-import { lockerKeyAudit } from "./rpc/lockerkeys";
+import { MockError, nowIso, table, uuid, type MockDB, type Row } from "./core";
 import { readView, VIEWS } from "./views";
 
 /** Relasi untuk embed `tabel(kolom…)`: "<tabel asal>.<tabel embed>" → kolom FK di tabel asal */
@@ -11,7 +10,6 @@ const REL: Record<string, string> = {
   "vehicle_gate_logs.vehicles": "vehicle_id",
   "vehicle_gate_logs.drivers": "driver_id",
   "printer_requests.printers": "printer_id",
-  "gift_registrations.gift_events": "event_id",
   "rcp_wifi_grants.rcp_wifi_accounts": "account_id",
   "claims.drivers": "driver_id",
   "tasks.drivers": "driver_id",
@@ -32,14 +30,12 @@ const DEFAULTS: Record<string, Row> = {
   employee_requests: { status: "PENDING", details: {} },
   lockers: { status: "Available" },
   idcard_settings: { design: {} },
-  locker_keys: { row_no: 0, pintu: "", nama: "", nik: "", dept: "", no_kunci: "", status: "Kosong", borrowed_by: "", borrowed_at: null, keterangan: "", slot: null },
   rcp_parcels: { status: "waiting", handed_to: "", handed_by: "" },
   drivers: { aktif: true, driver_type: "operational" },
   vehicles: { aktif: true },
   employees: { aktif: true },
   announcements: { is_active: true },
   printers: { aktif: true },
-  gift_events: { status: "open", items: [] },
   driver_claim_requests: { status: "menunggu", items: [] },
   tga_activities: { status: "selesai", prioritas: "normal", sumber: "mandiri", catatan: "" },
 };
@@ -246,16 +242,13 @@ export class MockQuery implements PromiseLike<{ data: any; error: any; count: nu
           affected.push(row);
         }
       }
-      if (this.name === "locker_keys") for (const r of affected) lockerKeyAudit(db, "insert", null, r, mockHooks.actor());
       this.onWrite();
     } else if (this.action === "update") {
       affected = rows.filter((r) => this.match_(r));
-      const before = this.name === "locker_keys" ? affected.map((r) => ({ ...r })) : [];
-      affected.forEach((r, i) => { Object.assign(r, this.patch); if (before[i]) lockerKeyAudit(db, "update", before[i], r, mockHooks.actor()); });
+      affected.forEach((r) => { Object.assign(r, this.patch); });
       if (affected.length) this.onWrite();
     } else if (this.action === "delete") {
       affected = rows.filter((r) => this.match_(r));
-      if (this.name === "locker_keys") for (const r of affected) lockerKeyAudit(db, "delete", r, null, mockHooks.actor());
       if (affected.length) { const keep = rows.filter((r) => !affected.includes(r)); rows.length = 0; rows.push(...keep); this.onWrite(); }
     } else {
       affected = rows.filter((r) => this.match_(r));

@@ -8,7 +8,7 @@ import Icon from "@/components/Icon";
 
 /**
  * Tombol "Kembali" + "Home" melayang di pojok kiri-bawah untuk semua halaman
- * mandiri (gate, request, canteen, locker, gift, dst).
+ * mandiri (gate, request, canteen, locker, dst).
  * Tidak tampil di halaman yang sudah punya navigasi sendiri:
  * dashboard (back bar per modul), dashboard-viewonly (header), driver & root,
  * dan /bukti (bukti permintaan yang dibuka requestor dari tautan).

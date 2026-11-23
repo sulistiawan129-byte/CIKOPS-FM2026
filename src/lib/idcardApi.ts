@@ -39,6 +39,21 @@ export async function getRequests(): Promise<IdRequest[]> {
   return out;
 }
 
+/** Saran nama penerima (PIC) dari RIWAYAT pengajuan ID Card — bukan dari Master Karyawan. Nama baru cukup diketik manual. */
+export async function getRecentPics(): Promise<{ key: string; name: string; hint?: string }[]> {
+  const { data, error } = await supabase.from("idcard_requests").select("pic, perusahaan").order("created_at", { ascending: false }).limit(1500);
+  if (error) throw wrap(error);
+  const seen = new Set<string>();
+  const out: { key: string; name: string; hint?: string }[] = [];
+  for (const r of data ?? []) {
+    const name = String(r.pic ?? "").trim(); const k = name.toLowerCase();
+    if (!name || seen.has(k)) continue;
+    seen.add(k);
+    out.push({ key: `h:${k}`, name, hint: String(r.perusahaan ?? "").trim() || undefined });
+  }
+  return out.sort((x, y) => x.name.localeCompare(y.name));
+}
+
 /** Nomor berikutnya yang akan diberikan (hanya perkiraan untuk pratinjau; nomor sebenarnya dibuat database saat disimpan). */
 export async function peekNextSeq(tipe: CardTipe): Promise<number> {
   const { data, error } = await supabase.from("idcard_counters").select("last_seq").eq("day", tipe === "R" ? COUNTER_DAY_TR : wibToday()).eq("series", seriesOf(tipe)).maybeSingle();

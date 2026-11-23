@@ -1,4 +1,4 @@
-/* MOCK BACKEND — RPC modul facility: ATK, Locker, Gift, Printer, Receptionist,
+/* MOCK BACKEND — RPC modul facility: ATK, Locker, Printer, Receptionist,
    Cleaning & Gardening (GA). Meniru fungsi SQL di supabase/01_dasar.sql,
    02_peran_keamanan.sql & 04_aplikasi_lapangan.sql (definisi TERAKHIR yang dipakai). */
 
@@ -148,101 +148,6 @@ const ATK: Record<string, RpcHandler> = {
     const manual = empDupGroups(ctx.db).manual.slice(0, 300).map((rows) => ({ nama: rows[0].nama, rows: rows.map((r) => ({ id: r.id, nik: r.nik, dept: r.departement })) }));
     return { auto, manual, merged };
   },
-  atk_web_request(a, ctx) {
-    const by = atkStaff(ctx);
-    if (!s(a.p_nama)) fail("Nama pemohon wajib diisi.");
-    if (!arr(a.p_items).length) fail("Pilih minimal 1 barang.");
-    const tanggal = s(a.p_tanggal) || todayWib();
-    const id = atkNewId(ctx, "REQ", tanggal, "req");
-    const itemsT = table(ctx.db, "atk_items");
-    const lines = groupItems(a.p_items);
-    for (const r of lines) {
-      if (!Number.isFinite(r.jumlah) || r.jumlah <= 0) fail(`Jumlah untuk ${r.kode} harus lebih dari 0.`);
-      const it = itemsT.find((i) => i.kode_barang === r.kode);
-      if (!it) fail(`Barang ${r.kode} tidak ditemukan.`);
-      if (num(it!.stok) < r.jumlah) fail(`Stok ${it!.nama_barang} tidak cukup (sisa ${num(it!.stok)}, diminta ${r.jumlah}).`);
-    }
-    const now = nowIso();
-    for (const r of lines) {
-      const it = itemsT.find((i) => i.kode_barang === r.kode)!;
-      table(ctx.db, "atk_requests").push({
-        id: uuid(), request_id: id, tanggal, nama: s(a.p_nama), nik: s(a.p_nik), departemen: s(a.p_departemen),
-        kode_barang: it.kode_barang, nama_barang: it.nama_barang, jumlah: r.jumlah, satuan: it.satuan ?? "", created_at: now,
-        helper: s(a.p_helper), source: "web", excel_pulled_at: null, created_by: by,
-      });
-      it.stok = num(it.stok) - r.jumlah; it.updated_at = now;
-    }
-    return id;
-  },
-  atk_web_restock(a, ctx) {
-    return atkRestock(ctx, atkStaff(ctx), a);
-  },
-  atk_web_add_item(a, ctx) {
-    const by = atkStaff(ctx);
-    const kode = s(a.p_kode).toUpperCase();
-    const nama = s(a.p_nama);
-    if (!kode || !nama) fail("Kode dan nama barang wajib diisi.");
-    const itemsT = table(ctx.db, "atk_items");
-    if (itemsT.some((i) => s(i.kode_barang).toUpperCase() === kode)) fail(`Kode ${kode} sudah dipakai.`);
-    if (itemsT.some((i) => s(i.nama_barang).toLowerCase() === nama.toLowerCase())) fail(`Nama barang "${nama}" sudah ada.`);
-    itemsT.push({
-      id: uuid(), kode_barang: kode, nama_barang: nama, satuan: s(a.p_satuan), stok: 0,
-      min_stok: Math.max(a.p_min_stok == null ? 5 : num(a.p_min_stok, 5), 0), source: "web", excel_pulled_at: null,
-      created_by: by, created_at: nowIso(), updated_at: nowIso(),
-    });
-    if (num(a.p_stok_awal) > 0) {
-      atkRestock(ctx, by, { p_tanggal: todayWib(), p_nama: by, p_nik: "", p_departemen: "Stok awal", p_items: [{ kode, jumlah: num(a.p_stok_awal) }] });
-    }
-    return kode;
-  },
-  atk_web_set_min_stok(a, ctx) {
-    atkStaff(ctx);
-    const it = table(ctx.db, "atk_items").find((i) => i.kode_barang === a.p_kode);
-    if (!it) fail(`Barang ${a.p_kode} tidak ditemukan.`);
-    it!.min_stok = Math.max(num(a.p_min), 0);
-    return null;
-  },
-  atk_web_cancel(a, ctx) {
-    atkStaff(ctx);
-    const ref = s(a.p_ref);
-    const itemsT = table(ctx.db, "atk_items");
-    const sumBy = (rows: Row[]) => {
-      const m = new Map<string, number>();
-      rows.forEach((r) => m.set(r.kode_barang, (m.get(r.kode_barang) ?? 0) + num(r.jumlah)));
-      return m;
-    };
-    let n = 0;
-    if (a.p_kind === "request") {
-      const t = table(ctx.db, "atk_requests");
-      const rows = t.filter((r) => r.request_id === ref);
-      if (rows.some((r) => r.source !== "web" || r.excel_pulled_at)) fail("Transaksi ini sudah ada di Excel — batalkan/koreksi dari Excel.");
-      for (const [kode, j] of sumBy(rows)) {
-        const it = itemsT.find((i) => i.kode_barang === kode);
-        if (it) { it.stok = num(it.stok) + j; it.updated_at = nowIso(); }
-      }
-      n = rows.length;
-      setRows(ctx.db, "atk_requests", t.filter((r) => r.request_id !== ref));
-    } else if (a.p_kind === "restock") {
-      const t = table(ctx.db, "atk_restocks");
-      const rows = t.filter((r) => r.update_id === ref);
-      if (rows.some((r) => r.source !== "web" || r.excel_pulled_at)) fail("Transaksi ini sudah ada di Excel — batalkan/koreksi dari Excel.");
-      const sums = sumBy(rows);
-      for (const [kode, j] of sums) {
-        const it = itemsT.find((i) => i.kode_barang === kode);
-        if (it && num(it.stok) < j) fail(`Tidak bisa dibatalkan: stok ${it.nama_barang} tinggal ${num(it.stok)}, sudah terpakai.`);
-      }
-      for (const [kode, j] of sums) {
-        const it = itemsT.find((i) => i.kode_barang === kode);
-        if (it) { it.stok = num(it.stok) - j; it.updated_at = nowIso(); }
-      }
-      n = rows.length;
-      setRows(ctx.db, "atk_restocks", t.filter((r) => r.update_id !== ref));
-    } else {
-      fail("Jenis transaksi tidak dikenal.");
-    }
-    if (n === 0) fail(`Transaksi ${ref} tidak ditemukan.`);
-    return n;
-  },
   atk_sync_status(_a, ctx) {
     atkStaff(ctx);
     const c = atkConfig(ctx);
@@ -354,68 +259,6 @@ const LOCKER: Record<string, RpcHandler> = {
     }
     if (a.p_answer !== "no") fail("Jawaban tidak valid.");
     return [{ ...doRelease(l!, "user-confirm"), kept: false }];
-  },
-};
-
-/* ════════════════ GIFT ════════════════ */
-const MOCK_SEED_PASSCODE = "123456";
-function giftRow(ctx: MockCtx, r: Row, mask = false): Row {
-  const ev = table(ctx.db, "gift_events").find((e) => e.id === r.event_id);
-  const nik = s(r.nik);
-  return {
-    id: r.id, event_id: r.event_id, event_name: ev?.name ?? "",
-    nik: mask && nik.length > 4 ? "•".repeat(nik.length - 4) + nik.slice(-4) : r.nik,
-    nama: r.nama, departemen: r.departemen, email: mask ? "" : r.email ?? "",
-    sequence_no: r.sequence_no ?? "", lokasi_pengambilan: r.lokasi_pengambilan ?? "",
-    jumlah_tiket: r.jumlah_tiket ?? null, anak_dibawah_2_tahun: r.anak_dibawah_2_tahun ?? null, status_kehadiran: r.status_kehadiran ?? null,
-    selections: r.selections ?? [], claimed: !!r.claimed, claimed_at: r.claimed_at ?? null, claimed_by: r.claimed_by ?? null,
-    registered_at: r.registered_at,
-  };
-}
-const giftRegs = (ctx: MockCtx) => table(ctx.db, "gift_registrations");
-
-const GIFT: Record<string, RpcHandler> = {
-  create_gift_registration(a, ctx) {
-    if (!table(ctx.db, "gift_events").some((e) => e.id === a.p_event_id && e.status === "open")) return [{ success: false, error_code: "EVENT_CLOSED" }];
-    if (giftRegs(ctx).some((r) => r.event_id === a.p_event_id && s(r.nik) === s(a.p_nik))) return [{ success: false, error_code: "ALREADY_REGISTERED" }];
-    giftRegs(ctx).push({
-      id: uuid(), event_id: a.p_event_id, nik: s(a.p_nik), nama: s(a.p_nama), departemen: s(a.p_departemen), email: s(a.p_email).toLowerCase(),
-      selections: arr(a.p_selections), passcode_hash: "mock", passcode: s(a.p_passcode),
-      claimed: false, claimed_at: null, claimed_by: null, registered_at: nowIso(),
-    });
-    return [{ success: true, error_code: "" }];
-  },
-  verify_gift_passcode(a, ctx) {
-    const p = s(a.p_passcode);
-    if (p.replace(/\D/g, "").length < 4) fail("Passcode tidak valid.", "22023");
-    const hits = giftRegs(ctx).filter((r) =>
-      r.passcode != null && r.passcode !== "" ? s(r.passcode) === p : !!r.passcode_hash && p === MOCK_SEED_PASSCODE);
-    // passcode seed demo cocok ke banyak baris → utamakan yang belum diambil
-    hits.sort((x, y) => Number(!!x.claimed) - Number(!!y.claimed));
-    table(ctx.db, "gift_verify_attempts").push({ at: nowIso(), ok: hits.length > 0 });
-    return hits.map((r) => giftRow(ctx, r, true));
-  },
-  find_gift_registration_by_nik(a, ctx) {
-    const nik = s(a.p_nik).toLowerCase();
-    if (!nik) return [];
-    return giftRegs(ctx).filter((r) => r.event_id === a.p_event_id && s(r.nik).toLowerCase() === nik).slice(0, 1).map((r) => giftRow(ctx, r));
-  },
-  find_gift_registrations_by_name(a, ctx) {
-    const q = s(a.p_name).toLowerCase();
-    if (q.length < 2) return [];
-    return giftRegs(ctx).filter((r) => r.event_id === a.p_event_id && s(r.nama).toLowerCase().includes(q))
-      .sort((x, y) => s(x.nama).localeCompare(s(y.nama))).slice(0, 50).map((r) => giftRow(ctx, r));
-  },
-  find_gift_registration_by_sequence_no(a, ctx) {
-    const no = s(a.p_no);
-    if (!no) return [];
-    return giftRegs(ctx).filter((r) => r.event_id === a.p_event_id && s(r.sequence_no) === no).map((r) => giftRow(ctx, r));
-  },
-  claim_gift_registration(a, ctx) {
-    const r = giftRegs(ctx).find((x) => x.id === a.p_id);
-    if (!r || r.claimed) return false;
-    r.claimed = true; r.claimed_at = nowIso(); r.claimed_by = s(a.p_claimed_by) || "Petugas";
-    return true;
   },
 };
 
@@ -1168,4 +1011,4 @@ const CANTEEN_MENU: Record<string, RpcHandler> = {
   },
 };
 
-export const FACILITY: Record<string, RpcHandler> = { ...CANTEEN_MENU, ...ATK, ...LOCKER, ...GIFT, ...PRINTER, ...RECEPTIONIST, ...GA };
+export const FACILITY: Record<string, RpcHandler> = { ...CANTEEN_MENU, ...ATK, ...LOCKER, ...PRINTER, ...RECEPTIONIST, ...GA };

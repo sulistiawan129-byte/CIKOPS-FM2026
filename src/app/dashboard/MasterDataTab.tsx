@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import styles from "./dashboard.module.css";
 import { ModalPortal } from "@/components/ModalPortal";
-import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllEmployeesFull, previewEmployeeDuplicates, mergeEmployeeDuplicates, type EmployeeDupPair, type EmployeeDupGroup, addEmployee, updateEmployee, deleteEmployee, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
+import { type MyProfile, getAllDriversFull, addDriver, updateDriver, deleteDriver, sendDriverCredentials, type DriverInput, getAllJobTypesFull, addJobType, updateJobType, deleteJobType, getAppSetting, setAppSetting, getDriverTiers } from "@/lib/api";
 import type { Plant, DriverTier } from "@/lib/types";
 import type { DriverType } from "@/lib/types";
 import { getUserDutyStatus, isUserDriver, useNowTick, dutyHoursLabel, driverTypeOf, DRIVER_TYPES, DRIVER_TYPE_LABEL, DRIVER_TYPE_COLOR } from "@/lib/duty";
@@ -23,12 +23,12 @@ export function MasterDataTab({
   restrictedToDriversOnly = false,
   myProfile = null,
 }: {
-  initialSub?: "drivers" | "employees" | "jobtypes";
+  initialSub?: "drivers" | "jobtypes";
   restrictedToDriversOnly?: boolean;
   myProfile?: MyProfile | null;
 }) {
   const { lang } = useLang();
-   const [sub, setSub] = useState<"drivers" | "employees" | "jobtypes" | "settings">(
+   const [sub, setSub] = useState<"drivers" | "jobtypes" | "settings">(
    restrictedToDriversOnly ? "drivers" : initialSub
    );
 
@@ -36,21 +36,19 @@ export function MasterDataTab({
 
   const subTabs = ([
     { id: "drivers", label: lang === "en" ? "Drivers" : "Driver", icon: "🧑‍✈️" },
-    { id: "employees", label: lang === "en" ? "Employees" : "Pegawai", icon: "👤" },
     { id: "jobtypes", label: lang === "en" ? "Job Types" : "Jenis Pekerjaan", icon: "🧰" },
     { id: "settings", label: lang === "en" ? "Settings" : "Pengaturan", icon: "⚙️" },
-  ] as const).filter((s) => !restrictedToDriversOnly || s.id === "drivers" || s.id === "employees");
+  ] as const).filter((s) => !restrictedToDriversOnly || s.id === "drivers");
   return (
     <ModulePage>
       <ModuleHeader
         kicker={lang === "en" ? "System · Master Data" : "Sistem · Master Data"}
         title="Master Data"
-        desc={lang === "en" ? "Shared reference data for all modules: drivers, employees (also used by Receptionist & the TGA app), job types, and app settings." : "Data acuan bersama untuk semua modul: driver, pegawai (dipakai juga oleh Receptionist & aplikasi TGA), jenis pekerjaan, dan pengaturan aplikasi."}
+        desc={lang === "en" ? "Shared reference data for all modules: drivers, job types, and app settings. Employee names are typed manually in each form (no employee master)." : "Data acuan bersama untuk semua modul: driver, jenis pekerjaan, dan pengaturan aplikasi. Nama karyawan diketik manual di tiap form (tidak ada master karyawan)."}
       />
       <ModuleTabs tabs={subTabs.map((x) => ({ ...x }))} value={sub} onChange={(v) => setSub(v)} />
 
       {sub === "drivers" && <DriversMasterPanel cardStyle={cardStyle} myProfile={myProfile} />}
-      {sub === "employees" && <EmployeesMasterPanel cardStyle={cardStyle} />}
       {sub === "jobtypes" && <JobTypesMasterPanel cardStyle={cardStyle} />}
       {sub === "settings" && <SettingsPanel cardStyle={cardStyle} />}
     </ModulePage>
@@ -563,123 +561,6 @@ function DriversMasterPanel({ cardStyle, myProfile = null }: { cardStyle: CSSPro
 interface EmployeeRow extends Record<string, unknown> { id: string; nama: string; nik: string; departement: string }
 interface JobTypeRow extends Record<string, unknown> { id: string; label: string }
 
-/* ── Pegawai (dipakai Receptionist, aplikasi TGA & permintaan karyawan) ── */
-function EmployeesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
-  void cardStyle;
-  const [rows, setRows] = useState<EmployeeRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    try { setRows((await getAllEmployeesFull()).map((e) => ({ id: e.id, nama: e.nama, nik: e.nik ?? "", departement: e.departement ?? "" }))); setError(null); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); setRows([]); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  /* ── Karyawan dobel (hasil penggabungan lama): pratinjau dulu, baru gabung yang dipilih ── */
-  const [dup, setDup] = useState<{ auto: EmployeeDupPair[]; manual: EmployeeDupGroup[] } | null>(null);
-  const [dupSel, setDupSel] = useState<Set<string>>(new Set());
-  const [dupBusy, setDupBusy] = useState(false);
-  const [dupMsg, setDupMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  async function checkDup() {
-    setDupBusy(true); setDupMsg(null);
-    try {
-      const d = await previewEmployeeDuplicates();
-      setDup(d); setDupSel(new Set(d.auto.map((p) => p.keepId)));
-      if (!d.auto.length && !d.manual.length) setDupMsg({ ok: true, text: L("Tidak ada karyawan dobel. ✓", "No duplicate employees. ✓") });
-    } catch (e) { setDupMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
-    finally { setDupBusy(false); }
-  }
-  async function doDedupe() {
-    if (!dup || !dupSel.size) return;
-    if (!window.confirm(L(`Gabungkan ${dupSel.size} pasangan karyawan? Baris kembarnya dihapus (tidak bisa dibatalkan).`, `Merge ${dupSel.size} employee pair(s)? The duplicate rows are deleted (cannot be undone).`))) return;
-    setDupBusy(true); setDupMsg(null);
-    try {
-      const n = await mergeEmployeeDuplicates([...dupSel]);
-      setDupMsg({ ok: true, text: L(`${n} pasangan digabung.`, `${n} pair(s) merged.`) });
-      await load();
-      const d = await previewEmployeeDuplicates();
-      setDup(d); setDupSel(new Set(d.auto.map((p) => p.keepId)));
-    } catch (e) { setDupMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
-    finally { setDupBusy(false); }
-  }
-  if (!rows) return <SkeletonRows />;
-  const depts = [...new Set(rows.map((r) => r.departement).filter(Boolean))].sort();
-  const input = (v: Partial<EmployeeRow>) => ({ nama: String(v.nama ?? "").trim(), nik: String(v.nik ?? "").trim() || null, departement: String(v.departement ?? "").trim() || null });
-  return (
-    <SettingsPage>
-      {error && <div style={{ gridColumn: "1 / -1", padding: 12, borderRadius: 12, background: "var(--red-soft)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{error}</div>}
-      <div style={{ gridColumn: "1 / -1", padding: "12px 14px", borderRadius: 12, background: "var(--bg2, rgba(127,127,127,.08))", border: "1px solid var(--border2, rgba(127,127,127,.2))", fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
-        <b style={{ color: "var(--t1)" }}>{L("Dua sumber karyawan", "Two employee sources")}</b> — {L("daftar ini (Master Karyawan) dipakai semua modul KECUALI ATK, dan diunggah langsung lewat Supabase. ATK punya daftar sendiri yang diisi dari sheet Excel “MasterDataKaryawan”, jadi perubahan di sini tidak mengubah ATK dan sebaliknya.", "this list (Employee Master) is used by every module EXCEPT ATK, and is uploaded directly through Supabase. ATK has its own list filled from the Excel “MasterDataKaryawan” sheet, so changes here do not affect ATK and vice versa.")}
-      </div>
-      <div style={{ gridColumn: "1 / -1", padding: "12px 14px", borderRadius: 12, background: "var(--bg2, rgba(127,127,127,.08))", border: "1px solid var(--border2, rgba(127,127,127,.2))" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-          <div style={{ flex: "1 1 280px", fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
-            <b style={{ color: "var(--t1)" }}>{L("Karyawan dobel", "Duplicate employees")}</b> — {L("satu orang tercatat dua kali (mis. NIK berbeda ketik). Pratinjau dulu; pasangan yang jelas dipertahankan di departemen “Operations - Cikarang”, NIK kedua baris digabung “A / B”. Nama kembar lain hanya ditampilkan untuk dicek manual.", "One person recorded twice (e.g. from an ATK merge with a different ID). Preview first; clear pairs are kept in the “Operations - Cikarang” department with both IDs joined “A / B”. Other same-name entries are only listed for manual review.")}
-            {dupMsg && <div style={{ marginTop: 6, fontWeight: 700, color: dupMsg.ok ? "var(--green, #16a34a)" : "var(--red)" }}>{dupMsg.text}</div>}
-          </div>
-          <button type="button" disabled={dupBusy} onClick={checkDup} style={{ padding: "9px 16px", borderRadius: 10, border: "1px solid var(--border2, rgba(127,127,127,.35))", background: "var(--surface, #fff)", color: "var(--t1)", fontWeight: 700, fontSize: 13, cursor: dupBusy ? "default" : "pointer", opacity: dupBusy ? 0.6 : 1 }}>
-            {dupBusy && !dup ? L("Memeriksa…", "Checking…") : L("Cek karyawan dobel", "Check duplicates")}
-          </button>
-        </div>
-        {dup && dup.auto.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <b style={{ fontSize: 13, color: "var(--t1)" }}>{L(`${dup.auto.length} pasangan siap digabung`, `${dup.auto.length} pair(s) ready to merge`)}</b>
-              <button type="button" onClick={() => setDupSel(dupSel.size === dup.auto.length ? new Set() : new Set(dup.auto.map((p) => p.keepId)))} style={{ border: 0, background: "transparent", color: "var(--brand)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                {dupSel.size === dup.auto.length ? L("Hapus semua centang", "Untick all") : L("Centang semua", "Tick all")}
-              </button>
-              <button type="button" disabled={dupBusy || !dupSel.size} onClick={doDedupe} style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: 10, border: "none", background: "var(--brand)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: dupBusy || !dupSel.size ? "default" : "pointer", opacity: dupBusy || !dupSel.size ? 0.5 : 1 }}>
-                {L(`Gabungkan ${dupSel.size} terpilih`, `Merge ${dupSel.size} selected`)}
-              </button>
-            </div>
-            <div style={{ maxHeight: 320, overflowY: "auto", display: "grid", gap: 6 }}>
-              {dup.auto.map((p) => (
-                <label key={p.keepId} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 10px", borderRadius: 10, background: "var(--surface, #fff)", border: "1px solid var(--border2, rgba(127,127,127,.2))", fontSize: 12.5, cursor: "pointer" }}>
-                  <input type="checkbox" checked={dupSel.has(p.keepId)} onChange={() => setDupSel((cur) => { const n = new Set(cur); if (n.has(p.keepId)) n.delete(p.keepId); else n.add(p.keepId); return n; })} style={{ marginTop: 3 }} />
-                  <span style={{ minWidth: 0, lineHeight: 1.45 }}>
-                    <b style={{ color: "var(--t1)" }}>{p.nama}</b>
-                    <span style={{ display: "block", color: "var(--t3)" }}>{p.keep.nik || "—"} · {p.keep.dept || "—"} &nbsp;+&nbsp; {p.drop.nik || "—"} · {p.drop.dept || "—"}</span>
-                    <span style={{ display: "block", color: "var(--t2)" }}>→ <b>{p.result.nik || "—"}</b> · <b>{p.result.dept || "—"}</b></span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-        {dup && dup.manual.length > 0 && (
-          <details style={{ marginTop: 12 }}>
-            <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{L(`${dup.manual.length} nama kembar perlu dicek manual (bisa jadi orang berbeda)`, `${dup.manual.length} same-name entries need a manual check (may be different people)`)}</summary>
-            <div style={{ maxHeight: 260, overflowY: "auto", marginTop: 6, display: "grid", gap: 4 }}>
-              {dup.manual.map((g) => (
-                <div key={g.nama} style={{ fontSize: 12.5, padding: "6px 10px", borderRadius: 8, background: "var(--surface, #fff)", border: "1px solid var(--border2, rgba(127,127,127,.2))", lineHeight: 1.45 }}>
-                  <b style={{ color: "var(--t1)" }}>{g.nama}</b>
-                  {g.rows.map((r) => <span key={r.id} style={{ display: "block", color: "var(--t3)" }}>{r.nik || "—"} · {r.dept || "—"}</span>)}
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 12, color: "var(--t3)" }}>{L("Ubah atau hapus lewat tabel Pegawai di bawah.", "Edit or delete them in the Employees table below.")}</div>
-          </details>
-        )}
-      </div>
-      <div style={{ gridColumn: "1 / -1" }}>
-        <CrudList<EmployeeRow>
-          icon="👤" title={L("Pegawai", "Employees")} itemName={L("pegawai", "employee")}
-          desc={L(`Data karyawan untuk pemohon TGA, Receptionist, dan permintaan karyawan (ATK memakai daftar sendiri dari Excel). ${depts.length} departemen.`, `Employee data for TGA requestors, Receptionist and employee requests. ${depts.length} department(s).`)}
-          rows={rows} rowKey={(r) => r.id}
-          columns={[{ label: "NIK", render: (r) => r.nik || "—" }, { label: L("Nama", "Name"), render: (r) => <b>{r.nama}</b> }, { label: L("Departemen", "Department"), render: (r) => r.departement || "—" }]}
-          fields={[
-            { key: "nik", label: "NIK", placeholder: L("opsional", "optional") },
-            { key: "nama", label: L("Nama", "Name"), required: true },
-            { key: "departement", label: L("Departemen", "Department"), placeholder: depts.slice(0, 3).join(" / ") || L("mis. GA", "e.g. GA") },
-          ]}
-          onCreate={async (v) => { await addEmployee(input(v)); await load(); }}
-          onUpdate={async (row, v) => { await updateEmployee(row.id, input(v)); await load(); }}
-          onDelete={async (row) => { await deleteEmployee(row.id); await load(); }}
-        />
-      </div>
-    </SettingsPage>
-  );
-}
-
-/* ── Jenis pekerjaan (pilihan saat menugaskan driver) ── */
 function JobTypesMasterPanel({ cardStyle }: { cardStyle: CSSProperties }) {
   void cardStyle;
   const [rows, setRows] = useState<JobTypeRow[] | null>(null);

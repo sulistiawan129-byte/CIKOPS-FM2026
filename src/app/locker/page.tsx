@@ -319,7 +319,7 @@ export default function LockerPublicPage() {
         {/* ── Bottom action bar ── */}
         <div style={bottomBar}>
           {screen === "employee-nik" && (
-            <BigButton disabled={!nik.trim() || !namaEmp.trim() || !dept.trim()} onClick={() => goTo("employee-form")}>
+            <BigButton disabled={!namaEmp.trim() || !dept.trim()} onClick={() => goTo("employee-form")}>
               {lang === "en" ? "Continue" : "Lanjutkan"}
             </BigButton>
           )}
@@ -614,9 +614,6 @@ function EmployeeNikScreen({
       </div>
       <Field label={lang === "en" ? "Full Name" : "Nama Lengkap"}>
         <input className="premiumInput" style={fieldInput} placeholder={lang === "en" ? "Enter full name" : "Masukkan nama lengkap"} value={namaEmp} onChange={(e) => setNamaEmp(e.target.value)} />
-      </Field>
-      <Field label={lang === "en" ? "Employee NIK" : "NIK Karyawan"}>
-        <input className="premiumInput" style={fieldInput} inputMode="numeric" placeholder={lang === "en" ? "Enter NIK" : "Masukkan NIK"} value={nik} onChange={(e) => setNik(e.target.value)} />
       </Field>
       <Field label={lang === "en" ? "Department" : "Departemen"}>
         <input className="premiumInput" style={fieldInput} placeholder={lang === "en" ? "Enter department" : "Masukkan departemen"} value={dept} onChange={(e) => setDept(e.target.value)} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo } from "react";
-import type { Contact, RcpEmployee } from "@/lib/receptionist/model";
+import type { Contact } from "@/lib/receptionist/model";
 import { exportGenericExcel, exportGenericPdf, type ReportColumn } from "@/lib/reportEngine";
 import r from "./receptionist.module.css";
 import { SearchPick } from "@/components/SearchPick";
@@ -9,23 +9,22 @@ import { SearchPick } from "@/components/SearchPick";
 /** Tab-tab modul Receptionist. */
 export type RcpView = "dashboard" | "visitors" | "wifi" | "parcels" | "room" | "data" | "settings";
 
-/** Direktori nama: Data Karyawan (utama) + buku alamat yang terbentuk sendiri. */
-export interface Directory { contacts: Contact[]; employees: RcpEmployee[] }
+/** Direktori nama: buku alamat yang terbentuk sendiri dari kunjungan sebelumnya (tidak ada master karyawan). */
+export interface Directory { contacts: Contact[] }
 
 export function lookupPerson(dir: Directory, name: string): { email: string; department: string; phone: string } | null {
   const k = name.trim().toLowerCase();
   if (!k) return null;
   const c = dir.contacts.find((x) => x.name.trim().toLowerCase() === k);
-  const e = dir.employees.find((x) => x.nama.trim().toLowerCase() === k);
-  if (!c && !e) return null;
-  return { email: e?.email || c?.email || "", department: e?.departement || c?.department || "", phone: e?.noHp ?? "" };
+  if (!c) return null;
+  return { email: c.email || "", department: c.department || "", phone: "" };
 }
 
 /** Warna avatar yang stabil per nama. */
 export const hueOf = (name: string) => [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
 export const initialsOf = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
 
-/** Input nama dengan saran dari buku alamat & master karyawan. Saat nama cocok,
+/** Input nama dengan saran dari buku alamat (riwayat kunjungan). Saat nama cocok,
  *  `onPick` dipanggil dengan email/departemen yang diingat sistem. */
 export function NameInput({ dir, value, onChange, onPick, placeholder, required }: {
   dir: Directory; value: string; onChange: (v: string) => void; onPick?: (p: { email: string; department: string; phone: string }) => void; placeholder?: string; required?: boolean;
@@ -33,7 +32,6 @@ export function NameInput({ dir, value, onChange, onPick, placeholder, required 
   const options = useMemo(() => {
     const seen = new Set<string>();
     const out: { key: string; name: string; hint?: string }[] = [];
-    for (const e of dir.employees) { if (!e.aktif) continue; const k = e.nama.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ key: e.id, name: e.nama, hint: [e.departement, e.email].filter(Boolean).join(" · ") || undefined }); } }
     for (const c of dir.contacts) { const k = c.name.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push({ key: `c:${k}`, name: c.name, hint: c.email || undefined }); } }
     return out;
   }, [dir]);

@@ -6,12 +6,11 @@ import styles from "./dashboard.module.css";
 import { TaskBoardBar, TaskCard, TaskEmpty, TaskSlipModal, sortTasks } from "./TasksUI";
 import tk from "./tasks.module.css";
 import { TabErrorBoundary } from "@/components/TabErrorBoundary";
-import { getMyProfile, canAccessTab, lockedTabOf, roleLabel, isPrbOnly, cancelTaskByAdmin, deleteTask, deleteTaskBatch, getDrivers, type MyProfile, getEmployees, getJobTypes, getTasksByDate, getVehicles, subscribeToTasks, updateTaskStatus } from "@/lib/api";
+import { getMyProfile, canAccessTab, lockedTabOf, roleLabel, isPrbOnly, cancelTaskByAdmin, deleteTask, deleteTaskBatch, getDrivers, type MyProfile, getRecentRequestors, getJobTypes, getTasksByDate, getVehicles, subscribeToTasks, updateTaskStatus } from "@/lib/api";
 import type { Driver, Employee, JobType, TaskDetail, TaskStatus, Vehicle } from "@/lib/types";
 import { computeStats, plantLocation } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import LockerTab from "./LockerTab";
-import LockerKeyTab from "./LockerKeyTab";
 import IdCardTab from "./IdCardTab";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
@@ -41,7 +40,6 @@ import { PrinterTab } from "./PrinterTab";
 import { EmployeeRequestsTab } from "./EmployeeRequestsTab";
 import { MasterDataTab } from "./MasterDataTab";
 import ChangePasswordModal from "./ChangePasswordModal";
-import { GiftMasterPanel } from "./GiftTab";
 
 import { L } from "@/lib/i18n";
 /** Label pendek grup untuk rail sidebar. */
@@ -142,7 +140,7 @@ export default function DashboardPage() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
-const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "employees" | "jobtypes">("drivers");
+const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "jobtypes">("drivers");
 
   const [dateFilter, setDateFilter] = useState(todayStr());
   /** Dari Kalender: buka Penugasan pada tanggal tertentu. */
@@ -177,7 +175,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
   const dataSearchResults = useMemo(() => {
     const q = globalSearch.trim().toLowerCase();
     if (q.length < 2) return [];
-    const results: { kind: "driver" | "vehicle" | "employee"; id: string; label: string; sub: string }[] = [];
+    const results: { kind: "driver" | "vehicle"; id: string; label: string; sub: string }[] = [];
     for (const d of drivers) {
       if (d.nama.toLowerCase().includes(q)) results.push({ kind: "driver", id: d.id, label: d.nama, sub: d.no_hp || "Driver" });
       if (results.length >= 4) break;
@@ -186,16 +184,11 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
       if (v.nopol.toLowerCase().includes(q) || (v.jenis ?? "").toLowerCase().includes(q)) results.push({ kind: "vehicle", id: v.id, label: v.nopol, sub: v.jenis || L("Kendaraan", "Vehicle") });
       if (results.filter((r) => r.kind === "vehicle").length >= 4) break;
     }
-    for (const e of employees) {
-      if (e.nama.toLowerCase().includes(q)) results.push({ kind: "employee", id: e.id, label: e.nama, sub: e.departement || L("Karyawan", "Employee") });
-      if (results.filter((r) => r.kind === "employee").length >= 3) break;
-    }
     return results.slice(0, 8);
-  }, [globalSearch, drivers, vehicles, employees]);
+  }, [globalSearch, drivers, vehicles]);
 
-  function goToSearchResult(kind: "driver" | "vehicle" | "employee") {
+  function goToSearchResult(kind: "driver" | "vehicle") {
     if (kind === "driver") { setMasterDataInitialSub("drivers"); setActiveTab("masterdata"); }
-    else if (kind === "employee") { setMasterDataInitialSub("employees"); setActiveTab("masterdata"); }
     else { setActiveTab("vehicles"); }
     setGlobalSearch("");
     setShowSearchDropdown(false);
@@ -256,7 +249,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
         const [d, v, e, j] = await Promise.all([
           getDrivers(myProfile?.plantScope ?? null),
           getVehicles(myProfile?.plantScope ?? null),
-          getEmployees(),
+          getRecentRequestors().catch(() => []),
           getJobTypes(),
         ]);
         setDrivers(d);
@@ -688,18 +681,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
 )}
           {activeTab === "canteen" && <CanteenTab />}
           {activeTab === "locker" && <LockerTab />}
-          {activeTab === "lockerkey" && <LockerKeyTab />}
           {activeTab === "idcard" && <IdCardTab myProfile={myProfile} />}
-          {activeTab === "gift" && (
-            <ModulePage>
-              <ModuleHeader
-                kicker={lang === "en" ? "Facility · Distribution" : "Fasilitas · Pembagian"}
-                title={lang === "en" ? "Gift & Uniform Distribution" : "Pembagian Gift / Seragam"}
-                desc={lang === "en" ? "Run distribution programs (gifts, uniforms, merchandise): registration links, officer verification, stock per size, and participant tracking." : "Kelola program pembagian (gift, seragam, merchandise): link pendaftaran, verifikasi petugas, stok per ukuran, dan pantau peserta."}
-              />
-              <GiftMasterPanel cardStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 18, boxShadow: "var(--shadow-sm)" }} />
-            </ModulePage>
-          )}
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}

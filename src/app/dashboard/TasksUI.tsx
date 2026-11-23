@@ -601,13 +601,13 @@ export function TaskForm(p: {
             <div className={s.twoCol} style={{ marginTop: 14 }}>
               <label className={s.field}>
                 <span>Requestor</span>
-                <SearchPick strict inputClassName={s.input} ariaLabel="Requestor" value={requestor} onChange={(t) => { if (!t) pickRequestor(""); }}
-                  onPick={(o) => pickRequestor(o.name)} placeholder={L("Cari nama pegawai…", "Search employee name…")}
+                <SearchPick inputClassName={s.input} ariaLabel="Requestor" value={requestor} onChange={setRequestor} required
+                  onBlur={() => pickRequestor(requestor.trim())} onPick={(o) => pickRequestor(o.name)} placeholder={L("Ketik nama requestor (saran dari riwayat)", "Type the requestor name (suggestions from history)")}
                   options={p.employees.map((emp) => ({ key: emp.id, name: emp.nama, hint: emp.departement ?? undefined }))} />
               </label>
               <label className={s.field}>
                 <span>{L("Departemen", "Department")}</span>
-                <input className={s.input} value={departement} onChange={(e) => setDepartement(e.target.value)} placeholder={L("Terisi otomatis", "Filled automatically")} />
+                <input className={s.input} value={departement} onChange={(e) => setDepartement(e.target.value)} placeholder={L("Ketik departemen", "Type department")} />
               </label>
             </div>
             <label className={s.field}>

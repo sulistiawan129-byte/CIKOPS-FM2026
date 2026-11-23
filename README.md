@@ -1,12 +1,12 @@
 # CIKOPS — Facility Management Plant Cikarang
 
 Satu aplikasi untuk operasional GA/FM: fleet & driver, klaim & dana operasional,
-fasilitas (locker, kunci loker karyawan, ID Card, gift, printer, ATK, kantin, receptionist), Cleaning & Gardening + TGA,
+fasilitas (locker, ID Card, printer, ATK (hanya terima laporan), kantin, receptionist), Cleaning & Gardening + TGA,
 Security (tersinkron dengan Security Desk G4S), report manajemen, dan Command Center.
 
 - **Teknologi:** Next.js 16 (App Router) di Vercel · Supabase (Postgres, Auth, Realtime, Edge Functions)
 - **Aplikasi lapangan:** `/driver`, `/tga` (juga tersedia sebagai APK)
-- **Tanpa login:** `/request`, `/bukti`, `/locker`, `/gift`, `/canteen`, `/gate`, `/dashboard-viewonly`
+- **Tanpa login:** `/request`, `/bukti`, `/locker`, `/canteen`, `/gate`, `/dashboard-viewonly`
 
 ## Struktur
 | Folder | Isi |
@@ -30,3 +30,5 @@ Security (tersinkron dengan Security Desk G4S), report manajemen, dan Command Ce
 npm install
 NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... npm run dev
 ```
+
+**Data karyawan:** CIKOPS tidak menyimpan master/daftar karyawan — nama + departemen diketik manual di tiap form (tanpa NIK), saran nama dari riwayat modul. Lihat `docs/PANDUAN.md` bab "Data karyawan: input manual" dan `supabase/13_hapus_data_karyawan.sql`.

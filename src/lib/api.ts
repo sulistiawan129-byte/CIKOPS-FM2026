@@ -10,6 +10,7 @@ const dayStartWIB = (d: string) => `${d}T00:00:00+07:00`;
 const dayEndWIB = (d: string) => `${d}T23:59:59.999+07:00`;
 import { todayLocalISODate } from "./dateUtils";
 import { plantLocation } from "./types";
+import { L } from "@/lib/i18n";
 import type {
   Claim,
   ClaimItem,
@@ -166,13 +167,42 @@ export async function getVehicles(plant?: Plant | null): Promise<Vehicle[]> {
   return (data ?? []) as unknown as Vehicle[];
 }
 
-export async function getEmployees(): Promise<Employee[]> {
+/** Saran nama requestor untuk form Penugasan: diambil dari RIWAYAT penugasan (bukan Master Karyawan).
+ *  Nama baru cukup diketik manual (nama + departemen); setelah tersimpan otomatis muncul sebagai saran. */
+export async function getRecentRequestors(): Promise<Employee[]> {
   const { data, error } = await supabase
-    .from("employees")
-    .select("id, nama, departement")
-    .order("nama", { ascending: true });
+    .from("tasks")
+    .select("requestor, departement")
+    .order("created_at", { ascending: false })
+    .limit(1500);
   if (error) throw error;
-  return data ?? [];
+  return dedupePeople(data ?? [], "requestor", "departement");
+}
+
+/** Saran requestor untuk modul TGA dari riwayat kegiatan TGA. */
+export async function getRecentTgaRequestors(): Promise<Employee[]> {
+  const { data, error } = await supabase
+    .from("tga_activities")
+    .select("request_by, departemen")
+    .order("created_at", { ascending: false })
+    .limit(1500);
+  if (error) throw error;
+  return dedupePeople(data ?? [], "request_by", "departemen");
+}
+
+/** Nama unik (tanpa membedakan huruf besar/kecil); yang terbaru dipakai untuk departemennya. */
+function dedupePeople(rows: Record<string, unknown>[], nameKey: string, deptKey: string): Employee[] {
+  const seen = new Set<string>();
+  const out: Employee[] = [];
+  for (const r of rows) {
+    const nama = String(r[nameKey] ?? "").trim();
+    if (!nama) continue;
+    const k = nama.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ id: `h:${k}`, nama, departement: String(r[deptKey] ?? "").trim() || null });
+  }
+  return out.sort((x, y) => x.nama.localeCompare(y.nama));
 }
 
 export async function getJobTypes(): Promise<JobType[]> {
@@ -1563,36 +1593,6 @@ function atkRpcError(error: { code?: string; message?: string }): Error {
   }
   return new Error(error.message ?? String(error));
 }
-export interface AtkLineInput { kode: string; jumlah: number }
-export async function createAtkRequest(input: { tanggal: string; nama: string; nik: string; departemen: string; helper: string; items: AtkLineInput[] }): Promise<string> {
-  const { data, error } = await supabase.rpc("atk_web_request", {
-    p_tanggal: input.tanggal, p_nama: input.nama, p_nik: input.nik, p_departemen: input.departemen, p_helper: input.helper, p_items: input.items,
-  });
-  if (error) throw atkRpcError(error);
-  return String(data);
-}
-export async function createAtkRestock(input: { tanggal: string; nama: string; nik: string; departemen: string; items: AtkLineInput[] }): Promise<string> {
-  const { data, error } = await supabase.rpc("atk_web_restock", {
-    p_tanggal: input.tanggal, p_nama: input.nama, p_nik: input.nik, p_departemen: input.departemen, p_items: input.items,
-  });
-  if (error) throw atkRpcError(error);
-  return String(data);
-}
-export async function addAtkItem(input: { kode: string; nama: string; satuan: string; minStok: number; stokAwal: number }): Promise<string> {
-  const { data, error } = await supabase.rpc("atk_web_add_item", {
-    p_kode: input.kode, p_nama: input.nama, p_satuan: input.satuan, p_min_stok: input.minStok, p_stok_awal: input.stokAwal,
-  });
-  if (error) throw atkRpcError(error);
-  return String(data);
-}
-export async function setAtkMinStok(kode: string, min: number): Promise<void> {
-  const { error } = await supabase.rpc("atk_web_set_min_stok", { p_kode: kode, p_min: min });
-  if (error) throw atkRpcError(error);
-}
-export async function cancelAtkTransaction(kind: "request" | "restock", ref: string): Promise<void> {
-  const { error } = await supabase.rpc("atk_web_cancel", { p_kind: kind, p_ref: ref });
-  if (error) throw atkRpcError(error);
-}
 export async function getAtkSyncStatus(): Promise<AtkSyncStatus> {
   const { data, error } = await supabase.rpc("atk_sync_status");
   if (error) throw atkRpcError(error);
@@ -2126,7 +2126,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_ga_cik: {
     id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
-    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "lockerkey", "idcard", "gift", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
+    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "idcard", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
     home: true, plant: "CIK", reports: ["fleet", "claims", "atk", "receptionist"], calendarTasks: true,
   },
   admin_ga_prb: {
@@ -2371,74 +2371,6 @@ export async function deleteDriver(id: string): Promise<void> {
   }
 }
 
-export async function getAllEmployeesFull(): Promise<Employee[]> {
-  const { data, error } = await supabase.from("employees").select("*").order("nama", { ascending: true });
-  if (error) throw error;
-  return data ?? [];
-}
-
-export interface EmployeeInput {
-  nama: string;
-  departement: string | null;
-  nik?: string | null;
-}
-
-export async function addEmployee(input: EmployeeInput): Promise<void> {
-  const { error } = await supabase.from("employees").insert(input);
-  if (error) throw error;
-}
-
-export async function updateEmployee(id: string, input: EmployeeInput): Promise<void> {
-  const { data: updated, error } = await supabase.from("employees").update(input).eq("id", id).select("id");
-  if (!error && !updated?.length) throw noChangeError();
-  if (error) throw error;
-}
-
-/** Daftar karyawan KHUSUS ATK (NIK, nama, departemen) — diisi dari sheet Excel "MasterDataKaryawan"; terpisah dari Master Karyawan. */
-export async function getAtkEmployees(): Promise<{ nama: string; nik: string; dept: string }[]> {
-  const { data, error } = await supabase.from("atk_employees").select("nik, nama, departemen").order("nama", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((r: { nik: string | null; nama: string; departemen: string | null }) => ({ nama: r.nama, nik: (r.nik ?? "").trim(), dept: (r.departemen ?? "").trim() }));
-}
-
-export interface EmployeeDupPair { keepId: string; nama: string; keep: { nik: string; dept: string }; drop: { nik: string; dept: string }; result: { nik: string; dept: string } }
-export interface EmployeeDupGroup { nama: string; rows: { id: string; nik: string; dept: string }[] }
-
-function dupRpcError(e: { code?: string; message: string }): Error {
-  return new Error(e.code === "PGRST202" || e.code === "42883"
-    ? L("Fungsi pemeriksa dobel belum ada — jalankan supabase/04_aplikasi_lapangan.sql (bagian 053) di Supabase SQL Editor.", "The duplicate checker is missing — run supabase/04_aplikasi_lapangan.sql (section 053) in the Supabase SQL Editor.")
-    : e.message);
-}
-
-/** Pratinjau karyawan dobel: `auto` = pasangan yang aman digabung, `manual` = nama kembar yang harus dicek sendiri. Tidak mengubah data. */
-export async function previewEmployeeDuplicates(): Promise<{ auto: EmployeeDupPair[]; manual: EmployeeDupGroup[] }> {
-  const { data, error } = await supabase.rpc("employees_dedupe");
-  if (error) throw dupRpcError(error);
-  type Side = { nik?: unknown; dept?: unknown };
-  type RawGroup = { nama?: unknown; rows?: { id?: unknown; nik?: unknown; dept?: unknown }[] };
-  const d = (data ?? {}) as { auto?: { keep_id?: unknown; nama?: unknown; keep?: Side; drop?: Side; result?: Side }[]; manual?: RawGroup[] };
-  const t = (v: unknown) => (v == null ? "" : String(v));
-  return {
-    auto: (d.auto ?? []).map((x) => ({
-      keepId: t(x.keep_id), nama: t(x.nama),
-      keep: { nik: t(x.keep?.nik), dept: t(x.keep?.dept) }, drop: { nik: t(x.drop?.nik), dept: t(x.drop?.dept) }, result: { nik: t(x.result?.nik), dept: t(x.result?.dept) },
-    })),
-    manual: (d.manual ?? []).map((g) => ({ nama: t(g.nama), rows: (g.rows ?? []).map((r) => ({ id: t(r.id), nik: t(r.nik), dept: t(r.dept) })) })),
-  };
-}
-
-/** Gabungkan pasangan dobel yang dipilih (id baris yang dipertahankan). Mengembalikan jumlah yang tergabung. */
-export async function mergeEmployeeDuplicates(keepIds: string[]): Promise<number> {
-  const { data, error } = await supabase.rpc("employees_dedupe", { p_apply: keepIds });
-  if (error) throw dupRpcError(error);
-  return Number(((data ?? {}) as { merged?: number }).merged ?? 0);
-}
-
-export async function deleteEmployee(id: string): Promise<void> {
-  const { error } = await supabase.from("employees").delete().eq("id", id);
-  if (error) throw error;
-}
-
 export async function getAllJobTypesFull(): Promise<JobType[]> {
   const { data, error } = await supabase.from("job_types").select("*").order("label", { ascending: true });
   if (error) throw error;
@@ -2647,363 +2579,4 @@ export async function saveCanteenReport(input: CanteenReportInput): Promise<void
 export async function deleteCanteenReport(id: string): Promise<void> {
   const { error } = await supabase.from("canteen_reports").delete().eq("id", id);
   if (error) throw error;
-}
-
-// ════════════════════════════════════════════════════════════
-//  GIFT DISTRIBUTION SYSTEM
-// ════════════════════════════════════════════════════════════
-
-import type { GiftEvent, GiftRegistration, GiftItemDef, GiftSelection } from "./types";
-
-import { L } from "@/lib/i18n";
-// ── Row types ─────────────────────────────────────────────────
-interface GiftEventRow {
-  id: string; name: string; description: string | null;
-  items: GiftItemDef[]; status: "open" | "closed"; plant: string | null;
-  mode?: string;
-  actual_baju_count: number | null; actual_tiket_count: number | null;
-  actual_stock_per_size?: Record<string, number> | null;
-  created_at: string; updated_at: string;
-}
-interface GiftRegRow {
-  id: string; event_id: string; event_name: string;
-  nik: string; nama: string; departemen: string; email: string;
-  sequence_no?: string; lokasi_pengambilan?: string;
-  jumlah_tiket?: number | null; anak_dibawah_2_tahun?: number | null; status_kehadiran?: string | null;
-  selections: GiftSelection[]; claimed: boolean;
-  claimed_at: string | null; claimed_by: string | null; registered_at: string;
-}
-
-function mapGiftEvent(r: GiftEventRow): GiftEvent {
-  return { id: r.id, name: r.name, description: r.description,
-    items: r.items ?? [], status: r.status, plant: r.plant,
-    mode: (r.mode as "self_register" | "lookup") ?? "self_register",
-    actualBajuCount: r.actual_baju_count, actualTiketCount: r.actual_tiket_count,
-    actualStockPerSize: r.actual_stock_per_size ?? null,
-    createdAt: r.created_at, updatedAt: r.updated_at };
-}
-function mapGiftReg(r: GiftRegRow): GiftRegistration {
-  return { id: r.id, eventId: r.event_id, eventName: r.event_name ?? "",
-    nik: r.nik, nama: r.nama, departemen: r.departemen, email: r.email,
-    sequenceNo: r.sequence_no ?? "", lokasiPengambilan: r.lokasi_pengambilan ?? "",
-    jumlahTiket: r.jumlah_tiket ?? null, anakDibawah2Tahun: r.anak_dibawah_2_tahun ?? null, statusKehadiran: r.status_kehadiran ?? null,
-    selections: r.selections ?? [], claimed: r.claimed,
-    claimedAt: r.claimed_at, claimedBy: r.claimed_by, registeredAt: r.registered_at };
-}
-
-// ── Events CRUD ───────────────────────────────────────────────
-export async function getGiftEvents(onlyOpen = false): Promise<GiftEvent[]> {
-  let q = supabase.from("gift_events").select("*").order("created_at", { ascending: false });
-  if (onlyOpen) q = q.eq("status", "open");
-  const { data, error } = await q;
-  if (error) throw error;
-  return ((data as GiftEventRow[]) ?? []).map(mapGiftEvent);
-}
-
-export async function createGiftEvent(input: {
-  name: string; description: string; items: GiftItemDef[];
-  status: "open" | "closed"; plant?: string; mode?: "self_register" | "lookup";
-}): Promise<string> {
-  const { data, error } = await supabase.from("gift_events").insert({
-    name: input.name, description: input.description || null,
-    items: input.items, status: input.status, plant: input.plant || null,
-    mode: input.mode ?? "self_register",
-  }).select("id").single();
-  if (error) throw error;
-  return data.id as string;
-}
-
-export async function updateGiftEvent(id: string, input: {
-  name?: string; description?: string; items?: GiftItemDef[];
-  status?: "open" | "closed"; plant?: string; mode?: "self_register" | "lookup";
-}): Promise<void> {
-  const { error } = await supabase.from("gift_events")
-    .update({ ...input, updated_at: new Date().toISOString() }).eq("id", id);
-  if (error) throw error;
-}
-
-/** Simpan jumlah baju/tiket AKTUAL (fisik yang datang) — diisi manual
- *  oleh admin, dibandingkan dengan jumlah kebutuhan hasil hitung
- *  sistem dari data peserta. */
-export async function updateGiftEventActualCounts(id: string, input: { actualBajuCount: number | null; actualTiketCount: number | null }): Promise<void> {
-  const { error } = await supabase.from("gift_events")
-    .update({ actual_baju_count: input.actualBajuCount, actual_tiket_count: input.actualTiketCount, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
-}
-
-/** Simpan stok baju AKTUAL per ukuran (mis. {"XL": 500, "L": 300}) —
- *  dipakai untuk hitung sisa stok otomatis (aktual dikurangi yang
- *  sudah diambil). */
-export async function updateGiftEventStockPerSize(id: string, stockPerSize: Record<string, number>): Promise<void> {
-  const { error } = await supabase.from("gift_events")
-    .update({ actual_stock_per_size: stockPerSize, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
-}
-
-export async function deleteGiftEvent(id: string): Promise<void> {
-  const { error } = await supabase.from("gift_events").delete().eq("id", id);
-  if (error) throw error;
-}
-
-// ── Registrations ─────────────────────────────────────────────
-export async function getGiftRegistrations(eventId: string): Promise<GiftRegistration[]> {
-  // ⚠️ PENTING: Supabase membatasi otomatis 1000 baris per query.
-  // Untuk event besar (>1000 peserta, mis. pembagian seragam massal),
-  // kita HARUS paginate manual pakai .range() berulang sampai data
-  // benar-benar habis — kalau tidak, sisa peserta di atas baris ke-1000
-  // tidak akan pernah muncul di tabel admin, KPI, cetak label, maupun
-  // export laporan.
-  //
-  // ⚠️ PENTING JUGA: urutan HARUS stabil/deterministik. Kalau cuma
-  // pakai .order("registered_at") saja, banyak baris hasil BATCH
-  // IMPORT punya timestamp yang PERSIS SAMA — PostgreSQL tidak
-  // menjamin urutan konsisten untuk baris bertimestamp sama saat
-  // di-page per 1000 baris, sehingga ada risiko baris DUPLIKAT
-  // (muncul di 2 halaman sekaligus) atau TERLEWAT. Ini pernah
-  // menyebabkan angka "sudah diambil" per ukuran melebihi total
-  // peserta! Makanya kita tambahkan "id" sebagai kunci urutan KEDUA,
-  // supaya urutannya selalu pasti sama setiap kali query dijalankan.
-  const PAGE_SIZE = 1000;
-  const all: unknown[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from("gift_registrations")
-      .select("*, gift_events(name)")
-      .eq("event_id", eventId)
-      .order("registered_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    all.push(...data);
-    if (data.length < PAGE_SIZE) break; // halaman terakhir
-    from += PAGE_SIZE;
-  }
-  return all.map((r: unknown) => {
-    const row = r as GiftRegRow & { gift_events?: { name: string } };
-    return mapGiftReg({ ...row, event_name: row.gift_events?.name ?? "" });
-  });
-}
-
-/** Generate passcode 8 digit acak (client-side, langsung dikirim ke RPC untuk di-hash) */
-export function generateGiftPasscode(): string {
-  const arr = new Uint32Array(1);
-  crypto.getRandomValues(arr);
-  return String(arr[0] % 100000000).padStart(8, "0");
-}
-
-export async function registerGift(input: {
-  eventId: string; nik: string; nama: string;
-  departemen: string; email: string;
-  selections: GiftSelection[]; passcode: string;
-}): Promise<{ success: boolean; errorCode?: string }> {
-  const { data, error } = await supabase.rpc("create_gift_registration", {
-    p_event_id:   input.eventId,
-    p_nik:        input.nik.trim(),
-    p_nama:       input.nama.trim(),
-    p_departemen: input.departemen.trim(),
-    p_email:      input.email.trim().toLowerCase(),
-    p_selections: input.selections,
-    p_passcode:   input.passcode,
-  });
-  if (error) return { success: false, errorCode: error.message };
-  const row = (data as { success: boolean; error_code: string }[])?.[0];
-  return { success: row?.success ?? false, errorCode: row?.error_code || undefined };
-}
-
-export async function verifyGiftPasscode(passcode: string): Promise<GiftRegistration | null> {
-  const { data, error } = await supabase.rpc("verify_gift_passcode", { p_passcode: passcode });
-  if (error) throw error;
-  if (!data || (data as GiftRegRow[]).length === 0) return null;
-  return mapGiftReg((data as GiftRegRow[])[0]);
-}
-
-/** Cari registrasi (mode "lookup" — admin import) berdasarkan NIK, tanpa
- *  passcode sama sekali. Lewat RPC security definer, jadi tidak perlu
- *  buka akses SELECT publik ke seluruh tabel gift_registrations. */
-export async function findGiftRegistrationByNik(eventId: string, nik: string): Promise<GiftRegistration | null> {
-  const { data, error } = await supabase.rpc("find_gift_registration_by_nik", { p_event_id: eventId, p_nik: nik.trim() });
-  if (error) throw error;
-  if (!data || (data as GiftRegRow[]).length === 0) return null;
-  return mapGiftReg((data as GiftRegRow[])[0]);
-}
-
-/** Cari peserta by NAMA — bisa mengembalikan lebih dari 1 hasil
- *  (beda dari NIK yang pasti unik), berguna kalau ada NIK yang
- *  tertukar dengan nama orang lain di data sumber. */
-export async function findGiftRegistrationsByName(eventId: string, name: string): Promise<GiftRegistration[]> {
-  const { data, error } = await supabase.rpc("find_gift_registrations_by_name", { p_event_id: eventId, p_name: name.trim() });
-  if (error) throw error;
-  return ((data as GiftRegRow[]) ?? []).map(mapGiftReg);
-}
-
-/** Cari peserta by NO. URUT — bisa mengembalikan lebih dari 1 hasil
- *  (No. Urut tidak dijamin unik di database, meski biasanya unik
- *  secara praktik). */
-export async function findGiftRegistrationsBySequenceNo(eventId: string, no: string): Promise<GiftRegistration[]> {
-  const { data, error } = await supabase.rpc("find_gift_registration_by_sequence_no", { p_event_id: eventId, p_no: no.trim() });
-  if (error) throw error;
-  return ((data as GiftRegRow[]) ?? []).map(mapGiftReg);
-}
-
-/** Tandai barang sudah diambil — lewat RPC (bukan update tabel langsung),
- *  supaya tidak perlu policy UPDATE publik yang longgar. Dipakai baik
- *  mode "self_register" (passcode) maupun "lookup" (NIK). */
-export async function claimGift(registrationId: string, claimedBy: string): Promise<void> {
-  const { data, error } = await supabase.rpc("claim_gift_registration", { p_id: registrationId, p_claimed_by: claimedBy });
-  if (error) throw error;
-  if (!data) throw new Error(L("Sudah diklaim sebelumnya oleh pihak lain.", "Already claimed by someone else."));
-}
-
-/** Batalkan status "sudah diambil" — jaga-jaga kalau petugas salah
- *  tandai. HANYA dipanggil dari Dashboard (admin, sudah login), BUKAN
- *  dari halaman publik /gift/lookup — makanya ini update tabel
- *  langsung (bukan RPC security-definer), memanfaatkan policy
- *  "gift_reg_update_authenticated" yang sudah ada. */
-export async function unclaimGiftRegistration(registrationId: string): Promise<void> {
-  const { error } = await supabase.from("gift_registrations")
-    .update({ claimed: false, claimed_at: null, claimed_by: null })
-    .eq("id", registrationId);
-  if (error) throw error;
-}
-
-/** Import bulk data karyawan + barang (mode "lookup") dari Excel/CSV,
- *  dipanggil dari Dashboard (admin, sudah login) — bukan dari halaman
- *  publik. Satu baris = satu karyawan, dengan array selections berisi
- *  semua barang yang berhak diterima (termasuk qty). NIK yang sama di
- *  event yang sama akan GAGAL (constraint unik) — dilaporkan sebagai
- *  duplikat, bukan menimpa data lama, supaya aman dari re-import tidak sengaja. */
-export async function bulkImportGiftRegistrations(
-  eventId: string,
-  rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[]
-): Promise<{ inserted: number; duplicates: string[] }> {
-  // ⚠️ PENTING: insert satu-per-satu akan SANGAT LAMBAT untuk data besar
-  // (ribuan baris = ribuan round-trip network, bisa 5-10 menit dan
-  // berisiko macet/timeout di tengah jalan). Sekarang pakai BATCH
-  // INSERT (per 500 baris) — jauh lebih cepat (hitungan detik).
-  //
-  // Karena 1 baris gagal (duplikat) di dalam satu batch insert akan
-  // membuat SELURUH batch itu gagal (transaksional), kita cek dulu
-  // NIK mana saja yang sudah ada di database ATAU dobel di dalam file
-  // itu sendiri, keluarkan dari daftar insert, baru batch-insert
-  // sisanya yang aman.
-  const duplicates: string[] = [];
-
-  // 1) Cek NIK yang SUDAH ADA di event ini (ambil semua, dengan
-  //    pagination yang sama seperti getGiftRegistrations, supaya
-  //    tidak kena limit 1000-baris Supabase untuk event besar).
-  //    Urutan by "id" ditambahkan supaya pagination stabil/pasti
-  //    (tanpa ini, ada risiko baris terlewat karena urutan default
-  //    tidak dijamin konsisten antar halaman query).
-  const existingNiks = new Set<string>();
-  {
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("gift_registrations")
-        .select("nik")
-        .eq("event_id", eventId)
-        .order("id", { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-      for (const r of data as { nik: string }[]) existingNiks.add(r.nik);
-      if (data.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
-    }
-  }
-
-  // 2) Filter baris: skip yang NIK-nya sudah ada di DB, dan skip juga
-  //    NIK yang dobel DI DALAM file itu sendiri (simpan kemunculan
-  //    pertama saja).
-  const seenInFile = new Set<string>();
-  const toInsert: typeof rows = [];
-  for (const r of rows) {
-    const nik = r.nik.trim();
-    if (existingNiks.has(nik) || seenInFile.has(nik)) {
-      duplicates.push(nik);
-      continue;
-    }
-    seenInFile.add(nik);
-    toInsert.push(r);
-  }
-
-  // 3) Batch insert per 500 baris.
-  const BATCH_SIZE = 500;
-  let inserted = 0;
-  for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-    const batch = toInsert.slice(i, i + BATCH_SIZE).map((r) => ({
-      event_id: eventId,
-      nik: r.nik.trim(),
-      nama: r.nama.trim(),
-      departemen: r.departemen.trim(),
-      email: (r.email || "").trim().toLowerCase(),
-      sequence_no: r.sequenceNo || "",
-      lokasi_pengambilan: r.lokasiPengambilan || "",
-      jumlah_tiket: r.jumlahTiket ?? null,
-      anak_dibawah_2_tahun: r.anakDibawah2Tahun ?? null,
-      status_kehadiran: r.statusKehadiran || null,
-      selections: r.selections,
-      passcode_hash: null, // mode lookup tidak pakai passcode
-    }));
-    const { error } = await supabase.from("gift_registrations").insert(batch);
-    if (error) throw error;
-    inserted += batch.length;
-  }
-
-  return { inserted, duplicates };
-}
-
-/** Import mode "UPDATE" — dipakai untuk re-import CSV yang sudah
- *  diperbaiki (mis. NIK-Nama yang sebelumnya salah pasangan gara-gara
- *  kesalahan Excel), TANPA menghapus data lama.
- *
- *  Untuk NIK yang SUDAH ADA di event ini: nama/ukuran/departemen/dll
- *  di-UPDATE ke data terbaru dari CSV, tapi status klaim
- *  (claimed/claimed_at/claimed_by) TIDAK DISENTUH SAMA SEKALI —
- *  supaya peserta yang sudah benar-benar mengambil baju tidak
- *  "kembali" jadi belum diambil.
- *
- *  Untuk NIK yang BELUM ADA: di-insert seperti biasa (baris baru). */
-export async function upsertGiftRegistrations(
-  eventId: string,
-  rows: { nik: string; nama: string; departemen: string; email?: string; sequenceNo?: string; lokasiPengambilan?: string; jumlahTiket?: number | null; anakDibawah2Tahun?: number | null; statusKehadiran?: string | null; selections: GiftSelection[] }[]
-): Promise<{ processed: number }> {
-  // De-duplikasi DI DALAM file itu sendiri — kalau ada NIK dobel di
-  // CSV yang sama, ambil kemunculan TERAKHIR saja (dianggap data
-  // paling baru/terkoreksi).
-  const byNik = new Map<string, typeof rows[number]>();
-  for (const r of rows) byNik.set(r.nik.trim(), r);
-  const uniqueRows = Array.from(byNik.values());
-
-  const BATCH_SIZE = 500;
-  let processed = 0;
-  for (let i = 0; i < uniqueRows.length; i += BATCH_SIZE) {
-    const batch = uniqueRows.slice(i, i + BATCH_SIZE).map((r) => ({
-      event_id: eventId,
-      nik: r.nik.trim(),
-      nama: r.nama.trim(),
-      departemen: r.departemen.trim(),
-      email: (r.email || "").trim().toLowerCase(),
-      sequence_no: r.sequenceNo || "",
-      lokasi_pengambilan: r.lokasiPengambilan || "",
-      jumlah_tiket: r.jumlahTiket ?? null,
-      anak_dibawah_2_tahun: r.anakDibawah2Tahun ?? null,
-      status_kehadiran: r.statusKehadiran || null,
-      selections: r.selections,
-      // ⚠️ SENGAJA tidak menyertakan claimed/claimed_at/claimed_by/
-      // passcode_hash di sini — kolom yang tidak disebutkan di payload
-      // upsert TIDAK ikut ter-update, nilai lama tetap dipertahankan.
-    }));
-    const { error } = await supabase.from("gift_registrations")
-      .upsert(batch, { onConflict: "event_id,nik" });
-    if (error) throw error;
-    processed += batch.length;
-  }
-
-  return { processed };
 }

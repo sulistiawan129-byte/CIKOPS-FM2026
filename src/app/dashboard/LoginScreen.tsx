@@ -16,7 +16,7 @@ const EMAIL_KEY = "cikops_login_email";
 const MODULES = [
   { icon: "fleet", id: "Fleet & Driver", en: "Fleet & Drivers", dId: "Penugasan, armada, gate", dEn: "Tasks, vehicles, gate", hue: 222 },
   { icon: "finance", id: "Finance", en: "Finance", dId: "Klaim & dana operasional", dEn: "Claims & op. fund", hue: 152 },
-  { icon: "facility", id: "Fasilitas", en: "Facility", dId: "Kantin, locker, ATK, gift", dEn: "Canteen, lockers, supplies", hue: 32 },
+  { icon: "facility", id: "Fasilitas", en: "Facility", dId: "Kantin, locker, ATK", dEn: "Canteen, lockers, supplies", hue: 32 },
   { icon: "security", id: "Security", en: "Security", dId: "Laporan G4S & pelanggaran", dEn: "G4S reports & violations", hue: 352 },
   { icon: "gafacility", id: "Cleaning & TGA", en: "Cleaning & TGA", dId: "Kebersihan, taman & teknisi GA", dEn: "Cleaning, garden & technicians", hue: 188 },
   { icon: "receptionist", id: "Receptionist", en: "Receptionist", dId: "Wifi tamu, barang, ruangan", dEn: "Guest wifi, parcels, rooms", hue: 268 },

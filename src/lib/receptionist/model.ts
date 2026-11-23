@@ -116,8 +116,6 @@ export const visitPurposeLabel = (t: string): string =>
 export const visitMinutes = (v: Visitor, now = Date.now()) => Math.max(0, Math.round(((v.checkedOutAt ? new Date(v.checkedOutAt).getTime() : now) - new Date(v.checkedInAt).getTime()) / 60000));
 export const fmtDuration = (min: number) => (min < 60 ? `${min}${L(" mnt", " min")}` : `${Math.floor(min / 60)}${L(" j", " h")} ${min % 60 ? `${min % 60}${L(" mnt", " min")}` : ""}`.trim());
 
-/** Karyawan (tabel employees CIKOPS + kolom migrasi 033). */
-export interface RcpEmployee { id: string; nama: string; nik: string; departement: string; email: string; noHp: string; jabatan: string; aktif: boolean; createdAt: string }
 
 /* ── Bukti Permintaan (halaman /bukti & tombol cetak) ── */
 export type ReceiptKind = "wifi" | "parcel" | "booking";

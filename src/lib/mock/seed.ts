@@ -358,30 +358,6 @@ export function buildSeed(): MockDB {
     }
   }
 
-  /* ════ Kunci Loker Karyawan (96 pintu: blok A–H × 12) ════ */
-  {
-    const KEY_DEPT = ["PRODUKSI", "QUALITY ASSURANCE", "ENGINEERING", "SUPPLY CHAIN", "WAREHOUSE", "HSE", "QC", "HR & GA"];
-    let rowNo = 0;
-    for (let b = 0; b < 8; b++) {
-      const blok = String.fromCharCode(65 + b);
-      for (let d = 1; d <= 12; d++) {
-        rowNo++;
-        const k = b * 12 + d;
-        const empty = k % 7 === 0 || k % 11 === 0;
-        const e = emp[(k * 3) % emp.length];
-        const borrowed = !empty && k % 17 === 0;
-        put("locker_keys", {
-          id: uuid(), row_no: rowNo, blok, slot: Math.ceil(rowNo / 2), pintu: `${blok}${d}`,
-          nama: empty ? "" : String(e.nama).toUpperCase(), nik: empty ? "" : String(e.nik), dept: empty ? "" : KEY_DEPT[k % KEY_DEPT.length],
-          no_kunci: String(19200 + k * 7), status: empty ? "Kosong" : borrowed ? "Dipinjam" : "Terisi",
-          borrowed_by: borrowed ? String(emp[(k + 5) % emp.length].nama).toUpperCase() : "", borrowed_at: borrowed ? addDays(today, -(k % 40) - 2) : null,
-          keterangan: borrowed ? "KUNCI UTAMA KETINGGALAN" : k % 13 === 0 && !empty ? "TIDAK ADA KUNCI SEREP" : "", created_at: ago(24 * 30), updated_at: ago(24 * 30),
-        });
-      }
-    }
-    put("locker_key_logs", { id: uuid(), locker_key_id: null, blok: "", pintu: "", nama: "", action: "impor", detail: `${rowNo} baris diimpor dari Excel (semua data lama diganti)`, actor: "Dimas Pratama (Admin GA)", created_at: ago(24 * 30) });
-  }
-
   /* ════ ID Card (kartu akses non-karyawan) ════ */
   {
     const by = "Bagus Wibowo (SPV Security)";
@@ -437,26 +413,6 @@ export function buildSeed(): MockDB {
     else if (status === "DONE") row.admin_notes = "Sudah ditangani";
     if (status === "DONE" || status === "REJECTED") row.processed_at = ago(i * 9 - 4);
     put("employee_requests", row);
-  }
-
-  /* ════ Pembagian (gift) ════ */
-  const giftId = uuid();
-  put("gift_events", {
-    id: giftId, name: "Bingkisan HUT Perusahaan ke-25", description: "Kaos + tumbler untuk seluruh karyawan",
-    items: [{ name: "Kaos HUT", variants: ["S", "M", "L", "XL", "XXL"] }, { name: "Tumbler", variants: [] }],
-    status: "open", plant: "CIK", created_at: ago(24 * 10), updated_at: ago(24 * 10),
-  });
-  for (let i = 1; i <= 40; i++) {
-    const e = emp[i - 1];
-    const claimed = i % 3 !== 0;
-    const row: Row = {
-      id: uuid(), event_id: giftId, nik: e.nik, nama: e.nama, departemen: e.departement, email: e.email,
-      selections: [{ item: "Kaos HUT", variant: ["S", "M", "L", "XL", "XXL"][i % 5] }, { item: "Tumbler", variant: "" }],
-      // mock: passcode disimpan polos (SQL: bcrypt)
-      passcode_hash: pad(i * 37, 6), claimed, registered_at: ago(24 * (3 + (i % 5))),
-    };
-    if (claimed) { row.claimed_at = ago(i * 2); row.claimed_by = "Petugas GA"; }
-    put("gift_registrations", row);
   }
 
   /* ════ Pengumuman & kalender ════ */
@@ -741,7 +697,7 @@ export function buildSeed(): MockDB {
   for (const t of [
     "activity_log", "agenda_events", "announcements", "app_settings", "atk_employees", "atk_items", "atk_requests", "atk_restocks", "atk_sync_config", "canteen_reports", "claims",
     "condolence_wreaths", "driver_claim_requests", "driver_tiers", "drivers", "employee_requests", "employees", "ga_events", "ga_improvements", "ga_inventory",
-    "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations", "gift_events", "gift_registrations", "gift_verify_attempts",
+    "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations",
     "job_types", "kantong", "lockers", "overtime", "printer_requests", "printers", "profiles", "push_subscriptions", "rcp_contacts", "rcp_counters", "rcp_parcels",
     "rcp_room_bookings", "rcp_settings", "rcp_visitors", "rcp_wifi_accounts", "rcp_wifi_grants", "security_config", "security_monthly", "tasks", "tga_activities",
     "tga_assign_config", "tga_counters", "tga_sessions", "tga_users", "vehicle_doc_notifications", "vehicle_gate_logs", "vehicles", "auth_users",
