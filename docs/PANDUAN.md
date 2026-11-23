@@ -17,6 +17,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/09_gate_pos.sql` | Fungsi `get_gate_logs_pos` untuk aplikasi petugas Security Desk: hari mengikuti WIB dan kendaraan yang masih aktif dari hari sebelumnya ikut tampil | **Jalankan sekali di Supabase SQL Editor CIKOPS** (sesudah 08). Aman diulang |
 | `supabase/10_kunci_loker_karyawan.sql` | Modul **Kunci Loker Karyawan**: tabel `locker_keys` + riwayat otomatis `locker_key_logs`, fungsi pinjam/kembalikan kunci serep & impor Excel. Hak akses hanya Master Admin & Admin GA (tabel berisi nama & NIK) | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang. Data awal diisi dari aplikasi (Impor Excel) |
 | `supabase/11_idcard.sql` | Modul **ID Card** (kartu akses Temporary / Contractor / Outsourcing): tabel pengajuan, kartu, penyerahan, penghitung nomor harian, desain kartu, riwayat per kartu + fungsi (nomor dibuat atomik oleh database). Hak akses: Master Admin, Admin GA CIK, Admin / SPV Security | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang |
+| `supabase/12_idcard_transporter.sql` | Jenis kartu ke-4 **Transporter**: nomor urut polos (1, 2, 3 …), desain kartu terpisah | **Jalankan sekali SESUDAH `11_idcard.sql`** di Supabase SQL Editor. Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -597,7 +598,7 @@ Satu baris = satu pintu loker: blok, no. slot kunci, pintu, nama karyawan, NIK, 
 
 ## ID Card (Security → ID Card)
 
-Kartu akses **non-karyawan**: Temporary, Contractor, Outsourcing. Alurnya sama dengan sistem ID Card lama
+Kartu akses **non-karyawan**: Temporary, Contractor, Outsourcing, Transporter. Alurnya sama dengan sistem ID Card lama
 (`cikops-idcard.vercel.app`): **Pengajuan → Cetak kartu (PDF) → Penyerahan (tanda terima)**, plus **Card Designer**.
 Bedanya: data di database (dipakai bersama semua admin, ada cadangan), nomor dibuat database sehingga **tidak bisa kembar**,
 dan setiap nomor kartu bisa dilacak.
@@ -621,6 +622,13 @@ dan setiap nomor kartu bisa dilacak.
 - Temporary `T-DDMMYY###`; Contractor dan Outsourcing `DDMMYY###`; urutan kembali ke 001 tiap hari (WIB).
 - **Contractor & Outsourcing memakai satu urutan harian yang sama** (sistem lama memakai dua urutan terpisah sehingga bisa menerbitkan nomor yang sama). Satu nomor = satu kartu.
 - Dua admin yang mengajukan bersamaan tetap mendapat rentang nomor yang berbeda.
+
+### Kartu Transporter (jenis ke-4)
+- Nomor = **urutan polos 1, 2, 3 …** yang terus berlanjut (tidak kembali ke 1 tiap hari, tidak memakai tanggal). Dicetak **besar di tengah kartu**.
+- Di bawah nomor: lokasi, lalu **nomor seri `TRP-DDMMYY-###`** dan **tanggal cetak** (diisi otomatis saat kartu dicetak — tanggal cetak ulang = tanggal hari itu).
+- Template kartu Transporter **terpisah** dari jenis lain: di **Card Designer** pilih "Transporter" di bagian *Template yang diedit*. Garis hitam di tengah template bawaan disembunyikan (bisa dinyalakan lagi lewat kotak centang); posisi, ukuran, dan warna nomor / seri / tanggal bisa diatur, seri dan tanggal bisa dimatikan.
+- Teks yang terlalu lebar otomatis dikecilkan agar muat (mis. nomor 4 digit).
+- Penyerahan Transporter sama dengan jenis lain (nomor dari–sampai, mis. `1` sampai `20`).
 
 ### Status kartu
 `diterbitkan` (stok) → `diserahkan` (lewat Penyerahan) → `kembali` / `hilang`. Kartu kembali/hilang bisa **disiapkan ulang** (kembali jadi stok).

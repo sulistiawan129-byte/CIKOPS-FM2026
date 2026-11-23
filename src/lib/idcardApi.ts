@@ -1,7 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { L } from "./i18n";
-import { normalizeDesign, type CardDesign } from "./idcard/render";
-import { formatNumber, seriesOf, wibToday, type CardStatus, type CardTipe, type IdCard, type IdCardLog, type IdHandover, type IdRequest, type RequestStatus } from "./idcard/model";
+import { normalizeDesign, type CardDesign, type DesignKind } from "./idcard/render";
+import { COUNTER_DAY_TR, formatNumber, seriesOf, wibToday, type CardStatus, type CardTipe, type IdCard, type IdCardLog, type IdHandover, type IdRequest, type RequestStatus } from "./idcard/model";
 
 /* ════════════════════════════════════════════════════════════
    ID CARD — lapisan API (tabel idcard_*, supabase/11_idcard.sql).
@@ -41,7 +41,7 @@ export async function getRequests(): Promise<IdRequest[]> {
 
 /** Nomor berikutnya yang akan diberikan (hanya perkiraan untuk pratinjau; nomor sebenarnya dibuat database saat disimpan). */
 export async function peekNextSeq(tipe: CardTipe): Promise<number> {
-  const { data, error } = await supabase.from("idcard_counters").select("last_seq").eq("day", wibToday()).eq("series", seriesOf(tipe)).maybeSingle();
+  const { data, error } = await supabase.from("idcard_counters").select("last_seq").eq("day", tipe === "R" ? COUNTER_DAY_TR : wibToday()).eq("series", seriesOf(tipe)).maybeSingle();
   if (error) throw wrap(error);
   return ((data as { last_seq?: number } | null)?.last_seq ?? 0) + 1;
 }
@@ -125,13 +125,18 @@ export async function deleteHandover(id: string): Promise<void> {
   if (error) throw wrap(error);
 }
 
-/* ── desain ── */
-export async function getDesign(): Promise<CardDesign> {
-  const { data, error } = await supabase.from("idcard_settings").select("design").eq("id", 1).maybeSingle();
+/* ── desain: id 1 = umum (Temporary / Contractor / Outsourcing), id 2 = Transporter ── */
+export interface Designs { general: CardDesign; transporter: CardDesign }
+export async function getDesigns(): Promise<Designs> {
+  const { data, error } = await supabase.from("idcard_settings").select("id, design");
   if (error) throw wrap(error);
-  return normalizeDesign((data as { design?: unknown } | null)?.design);
+  const rows = (data ?? []) as { id: number; design: unknown }[];
+  return { general: normalizeDesign(rows.find((r) => r.id === 1)?.design, "general"), transporter: normalizeDesign(rows.find((r) => r.id === 2)?.design, "transporter") };
 }
-export async function saveDesign(design: CardDesign, actor: string): Promise<void> {
-  const { error } = await supabase.from("idcard_settings").upsert({ id: 1, design, updated_at: new Date().toISOString(), updated_by: actor }, { onConflict: "id" });
-  if (error) throw wrap(error);
+export async function saveDesign(kind: DesignKind, design: CardDesign, actor: string): Promise<void> {
+  const { error } = await supabase.from("idcard_settings").upsert({ id: kind === "transporter" ? 2 : 1, design, updated_at: new Date().toISOString(), updated_by: actor }, { onConflict: "id" });
+  if (error) {
+    if (error.code === "23514") throw new Error(L("Desain Transporter belum bisa disimpan — jalankan supabase/12_idcard_transporter.sql di Supabase SQL Editor.", "The Transporter design cannot be saved yet — run supabase/12_idcard_transporter.sql in the Supabase SQL Editor."));
+    throw wrap(error);
+  }
 }

@@ -10,10 +10,10 @@ import {
   cardStatusLabel, csvEscape, fmtDate, logActionLabel, requestStatusLabel, tipeName, TIPES, TIPE_ICON, TIPE_LABEL, wibToday,
   type CardStatus, type CardTipe, type IdCard, type IdCardLog, type IdHandover, type IdRequest, type RequestStatus,
 } from "@/lib/idcard/model";
-import { buildCardsPdf, getDefaultDesign, preloadDesign, renderCard, type CardDesign } from "@/lib/idcard/render";
+import { buildCardsPdf, cardContent, designKindOf, getDefaultDesign, preloadDesign, renderCard, type CardDesign, type DesignKind } from "@/lib/idcard/render";
 import { printHandoverReceipt, printRequestReceipt } from "@/lib/idcard/documents";
 import {
-  createHandover, createRequest, deleteHandover, deleteRequest, getCardCounts, getCardLogs, getCardsOfRequest, getDesign, getHandovers, getRequests,
+  createHandover, createRequest, deleteHandover, deleteRequest, getCardCounts, getCardLogs, getCardsOfRequest, getDesigns, getHandovers, getRequests, type Designs,
   markPrinted, peekNextSeq, previewNumber, searchCards, setCardStatus, setRequestStatus,
 } from "@/lib/idcardApi";
 import { ModuleHeader, ModulePage, ModuleTabs } from "./ModuleShell";
@@ -39,7 +39,7 @@ export default function IdCardTab({ myProfile }: { myProfile?: MyProfile | null 
   const [requests, setRequests] = useState<IdRequest[]>([]);
   const [handovers, setHandovers] = useState<IdHandover[]>([]);
   const [counts, setCounts] = useState<Record<CardStatus, number>>({ diterbitkan: 0, diserahkan: 0, kembali: 0, hilang: 0 });
-  const [design, setDesign] = useState<CardDesign>(getDefaultDesign());
+  const [designs, setDesigns] = useState<Designs>({ general: getDefaultDesign("general"), transporter: getDefaultDesign("transporter") });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToastState] = useState<{ msg: string; err?: boolean } | null>(null);
@@ -51,8 +51,8 @@ export default function IdCardTab({ myProfile }: { myProfile?: MyProfile | null 
 
   const reload = useCallback(async () => {
     try {
-      const [r, h, c, d] = await Promise.all([getRequests(), getHandovers(), getCardCounts(), getDesign()]);
-      setRequests(r); setHandovers(h); setCounts(c); setDesign(d); setError(null);
+      const [r, h, c, d] = await Promise.all([getRequests(), getHandovers(), getCardCounts(), getDesigns()]);
+      setRequests(r); setHandovers(h); setCounts(c); setDesigns(d); setError(null);
     } catch (e) { setError(msgOf(e)); }
     finally { setLoading(false); }
   }, []);
@@ -63,7 +63,7 @@ export default function IdCardTab({ myProfile }: { myProfile?: MyProfile | null 
     setBusy(L("Membuat PDF kartu…", "Building the cards PDF…"));
     try {
       const cards = await getCardsOfRequest(r.id);
-      const { pdf, pages } = await buildCardsPdf(cards.map((c) => c.number), TIPE_LABEL[r.tipe], r.lokasi, design);
+      const { pdf, pages } = await buildCardsPdf(cards.map((c) => c.number), TIPE_LABEL[r.tipe], r.lokasi, designs[designKindOf(r.tipe)], { tipe: r.tipe });
       pdf.save(`kartu-${r.tipe}-${r.cardFrom}-${r.cardTo}.pdf`);
       if (r.status === "pending") await markPrinted(r.id);
       notify(L(`PDF ${pages} halaman, ${r.jumlah} kartu`, `PDF ${pages} page(s), ${r.jumlah} cards`));
@@ -120,10 +120,11 @@ export default function IdCardTab({ myProfile }: { myProfile?: MyProfile | null 
       {pane === "dashboard" && (
         <>
           <div className={s.stats}>
-            <div className={s.stat}><small>{L("Total kartu", "Total cards")}</small><b>{(sumBy("T") + sumBy("C") + sumBy("O")).toLocaleString()}</b><em>{L("semua jenis", "all types")}</em></div>
+            <div className={s.stat}><small>{L("Total kartu", "Total cards")}</small><b>{(sumBy("T") + sumBy("C") + sumBy("O") + sumBy("R")).toLocaleString()}</b><em>{L("semua jenis", "all types")}</em></div>
             <div className={`${s.stat} ${s.t_orange}`}><small>Temporary</small><b>{sumBy("T").toLocaleString()}</b><em>T-DDMMYY###</em></div>
             <div className={s.stat}><small>Contractor</small><b>{sumBy("C").toLocaleString()}</b><em>DDMMYY###</em></div>
             <div className={`${s.stat} ${s.t_green}`}><small>Outsourcing</small><b>{sumBy("O").toLocaleString()}</b><em>DDMMYY###</em></div>
+            <div className={`${s.stat} ${s.t_orange}`}><small>Transporter</small><b>{sumBy("R").toLocaleString()}</b><em>1, 2, 3 …</em></div>
             <div className={`${s.stat} ${s.t_orange}`}><small>Pending Print</small><b>{pendingCards.toLocaleString()}</b><em>{L("belum dicetak", "not printed yet")}</em></div>
             <div className={`${s.stat} ${s.t_green}`}><small>{L("Sedang diserahkan", "Currently handed over")}</small><b>{counts.diserahkan.toLocaleString()}</b><em>{handovers.length} {L("transaksi penyerahan", "hand-over records")}</em></div>
             <div className={`${s.stat} ${s.t_gray}`}><small>{L("Stok diterbitkan", "Issued stock")}</small><b>{counts.diterbitkan.toLocaleString()}</b><em>{L("belum diserahkan", "not handed over yet")}</em></div>
@@ -163,19 +164,20 @@ export default function IdCardTab({ myProfile }: { myProfile?: MyProfile | null 
                   <div><span className={`${s.badge} ${s.b_T}`}>T</span><span className={s.tag}>T-DDMMYY001</span>Temporary</div>
                   <div><span className={`${s.badge} ${s.b_C}`}>C</span><span className={s.tag}>DDMMYY001</span>Contractor</div>
                   <div><span className={`${s.badge} ${s.b_O}`}>O</span><span className={s.tag}>DDMMYY001</span>Outsourcing</div>
+                  <div><span className={`${s.badge} ${s.b_R}`}>R</span><span className={s.tag}>1, 2, 3 …</span>Transporter</div>
                 </div>
-                <span className={s.hint}>{L("Contractor & Outsourcing berbagi satu urutan harian sehingga nomor tidak pernah kembar.", "Contractor & Outsourcing share one daily sequence, so numbers never repeat.")}</span>
+                <span className={s.hint}>{L("Contractor & Outsourcing berbagi satu urutan harian sehingga nomor tidak pernah kembar. Transporter memakai nomor urut polos yang terus berlanjut.", "Contractor & Outsourcing share one daily sequence, so numbers never repeat. Transporter uses plain running numbers that keep counting.")}</span>
               </div>
             </div>
           </div>
         </>
       )}
 
-      {pane === "pengajuan" && <RequestPane requests={requests} design={design} notify={notify} onCreated={async (r) => { await reload(); setDetail(r); }} />}
+      {pane === "pengajuan" && <RequestPane requests={requests} designs={designs} notify={notify} onCreated={async (r) => { await reload(); setDetail(r); }} />}
       {pane === "riwayat" && <HistoryPane requests={requests} loading={loading} onDetail={setDetail} onPrint={printCards} onReceipt={printReceipt} onCycle={cycleStatus} onDelete={removeRequest} notify={notify} />}
       {pane === "penyerahan" && <HandoverPane requests={requests} handovers={handovers} prefill={prefill} clearPrefill={() => setPrefill(null)} notify={notify} onChanged={reload} />}
       {pane === "kartu" && <CardsPane notify={notify} onChanged={reload} />}
-      {pane === "designer" && <IdCardDesigner design={design} actor={actor} onSaved={(d) => setDesign(d)} notify={notify} />}
+      {pane === "designer" && <IdCardDesigner designs={designs} actor={actor} onSaved={(k: DesignKind, d: CardDesign) => setDesigns((p) => ({ ...p, [k]: d }))} notify={notify} />}
 
       {detail && <RequestDetail r={detail} onClose={() => setDetail(null)} onPrint={printCards} onReceipt={printReceipt} onCycle={cycleStatus} onHandover={startHandover} onDelete={removeRequest} />}
       {toast && <div className={`${s.toast} ${toast.err ? s.toastErr : ""}`} role="status">{toast.msg}</div>}
@@ -184,7 +186,7 @@ export default function IdCardTab({ myProfile }: { myProfile?: MyProfile | null 
 }
 
 /* ════════════════ Pengajuan baru ════════════════ */
-function RequestPane({ requests, design, notify, onCreated }: { requests: IdRequest[]; design: CardDesign; notify: Toast; onCreated: (r: IdRequest) => void }) {
+function RequestPane({ requests, designs, notify, onCreated }: { requests: IdRequest[]; designs: Designs; notify: Toast; onCreated: (r: IdRequest) => void }) {
   const [perusahaan, setPerusahaan] = useState("");
   const [pic, setPic] = useState("");
   const [phone, setPhone] = useState("");
@@ -197,6 +199,7 @@ function RequestPane({ requests, design, notify, onCreated }: { requests: IdRequ
   const [saving, setSaving] = useState(false);
   const cvs = useRef<HTMLCanvasElement>(null);
   const n = Math.max(0, parseInt(jumlah) || 0);
+  const design = designs[designKindOf(tipe)];
 
   useEffect(() => { let alive = true; peekNextSeq(tipe).then((v) => alive && setSeq(v)).catch(() => {}); return () => { alive = false; }; }, [tipe, requests]);
 
@@ -208,7 +211,7 @@ function RequestPane({ requests, design, notify, onCreated }: { requests: IdRequ
       if (!alive) return;
       const DPX = 3, w = Math.round(design.cardW * DPX), h = Math.round(design.cardH * DPX);
       c.width = w; c.height = h;
-      renderCard(c.getContext("2d")!, 0, 0, w, h, { typeLabel: TIPE_LABEL[tipe], line2: (lokasi || "CIKARANG").toUpperCase(), idNum: previewNumber(tipe, seq) }, design);
+      renderCard(c.getContext("2d")!, 0, 0, w, h, cardContent(tipe, TIPE_LABEL[tipe], lokasi, previewNumber(tipe, seq), wibToday()), design);
     });
     return () => { alive = false; };
   }, [design, tipe, lokasi, seq]);
@@ -260,7 +263,7 @@ function RequestPane({ requests, design, notify, onCreated }: { requests: IdRequ
               <div><small>{L("Sampai", "To")}</small><span className={s.tag}>{previewNumber(tipe, seq + Math.max(n, 1) - 1)}</span></div>
               <div><small>Total</small><b>{n}</b></div>
             </div>
-            <span className={s.hint}>{L("Nomor pastinya ditetapkan database saat disimpan (aman walau ada yang mengajukan bersamaan).", "The exact numbers are assigned by the database on save (safe even if someone else submits at the same time).")}</span>
+            <span className={s.hint}>{tipe === "R" ? L("Transporter: nomor urut polos yang terus berlanjut (tidak kembali ke 1). Nomor seri & tanggal cetak dibuat saat kartu dicetak.", "Transporter: plain running numbers that keep counting (never back to 1). The serial no. and print date are added when the card is printed.") : L("Nomor pastinya ditetapkan database saat disimpan (aman walau ada yang mengajukan bersamaan).", "The exact numbers are assigned by the database on save (safe even if someone else submits at the same time).")}</span>
           </div>
           <button type="button" className={`${s.btnPrimary} ${s.full}`} onClick={submit} disabled={saving}>✅ {saving ? L("Menyimpan…", "Saving…") : L("Buat Pengajuan & Generate Kartu", "Create Request & Generate Cards")}</button>
         </div>
