@@ -11,7 +11,6 @@ const REL: Record<string, string> = {
   "vehicle_gate_logs.vehicles": "vehicle_id",
   "vehicle_gate_logs.drivers": "driver_id",
   "printer_requests.printers": "printer_id",
-  "gift_registrations.gift_events": "event_id",
   "rcp_wifi_grants.rcp_wifi_accounts": "account_id",
   "claims.drivers": "driver_id",
   "tasks.drivers": "driver_id",
@@ -39,7 +38,6 @@ const DEFAULTS: Record<string, Row> = {
   employees: { aktif: true },
   announcements: { is_active: true },
   printers: { aktif: true },
-  gift_events: { status: "open", items: [] },
   driver_claim_requests: { status: "menunggu", items: [] },
   tga_activities: { status: "selesai", prioritas: "normal", sumber: "mandiri", catatan: "" },
 };

@@ -1,4 +1,4 @@
-/* MOCK BACKEND — RPC modul facility: ATK, Locker, Gift, Printer, Receptionist,
+/* MOCK BACKEND — RPC modul facility: ATK, Locker, Printer, Receptionist,
    Cleaning & Gardening (GA). Meniru fungsi SQL di supabase/01_dasar.sql,
    02_peran_keamanan.sql & 04_aplikasi_lapangan.sql (definisi TERAKHIR yang dipakai). */
 
@@ -354,68 +354,6 @@ const LOCKER: Record<string, RpcHandler> = {
     }
     if (a.p_answer !== "no") fail("Jawaban tidak valid.");
     return [{ ...doRelease(l!, "user-confirm"), kept: false }];
-  },
-};
-
-/* ════════════════ GIFT ════════════════ */
-const MOCK_SEED_PASSCODE = "123456";
-function giftRow(ctx: MockCtx, r: Row, mask = false): Row {
-  const ev = table(ctx.db, "gift_events").find((e) => e.id === r.event_id);
-  const nik = s(r.nik);
-  return {
-    id: r.id, event_id: r.event_id, event_name: ev?.name ?? "",
-    nik: mask && nik.length > 4 ? "•".repeat(nik.length - 4) + nik.slice(-4) : r.nik,
-    nama: r.nama, departemen: r.departemen, email: mask ? "" : r.email ?? "",
-    sequence_no: r.sequence_no ?? "", lokasi_pengambilan: r.lokasi_pengambilan ?? "",
-    jumlah_tiket: r.jumlah_tiket ?? null, anak_dibawah_2_tahun: r.anak_dibawah_2_tahun ?? null, status_kehadiran: r.status_kehadiran ?? null,
-    selections: r.selections ?? [], claimed: !!r.claimed, claimed_at: r.claimed_at ?? null, claimed_by: r.claimed_by ?? null,
-    registered_at: r.registered_at,
-  };
-}
-const giftRegs = (ctx: MockCtx) => table(ctx.db, "gift_registrations");
-
-const GIFT: Record<string, RpcHandler> = {
-  create_gift_registration(a, ctx) {
-    if (!table(ctx.db, "gift_events").some((e) => e.id === a.p_event_id && e.status === "open")) return [{ success: false, error_code: "EVENT_CLOSED" }];
-    if (giftRegs(ctx).some((r) => r.event_id === a.p_event_id && s(r.nik) === s(a.p_nik))) return [{ success: false, error_code: "ALREADY_REGISTERED" }];
-    giftRegs(ctx).push({
-      id: uuid(), event_id: a.p_event_id, nik: s(a.p_nik), nama: s(a.p_nama), departemen: s(a.p_departemen), email: s(a.p_email).toLowerCase(),
-      selections: arr(a.p_selections), passcode_hash: "mock", passcode: s(a.p_passcode),
-      claimed: false, claimed_at: null, claimed_by: null, registered_at: nowIso(),
-    });
-    return [{ success: true, error_code: "" }];
-  },
-  verify_gift_passcode(a, ctx) {
-    const p = s(a.p_passcode);
-    if (p.replace(/\D/g, "").length < 4) fail("Passcode tidak valid.", "22023");
-    const hits = giftRegs(ctx).filter((r) =>
-      r.passcode != null && r.passcode !== "" ? s(r.passcode) === p : !!r.passcode_hash && p === MOCK_SEED_PASSCODE);
-    // passcode seed demo cocok ke banyak baris → utamakan yang belum diambil
-    hits.sort((x, y) => Number(!!x.claimed) - Number(!!y.claimed));
-    table(ctx.db, "gift_verify_attempts").push({ at: nowIso(), ok: hits.length > 0 });
-    return hits.map((r) => giftRow(ctx, r, true));
-  },
-  find_gift_registration_by_nik(a, ctx) {
-    const nik = s(a.p_nik).toLowerCase();
-    if (!nik) return [];
-    return giftRegs(ctx).filter((r) => r.event_id === a.p_event_id && s(r.nik).toLowerCase() === nik).slice(0, 1).map((r) => giftRow(ctx, r));
-  },
-  find_gift_registrations_by_name(a, ctx) {
-    const q = s(a.p_name).toLowerCase();
-    if (q.length < 2) return [];
-    return giftRegs(ctx).filter((r) => r.event_id === a.p_event_id && s(r.nama).toLowerCase().includes(q))
-      .sort((x, y) => s(x.nama).localeCompare(s(y.nama))).slice(0, 50).map((r) => giftRow(ctx, r));
-  },
-  find_gift_registration_by_sequence_no(a, ctx) {
-    const no = s(a.p_no);
-    if (!no) return [];
-    return giftRegs(ctx).filter((r) => r.event_id === a.p_event_id && s(r.sequence_no) === no).map((r) => giftRow(ctx, r));
-  },
-  claim_gift_registration(a, ctx) {
-    const r = giftRegs(ctx).find((x) => x.id === a.p_id);
-    if (!r || r.claimed) return false;
-    r.claimed = true; r.claimed_at = nowIso(); r.claimed_by = s(a.p_claimed_by) || "Petugas";
-    return true;
   },
 };
 
@@ -1168,4 +1106,4 @@ const CANTEEN_MENU: Record<string, RpcHandler> = {
   },
 };
 
-export const FACILITY: Record<string, RpcHandler> = { ...CANTEEN_MENU, ...ATK, ...LOCKER, ...GIFT, ...PRINTER, ...RECEPTIONIST, ...GA };
+export const FACILITY: Record<string, RpcHandler> = { ...CANTEEN_MENU, ...ATK, ...LOCKER, ...PRINTER, ...RECEPTIONIST, ...GA };

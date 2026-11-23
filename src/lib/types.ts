@@ -455,54 +455,6 @@ export interface CanteenKPI {
   mealEff: number;
 }
 
-// ── Gift Distribution System ──────────────────────────────────
-
-export interface GiftItemDef {
-  name: string;
-  variants: string[]; // [] = no variants (semua sama)
-}
-
-export interface GiftSelection {
-  item: string;
-  variant: string; // "" jika tidak ada varian
-  qty?: number; // default 1 — dipakai untuk mode import (bisa lebih dari 1 per item)
-}
-
-export interface GiftEvent {
-  id: string;
-  name: string;
-  description: string | null;
-  items: GiftItemDef[];
-  status: "open" | "closed";
-  plant: string | null;
-  mode: "self_register" | "lookup"; // self_register: karyawan daftar sendiri; lookup: admin import, karyawan cukup kasih NIK
-  actualBajuCount: number | null; // diisi manual admin — jumlah baju fisik yang datang
-  actualTiketCount: number | null; // diisi manual admin — jumlah tiket fisik yang datang
-  actualStockPerSize: Record<string, number> | null; // diisi manual admin — stok fisik per ukuran, mis. {"XL": 500, "L": 300}
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface GiftRegistration {
-  id: string;
-  eventId: string;
-  eventName: string;
-  nik: string;
-  nama: string;
-  departemen: string;
-  email: string;
-  sequenceNo: string; // "No" dari sheet asli — cuma dipakai mode lookup, kosong untuk mode self_register
-  lokasiPengambilan: string; // khusus mode lookup (misal beda plant/cabang pengambilan)
-  jumlahTiket: number | null; // kolom EKSPLISIT dari CSV — TIDAK dihitung dari jumlah baju
-  anakDibawah2Tahun: number | null; // kolom EKSPLISIT dari CSV — jumlah anak <2 tahun
-  statusKehadiran: string | null; // "IKUT ACARA" atau "ON DUTY" — kolom eksplisit dari CSV
-  selections: GiftSelection[];
-  claimed: boolean;
-  claimedAt: string | null;
-  claimedBy: string | null;
-  registeredAt: string;
-}
-
 /** Jam tugas maksimal (WIB). Tugas yang belum selesai ditutup otomatis pada jam ini (migrasi 020). */
 export const TASK_CUTOFF_HOUR = 17;
 

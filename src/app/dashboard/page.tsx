@@ -41,7 +41,6 @@ import { PrinterTab } from "./PrinterTab";
 import { EmployeeRequestsTab } from "./EmployeeRequestsTab";
 import { MasterDataTab } from "./MasterDataTab";
 import ChangePasswordModal from "./ChangePasswordModal";
-import { GiftMasterPanel } from "./GiftTab";
 
 import { L } from "@/lib/i18n";
 /** Label pendek grup untuk rail sidebar. */
@@ -690,16 +689,6 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "em
           {activeTab === "locker" && <LockerTab />}
           {activeTab === "lockerkey" && <LockerKeyTab />}
           {activeTab === "idcard" && <IdCardTab myProfile={myProfile} />}
-          {activeTab === "gift" && (
-            <ModulePage>
-              <ModuleHeader
-                kicker={lang === "en" ? "Facility · Distribution" : "Fasilitas · Pembagian"}
-                title={lang === "en" ? "Gift & Uniform Distribution" : "Pembagian Gift / Seragam"}
-                desc={lang === "en" ? "Run distribution programs (gifts, uniforms, merchandise): registration links, officer verification, stock per size, and participant tracking." : "Kelola program pembagian (gift, seragam, merchandise): link pendaftaran, verifikasi petugas, stok per ukuran, dan pantau peserta."}
-              />
-              <GiftMasterPanel cardStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 18, boxShadow: "var(--shadow-sm)" }} />
-            </ModulePage>
-          )}
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}

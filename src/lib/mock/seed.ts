@@ -439,26 +439,6 @@ export function buildSeed(): MockDB {
     put("employee_requests", row);
   }
 
-  /* ════ Pembagian (gift) ════ */
-  const giftId = uuid();
-  put("gift_events", {
-    id: giftId, name: "Bingkisan HUT Perusahaan ke-25", description: "Kaos + tumbler untuk seluruh karyawan",
-    items: [{ name: "Kaos HUT", variants: ["S", "M", "L", "XL", "XXL"] }, { name: "Tumbler", variants: [] }],
-    status: "open", plant: "CIK", created_at: ago(24 * 10), updated_at: ago(24 * 10),
-  });
-  for (let i = 1; i <= 40; i++) {
-    const e = emp[i - 1];
-    const claimed = i % 3 !== 0;
-    const row: Row = {
-      id: uuid(), event_id: giftId, nik: e.nik, nama: e.nama, departemen: e.departement, email: e.email,
-      selections: [{ item: "Kaos HUT", variant: ["S", "M", "L", "XL", "XXL"][i % 5] }, { item: "Tumbler", variant: "" }],
-      // mock: passcode disimpan polos (SQL: bcrypt)
-      passcode_hash: pad(i * 37, 6), claimed, registered_at: ago(24 * (3 + (i % 5))),
-    };
-    if (claimed) { row.claimed_at = ago(i * 2); row.claimed_by = "Petugas GA"; }
-    put("gift_registrations", row);
-  }
-
   /* ════ Pengumuman & kalender ════ */
   put("announcements", { id: uuid(), title: "Selamat datang di CIKOPS Demo", body: "Semua data di sini fiktif. Silakan jelajahi setiap modul — tidak ada yang tersimpan ke sistem asli.", is_active: true, created_by: "Admin GA", created_at: ago(1) });
   put("announcements", { id: uuid(), title: "Servis berkala armada minggu ini", body: "Kendaraan B 1901 NPI & F 1350 NP masuk bengkel Rabu–Kamis. Jadwalkan tugas dengan armada lain.", is_active: true, created_by: "Admin GA", created_at: ago(2) });
@@ -741,7 +721,7 @@ export function buildSeed(): MockDB {
   for (const t of [
     "activity_log", "agenda_events", "announcements", "app_settings", "atk_employees", "atk_items", "atk_requests", "atk_restocks", "atk_sync_config", "canteen_reports", "claims",
     "condolence_wreaths", "driver_claim_requests", "driver_tiers", "drivers", "employee_requests", "employees", "ga_events", "ga_improvements", "ga_inventory",
-    "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations", "gift_events", "gift_registrations", "gift_verify_attempts",
+    "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations",
     "job_types", "kantong", "lockers", "overtime", "printer_requests", "printers", "profiles", "push_subscriptions", "rcp_contacts", "rcp_counters", "rcp_parcels",
     "rcp_room_bookings", "rcp_settings", "rcp_visitors", "rcp_wifi_accounts", "rcp_wifi_grants", "security_config", "security_monthly", "tasks", "tga_activities",
     "tga_assign_config", "tga_counters", "tga_sessions", "tga_users", "vehicle_doc_notifications", "vehicle_gate_logs", "vehicles", "auth_users",

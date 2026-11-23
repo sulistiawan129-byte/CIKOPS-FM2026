@@ -153,7 +153,6 @@ export const FUNCTIONS: Record<string, RpcHandler> = {
   },
 
   "send-claim-email": sentOk,
-  "send-gift-passcode": sentOk,
   "send-locker-email": sentOk,
   "send-receptionist-email": sentOk,
   "send-task-email": sentOk,
