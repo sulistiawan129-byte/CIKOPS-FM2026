@@ -1564,36 +1564,6 @@ function atkRpcError(error: { code?: string; message?: string }): Error {
   }
   return new Error(error.message ?? String(error));
 }
-export interface AtkLineInput { kode: string; jumlah: number }
-export async function createAtkRequest(input: { tanggal: string; nama: string; nik: string; departemen: string; helper: string; items: AtkLineInput[] }): Promise<string> {
-  const { data, error } = await supabase.rpc("atk_web_request", {
-    p_tanggal: input.tanggal, p_nama: input.nama, p_nik: input.nik, p_departemen: input.departemen, p_helper: input.helper, p_items: input.items,
-  });
-  if (error) throw atkRpcError(error);
-  return String(data);
-}
-export async function createAtkRestock(input: { tanggal: string; nama: string; nik: string; departemen: string; items: AtkLineInput[] }): Promise<string> {
-  const { data, error } = await supabase.rpc("atk_web_restock", {
-    p_tanggal: input.tanggal, p_nama: input.nama, p_nik: input.nik, p_departemen: input.departemen, p_items: input.items,
-  });
-  if (error) throw atkRpcError(error);
-  return String(data);
-}
-export async function addAtkItem(input: { kode: string; nama: string; satuan: string; minStok: number; stokAwal: number }): Promise<string> {
-  const { data, error } = await supabase.rpc("atk_web_add_item", {
-    p_kode: input.kode, p_nama: input.nama, p_satuan: input.satuan, p_min_stok: input.minStok, p_stok_awal: input.stokAwal,
-  });
-  if (error) throw atkRpcError(error);
-  return String(data);
-}
-export async function setAtkMinStok(kode: string, min: number): Promise<void> {
-  const { error } = await supabase.rpc("atk_web_set_min_stok", { p_kode: kode, p_min: min });
-  if (error) throw atkRpcError(error);
-}
-export async function cancelAtkTransaction(kind: "request" | "restock", ref: string): Promise<void> {
-  const { error } = await supabase.rpc("atk_web_cancel", { p_kind: kind, p_ref: ref });
-  if (error) throw atkRpcError(error);
-}
 export async function getAtkSyncStatus(): Promise<AtkSyncStatus> {
   const { data, error } = await supabase.rpc("atk_sync_status");
   if (error) throw atkRpcError(error);
@@ -2393,13 +2363,6 @@ export async function updateEmployee(id: string, input: EmployeeInput): Promise<
   const { data: updated, error } = await supabase.from("employees").update(input).eq("id", id).select("id");
   if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
-}
-
-/** Daftar karyawan KHUSUS ATK (NIK, nama, departemen) — diisi dari sheet Excel "MasterDataKaryawan"; terpisah dari Master Karyawan. */
-export async function getAtkEmployees(): Promise<{ nama: string; nik: string; dept: string }[]> {
-  const { data, error } = await supabase.from("atk_employees").select("nik, nama, departemen").order("nama", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((r: { nik: string | null; nama: string; departemen: string | null }) => ({ nama: r.nama, nik: (r.nik ?? "").trim(), dept: (r.departemen ?? "").trim() }));
 }
 
 export interface EmployeeDupPair { keepId: string; nama: string; keep: { nik: string; dept: string }; drop: { nik: string; dept: string }; result: { nik: string; dept: string } }

@@ -11,10 +11,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  getAtkItems, getAtkRequests, getAtkRestocks, createAtkRequest, createAtkRestock, addAtkItem, setAtkMinStok,
-  cancelAtkTransaction, getAtkSyncStatus, rotateAtkSyncKey, getAtkEmployees,
+  getAtkItems, getAtkRequests, getAtkRestocks, getAtkSyncStatus, rotateAtkSyncKey,
 } from "@/lib/api";
-import type { MyProfile, AtkLineInput } from "@/lib/api";
+import type { MyProfile } from "@/lib/api";
 import type { AtkItem, AtkRequest, AtkRestock, AtkSyncStatus } from "@/lib/types";
 import { toLocalISODate } from "@/lib/dateUtils";
 import { useLang } from "@/lib/providers";
@@ -23,9 +22,8 @@ import type { ReportColumn, ReportLang } from "@/lib/reportEngine";
 import s from "./atk.module.css";
 
 import { loc } from "@/lib/i18n";
-import { SearchPick } from "@/components/SearchPick";
 type Lang = "id" | "en";
-type View = "dashboard" | "request" | "restock" | "stock" | "history" | "sync";
+type View = "dashboard" | "stock" | "history" | "sync";
 type Preset = "thisMonth" | "lastMonth" | "d30" | "m3" | "year" | "custom";
 
 const iso = (d: Date) => toLocalISODate(d);
@@ -125,14 +123,12 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
   const [items, setItems] = useState<AtkItem[]>([]);
   const [requests, setRequests] = useState<AtkRequest[]>([]); // prev.from .. range.to
   const [restocks, setRestocks] = useState<AtkRestock[]>([]);
-  const [history, setHistory] = useState<AtkRequest[]>([]); // 365 hari, untuk isian otomatis
   const [sync, setSync] = useState<AtkSyncStatus | null>(null);
   const [syncErr, setSyncErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
-  const [restockPrefill, setRestockPrefill] = useState<string | null>(null);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -154,7 +150,6 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
     return () => clearInterval(id);
   }, [load]);
   useEffect(() => {
-    getAtkRequests({ dateFrom: iso(new Date(Date.now() - 365 * DAY)) }).then(setHistory).catch(() => {});
   }, []);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 5000); return () => clearTimeout(id); }, [toast]);
 
@@ -166,12 +161,8 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
   const pendingCount = sync ? sync.pendingRequests + sync.pendingRestocks + sync.pendingItems : 0;
   const lowCount = useMemo(() => items.filter((i) => stockState(i) !== "ok").length, [items]);
 
-  function done(text: string) { setToast({ ok: true, text }); load(true); getAtkRequests({ dateFrom: iso(new Date(Date.now() - 365 * DAY)) }).then(setHistory).catch(() => {}); }
-
   const TABS: { id: View; label: string; badge?: number; tone?: "warn" | "info" }[] = [
     { id: "dashboard", label: "Dashboard" },
-    { id: "request", label: L("Permintaan", "Request") },
-    { id: "restock", label: L("Restock", "Restock") },
     { id: "stock", label: L("Stok Barang", "Stock"), badge: lowCount || undefined, tone: "warn" },
     { id: "history", label: L("Riwayat", "History") },
     { id: "sync", label: L("Sinkron Excel", "Excel Sync"), badge: pendingCount || undefined, tone: "info" },
@@ -183,7 +174,7 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
         <div className={s.headText}>
           <span className={s.kicker}>{L("Fasilitas · Office Supplies", "Facility · Office Supplies")}</span>
           <h1>{L("ATK & Supplies", "Office Supplies")}</h1>
-          <p>{L("Pantau stok, catat permintaan dan restock langsung di CIKOPS — tersinkron dua arah dengan Excel ATK.", "Track stock, record requests and restocks right in CIKOPS — two-way synced with the ATK Excel.")}</p>
+          <p>{L("Pantau stok dan riwayat transaksi ATK. Data diterima dari Excel ATK lewat sinkron — tidak ada input di aplikasi ini.", "Monitor ATK stock and transaction history. Data is received from the ATK Excel via sync — nothing is entered in this app.")}</p>
         </div>
         <div className={s.headSide}>
           <SyncPill sync={sync} err={syncErr} lang={lang} onClick={() => setView("sync")} />
@@ -213,26 +204,14 @@ export default function AtkTab({ myProfile }: { myProfile: MyProfile | null }) {
         <Dashboard
           lang={lang} loading={loading} items={items} curReq={curReq} curRst={curRst} prvReq={prvReq} prvRst={prvRst}
           range={range} prevLen={prev.len}
-          onRestock={(kode) => { setRestockPrefill(kode); setView("restock"); }}
           onGo={setView}
         />
       )}
-      {view === "request" && (
-        <TxnForm kind="request" lang={lang} items={items} history={history} myProfile={myProfile}
-          onDone={(id) => done(L(`Permintaan ${id} tersimpan — stok sudah dikurangi. Excel akan menarik transaksi ini saat sinkron.`, `Request ${id} saved — stock deducted. Excel will pull it on the next sync.`))} />
-      )}
-      {view === "restock" && (
-        <TxnForm key={restockPrefill ?? "rst"} kind="restock" lang={lang} items={items} history={history} myProfile={myProfile} prefillKode={restockPrefill}
-          onDone={(id) => { setRestockPrefill(null); done(L(`Restock ${id} tersimpan — stok sudah ditambah.`, `Restock ${id} saved — stock added.`)); }} />
-      )}
       {view === "stock" && (
-        <StockView lang={lang} items={items} requests={requests} loading={loading}
-          onRestock={(kode) => { setRestockPrefill(kode); setView("restock"); }}
-          onChanged={(msg) => done(msg)} onError={(msg) => setToast({ ok: false, text: msg })} />
+        <StockView lang={lang} items={items} requests={requests} loading={loading} />
       )}
       {view === "history" && (
-        <HistoryView lang={lang} requests={curReq} restocks={curRst} range={range} loading={loading}
-          onChanged={(msg) => done(msg)} onError={(msg) => setToast({ ok: false, text: msg })} />
+        <HistoryView lang={lang} requests={curReq} restocks={curRst} range={range} loading={loading} />
       )}
       {view === "sync" && (
         <SyncView lang={lang} sync={sync} err={syncErr} onRotated={(k) => { setSync((v) => (v ? { ...v, syncKey: k } : v)); setToast({ ok: true, text: L("Kunci sinkron baru dibuat — perbarui CIKOPS_SYNC_KEY di VBA.", "New sync key created — update CIKOPS_SYNC_KEY in VBA.") }); }}
@@ -290,9 +269,9 @@ function PeriodBar({ lang, preset, setPreset, custom, setCustom, range }: {
 ════════════════════════════════════════════════════════════ */
 const PALETTE = ["var(--brand)", "var(--green)", "var(--orange)", "var(--purple)", "var(--gold)", "var(--red)", "var(--t3)"];
 
-function Dashboard({ lang, loading, items, curReq, curRst, prvReq, prvRst, range, prevLen, onRestock, onGo }: {
+function Dashboard({ lang, loading, items, curReq, curRst, prvReq, prvRst, range, prevLen, onGo }: {
   lang: Lang; loading: boolean; items: AtkItem[]; curReq: AtkRequest[]; curRst: AtkRestock[]; prvReq: AtkRequest[]; prvRst: AtkRestock[];
-  range: { from: string; to: string }; prevLen: number; onRestock: (kode: string) => void; onGo: (v: View) => void;
+  range: { from: string; to: string }; prevLen: number; onGo: (v: View) => void;
 }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [focus, setFocus] = useState<{ dept?: string; kode?: string }>({});
@@ -446,7 +425,6 @@ function Dashboard({ lang, loading, items, curReq, curRst, prvReq, prvRst, range
                     <div className={s.track}><span className={stockState(i) === "out" ? s.fillRed : s.fillOrange} style={{ width: `${Math.min(100, (Math.max(0, i.stok) / Math.max(i.minStok * 2, 1)) * 100)}%` }} /></div>
                     <div className={s.critSub}>{nf(i.stok, lang)} / min {nf(i.minStok, lang)} {i.satuan}</div>
                   </div>
-                  <button type="button" className={s.smallBtn} onClick={() => onRestock(i.kodeBarang)}>+ Restock</button>
                 </li>
               ))}
             </ul>
@@ -605,210 +583,16 @@ function SourceTag({ t, lang, compact }: { t: { source: "excel" | "web"; pulled:
 /* ════════════════════════════════════════════════════════════
    FORM PERMINTAAN / RESTOCK
 ════════════════════════════════════════════════════════════ */
-interface Line { key: number; text: string; kode: string; jumlah: string }
-let lineSeq = 1;
-const newLine = (kode = "", text = ""): Line => ({ key: lineSeq++, text, kode, jumlah: "" });
-const itemLabel = (i: AtkItem) => `${i.kodeBarang} · ${i.namaBarang}`;
-
-function TxnForm({ kind, lang, items, history, myProfile, prefillKode, onDone }: {
-  kind: "request" | "restock"; lang: Lang; items: AtkItem[]; history: AtkRequest[]; myProfile: MyProfile | null; prefillKode?: string | null; onDone: (id: string) => void;
-}) {
-  const L = (id: string, en: string) => (lang === "en" ? en : id);
-  const isReq = kind === "request";
-  const today = iso(new Date());
-  const byKode = useMemo(() => new Map(items.map((i) => [i.kodeBarang, i])), [items]);
-  const byLabel = useMemo(() => new Map(items.map((i) => [itemLabel(i).toLowerCase(), i])), [items]);
-  const pre = prefillKode ? byKode.get(prefillKode) : undefined;
-
-  const [tanggal, setTanggal] = useState(today);
-  const [nama, setNama] = useState(isReq ? "" : myProfile?.fullName ?? "");
-  const [nik, setNik] = useState("");
-  const [dept, setDept] = useState(isReq ? "" : "GA");
-  const [helper, setHelper] = useState("");
-  const [lines, setLines] = useState<Line[]>(() => [pre ? newLine(pre.kodeBarang, itemLabel(pre)) : newLine()]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ id: string; lines: { nama: string; jumlah: number; satuan: string }[] } | null>(null);
-  const firstRef = useRef<HTMLInputElement>(null);
-
-  // Daftar karyawan ATK = HANYA dari sheet Excel "MasterDataKaryawan" (tabel atk_employees), terpisah dari Master Karyawan.
-  // Riwayat ATK tidak dipakai lagi untuk saran nama / departemen (agar departemen lama yang salah tidak ikut muncul).
-  const [master, setMaster] = useState<{ nama: string; nik: string; dept: string }[]>([]);
-  const [masterLoaded, setMasterLoaded] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    getAtkEmployees()
-      .then((es) => { if (alive) setMaster(es); })
-      .catch(() => { /* daftar opsional — form tetap bisa diketik manual */ })
-      .finally(() => { if (alive) setMasterLoaded(true); });
-    return () => { alive = false; };
-  }, []);
-
-  // isian otomatis dari daftar Excel
-  const people = useMemo(() => {
-    const m = new Map<string, { nama: string; nik: string; dept: string }>();
-    for (const e of master) {
-      if (e.nik && !m.has("n:" + e.nik)) m.set("n:" + e.nik, e);
-      if (e.nama && !m.has("p:" + e.nama.toLowerCase())) m.set("p:" + e.nama.toLowerCase(), e);
-    }
-    return m;
-  }, [master]);
-  // pilihan pemohon: daftar karyawan ATK (tanpa dobel nama)
-  const personOptions = useMemo(() => {
-    const seen = new Set<string>(); const out: { key: string; name: string; hint?: string }[] = [];
-    for (const p of people.values()) { const k = p.nama.toLowerCase(); if (!p.nama || seen.has(k)) continue; seen.add(k); out.push({ key: k, name: p.nama, hint: [p.dept, p.nik].filter(Boolean).join(" · ") || undefined }); }
-    return out;
-  }, [people]);
-  const deptList = useMemo(() => [...new Set(master.map((e) => e.dept).filter(Boolean))].sort(), [master]);
-  const nameList = useMemo(() => [...new Set(master.map((e) => e.nama).filter(Boolean))].sort().slice(0, 3000), [master]);
-  const helperList = useMemo(() => [...new Set(history.map((r) => r.helper).filter(Boolean))].sort(), [history]);
-  function fillFrom(key: string) {
-    const p = people.get(key);
-    if (!p) return;
-    setNama((v) => v || p.nama); setNik((v) => v || p.nik); setDept((v) => v || p.dept);
-  }
-
-  function setLine(k: number, patch: Partial<Line>) { setLines((ls) => ls.map((l) => (l.key === k ? { ...l, ...patch } : l))); }
-  function pickText(k: number, text: string) {
-    const t = text.trim().toLowerCase();
-    const it = byLabel.get(t) ?? items.find((i) => i.kodeBarang.toLowerCase() === t || i.namaBarang.toLowerCase() === t);
-    setLine(k, { text, kode: it?.kodeBarang ?? "" });
-  }
-
-  // validasi
-  const used = new Map<string, number>();
-  for (const l of lines) if (l.kode) used.set(l.kode, (used.get(l.kode) ?? 0) + (Number(l.jumlah) || 0));
-  const lineErr = (l: Line): string | null => {
-    if (!l.text.trim() && !l.jumlah) return null;
-    if (!l.kode) return L("Pilih barang dari daftar", "Pick an item from the list");
-    const q = Number(l.jumlah);
-    if (!l.jumlah || !(q > 0)) return L("Isi jumlah", "Enter quantity");
-    if (isReq) { const it = byKode.get(l.kode)!; if ((used.get(l.kode) ?? 0) > it.stok) return L(`Stok hanya ${nf(it.stok, lang)} ${it.satuan}`, `Only ${nf(it.stok, lang)} ${it.satuan} in stock`); }
-    return null;
-  };
-  const filled = lines.filter((l) => l.kode && Number(l.jumlah) > 0);
-  const anyErr = lines.some((l) => lineErr(l));
-  const valid = filled.length > 0 && !anyErr && (!isReq || nama.trim()) && !!tanggal && tanggal <= today;
-  const totalQty = filled.reduce((x, l) => x + Number(l.jumlah), 0);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    setBusy(true); setErr(null);
-    const payload: AtkLineInput[] = filled.map((l) => ({ kode: l.kode, jumlah: Number(l.jumlah) }));
-    try {
-      const id = isReq
-        ? await createAtkRequest({ tanggal, nama: nama.trim(), nik: nik.trim(), departemen: dept.trim(), helper: helper.trim(), items: payload })
-        : await createAtkRestock({ tanggal, nama: nama.trim(), nik: nik.trim(), departemen: dept.trim(), items: payload });
-      setSaved({ id, lines: filled.map((l) => { const it = byKode.get(l.kode)!; return { nama: it.namaBarang, jumlah: Number(l.jumlah), satuan: it.satuan }; }) });
-      onDone(id);
-    } catch (x) {
-      setErr(x instanceof Error ? x.message : String(x));
-    } finally {
-      setBusy(false);
-    }
-  }
-  function reset() {
-    setSaved(null); setLines([newLine()]); setHelper(""); setErr(null);
-    if (isReq) { setNama(""); setNik(""); setDept(""); }
-    setTimeout(() => firstRef.current?.focus(), 0);
-  }
-
-  if (saved) {
-    return (
-      <section className={`${s.card} ${s.success}`}>
-        <div className={s.successIcon}>✓</div>
-        <h2>{isReq ? L("Permintaan tersimpan", "Request saved") : L("Restock tersimpan", "Restock saved")}</h2>
-        <p className={s.mono}>{saved.id}</p>
-        <ul className={s.successList}>{saved.lines.map((l, i) => <li key={i}><span>{l.nama}</span><b>{isReq ? "−" : "+"}{nf(l.jumlah, lang)} {l.satuan}</b></li>)}</ul>
-        <p className={s.hint}>{L("Stok di CIKOPS sudah diperbarui. Excel akan menarik transaksi ini saat tombol Sinkron / Tarik dari CIKOPS ditekan.", "CIKOPS stock is updated. Excel will pull this when Sync / Pull from CIKOPS is pressed.")}</p>
-        <button type="button" className={s.primary} onClick={reset}>{isReq ? L("+ Permintaan baru", "+ New request") : L("+ Restock baru", "+ New restock")}</button>
-      </section>
-    );
-  }
-
-  return (
-    <form className={s.formGrid} onSubmit={submit}>
-      <section className={s.card}>
-        <div className={s.cardHead}><div><h2>{isReq ? L("Data pemohon", "Requester") : L("Data restock", "Restock details")}</h2><p>{isReq ? L("Ketik NIK atau nama — data pemohon lama terisi otomatis.", "Type an employee ID or name — returning requesters autofill.") : L("Barang masuk dari pembelian / gudang.", "Items received from purchasing / warehouse.")}</p></div></div>
-        <div className={s.fields2}>
-          <label className={s.field}><span>{L("Tanggal", "Date")} *</span><input ref={isReq ? undefined : firstRef} type="date" className={s.input} value={tanggal} max={today} onChange={(e) => setTanggal(e.target.value)} required /></label>
-          <label className={s.field}><span>NIK</span><input className={s.input} value={nik} onChange={(e) => setNik(e.target.value)} onBlur={() => fillFrom("n:" + nik.trim())} inputMode="numeric" maxLength={30} /></label>
-        </div>
-        <label className={s.field}>
-          <span>{isReq ? L("Nama pemohon", "Requester name") + " *" : L("Petugas", "Staff")}</span>
-          <SearchPick inputRef={isReq ? firstRef : undefined} inputClassName={s.input} value={nama} onChange={setNama} onPick={(o) => fillFrom("p:" + o.name.toLowerCase())} onBlur={() => fillFrom("p:" + nama.trim().toLowerCase())} required={isReq} maxLength={120} ariaLabel={isReq ? L("Nama pemohon", "Requester name") : L("Petugas", "Staff")} options={isReq ? personOptions : []} />
-          {isReq && masterLoaded && master.length === 0 && <small className={s.hint}>{L("Daftar karyawan ATK masih kosong — kirim sheet MasterDataKaryawan dari Excel (makro SyncKaryawanOnly). Sementara itu nama bisa diketik manual.", "The ATK employee list is empty — send the MasterDataKaryawan sheet from Excel (SyncKaryawanOnly macro). Meanwhile you can type the name manually.")}</small>}
-        </label>
-        <div className={s.fields2}>
-          <label className={s.field}><span>{L("Departemen", "Department")}</span><input className={s.input} value={dept} onChange={(e) => setDept(e.target.value)} list="atk-depts" maxLength={80} autoComplete="off" /></label>
-          {isReq && <label className={s.field}><span>{L("Helper (pengambil barang)", "Helper (picked up by)")}</span><input className={s.input} value={helper} onChange={(e) => setHelper(e.target.value)} list="atk-helpers" maxLength={80} autoComplete="off" /></label>}
-        </div>
-        <datalist id="atk-depts">{deptList.map((n) => <option key={n} value={n} />)}</datalist>
-        <datalist id="atk-helpers">{helperList.map((n) => <option key={n} value={n} />)}</datalist>
-      </section>
-
-      <section className={s.card}>
-        <div className={s.cardHead}>
-          <div><h2>{L("Barang", "Items")}</h2><p>{L("Ketik kode atau nama barang, lalu pilih dari daftar.", "Type an item code or name and pick from the list.")}</p></div>
-          <span className={s.totalChip}>{filled.length} {L("barang", "items")} · {nf(totalQty, lang)} unit</span>
-        </div>
-        <datalist id="atk-items">{items.map((i) => <option key={i.id} value={itemLabel(i)}>{`${L("Stok", "Stock")} ${nf(i.stok, lang)} ${i.satuan}`}</option>)}</datalist>
-        <ul className={s.lines}>
-          {lines.map((l, idx) => {
-            const it = l.kode ? byKode.get(l.kode) : undefined;
-            const e = lineErr(l);
-            const after = it ? (isReq ? it.stok - (used.get(it.kodeBarang) ?? 0) : it.stok + (used.get(it.kodeBarang) ?? 0)) : null;
-            return (
-              <li key={l.key} className={`${s.line} ${e ? s.lineErr : ""}`}>
-                <span className={s.lineNo}>{idx + 1}</span>
-                <div className={s.lineMain}>
-                  <input className={s.input} list="atk-items" value={l.text} placeholder={L("Cari barang…", "Search item…")} onChange={(ev) => pickText(l.key, ev.target.value)} aria-label={`${L("Barang", "Item")} ${idx + 1}`} autoComplete="off" />
-                  <div className={s.lineInfo}>
-                    {it ? (
-                      <>
-                        <span className={`${s.stockDot} ${s["dot_" + stockState(it)]}`} />
-                        {L("Stok", "Stock")} {nf(it.stok, lang)} {it.satuan}
-                        {after !== null && Number(l.jumlah) > 0 && <> → <b className={after < 0 ? s.tRed : after <= it.minStok ? s.tOrange : s.tGreen}>{nf(after, lang)}</b></>}
-                      </>
-                    ) : <span className={s.mute}>{e ?? " "}</span>}
-                    {it && e && <span className={s.tRed}> · {e}</span>}
-                  </div>
-                </div>
-                <div className={s.qty}>
-                  <button type="button" onClick={() => setLine(l.key, { jumlah: String(Math.max(0, (Number(l.jumlah) || 0) - 1) || "") })} aria-label={L("Kurangi", "Decrease")}>−</button>
-                  <input className={s.input} type="number" min="0" step="any" inputMode="decimal" value={l.jumlah} onChange={(ev) => setLine(l.key, { jumlah: ev.target.value })} aria-label={`${L("Jumlah", "Quantity")} ${idx + 1}`} placeholder="0" />
-                  <button type="button" onClick={() => setLine(l.key, { jumlah: String((Number(l.jumlah) || 0) + 1) })} aria-label={L("Tambah", "Increase")}>+</button>
-                </div>
-                <button type="button" className={s.iconBtn} onClick={() => setLines((ls) => (ls.length > 1 ? ls.filter((x) => x.key !== l.key) : [newLine()]))} aria-label={L("Hapus baris", "Remove line")} title={L("Hapus baris", "Remove line")}>✕</button>
-              </li>
-            );
-          })}
-        </ul>
-        <button type="button" className={s.addLine} onClick={() => setLines((ls) => [...ls, newLine()])}>+ {L("Tambah barang", "Add item")}</button>
-
-        {err && <div className={s.msgErr}>{err}</div>}
-        <div className={s.formFoot}>
-          <span className={s.hint}>{isReq ? L("Stok langsung dikurangi di CIKOPS, lalu ditarik ke Excel saat sinkron.", "Stock is deducted in CIKOPS immediately, then pulled into Excel on sync.") : L("Stok langsung ditambah di CIKOPS, lalu ditarik ke Excel saat sinkron.", "Stock is added in CIKOPS immediately, then pulled into Excel on sync.")}</span>
-          <button type="submit" className={s.primary} disabled={!valid || busy}>{busy ? L("Menyimpan…", "Saving…") : isReq ? L("Simpan permintaan", "Save request") : L("Simpan restock", "Save restock")}</button>
-        </div>
-      </section>
-    </form>
-  );
-}
-
 /* ════════════════════════════════════════════════════════════
    STOK BARANG
 ════════════════════════════════════════════════════════════ */
-function StockView({ lang, items, requests, loading, onRestock, onChanged, onError }: {
-  lang: Lang; items: AtkItem[]; requests: AtkRequest[]; loading: boolean; onRestock: (kode: string) => void; onChanged: (msg: string) => void; onError: (msg: string) => void;
+function StockView({ lang, items, requests, loading }: {
+  lang: Lang; items: AtkItem[]; requests: AtkRequest[]; loading: boolean;
 }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "out" | "low" | "ok" | "web">("all");
   const [sort, setSort] = useState<"name" | "stock" | "usage">("name");
-  const [adding, setAdding] = useState(false);
-  const [editMin, setEditMin] = useState<{ kode: string; val: string } | null>(null);
 
   // pemakaian 30 hari terakhir → perkiraan hari stok habis
   const usage = useMemo(() => {
@@ -828,13 +612,6 @@ function StockView({ lang, items, requests, loading, onRestock, onChanged, onErr
       .sort((a, b) => sort === "stock" ? a.stok / Math.max(a.minStok, 1) - b.stok / Math.max(b.minStok, 1) : sort === "usage" ? (usage.get(b.kodeBarang) ?? 0) - (usage.get(a.kodeBarang) ?? 0) : a.namaBarang.localeCompare(b.namaBarang));
   }, [items, q, filter, sort, usage]);
 
-  async function saveMin() {
-    if (!editMin) return;
-    const v = Number(editMin.val);
-    if (!(v >= 0)) { onError(L("Stok minimum tidak valid.", "Invalid minimum stock.")); return; }
-    try { await setAtkMinStok(editMin.kode, v); setEditMin(null); onChanged(L("Stok minimum diperbarui.", "Minimum stock updated.")); }
-    catch (e) { onError(e instanceof Error ? e.message : String(e)); }
-  }
   function exportStock(fmt: "csv" | "excel" | "pdf") {
     const cols: ReportColumn<AtkItem>[] = [
       { key: "kode", labelId: "Kode Barang", labelEn: "Item Code", get: (i) => i.kodeBarang },
@@ -867,7 +644,6 @@ function StockView({ lang, items, requests, loading, onRestock, onChanged, onErr
         <div className={s.exportGroup}>
           {(["excel", "pdf", "csv"] as const).map((f) => <button key={f} type="button" className={s.ghostBtn} onClick={() => exportStock(f)} disabled={!list.length}>{f.toUpperCase()}</button>)}
         </div>
-        <button type="button" className={s.primary} onClick={() => setAdding(true)}>+ {L("Barang baru", "New item")}</button>
       </div>
 
       {loading && items.length === 0 ? <div className={s.skeleton} style={{ height: 240 }} /> : list.length === 0 ? <p className={s.empty}>{items.length ? L("Tidak ada barang yang cocok.", "No matching items.") : L("Belum ada data barang — sinkron dari Excel atau tambah barang baru.", "No items yet — sync from Excel or add a new item.")}</p> : (
@@ -900,18 +676,10 @@ function StockView({ lang, items, requests, loading, onRestock, onChanged, onErr
                       <div className={s.track}><span className={st === "out" ? s.fillRed : st === "low" ? s.fillOrange : s.fillGreen} style={{ width: `${Math.min(100, (Math.max(0, i.stok) / Math.max(i.minStok * 3, 1)) * 100)}%` }} /></div>
                     </td>
                     <td className={s.num}>
-                      {editMin?.kode === i.kodeBarang ? (
-                        <span className={s.minEdit}>
-                          <input className={s.input} type="number" min="0" value={editMin.val} autoFocus onChange={(e) => setEditMin({ kode: i.kodeBarang, val: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") saveMin(); if (e.key === "Escape") setEditMin(null); }} aria-label={L("Stok minimum", "Minimum stock")} />
-                          <button type="button" className={s.iconBtn} onClick={saveMin} aria-label={L("Simpan", "Save")}>✓</button>
-                        </span>
-                      ) : (
-                        <button type="button" className={s.minBtn} onClick={() => setEditMin({ kode: i.kodeBarang, val: String(i.minStok) })} title={L("Ubah stok minimum", "Edit minimum stock")}>{nf(i.minStok, lang)} ✎</button>
-                      )}
+                      {nf(i.minStok, lang)}
                     </td>
                     <td className={s.num}>{u ? nf(u, lang) : "—"}</td>
                     <td className={`${s.num} ${daysLeft !== null && daysLeft < 14 ? s.tOrange : ""}`}>{daysLeft === null ? "—" : daysLeft > 365 ? "> 1 th" : `${daysLeft} ${L("hr", "d")}`}</td>
-                    <td className={s.rowAct}><button type="button" className={s.smallBtn} onClick={() => onRestock(i.kodeBarang)}>+ Restock</button></td>
                   </tr>
                 );
               })}
@@ -919,85 +687,19 @@ function StockView({ lang, items, requests, loading, onRestock, onChanged, onErr
           </table>
         </div>
       )}
-      <p className={s.hint}>{L("Stok minimum hanya disimpan di CIKOPS (dipakai untuk peringatan stok menipis). Nama & satuan barang mengikuti Excel.", "Minimum stock is stored only in CIKOPS (used for low-stock alerts). Item name & unit follow Excel.")}</p>
-      {adding && <AddItemModal lang={lang} items={items} onClose={() => setAdding(false)} onSaved={(kode) => { setAdding(false); onChanged(L(`Barang ${kode} ditambahkan — akan masuk ke MasterBarang Excel saat ditarik.`, `Item ${kode} added — it will be added to the Excel MasterBarang on pull.`)); }} />}
+      <p className={s.hint}>{L("Data stok diterima dari Excel ATK lewat sinkron. Koreksi dilakukan di Excel.", "Stock data is received from the ATK Excel via sync. Corrections are made in Excel.")}</p>
     </section>
   );
 }
 
-function suggestKode(items: AtkItem[]): string {
-  const m = new Map<string, { n: number; w: number }>();
-  for (const i of items) {
-    const x = i.kodeBarang.match(/^(.*?)(\d+)$/);
-    if (!x) continue;
-    const cur = m.get(x[1]) ?? { n: 0, w: x[2].length };
-    m.set(x[1], { n: Math.max(cur.n, Number(x[2])), w: Math.max(cur.w, x[2].length) });
-  }
-  let best: [string, { n: number; w: number }] | null = null;
-  for (const e of m) if (!best || items.filter((i) => i.kodeBarang.startsWith(e[0])).length > items.filter((i) => i.kodeBarang.startsWith(best![0])).length) best = e;
-  if (!best) return "ATK001";
-  return best[0] + String(best[1].n + 1).padStart(best[1].w, "0");
-}
-
-function AddItemModal({ lang, items, onClose, onSaved }: { lang: Lang; items: AtkItem[]; onClose: () => void; onSaved: (kode: string) => void }) {
-  const L = (id: string, en: string) => (lang === "en" ? en : id);
-  const [kode, setKode] = useState(() => suggestKode(items));
-  const [nama, setNama] = useState("");
-  const [satuan, setSatuan] = useState("pcs");
-  const [minStok, setMinStok] = useState("5");
-  const [stokAwal, setStokAwal] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const units = useMemo(() => [...new Set(items.map((i) => i.satuan).filter(Boolean))].sort(), [items]);
-  const dupKode = items.some((i) => i.kodeBarang.toLowerCase() === kode.trim().toLowerCase());
-  const dupNama = nama.trim() && items.some((i) => i.namaBarang.toLowerCase() === nama.trim().toLowerCase());
-  const valid = kode.trim() && nama.trim() && !dupKode && !dupNama && Number(minStok) >= 0 && (stokAwal === "" || Number(stokAwal) >= 0);
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    setBusy(true); setErr(null);
-    try { onSaved(await addAtkItem({ kode: kode.trim(), nama: nama.trim(), satuan: satuan.trim(), minStok: Number(minStok) || 0, stokAwal: Number(stokAwal) || 0 })); }
-    catch (x) { setErr(x instanceof Error ? x.message : String(x)); setBusy(false); }
-  }
-  return (
-    <div className={s.overlay} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className={s.modal} onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="atk-add-title">
-        <div className={s.modalHead}><h2 id="atk-add-title">{L("Barang baru", "New item")}</h2><button type="button" className={s.iconBtn} onClick={onClose} aria-label={L("Tutup", "Close")}>✕</button></div>
-        <div className={s.fields2}>
-          <label className={s.field}><span>{L("Kode barang", "Item code")} *</span><input className={s.input} value={kode} onChange={(e) => setKode(e.target.value.toUpperCase())} aria-invalid={dupKode} required maxLength={30} />{dupKode && <small className={s.tRed}>{L("Kode sudah dipakai", "Code already used")}</small>}</label>
-          <label className={s.field}><span>{L("Satuan", "Unit")}</span><input className={s.input} value={satuan} onChange={(e) => setSatuan(e.target.value)} list="atk-units" maxLength={20} /></label>
-        </div>
-        <datalist id="atk-units">{units.map((u) => <option key={u} value={u} />)}</datalist>
-        <label className={s.field}><span>{L("Nama barang", "Item name")} *</span><input className={s.input} value={nama} onChange={(e) => setNama(e.target.value)} aria-invalid={!!dupNama} required maxLength={120} autoFocus />{dupNama && <small className={s.tRed}>{L("Nama barang sudah ada", "Item name already exists")}</small>}</label>
-        <div className={s.fields2}>
-          <label className={s.field}><span>{L("Stok minimum", "Minimum stock")}</span><input className={s.input} type="number" min="0" value={minStok} onChange={(e) => setMinStok(e.target.value)} /></label>
-          <label className={s.field}><span>{L("Stok awal", "Opening stock")}</span><input className={s.input} type="number" min="0" step="any" value={stokAwal} onChange={(e) => setStokAwal(e.target.value)} placeholder="0" /></label>
-        </div>
-        <p className={s.hint}>{L("Barang baru akan ditambahkan ke sheet MasterBarang di Excel saat Excel menarik data. Stok awal dicatat sebagai restock.", "The item is added to the Excel MasterBarang sheet when Excel pulls. Opening stock is recorded as a restock.")}</p>
-        {err && <div className={s.msgErr}>{err}</div>}
-        <div className={s.modalFoot}>
-          <button type="button" className={s.ghostBtn} onClick={onClose} disabled={busy}>{L("Batal", "Cancel")}</button>
-          <button type="submit" className={s.primary} disabled={!valid || busy}>{busy ? L("Menyimpan…", "Saving…") : L("Simpan barang", "Save item")}</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
-   RIWAYAT TRANSAKSI
-════════════════════════════════════════════════════════════ */
-function HistoryView({ lang, requests, restocks, range, loading, onChanged, onError }: {
-  lang: Lang; requests: AtkRequest[]; restocks: AtkRestock[]; range: { from: string; to: string }; loading: boolean; onChanged: (msg: string) => void; onError: (msg: string) => void;
+function HistoryView({ lang, requests, restocks, range, loading }: {
+  lang: Lang; requests: AtkRequest[]; restocks: AtkRestock[]; range: { from: string; to: string }; loading: boolean;
 }) {
   const L = (id: string, en: string) => (lang === "en" ? en : id);
   const [kind, setKind] = useState<"all" | "request" | "restock">("all");
   const [src, setSrc] = useState<"all" | "excel" | "web" | "pending">("all");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [limit, setLimit] = useState(60);
   const all = useMemo(() => groupTxns(requests, restocks), [requests, restocks]);
   const list = useMemo(() => {
@@ -1008,13 +710,6 @@ function HistoryView({ lang, requests, restocks, range, loading, onChanged, onEr
       (!t || [x.ref, x.nama, x.nik, x.departemen, x.helper, ...x.lines.map((l) => l.nama + " " + l.kode)].join(" ").toLowerCase().includes(t)));
   }, [all, kind, src, q]);
 
-  async function cancel(t: Txn) {
-    if (!window.confirm(L(`Batalkan ${t.kind === "request" ? "permintaan" : "restock"} ${t.ref}? Stok akan dikembalikan.`, `Cancel ${t.kind} ${t.ref}? Stock will be reverted.`))) return;
-    setBusy(t.ref);
-    try { await cancelAtkTransaction(t.kind, t.ref); onChanged(L(`${t.ref} dibatalkan, stok dikembalikan.`, `${t.ref} cancelled, stock reverted.`)); }
-    catch (e) { onError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(null); }
-  }
   function exportRows(fmt: "csv" | "excel" | "pdf") {
     const run = fmt === "csv" ? exportGenericCsv : fmt === "excel" ? exportGenericExcel : exportGenericPdf;
     const periodLabel = `${fmtDate(range.from, lang)} – ${fmtDate(range.to, lang)}`;
@@ -1082,7 +777,6 @@ function HistoryView({ lang, requests, restocks, range, loading, onChanged, onEr
         <ul className={s.txnList}>
           {list.slice(0, limit).map((t) => {
             const id = t.kind + t.ref;
-            const canCancel = t.source === "web" && !t.pulled;
             return (
               <li key={id} className={s.txn}>
                 <button type="button" className={s.txnHead} onClick={() => setOpen(open === id ? null : id)} aria-expanded={open === id}>
@@ -1109,11 +803,7 @@ function HistoryView({ lang, requests, restocks, range, loading, onChanged, onEr
                       <tbody>{t.lines.map((l, i) => <tr key={i}><td className={s.itemCode}>{l.kode}</td><td>{l.nama}</td><td className={s.num}><b>{nf(l.jumlah, lang)}</b> {l.satuan}</td></tr>)}</tbody>
                     </table>
                     <div className={s.txnFoot}>
-                      {canCancel ? (
-                        <button type="button" className={s.dangerBtn} disabled={busy === t.ref} onClick={() => cancel(t)}>{busy === t.ref ? "…" : L("Batalkan transaksi", "Cancel transaction")}</button>
-                      ) : (
                         <span className={s.hint}>{t.source === "excel" ? L("Diinput di Excel — koreksi dilakukan di Excel.", "Entered in Excel — correct it in Excel.") : L("Sudah ditarik ke Excel — koreksi dilakukan di Excel.", "Already pulled into Excel — correct it in Excel.")}</span>
-                      )}
                     </div>
                   </div>
                 )}
