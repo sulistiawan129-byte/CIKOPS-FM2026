@@ -2126,7 +2126,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_ga_cik: {
     id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
-    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "gift", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
+    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "lockerkey", "idcard", "gift", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
     home: true, plant: "CIK", reports: ["fleet", "claims", "atk", "receptionist"], calendarTasks: true,
   },
   admin_ga_prb: {
@@ -2139,7 +2139,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_security: {
     id: "Admin / SPV Security", en: "Security Admin / SPV", descId: "Modul Security", descEn: "Security module",
-    tabs: ["security", "reports", "accounts"], home: false, plant: null, reports: ["security"], calendarTasks: false,
+    tabs: ["security", "idcard", "reports", "accounts"], home: false, plant: null, reports: ["security"], calendarTasks: false,
   },
   receptionist: {
     id: "Receptionist", en: "Receptionist", descId: "Modul Receptionist & kalender kunjungan", descEn: "Receptionist module & visit calendar",

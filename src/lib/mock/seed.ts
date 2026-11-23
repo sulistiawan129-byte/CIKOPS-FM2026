@@ -8,6 +8,7 @@
 
 import { addDays, isoDow, monthStart, rng, todayWib, uuid, wibIso, type MockDB, type Row } from "./core";
 import { SAMPLE_DAYS, SAMPLE_STAPLES, mondayOf } from "../canteenMenu";
+import { createHandoverCore, createRequestCore } from "./rpc/idcard";
 
 /* ── kosakata (sama persis dengan SQL) ── */
 const DEPTS = ["Produksi", "Quality Assurance", "Engineering", "HR & GA", "Finance & Accounting", "Supply Chain", "Marketing", "IT", "HSE", "R&D", "Procurement", "Warehouse"];
@@ -355,6 +356,47 @@ export function buildSeed(): MockDB {
       if (intern) row.end_date = addDays(today, 45);
       put("lockers", row);
     }
+  }
+
+  /* ════ Kunci Loker Karyawan (96 pintu: blok A–H × 12) ════ */
+  {
+    const KEY_DEPT = ["PRODUKSI", "QUALITY ASSURANCE", "ENGINEERING", "SUPPLY CHAIN", "WAREHOUSE", "HSE", "QC", "HR & GA"];
+    let rowNo = 0;
+    for (let b = 0; b < 8; b++) {
+      const blok = String.fromCharCode(65 + b);
+      for (let d = 1; d <= 12; d++) {
+        rowNo++;
+        const k = b * 12 + d;
+        const empty = k % 7 === 0 || k % 11 === 0;
+        const e = emp[(k * 3) % emp.length];
+        const borrowed = !empty && k % 17 === 0;
+        put("locker_keys", {
+          id: uuid(), row_no: rowNo, blok, slot: Math.ceil(rowNo / 2), pintu: `${blok}${d}`,
+          nama: empty ? "" : String(e.nama).toUpperCase(), nik: empty ? "" : String(e.nik), dept: empty ? "" : KEY_DEPT[k % KEY_DEPT.length],
+          no_kunci: String(19200 + k * 7), status: empty ? "Kosong" : borrowed ? "Dipinjam" : "Terisi",
+          borrowed_by: borrowed ? String(emp[(k + 5) % emp.length].nama).toUpperCase() : "", borrowed_at: borrowed ? addDays(today, -(k % 40) - 2) : null,
+          keterangan: borrowed ? "KUNCI UTAMA KETINGGALAN" : k % 13 === 0 && !empty ? "TIDAK ADA KUNCI SEREP" : "", created_at: ago(24 * 30), updated_at: ago(24 * 30),
+        });
+      }
+    }
+    put("locker_key_logs", { id: uuid(), locker_key_id: null, blok: "", pintu: "", nama: "", action: "impor", detail: `${rowNo} baris diimpor dari Excel (semua data lama diganti)`, actor: "Dimas Pratama (Admin GA)", created_at: ago(24 * 30) });
+  }
+
+  /* ════ ID Card (kartu akses non-karyawan) ════ */
+  {
+    const by = "Bagus Wibowo (SPV Security)";
+    const r1 = createRequestCore(db, by, { perusahaan: "PT Karya Mandiri Teknik", pic: "Hendro Saputra", phone: "0812-3456-7801", tipe: "C", jumlah: 12, catatan: "Proyek perbaikan atap gudang" });
+    const r2 = createRequestCore(db, by, { perusahaan: "PT Sentosa Cleaning Service", pic: "Marlina Dewi", phone: "0813-5566-7788", tipe: "O", jumlah: 8 });
+    createRequestCore(db, by, { perusahaan: "CV Aneka Logistik", pic: "Yudi Hartanto", phone: "0857-1122-3344", tipe: "T", jumlah: 15, catatan: "Tamu audit minggu depan" });
+    for (const r of [r1, r2]) r.status = "printed";
+    createHandoverCore(db, by, { p_perusahaan: r1.perusahaan, p_pic: r1.pic, p_phone: r1.phone, p_jabatan: "Supervisor", p_tipe: "C", p_card_from: r1.card_from, p_card_to: r1.card_to, p_request_id: r1.id, p_catatan: "" });
+    const c2 = db.idcards.filter((c) => c.request_id === r2.id);
+    createHandoverCore(db, by, { p_perusahaan: r2.perusahaan, p_pic: r2.pic, p_phone: r2.phone, p_jabatan: "Koordinator", p_tipe: "O", p_card_from: c2[0].number, p_card_to: c2[4].number, p_request_id: r2.id, p_catatan: "Tahap 1 dari 2" });
+    const c1 = db.idcards.filter((c) => c.request_id === r1.id);
+    Object.assign(c1[3], { status: "kembali", note: "Pekerja mundur" });
+    Object.assign(c1[7], { status: "hilang", note: "Dilaporkan hilang di area workshop" });
+    db.idcard_card_logs.push({ id: uuid(), number: c1[3].number, action: "kembali", detail: "Pekerja mundur", actor: by, created_at: ago(24) });
+    db.idcard_card_logs.push({ id: uuid(), number: c1[7].number, action: "hilang", detail: "Dilaporkan hilang di area workshop", actor: by, created_at: ago(12) });
   }
 
   /* ════ Printer & permintaan printer ════ */
