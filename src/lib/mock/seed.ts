@@ -8,6 +8,7 @@
 
 import { addDays, isoDow, monthStart, rng, todayWib, uuid, wibIso, type MockDB, type Row } from "./core";
 import { SAMPLE_DAYS, SAMPLE_STAPLES, mondayOf } from "../canteenMenu";
+import { createHandoverCore, createRequestCore } from "./rpc/idcard";
 
 /* ── kosakata (sama persis dengan SQL) ── */
 const DEPTS = ["Produksi", "Quality Assurance", "Engineering", "HR & GA", "Finance & Accounting", "Supply Chain", "Marketing", "IT", "HSE", "R&D", "Procurement", "Warehouse"];
@@ -379,6 +380,23 @@ export function buildSeed(): MockDB {
       }
     }
     put("locker_key_logs", { id: uuid(), locker_key_id: null, blok: "", pintu: "", nama: "", action: "impor", detail: `${rowNo} baris diimpor dari Excel (semua data lama diganti)`, actor: "Dimas Pratama (Admin GA)", created_at: ago(24 * 30) });
+  }
+
+  /* ════ ID Card (kartu akses non-karyawan) ════ */
+  {
+    const by = "Bagus Wibowo (SPV Security)";
+    const r1 = createRequestCore(db, by, { perusahaan: "PT Karya Mandiri Teknik", pic: "Hendro Saputra", phone: "0812-3456-7801", tipe: "C", jumlah: 12, catatan: "Proyek perbaikan atap gudang" });
+    const r2 = createRequestCore(db, by, { perusahaan: "PT Sentosa Cleaning Service", pic: "Marlina Dewi", phone: "0813-5566-7788", tipe: "O", jumlah: 8 });
+    createRequestCore(db, by, { perusahaan: "CV Aneka Logistik", pic: "Yudi Hartanto", phone: "0857-1122-3344", tipe: "T", jumlah: 15, catatan: "Tamu audit minggu depan" });
+    for (const r of [r1, r2]) r.status = "printed";
+    createHandoverCore(db, by, { p_perusahaan: r1.perusahaan, p_pic: r1.pic, p_phone: r1.phone, p_jabatan: "Supervisor", p_tipe: "C", p_card_from: r1.card_from, p_card_to: r1.card_to, p_request_id: r1.id, p_catatan: "" });
+    const c2 = db.idcards.filter((c) => c.request_id === r2.id);
+    createHandoverCore(db, by, { p_perusahaan: r2.perusahaan, p_pic: r2.pic, p_phone: r2.phone, p_jabatan: "Koordinator", p_tipe: "O", p_card_from: c2[0].number, p_card_to: c2[4].number, p_request_id: r2.id, p_catatan: "Tahap 1 dari 2" });
+    const c1 = db.idcards.filter((c) => c.request_id === r1.id);
+    Object.assign(c1[3], { status: "kembali", note: "Pekerja mundur" });
+    Object.assign(c1[7], { status: "hilang", note: "Dilaporkan hilang di area workshop" });
+    db.idcard_card_logs.push({ id: uuid(), number: c1[3].number, action: "kembali", detail: "Pekerja mundur", actor: by, created_at: ago(24) });
+    db.idcard_card_logs.push({ id: uuid(), number: c1[7].number, action: "hilang", detail: "Dilaporkan hilang di area workshop", actor: by, created_at: ago(12) });
   }
 
   /* ════ Printer & permintaan printer ════ */

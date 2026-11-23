@@ -23,7 +23,7 @@ const REL: Record<string, string> = {
 const PK: Record<string, string[]> = {
   app_settings: ["key"], security_config: ["key"], security_monthly: ["plant", "period"], profiles: ["id"], rcp_settings: ["id"],
   kantong: ["period", "plant"], rcp_contacts: ["name_key"], ga_jobs: ["id"], ga_manpower: ["id"], ga_plan: ["key"], atk_items: ["kode_barang"], canteen_menu_weeks: ["week_start"],
-  push_subscriptions: ["endpoint"], tga_counters: ["period"], rcp_counters: ["prefix", "period"],
+  push_subscriptions: ["endpoint"], idcard_settings: ["id"], tga_counters: ["period"], rcp_counters: ["prefix", "period"],
 };
 /** Default kolom saat insert (selain id / created_at) */
 const DEFAULTS: Record<string, Row> = {
@@ -31,6 +31,7 @@ const DEFAULTS: Record<string, Row> = {
   claims: { status: "submitted", note: "", items: [] },
   employee_requests: { status: "PENDING", details: {} },
   lockers: { status: "Available" },
+  idcard_settings: { design: {} },
   locker_keys: { row_no: 0, pintu: "", nama: "", nik: "", dept: "", no_kunci: "", status: "Kosong", borrowed_by: "", borrowed_at: null, keterangan: "", slot: null },
   rcp_parcels: { status: "waiting", handed_to: "", handed_by: "" },
   drivers: { aktif: true, driver_type: "operational" },

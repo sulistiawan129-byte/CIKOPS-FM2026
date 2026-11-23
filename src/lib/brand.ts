@@ -18,6 +18,8 @@ export const BRAND = {
   /** "PT. Frisian Flag Indonesia - Plant Cikarang" — kop dokumen / bukti cetak */
   companyWithSite: `${company.replace(/^PT\.?\s+/i, "PT. ")} - Plant ${plantCik}`,
   plantName: { CIK: plantCik, PRB: plantPrb } as Record<Plant, string>,
+  /** Alamat untuk kop dokumen (tanda terima ID Card, dll.) */
+  address: pick(process.env.NEXT_PUBLIC_COMPANY_ADDRESS, MOCK ? "Jl. Industri Raya No. 1, Cikupa, Tangerang" : "Jl. Raya Bogor KM 5, Cikarang, Bekasi"),
   /** Nama admin di bukti permintaan / tanda terima */
   adminName: pick(process.env.NEXT_PUBLIC_ADMIN_NAME, MOCK ? "Rina Kusuma" : "Sulistiawan"),
   adminDept: pick(process.env.NEXT_PUBLIC_ADMIN_DEPT, "Facility Management"),

@@ -16,6 +16,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/08_kategori_kendaraan_gate_manual.sql` | Kategori kendaraan (Aset GA / Mobil Perusahaan Non-Aset) + input manual plat tidak terdaftar di Gate Log | **Jalankan sekali di Supabase SQL Editor** (bisa sebelum atau sesudah deploy; aplikasi tetap jalan sebelum dijalankan). Aman diulang |
 | `supabase/09_gate_pos.sql` | Fungsi `get_gate_logs_pos` untuk aplikasi petugas Security Desk: hari mengikuti WIB dan kendaraan yang masih aktif dari hari sebelumnya ikut tampil | **Jalankan sekali di Supabase SQL Editor CIKOPS** (sesudah 08). Aman diulang |
 | `supabase/10_kunci_loker_karyawan.sql` | Modul **Kunci Loker Karyawan**: tabel `locker_keys` + riwayat otomatis `locker_key_logs`, fungsi pinjam/kembalikan kunci serep & impor Excel. Hak akses hanya Master Admin & Admin GA (tabel berisi nama & NIK) | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang. Data awal diisi dari aplikasi (Impor Excel) |
+| `supabase/11_idcard.sql` | Modul **ID Card** (kartu akses Temporary / Contractor / Outsourcing): tabel pengajuan, kartu, penyerahan, penghitung nomor harian, desain kartu, riwayat per kartu + fungsi (nomor dibuat atomik oleh database). Hak akses: Master Admin, Admin GA CIK, Admin / SPV Security | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -46,10 +47,10 @@ Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase se
 | Role | Kelola | Halaman awal | Kelola akun untuk |
 |---|---|---|---|
 | **Master Admin** | Semua modul (termasuk Kantin), Log Aktivitas | Beranda | Semua role |
-| **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Kunci Loker, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
+| **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Kunci Loker, ID Card, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
 | **Admin GA PRB** | Penugasan, Armada, Master Data (driver, pegawai, pengaturan), Kalender, Report Fleet — **data PRB saja** | Beranda (versi PRB) | Admin GA PRB |
 | **Admin / SPV ISS** | Cleaning & Gardening, TGA, Report Cleaning & Gardening dan TGA | Cleaning & Gardening | Admin / SPV ISS |
-| **Admin / SPV Security** | Laporan Security, Report Security | Laporan Security | Admin / SPV Security |
+| **Admin / SPV Security** | Laporan Security, ID Card, Report Security | Laporan Security | Admin / SPV Security |
 | **Receptionist** | Receptionist, Kalender (agenda & kunjungan, tanpa penugasan driver) | Receptionist | — |
 | **Management** | **Lihat saja**: FM Command Center + tarik laporan semua modul | Command Center | — |
 
@@ -591,6 +592,47 @@ Satu baris = satu pintu loker: blok, no. slot kunci, pintu, nama karyawan, NIK, 
 - Status di file ditentukan dari isi: tanpa nama = **Kosong**; keterangan memuat kata *pinjam* (dan bukan "sudah dibalikin") = **Dipinjam**; selain itu **Terisi**. Contoh file Master_Loker_Karyawan_v2: 1.135 loker — 918 terisi, 142 kosong, 75 dipinjam, 93 blok.
 - **Ganti semua data** menghapus data lama (peminjaman serep & koreksi manual yang belum ada di file ikut hilang) — ekspor dulu bila perlu. Satu catatan ringkas masuk Riwayat.
 - Bila menu menampilkan "belum aktif di database", SQL 10 belum dijalankan.
+
+---
+
+## ID Card (Security → ID Card)
+
+Kartu akses **non-karyawan**: Temporary, Contractor, Outsourcing. Alurnya sama dengan sistem ID Card lama
+(`cikops-idcard.vercel.app`): **Pengajuan → Cetak kartu (PDF) → Penyerahan (tanda terima)**, plus **Card Designer**.
+Bedanya: data di database (dipakai bersama semua admin, ada cadangan), nomor dibuat database sehingga **tidak bisa kembar**,
+dan setiap nomor kartu bisa dilacak.
+
+### Pasang (sekali saja)
+1. Jalankan `supabase/11_idcard.sql` di Supabase SQL Editor (aman diulang).
+2. Deploy aplikasi, buka **Security → ID Card**. Template kartu bawaan (`public/idcard/template-default.jpg`) sudah dipakai; ganti di tab **Card Designer** bila perlu.
+3. (Opsional) Isi alamat kop tanda terima lewat env Vercel `NEXT_PUBLIC_COMPANY_ADDRESS`.
+
+### Pemakaian
+| Tab | Fungsi |
+|---|---|
+| **Dashboard** | Total kartu per jenis, pending cetak, sedang diserahkan, stok, hilang / kembali |
+| **Pengajuan Baru** | Perusahaan, PIC, HP, jenis, lokasi, jumlah 1–500. Pratinjau nomor & kartu. Simpan = nomor dibuat → dialog detail (cetak PDF, tanda terima, penyerahan) |
+| **Riwayat** | Cari / saring, 👁 detail, 🖨 cetak kartu PDF (A4, 3×3, 200 dpi), 📄 tanda terima pengajuan, 🔄 ubah status, 🗑 hapus, ekspor CSV |
+| **Penyerahan** | Form penyerahan + tanda terima (cetak otomatis). Pilih pengajuan untuk mengisi data otomatis. Nomor dari–sampai **diperiksa** terhadap kartu yang diterbitkan |
+| **Cari Kartu** | Ketik nomor kartu → status, untuk perusahaan mana, diserahkan ke siapa, riwayatnya. Tombol **↩ Kembali**, **⚠ Hilang**, **♻ Siapkan ulang** |
+| **Card Designer** | Gambar latar template (Ctrl+V / unggah), ukuran kartu, 3 zona teks (jenis, lokasi, nomor), logo tambahan. Tersimpan di database untuk semua admin |
+
+### Penomoran
+- Temporary `T-DDMMYY###`; Contractor dan Outsourcing `DDMMYY###`; urutan kembali ke 001 tiap hari (WIB).
+- **Contractor & Outsourcing memakai satu urutan harian yang sama** (sistem lama memakai dua urutan terpisah sehingga bisa menerbitkan nomor yang sama). Satu nomor = satu kartu.
+- Dua admin yang mengajukan bersamaan tetap mendapat rentang nomor yang berbeda.
+
+### Status kartu
+`diterbitkan` (stok) → `diserahkan` (lewat Penyerahan) → `kembali` / `hilang`. Kartu kembali/hilang bisa **disiapkan ulang** (kembali jadi stok).
+Pengajuan otomatis **Selesai** bila semua kartunya sudah diserahkan; membatalkan penyerahan mengembalikan kartu menjadi `diterbitkan`.
+Pengajuan yang kartunya sudah diserahkan tidak bisa dihapus sebelum penyerahannya dibatalkan.
+
+### Kartu lama (sebelum sistem ini)
+Di form Penyerahan centang **"Kartu lama di luar sistem"** untuk mencatat penyerahan tanpa pemeriksaan nomor (jumlah diisi manual).
+Data sistem lama (localStorage) tidak otomatis ikut; bila perlu dibawa, ekspor CSV dari sistem lama.
+
+### Akses
+Master Admin, Admin GA CIK, dan Admin / SPV Security. Role lain dan pengunjung tanpa login tidak punya akses (database ikut menjaga).
 
 ---
 
