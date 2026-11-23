@@ -2127,7 +2127,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_ga_cik: {
     id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
-    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "lockerkey", "idcard", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
+    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "idcard", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
     home: true, plant: "CIK", reports: ["fleet", "claims", "atk", "receptionist"], calendarTasks: true,
   },
   admin_ga_prb: {
