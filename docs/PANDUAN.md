@@ -596,6 +596,19 @@ Satu baris = satu pintu loker: blok, no. slot kunci, pintu, nama karyawan, NIK, 
 
 ---
 
+## Form Parkir & Toll Manual (aplikasi driver)
+
+Template PDF untuk transaksi parkir / toll yang **tidak punya struk elektronik**: driver mencetak, mengisi dengan tangan, lalu **melampirkan bukti transaksi**
+saat mengajukan klaim. Tidak perlu SQL atau pengaturan — langsung aktif di aplikasi driver.
+
+- Buka aplikasi driver → tab **Klaim** → tombol **📄 Form Parkir & Toll Manual (PDF)**.
+- Pilih jumlah lembar (1, 2, 3, atau 5) → **Unduh PDF**. **1 lembar A4 = 10 form** (2 kolom × 5 baris), gunting di garis putus-putus.
+- Isi tiap form: Judul *FORM PARKIR & TOLL MANUAL*, **Tanggal Trx**, **Jenis Trx** (kotak centang Parkir / Toll), **Nominal** (Rp), **Lokasi**, **Jam** (WIB), dan catatan *Harap Lampirkan Bukti Transaksi*.
+- PDF dibuat di HP (tanpa internet setelah aplikasi terbuka). Bila unduhan otomatis diblokir, PDF dibuka di tab baru.
+- Teks dan tata letak ada di `src/lib/driverForms.ts` bila perlu diubah (mis. judul, atau menambah baris Nama Driver / Plat).
+
+---
+
 ## ID Card (Security → ID Card)
 
 Kartu akses **non-karyawan**: Temporary, Contractor, Outsourcing, Transporter. Alurnya sama dengan sistem ID Card lama
