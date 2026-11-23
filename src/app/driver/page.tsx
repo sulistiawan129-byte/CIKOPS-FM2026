@@ -25,6 +25,7 @@ import { autoEnableNative, createRinger, disablePush, enablePush, pushState, tes
 import { supabase } from "@/lib/supabaseClient";
 import { driverTypeLabel, dutyHoursLabel, getUserDutyStatus, isUserDriver, useNowTick } from "@/lib/duty";
 import { DEMO_DRIVER_EMAIL, DEMO_MODE, DEMO_PASSWORD, plantFull } from "@/lib/brand";
+import ParkTollSheet from "./ParkTollSheet";
 
 import { loc , L} from "@/lib/i18n";
 type Screen = "splash" | "login" | "app";
@@ -98,6 +99,7 @@ export default function DriverPanelPage() {
   const knownReviewed = useRef<Map<string, string> | null>(null);
 
   const [pwOpen, setPwOpen] = useState(false);
+  const [formSheet, setFormSheet] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ringer = useRef<ReturnType<typeof createRinger> | null>(null);
@@ -256,7 +258,7 @@ export default function DriverPanelPage() {
   }, [screen, driver, loadClaims, flash, L]);
 
   const refreshAll = useCallback(async () => { await Promise.all([loadTasks(), loadClaims()]); }, [loadTasks, loadClaims]);
-  const { pull, busy: pulling } = usePullRefresh(refreshAll, screen === "app" && !claimForm && !cancelTask && !pwOpen && !incoming);
+  const { pull, busy: pulling } = usePullRefresh(refreshAll, screen === "app" && !claimForm && !cancelTask && !pwOpen && !formSheet && !incoming);
 
   // ── Aksi tugas ──
   async function act(task: TaskDetail, kind: "accept" | "complete" | "cancel") {
@@ -354,7 +356,7 @@ export default function DriverPanelPage() {
         {tab === "history" && <HistoryView L={L} lang={lang} driverId={driver.id} />}
         {tab === "claims" && (
           <ClaimsView L={L} lang={lang} claims={claims} requests={requests} err={reqErr}
-            onNew={() => openClaimForm()} onEdit={openClaimForm} onCancel={cancelRequest} />
+            onNew={() => openClaimForm()} onEdit={openClaimForm} onCancel={cancelRequest} onForm={() => setFormSheet(true)} />
         )}
         {tab === "profile" && (
           <ProfileView L={L} lang={lang} driver={driver} stats={stats} theme={theme} toggleTheme={toggleTheme} setLang={setLang}
@@ -381,6 +383,7 @@ export default function DriverPanelPage() {
           onLater={() => { ringer.current?.stop(); setIncoming(null); }} />
       )}
 
+      {formSheet && <ParkTollSheet L={L} onClose={() => setFormSheet(false)} />}
       {cancelTask && (
         <Sheet onClose={() => setCancelTask(null)} label={L("Batalkan tugas", "Cancel task")}>
           <div className={s.stack}>
@@ -745,9 +748,9 @@ function weekLabel(monday: string, lang: string) {
   return `${L === "en" ? "Week" : "Minggu"} ${Math.ceil(d.getDate() / 7)} · ${MONTHS[L][d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function ClaimsView({ L, lang, claims, requests, err, onNew, onEdit, onCancel }: {
+function ClaimsView({ L, lang, claims, requests, err, onNew, onEdit, onCancel, onForm }: {
   L: Lx; lang: string; claims: Claim[]; requests: ClaimRequest[]; err: string | null;
-  onNew: () => void; onEdit: (r: ClaimRequest) => void; onCancel: (r: ClaimRequest) => void;
+  onNew: () => void; onEdit: (r: ClaimRequest) => void; onCancel: (r: ClaimRequest) => void; onForm: () => void;
 }) {
   const pending = requests.filter((r) => r.status === "menunggu");
   const [view, setView] = useState<"requests" | "claims">(pending.length || !claims.length ? "requests" : "claims");
@@ -768,6 +771,8 @@ function ClaimsView({ L, lang, claims, requests, err, onNew, onEdit, onCancel }:
           <div><i className={s.tGreen} /><span>{L("Klaim bulan ini", "Claims this month")}</span><b className={s.money}>Rp {fmtRp(monthTotal)}</b></div>
         </div>
       </section>
+
+      <button type="button" className={s.ghostBtn} onClick={onForm}>📄 {L("Form Parkir & Toll Manual (PDF)", "Manual Parking & Toll Form (PDF)")}</button>
 
       <div className={s.seg}>
         <button type="button" className={view === "requests" ? s.segActive : ""} onClick={() => setView("requests")}>
