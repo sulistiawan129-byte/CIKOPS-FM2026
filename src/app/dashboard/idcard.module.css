@@ -60,7 +60,7 @@
 .empty span { display: block; font-size: 30px; }
 
 .badge { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
-.b_T { background: #fef3c7; color: #92400e; } .b_C { background: #dbeafe; color: #1d4ed8; } .b_O { background: #dcfce7; color: #166534; }
+.b_T { background: #fef3c7; color: #92400e; } .b_C { background: #dbeafe; color: #1d4ed8; } .b_O { background: #dcfce7; color: #166534; } .b_R { background: #ffedd5; color: #9a3412; }
 .b_pending, .b_diterbitkan { background: #fef3c7; color: #92400e; }
 .b_printed { background: #dbeafe; color: #1d4ed8; }
 .b_selesai, .b_diserahkan { background: #dcfce7; color: #166534; }

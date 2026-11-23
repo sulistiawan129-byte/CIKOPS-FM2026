@@ -7,7 +7,7 @@ import { escapeHtml as esc } from "../escapeHtml";
 import { TIPE_LABEL, angkaKata, fmtDate, fmtDateLong, type IdHandover, type IdRequest } from "./model";
 
 const company = () => BRAND.company.toUpperCase();
-const TIPE_COLOR = { T: "#92400e", C: "#1d4ed8", O: "#166534" } as const;
+const TIPE_COLOR = { T: "#92400e", C: "#1d4ed8", O: "#166534", R: "#9a3412" } as const;
 
 function openPrintWindow(html: string): boolean {
   const win = window.open("", "_blank", "width=820,height=900");

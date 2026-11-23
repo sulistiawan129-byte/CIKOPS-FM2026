@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { L } from "@/lib/i18n";
-import { a4Grid, getDefaultDesign, preloadDesign, renderCard, shrinkImageFile, type CardDesign, type LogoDef, type ZoneKey } from "@/lib/idcard/render";
-import { saveDesign } from "@/lib/idcardApi";
+import { a4Grid, cardContent, getDefaultDesign, preloadDesign, renderCard, shrinkImageFile, type CardDesign, type DesignKind, type LogoDef, type ZoneKey } from "@/lib/idcard/render";
+import { saveDesign, type Designs } from "@/lib/idcardApi";
 import s from "./idcard.module.css";
 
 /* ════════════════════════════════════════════════════════════
@@ -11,14 +11,18 @@ import s from "./idcard.module.css";
 ════════════════════════════════════════════════════════════ */
 
 const MM_TO_PX = 200 / 25.4; // 200 dpi
-const ZONES: { key: ZoneKey; title: () => string; token: string; y: [number, number]; f: [number, number] }[] = [
-  { key: "line1", title: () => L("Baris 1 — Jenis Kartu", "Line 1 — Card type"), token: "{typeLabel}", y: [15, 50], f: [5, 20] },
-  { key: "line2", title: () => L("Baris 2 — Lokasi", "Line 2 — Location"), token: "{line2}", y: [20, 60], f: [5, 20] },
-  { key: "idNum", title: () => L("Nomor Kartu", "Card number"), token: "{idNum}", y: [48, 80], f: [5, 22] },
+const ZONES: { key: ZoneKey; title: () => string; token: string; y: [number, number]; f: [number, number]; optional?: boolean }[] = [
+  { key: "line1", title: () => L("Baris 1 — Jenis Kartu", "Line 1 — Card type"), token: "{typeLabel}", y: [10, 70], f: [4, 20] },
+  { key: "line2", title: () => L("Baris 2 — Lokasi", "Line 2 — Location"), token: "{line2}", y: [10, 75], f: [3, 20] },
+  { key: "idNum", title: () => L("Nomor Kartu", "Card number"), token: "{idNum}", y: [10, 85], f: [5, 60] },
+  { key: "serial", title: () => L("No. Seri (Transporter)", "Serial no. (Transporter)"), token: "{serial}", y: [10, 90], f: [2, 12], optional: true },
+  { key: "printDate", title: () => L("Tanggal Cetak", "Print date"), token: "{printDate}", y: [10, 90], f: [2, 12], optional: true },
 ];
-const SAMPLE = { typeLabel: "CONTRACTOR", line2: "CIKARANG", idNum: "231126001" };
+const sampleOf = (kind: DesignKind) => (kind === "transporter" ? cardContent("R", "TRANSPORTER", "CIKARANG", "38", new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10)) : cardContent("C", "CONTRACTOR", "CIKARANG", "231126001", new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10)));
 
-export default function IdCardDesigner({ design, actor, onSaved, notify }: { design: CardDesign; actor: string; onSaved: (d: CardDesign) => void; notify: (msg: string, err?: boolean) => void }) {
+export default function IdCardDesigner({ designs, actor, onSaved, notify }: { designs: Designs; actor: string; onSaved: (kind: DesignKind, d: CardDesign) => void; notify: (msg: string, err?: boolean) => void }) {
+  const [kind, setKind] = useState<DesignKind>("general");
+  const design = designs[kind];
   const [d, setD] = useState<CardDesign>(() => JSON.parse(JSON.stringify(design)));
   const [zoom, setZoom] = useState(1.5);
   const [saving, setSaving] = useState(false);
@@ -30,8 +34,8 @@ export default function IdCardDesigner({ design, actor, onSaved, notify }: { des
     await preloadDesign(x);
     const w = Math.round(x.cardW * MM_TO_PX), h = Math.round(x.cardH * MM_TO_PX);
     c.width = w; c.height = h;
-    renderCard(c.getContext("2d")!, 0, 0, w, h, SAMPLE, x);
-  }, []);
+    renderCard(c.getContext("2d")!, 0, 0, w, h, sampleOf(kind), x);
+  }, [kind]);
   useEffect(() => { draw(d); }, [d, draw]);
 
   const patch = (fn: (x: CardDesign) => void) => setD((p) => { const n = JSON.parse(JSON.stringify(p)) as CardDesign; fn(n); return n; });
@@ -50,12 +54,17 @@ export default function IdCardDesigner({ design, actor, onSaved, notify }: { des
 
   async function save() {
     setSaving(true);
-    try { await saveDesign(d, actor); onSaved(d); notify(L("Template disimpan", "Template saved")); } catch (e) { notify(e instanceof Error ? e.message : String(e), true); }
+    try { await saveDesign(kind, d, actor); onSaved(kind, d); notify(L("Template disimpan", "Template saved")); } catch (e) { notify(e instanceof Error ? e.message : String(e), true); }
     setSaving(false);
   }
   function reset() {
     if (!window.confirm(L("Reset semua ke default?", "Reset everything to default?"))) return;
-    setD(getDefaultDesign());
+    setD(getDefaultDesign(kind));
+  }
+  function switchKind(k: DesignKind) {
+    if (k === kind) return;
+    if (JSON.stringify(d) !== JSON.stringify(design) && !window.confirm(L("Ada perubahan yang belum disimpan. Pindah template dan buang perubahan?", "There are unsaved changes. Switch template and discard them?"))) return;
+    setKind(k); setD(JSON.parse(JSON.stringify(designs[k])));
   }
 
   const grid = a4Grid(d.cardW, d.cardH);
@@ -65,6 +74,18 @@ export default function IdCardDesigner({ design, actor, onSaved, notify }: { des
     <div className={s.designer}>
       {/* kiri */}
       <div className={s.wrap}>
+        <div className={s.panel}>
+          <div className={s.panelHead}>🎴 {L("Template yang diedit", "Template being edited")}</div>
+          <div className={s.panelBody}>
+            <label className={s.field}>
+              <select value={kind} onChange={(e) => switchKind(e.target.value as DesignKind)} aria-label={L("Pilih template", "Choose template")}>
+                <option value="general">{L("Temporary / Contractor / Outsourcing", "Temporary / Contractor / Outsourcing")}</option>
+                <option value="transporter">Transporter</option>
+              </select>
+            </label>
+            <span className={s.hint}>{kind === "transporter" ? L("Nomor urut polos (1, 2, 3 …) dicetak besar di tengah.", "Plain running numbers (1, 2, 3 …) printed large in the centre.") : L("Format nomor DDMMYY###.", "Number format DDMMYY###.")}</span>
+          </div>
+        </div>
         <div className={s.panel}>
           <div className={s.panelHead}>🖼 {L("Template Background", "Background template")}</div>
           <div className={s.panelBody}>
@@ -76,6 +97,7 @@ export default function IdCardDesigner({ design, actor, onSaved, notify }: { des
               <small>{L("Ganti background template kartu", "Replace the card background template")}</small>
             </div>
             <button type="button" className={`${s.btn} ${s.sm}`} onClick={() => patch((n) => { n.bgImg = null; })}>↺ {L("Pakai template default", "Use default template")}</button>
+            <label className={`${s.field} ${s.check}`}><input type="checkbox" checked={d.hideDivider} onChange={(e) => patch((n) => { n.hideDivider = e.target.checked; })} /><span>{L("Hilangkan garis hitam di tengah (template bawaan)", "Hide the black centre line (default template)")}</span></label>
           </div>
         </div>
 
@@ -145,6 +167,7 @@ export default function IdCardDesigner({ design, actor, onSaved, notify }: { des
             return (
               <div key={z.key} className={s.zone}>
                 <b>{z.title()} <em>{z.token}</em></b>
+                {z.optional && <label className={`${s.field} ${s.check}`}><input type="checkbox" checked={v.visible !== false} onChange={(e) => zone(z.key, "visible", e.target.checked)} /><span>{L("Tampilkan di kartu", "Show on the card")}</span></label>}
                 <div className={s.prop}><label>{L("Posisi Y", "Y position")}</label><input type="range" min={z.y[0]} max={z.y[1]} value={v.y} onChange={(e) => zone(z.key, "y", Number(e.target.value))} /><span className={s.pval}>{v.y}%</span></div>
                 <div className={s.prop}><label>{L("Ukuran", "Font size")}</label><input type="range" min={z.f[0]} max={z.f[1]} value={v.fontSize} onChange={(e) => zone(z.key, "fontSize", Number(e.target.value))} /><span className={s.pval}>{v.fontSize}%</span></div>
                 <div className={s.prop}><label>{L("Warna", "Colour")}</label><input type="color" value={v.color} onChange={(e) => zone(z.key, "color", e.target.value)} /></div>

@@ -4,15 +4,15 @@
 ════════════════════════════════════════════════════════════ */
 import { L } from "../i18n";
 
-export type CardTipe = "T" | "C" | "O";
+export type CardTipe = "T" | "C" | "O" | "R";
 export type RequestStatus = "pending" | "printed" | "selesai";
 export type CardStatus = "diterbitkan" | "diserahkan" | "kembali" | "hilang";
 
-export const TIPES: CardTipe[] = ["T", "C", "O"];
+export const TIPES: CardTipe[] = ["T", "C", "O", "R"];
 /** Teks pada kartu / dokumen */
-export const TIPE_LABEL: Record<CardTipe, string> = { T: "TEMPORARY", C: "CONTRACTOR", O: "OUTSOURCING" };
-export const TIPE_ICON: Record<CardTipe, string> = { T: "🟡", C: "🔵", O: "🟢" };
-export const tipeName = (t: CardTipe | string) => ({ T: "Temporary", C: "Contractor", O: "Outsourcing" } as Record<string, string>)[t] ?? t;
+export const TIPE_LABEL: Record<CardTipe, string> = { T: "TEMPORARY", C: "CONTRACTOR", O: "OUTSOURCING", R: "TRANSPORTER" };
+export const TIPE_ICON: Record<CardTipe, string> = { T: "🟡", C: "🔵", O: "🟢", R: "🟠" };
+export const tipeName = (t: CardTipe | string) => ({ T: "Temporary", C: "Contractor", O: "Outsourcing", R: "Transporter" } as Record<string, string>)[t] ?? t;
 
 export const requestStatusLabel = (s: string) => ({ pending: L("Pending", "Pending"), printed: L("Dicetak", "Printed"), selesai: L("Selesai", "Done") } as Record<string, string>)[s] ?? s;
 export const cardStatusLabel = (s: string) => ({ diterbitkan: L("Diterbitkan", "Issued"), diserahkan: L("Diserahkan", "Handed over"), kembali: L("Kembali", "Returned"), hilang: L("Hilang", "Lost") } as Record<string, string>)[s] ?? s;
@@ -38,9 +38,14 @@ export interface IdCardLog { id: string; number: string; action: string; detail:
 export const wibToday = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 /** "2026-11-23" → "231126" */
 export const ddmmyy = (iso: string) => `${iso.slice(8, 10)}${iso.slice(5, 7)}${iso.slice(2, 4)}`;
-export const formatNumber = (tipe: CardTipe, dayIso: string, seq: number) => `${tipe === "T" ? "T-" : ""}${ddmmyy(dayIso)}${String(seq).padStart(3, "0")}`;
-/** Contractor & Outsourcing memakai satu urutan harian; Temporary punya urutan sendiri. */
-export const seriesOf = (t: CardTipe): "T" | "CO" => (t === "T" ? "T" : "CO");
+/** Transporter: nomor urut polos (1, 2, 3 …). Lainnya: [T-]DDMMYY###. */
+export const formatNumber = (tipe: CardTipe, dayIso: string, seq: number) => (tipe === "R" ? String(seq) : `${tipe === "T" ? "T-" : ""}${ddmmyy(dayIso)}${String(seq).padStart(3, "0")}`);
+/** Contractor & Outsourcing memakai satu urutan harian; Temporary punya urutan sendiri; Transporter berlanjut tanpa reset harian. */
+export const seriesOf = (t: CardTipe): "T" | "CO" | "TR" => (t === "T" ? "T" : t === "R" ? "TR" : "CO");
+/** Tanggal acuan penghitung: Transporter memakai tanggal tetap (tidak reset harian). */
+export const COUNTER_DAY_TR = "2000-01-01";
+/** Nomor seri Transporter yang dicetak di kartu: TRP-DDMMYY-### (tanggal cetak + nomor 3 digit). */
+export const serialOf = (number: string, printIso: string) => `TRP-${ddmmyy(printIso)}-${number.padStart(3, "0")}`;
 
 export const fmtDate = (s: string | null | undefined) => {
   if (!s) return "—";

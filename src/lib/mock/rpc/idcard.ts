@@ -5,7 +5,7 @@ import { fail, nowIso, table, todayWib, uuid, type MockCtx, type MockDB, type Ro
 
 const s = (v: unknown) => (v == null ? "" : String(v)).trim();
 const ddmmyy = (d: string) => `${d.slice(8, 10)}${d.slice(5, 7)}${d.slice(2, 4)}`;
-const fmt = (t: string, d: string, n: number) => `${t === "T" ? "T-" : ""}${ddmmyy(d)}${String(n).padStart(3, "0")}`;
+const fmt = (t: string, d: string, n: number) => (t === "R" ? String(n) : `${t === "T" ? "T-" : ""}${ddmmyy(d)}${String(n).padStart(3, "0")}`);
 
 function guard(ctx: MockCtx) {
   const role = s(ctx.profile?.role);
@@ -20,18 +20,18 @@ function log(db: MockDB, number: string, action: string, detail: string, by: str
 
 /** Dipakai juga oleh seed demo. */
 export function createRequestCore(db: MockDB, by: string, a: { tanggal?: string; perusahaan: string; pic: string; phone?: string; tipe: string; lokasi?: string; jumlah: number; catatan?: string }): Row {
-  if (!["T", "C", "O"].includes(a.tipe)) fail("Jenis kartu tidak valid.");
+  if (!["T", "C", "O", "R"].includes(a.tipe)) fail("Jenis kartu tidak valid.");
   if (!s(a.perusahaan)) fail("Nama perusahaan harus diisi.");
   if (!s(a.pic)) fail("Nama PIC harus diisi.");
   if (!a.jumlah || a.jumlah < 1 || a.jumlah > 500) fail("Jumlah harus antara 1–500.");
-  const day = todayWib(), series = a.tipe === "T" ? "T" : "CO";
+  const today = todayWib(), day = a.tipe === "R" ? "2000-01-01" : today, series = a.tipe === "T" ? "T" : a.tipe === "R" ? "TR" : "CO";
   const counters = table(db, "idcard_counters");
   let c = counters.find((x) => x.day === day && x.series === series);
   if (!c) { c = { day, series, last_seq: 0 }; counters.push(c); }
   const start = c.last_seq + 1;
   c.last_seq += a.jumlah;
   const req: Row = {
-    id: uuid(), tanggal: a.tanggal || day, perusahaan: s(a.perusahaan).slice(0, 120), pic: s(a.pic).slice(0, 80), phone: s(a.phone).slice(0, 30), tipe: a.tipe,
+    id: uuid(), tanggal: a.tanggal || today, perusahaan: s(a.perusahaan).slice(0, 120), pic: s(a.pic).slice(0, 80), phone: s(a.phone).slice(0, 30), tipe: a.tipe,
     lokasi: (s(a.lokasi) || "CIKARANG").toUpperCase().slice(0, 40), jumlah: a.jumlah, card_from: fmt(a.tipe, day, start), card_to: fmt(a.tipe, day, c.last_seq),
     status: "pending", catatan: s(a.catatan).slice(0, 500), created_by: by, created_at: nowIso(),
   };
@@ -49,7 +49,7 @@ function refreshRequestStatus(db: MockDB, requestId: string) {
 
 export function createHandoverCore(db: MockDB, by: string, a: Row): Row {
   const from = s(a.p_card_from).toUpperCase(), to = s(a.p_card_to).toUpperCase(), tipe = s(a.p_tipe);
-  if (!["T", "C", "O"].includes(tipe)) fail("Jenis kartu tidak valid.");
+  if (!["T", "C", "O", "R"].includes(tipe)) fail("Jenis kartu tidak valid.");
   if (!s(a.p_perusahaan)) fail("Nama perusahaan harus diisi.");
   if (!s(a.p_pic)) fail("Nama penerima harus diisi.");
   if (!from || !to) fail("Nomor kartu dari / sampai harus diisi.");
