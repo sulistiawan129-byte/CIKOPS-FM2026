@@ -15,9 +15,10 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/07_kategori_driver.sql` | Kategori driver jadi 2 (Driver Pool & Driver User): driver bertipe *Support* diubah jadi Pool, constraint diperketat | **Jalankan sekali SESUDAH aplikasi versi baru ter-deploy (merge ke main).** Aman diulang |
 | `supabase/08_kategori_kendaraan_gate_manual.sql` | Kategori kendaraan (Aset GA / Mobil Perusahaan Non-Aset) + input manual plat tidak terdaftar di Gate Log | **Jalankan sekali di Supabase SQL Editor** (bisa sebelum atau sesudah deploy; aplikasi tetap jalan sebelum dijalankan). Aman diulang |
 | `supabase/09_gate_pos.sql` | Fungsi `get_gate_logs_pos` untuk aplikasi petugas Security Desk: hari mengikuti WIB dan kendaraan yang masih aktif dari hari sebelumnya ikut tampil | **Jalankan sekali di Supabase SQL Editor CIKOPS** (sesudah 08). Aman diulang |
-| `supabase/10_kunci_loker_karyawan.sql` | Modul **Kunci Loker Karyawan**: tabel `locker_keys` + riwayat otomatis `locker_key_logs`, fungsi pinjam/kembalikan kunci serep & impor Excel. Hak akses hanya Master Admin & Admin GA (tabel berisi nama & NIK) | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang. Data awal diisi dari aplikasi (Impor Excel) |
+| `supabase/10_kunci_loker_karyawan.sql` | (Dibatalkan oleh 13) Modul **Kunci Loker Karyawan**: tabel `locker_keys` + riwayat otomatis `locker_key_logs`, fungsi pinjam/kembalikan kunci serep & impor Excel. Hak akses hanya Master Admin & Admin GA (tabel berisi nama & NIK) | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang. Data awal diisi dari aplikasi (Impor Excel) |
 | `supabase/11_idcard.sql` | Modul **ID Card** (kartu akses Temporary / Contractor / Outsourcing): tabel pengajuan, kartu, penyerahan, penghitung nomor harian, desain kartu, riwayat per kartu + fungsi (nomor dibuat atomik oleh database). Hak akses: Master Admin, Admin GA CIK, Admin / SPV Security | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang |
 | `supabase/12_idcard_transporter.sql` | Jenis kartu ke-4 **Transporter**: nomor urut polos (1, 2, 3 …), desain kartu terpisah | **Jalankan sekali SESUDAH `11_idcard.sql`** di Supabase SQL Editor. Aman diulang |
+| `supabase/13_hapus_data_karyawan.sql` | **Hapus data karyawan** dari Supabase (employees, atk_employees, Gift, Kunci Loker) dan ganti saran requestor TGA ke riwayat. Laporan/riwayat dipertahankan | **Backup dulu → deploy aplikasi terbaru → jalankan.** Penghapusan permanen; lihat bab "Data karyawan: input manual". Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
 Bila bagian 040 dibatalkan oleh pemeriksaan awalnya (pesan `DIBATALKAN — …`),
@@ -28,7 +29,7 @@ bagian 039 & 041 tetap tersimpan; kirim hasil bagian 7 dari
 | Function | Secret yang dibutuhkan |
 |---|---|
 | `manage-staff-account` | — (memakai `SUPABASE_SERVICE_ROLE_KEY` bawaan) |
-| `send-driver-credentials`, `send-claim-email`, `send-task-email`, `send-receptionist-email`, `send-gift-passcode` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
+| `send-driver-credentials`, `send-claim-email`, `send-task-email`, `send-receptionist-email` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
 | `send-locker-email` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOCKER_ADMIN_EMAIL` (opsional) |
 | `send-web-push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, dan `FCM_SERVICE_ACCOUNT` (isi JSON service account Firebase, untuk notifikasi APK) |
 | `vehicle-document-reminder` | `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Dijadwalkan harian lewat Supabase Cron dengan header `Authorization: Bearer <service_role>` (lihat bagian 041 di `supabase/02_peran_keamanan.sql`) |
@@ -48,15 +49,15 @@ Set secret: Dashboard Supabase → Edge Functions → Secrets, atau `supabase se
 | Role | Kelola | Halaman awal | Kelola akun untuk |
 |---|---|---|---|
 | **Master Admin** | Semua modul (termasuk Kantin), Log Aktivitas | Beranda | Semua role |
-| **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, Kunci Loker, ID Card, Pembagian, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
-| **Admin GA PRB** | Penugasan, Armada, Master Data (driver, pegawai, pengaturan), Kalender, Report Fleet — **data PRB saja** | Beranda (versi PRB) | Admin GA PRB |
+| **Admin GA CIK** | Penugasan, Armada, Gate Log, Pom Bensin (CIK), Klaim, Dana Operasional, Locker, ID Card, Printer, ATK, Permintaan Karyawan, Receptionist, Master Data, Kalender, Report (Fleet, Klaim, ATK) | Beranda | Admin GA CIK, Receptionist |
+| **Admin GA PRB** | Penugasan, Armada, Master Data (driver, jenis pekerjaan, pengaturan), Kalender, Report Fleet — **data PRB saja** | Beranda (versi PRB) | Admin GA PRB |
 | **Admin / SPV ISS** | Cleaning & Gardening, TGA, Report Cleaning & Gardening dan TGA | Cleaning & Gardening | Admin / SPV ISS |
 | **Admin / SPV Security** | Laporan Security, ID Card, Report Security | Laporan Security | Admin / SPV Security |
 | **Receptionist** | Receptionist, Kalender (agenda & kunjungan, tanpa penugasan driver) | Receptionist | — |
 | **Management** | **Lihat saja**: FM Command Center + tarik laporan semua modul | Command Center | — |
 
 Tetap **tanpa login**: `/canteen` (staf kantin input), `/gate` (pos security),
-`/request`, `/bukti`, `/locker`, `/gift`, dan Command Center `/dashboard-viewonly`.
+`/request`, `/bukti`, `/locker`, dan Command Center `/dashboard-viewonly`.
 Driver & TGA tetap memakai aplikasinya sendiri (`/driver`, `/tga`, APK).
 
 ### Yang dijaga database (bagian 039 di `02_peran_keamanan.sql`)
@@ -159,7 +160,7 @@ login (termasuk Command Center), dan kunci rahasia.
      tanpa mengubah apa pun**. Kirim hasil bagian 7 audit ke developer.
    - Di akhir ada daftar tabel yang masih bisa dibaca tanpa login. Seharusnya hanya
      `canteen_reports` (hari ini) dan `gift_events` (event buka).
-3. **Deploy ulang Edge Function** `send-gift-passcode` dan `send-locker-email`, dengan cara
+3. **Deploy ulang Edge Function** `send-locker-email` (Gift sudah dihapus pada SQL 13), dengan cara
    yang sama seperti function lain (Dashboard → Edge Functions → buka function → tempel
    kode baru → Deploy).
 4. **Excel ATK:** ganti modul `modSyncCikops.bas` dengan versi baru
@@ -501,13 +502,9 @@ The app is called **CIKOPS TGA** (orange wrench icon) and is separate from the d
 - **Terbuka:** all open jobs, with urgent ones first.
 - **Riwayat:** 90 days, with search and filters by status/type. Tap an item to edit or delete it.
 
-### 4. Requestor = Data Karyawan (035)
-- Requestors are picked from **Data Karyawan** — the same `employees` table used by the main dashboard (Master Data), drivers, and the receptionist; nothing needs to be entered again. Inactive employees are hidden. Search by name / NIK / department, filter by department, and the "Sering meminta" list appears at the top.
-- The name and department are taken from the employee data and stored as an employee link (`requestor_id`).
-- If the employee data changes (name typo / moved department) → TGA activities linked to that employee update automatically.
-- Guests / vendors are still allowed through "Pakai “nama”" and are marked **Di luar data karyawan**.
-- Existing activities whose name exactly matches one employee are linked automatically when 035 is run.
-- New employees appear in the app the next time the form is opened.
+### 4. Requestor = nama + departemen (diketik manual)
+- Requestor **diketik manual** (nama dan departemen); tidak ada daftar karyawan. Nama yang pernah dipakai di kegiatan TGA muncul sebagai saran (dari riwayat kegiatan) dan mengisi departemen otomatis.
+- Fungsi `tga_requestors` dan `tga_assign_public_info` (SQL 13) mengembalikan saran dari riwayat, tanpa NIK/jabatan.
 
 ### 5. Security
 - The PIN is stored as a bcrypt hash. After 5 wrong attempts the account is locked for 15 minutes.
@@ -565,36 +562,27 @@ Semua staf GA bisa menugaskan TGA dari HP **tanpa akun dashboard**.
 
 ---
 
-## Kunci Loker Karyawan (Fasilitas → Kunci Loker)
+## Data karyawan: input manual (SQL 13)
 
-Untuk mencari kunci loker karyawan dengan cepat. Terpisah dari menu **Locker** (loker ber-PIN yang dipesan karyawan).
-Satu baris = satu pintu loker: blok, no. slot kunci, pintu, nama karyawan, NIK, no. kunci, departemen, status, keterangan.
+CIKOPS **tidak lagi menyimpan master/daftar karyawan**. Di semua modul, nama + departemen **diketik manual** (tanpa NIK);
+setelah tersimpan, nama itu otomatis muncul sebagai saran di modul yang sama (diambil dari riwayat modul itu sendiri, bukan dari tabel karyawan).
 
-### Pasang (sekali saja)
-1. Jalankan `supabase/10_kunci_loker_karyawan.sql` di Supabase SQL Editor (aman diulang).
-2. Deploy aplikasi, buka **Fasilitas → Kunci Loker**, klik **Impor Excel**, pilih file `Master_Loker_Karyawan` (sheet **Master**).
-   Pratinjau menampilkan jumlah loker (terisi / kosong / serep dipinjam) dan perbaikan otomatis; pilih **Ganti semua data** lalu **Impor**.
-   Data karyawan tidak disimpan di repo — hanya di database.
-
-### Pemakaian harian
-| Mau apa | Caranya |
+| Perubahan | Keterangan |
 |---|---|
-| **Cari kunci** | Tab **Cari Kunci**: ketik nama, NIK, no. kunci, pintu (mis. `A5`), blok, atau dept — beberapa kata boleh (`budi scm`). Hasil menyorot kata yang cocok. Saring dengan status, blok, atau dept |
-| **Tambah / ubah / hapus loker** | **+ Tambah loker**, ikon ✏️ dan 🗑 pada baris. Nama bisa dipilih dari Master Karyawan (NIK & dept terisi otomatis). Status otomatis: ada nama = Terisi, tanpa nama = Kosong |
-| **Pinjam kunci serep** | Tombol **🔑 Pinjam serep** → isi peminjam & tanggal. Status jadi *Dipinjam*. Kembalikan dengan **↩ Kembalikan** |
-| **Pantau serep yang belum kembali** | Tab **Serep Dipinjam** (diurutkan dari yang paling lama; > 30 hari berwarna merah) |
-| **Lihat denah** | Tab **Peta Blok**: kotak per pintu berwarna (hijau terisi, abu kosong, kuning serep dipinjam); ketuk pintu untuk membuka datanya |
-| **Siapa mengubah apa** | Tab **Riwayat**: tambah, ubah, hapus, pinjam, kembali, dan impor — otomatis dari database, tidak bisa diubah dari aplikasi |
-| **Ekspor** | **Ekspor Excel** mengunduh daftar yang sedang tampil (sesuai pencarian & filter) |
+| Modul **Pembagian (Gift)** dan **Kunci Loker Karyawan** | Dihapus (menu, halaman `/gift`, fungsi email gift, API). |
+| **ATK** | Hanya menerima laporan dari Excel (tab Dashboard, Stok, Riwayat, Sinkron). Form permintaan, restock, barang baru, stok minimum, dan pembatalan dihapus. Makro `SyncKaryawanOnly` dinonaktifkan. |
+| **Penugasan, TGA (dashboard + aplikasi + `/tugas-tga`), ID Card, Receptionist** | Nama requestor/penerima + departemen diketik manual; saran dari riwayat. Tab **Pegawai** di Master Data, **Data Karyawan** di Receptionist, dan pencarian global karyawan dihapus. |
+| **Locker (PIN)** publik | Isian NIK dihapus (nama + departemen saja). |
+| **Tidak berubah** | Data driver & teknisi TGA, semua laporan/riwayat yang sudah tercatat. |
 
-### Aturan & keamanan
-- Hanya **Master Admin** dan **Admin GA CIK** yang bisa membuka menu ini (membaca maupun mengubah). Management, Admin PRB, ISS, Security, dan Receptionist tidak. Tanpa login: tidak ada akses.
-- Impor membetulkan data file otomatis: kolom **NO.KUNCI/DEPT tertukar**, dept berisi angka, NIK tidak valid, dan teks liar di kolom kunci (dipindah ke Keterangan). Nama, dept, blok, dan pintu disimpan HURUF KAPITAL.
-- Status di file ditentukan dari isi: tanpa nama = **Kosong**; keterangan memuat kata *pinjam* (dan bukan "sudah dibalikin") = **Dipinjam**; selain itu **Terisi**. Contoh file Master_Loker_Karyawan_v2: 1.135 loker — 918 terisi, 142 kosong, 75 dipinjam, 93 blok.
-- **Ganti semua data** menghapus data lama (peminjaman serep & koreksi manual yang belum ada di file ikut hilang) — ekspor dulu bila perlu. Satu catatan ringkas masuk Riwayat.
-- Bila menu menampilkan "belum aktif di database", SQL 10 belum dijalankan.
+### Langkah di database — `supabase/13_hapus_data_karyawan.sql`
+Urutan wajib: **(1) backup** → **(2) deploy aplikasi terbaru** → **(3) jalankan file** (Bagian A pratinjau → B → C → E).
 
----
+- **A** pratinjau jumlah baris (hanya membaca). **B** ganti fungsi saran requestor TGA (dari riwayat), tutup RPC input ATK, matikan kiriman karyawan dari Excel.
+- **C — penghapusan permanen**: `employees`, `atk_employees`, tabel Gift, `locker_keys` & `locker_key_logs` beserta fungsinya; akses aplikasi ke tabel karyawan dicabut.
+  Tidak bisa dibatalkan. Backup lama (artifact GitHub 30 hari) masih memuat data itu sampai kedaluwarsa.
+- **D (opsional, dikomentari)**: mengosongkan NIK pada transaksi ATK yang sudah tercatat.
+- **E** verifikasi. File aman dijalankan ulang.
 
 ## Form Parkir & Toll Manual (aplikasi driver)
 
@@ -792,8 +780,6 @@ Password wifi di tautan publik otomatis disembunyikan setelah masa akses berakhi
 
 ### Data Master
 Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
-- **Data Karyawan** — tabel `employees` CIKOPS (tambah/ubah/nonaktifkan/hapus/impor). Email & no HP dipakai untuk
-  isi otomatis dan pengiriman bukti. Email yang diketik di form ikut melengkapi data karyawan yang masih kosong.
 - **Data Akun Wifi** — akun dari IT (tambah/ubah/impor/nonaktifkan/hapus).
 - **Data Driver** — tabel `drivers` CIKOPS yang sama, jadi otomatis sinkron dengan menu Driver, Penugasan, dan aplikasi
   driver. Hapus driver hanya bisa oleh admin (aturan lama); akun lain cukup menonaktifkan.
@@ -840,106 +826,13 @@ Menu Receptionist → **Data Master** berisi tiga CRUD terpisah:
   - Setelah ditarik, koreksinya dilakukan di Excel.
 - **Keamanan**: menarik data butuh kunci sinkron, karena anon key saja tidak bisa membaca data karyawan. Admin bisa *Ganti kunci* kapan saja.
 
-### Tampilan baru (menu Fasilitas → ATK)
-- **Dashboard**:
-  - KPI dengan perbandingan ke periode sebelumnya: barang keluar, permintaan, restock masuk, barang yang perlu restock.
-  - Grafik arus barang keluar/masuk.
-  - Donut per departemen dan daftar barang paling banyak diminta. Keduanya bisa diklik untuk memfilter dashboard.
-  - Daftar stok kritis dengan tombol Restock, dan aktivitas terbaru.
-- **Permintaan**: form multi-barang.
-  - Isi NIK/nama → data pemohon lama terisi otomatis.
-  - Cek stok langsung, dan sisa stok setelah transaksi langsung terlihat.
-- **Restock**: form multi-barang. Bisa langsung terisi dari tombol "+ Restock" di dashboard/stok.
-- **Stok Barang**:
-  - Cari, filter (habis/menipis/aman/baru), dan urutkan.
-  - Pemakaian 30 hari plus perkiraan berapa hari stok cukup.
-  - **Stok minimum bisa diubah** (tersimpan di CIKOPS), tambah **barang baru**, ekspor Excel/PDF/CSV.
-- **Riwayat**:
-  - Transaksi dikelompokkan per nomor. Filter keluar/masuk dan sumber (Excel / CIKOPS / menunggu Excel).
-  - Detail tiap transaksi, batalkan, ekspor.
-- **Sinkron Excel**: status terakhir kirim/tarik, jumlah yang menunggu, kunci sinkron, unduhan VBA, dan panduan.
+### Tampilan (menu Fasilitas → ATK) — hanya menerima laporan
+Tidak ada input di aplikasi; data masuk dari Excel ATK lewat sinkron.
+- **Dashboard**: KPI barang keluar/permintaan/restock/barang perlu restock dibanding periode sebelumnya, grafik arus barang, donut per departemen, barang paling banyak diminta, stok kritis.
+- **Stok Barang**: cari, filter, urutkan, pemakaian 30 hari + perkiraan hari stok cukup, ekspor Excel/PDF/CSV (hanya baca).
+- **Riwayat**: transaksi per nomor, filter keluar/masuk dan sumber, detail, ekspor. Koreksi dilakukan di Excel.
+- **Sinkron Excel**: status kirim/tarik, jumlah menunggu, kunci sinkron (bisa diganti), unduhan VBA, panduan.
 
-### Dua sumber karyawan: ATK dari Excel, modul lain dari Master Karyawan (bagian 054)
-| Dipakai oleh | Sumber | Cara mengisi |
-|---|---|---|
-| **ATK** (form permintaan: saran nama, NIK, departemen) | tabel `atk_employees` | HANYA dari sheet Excel `MasterDataKaryawan` — makro `SyncKaryawanOnly` (kolom A NIK, B Nama, C Departemen) |
-| **Semua modul lain** (Receptionist, TGA, penugasan driver, permintaan karyawan, Laporan) | tabel `employees` = Master Data → Pegawai | diunggah langsung lewat Supabase (lihat di bawah) atau diubah di Master Data |
-
-- Kedua daftar **tidak saling memengaruhi**. Transaksi ATK tidak lagi menambah / mengubah Master Karyawan, dan
-  riwayat ATK tidak dipakai lagi untuk saran nama / departemen (departemen lama yang salah tidak ikut muncul).
-- **Excel = sumber ATK:** mengirim ulang sheet *menimpa* nama & departemen di daftar ATK (cocok per NIK; bila NIK
-  kosong, per nama). Perbaiki departemen di Excel, jalankan `SyncKaryawanOnly`, selesai.
-- Selama sheet belum pernah dikirim, saran nama di form ATK kosong (nama tetap bisa diketik manual) dan form
-  menampilkan petunjuk.
-- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 054) di Supabase SQL Editor, lalu pasang makro
-  `modSyncCikops` versi terbaru (kunci sinkron tidak berubah). Bagian 054 juga melepas sambungan lama
-  ATK → Master Karyawan; isi `employees` TIDAK dihapus oleh SQL ini.
-
-#### Mengganti seluruh Master Karyawan (CSV baru, lewat tabel sementara)
-Import CSV di Supabase hanya **menambah** baris — tidak memperbarui yang sudah ada. Jadi data lama harus diganti, bukan ditimpa.
-Cara paling aman: impor ke **tabel sementara** dulu, periksa, baru tukar dalam satu transaksi (tabel `employees` tidak pernah kosong di tengah jalan).
-1. **Cadangkan:** Supabase → Table Editor → `employees` → Export CSV.
-2. **Siapkan CSV** dengan kolom `nik`, `nama`, `departement` (ejaan kolom persis begitu, bukan "department"). Satu orang satu baris,
-   satu ejaan per departemen. NIK dibaca sebagai **teks** (Excel bisa membuang angka 0 di depan — simpan "CSV UTF-8" dan format kolom NIK sebagai Text).
-3. **Buat tabel sementara** (SQL Editor), lalu Table Editor → `employees_new` → Insert → Import data from CSV:
-   ```sql
-   create table employees_new (nik text, nama text, departement text);
-   alter table employees_new enable row level security;   -- data karyawan tidak boleh terbuka lewat API
-   ```
-4. **Periksa isi CSV** sebelum menukar:
-   ```sql
-   select count(*) total, count(*) filter (where nullif(trim(nama),'') is null) nama_kosong,
-          count(*) filter (where nullif(trim(departement),'') is null) dept_kosong from employees_new;
-   select nullif(trim(nik),'') as nik, count(*) from employees_new where nullif(trim(nik),'') is not null group by 1 having count(*) > 1;  -- NIK ganda
-   select departement, count(*) from employees_new group by 1 order by 2 desc;   -- cek ejaan departemen
-   ```
-5. **Tukar** (satu kali jalan; bila ada error, tidak ada yang berubah). **Pakai `delete`, JANGAN `truncate ... cascade`** — cascade ikut menghapus seluruh kegiatan TGA:
-   ```sql
-   begin;
-     delete from employees;
-     insert into employees (nik, nama, departement)
-       select nullif(trim(nik), ''), trim(nama), nullif(trim(departement), '') from employees_new where nullif(trim(nama), '') is not null;
-     -- sambungkan lagi kegiatan TGA ke karyawan baru (hanya nama yang unik)
-     update tga_activities a set requestor_id = m.id
-       from (select lower(trim(nama)) as k, (array_agg(id))[1] as id from employees group by 1 having count(*) = 1) m
-      where a.requestor_id is null and lower(trim(a.request_by)) = m.k;
-     select count(*) as employees_sekarang from employees;   -- harus sama dengan jumlah baris CSV
-   commit;
-   drop table employees_new;
-   ```
-- Kegiatan TGA lama tetap utuh (nama & departemen tersimpan sebagai teks). Transaksi ATK / Receptionist / penugasan tidak terpengaruh.
-- Departemen di transaksi lama tidak ikut berubah — itu riwayat. Transaksi baru memakai departemen terbaru.
-- Sesudahnya: Master Data → Pegawai → **Cek karyawan dobel** harus kosong atau hanya berisi nama kembar yang memang orang berbeda.
-
-### Karyawan dobel (bagian 053)
-Satu orang bisa tercatat dua kali dengan departemen berbeda (mis. `SCM Pack Sachet` dan `Operations - Cikarang`), misalnya
-akibat NIK yang berbeda ketik. Alat ini untuk memeriksa dan merapikannya, juga setelah unggah ulang.
-- Master Data → Pegawai → **Cek karyawan dobel** menampilkan **pratinjau** — belum ada yang berubah.
-- **Pasangan siap digabung** = nama sama, tepat dua baris, salah satunya `Operations - Cikarang`. Hasil gabung:
-  baris lama dipertahankan, departemen jadi **Operations - Cikarang**, NIK kedua baris digabung `A / B`,
-  email / HP / jabatan diambil dari yang terisi, kegiatan TGA dipindah ke baris yang bertahan, baris kembar dihapus.
-  Hilangkan centang pada pasangan yang ternyata dua orang berbeda, lalu **Gabungkan … terpilih**.
-- **Nama kembar lain** (mis. dua “Budi Santoso” dengan NIK dan departemen berbeda) hanya ditampilkan untuk dicek
-  manual lewat tabel Pegawai — bisa jadi memang orang berbeda.
-- **Riwayat tidak berubah:** transaksi lama (ATK, Receptionist, penugasan, kegiatan TGA yang sudah selesai)
-  tetap memuat departemen saat itu; transaksi baru memakai departemen terbaru. Kegiatan TGA yang masih berjalan
-  ikut departemen terbaru bila Master diubah.
-- **Syarat:** jalankan `supabase/04_aplikasi_lapangan.sql` (bagian 053) di Supabase SQL Editor.
-
-### File
-- Baru:
-  - `src/app/dashboard/AtkTab.tsx`
-  - `src/app/dashboard/atk.module.css`
-  - bagian 026 di `supabase/01_dasar.sql`
-  - `vba/modSyncCikops.bas`
-  - `public/downloads/modSyncCikops.bas`
-- Berubah:
-  - `src/app/dashboard/page.tsx` (AtkTab lama dihapus)
-  - `src/lib/api.ts`
-  - `src/lib/types.ts`
-
-
----
 
 ## Kalender & agenda
 
@@ -1227,7 +1120,7 @@ Jangan isi variabel Supabase, GC, atau variabel rahasia lain. Tidak diperlukan.
 ### 2. Halaman utama
 Landing page otomatis mengarah ke **`/demo`** — pusat demo berisi:
 - **7 kartu role** → klik masuk langsung sebagai role tersebut ke dashboard.
-- **8 kartu aplikasi** → link langsung ke /driver, /tga, /tugas-tga, /request, /gate, /canteen, /locker, /gift.
+- **8 kartu aplikasi** → link langsung ke /driver, /tga, /tugas-tga, /request, /gate, /canteen, /locker.
 - **Tombol Reset** → kembalikan semua data ke kondisi awal.
 
 ### 3. Navigasi antar-role

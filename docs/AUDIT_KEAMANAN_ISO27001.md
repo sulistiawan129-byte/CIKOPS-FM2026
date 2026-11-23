@@ -359,3 +359,15 @@ git grep -nE "(eyJ[a-zA-Z0-9_-]{20,}\.…|AKIA…|AIza…|-----BEGIN … PRIVATE
 - [ ] **GitHub:** proteksi branch `main` (review wajib), 2FA seluruh kolaborator, *secret scanning + push protection*, Dependabot, repo privat.
 - [ ] **Akun:** daftar pemegang akses admin (Supabase, Vercel, GitHub, Firebase, SMTP) dan kunci sinkron Excel; offboarding.
 - [ ] **Produksi:** jalankan `cek_audit_keamanan.sql` bagian 1–9 dan simpan hasil sebagai bukti.
+
+---
+
+## Pembaruan — Data karyawan tidak lagi disimpan (SQL 13)
+
+Keputusan: CIKOPS tidak menyimpan master/daftar karyawan. Dampak ke temuan:
+
+- **T-03** (baca data pribadi terlalu luas untuk semua role staf, NIK terlihat luas): ditutup untuk data yang dihapus. `employees` dan `atk_employees` dikosongkan dan aksesnya dicabut; nama + departemen kini diketik manual tanpa NIK.
+- Modul **Pembagian (Gift)** dan **Kunci Loker Karyawan** (NIK, nama, passcode, email) dihapus beserta tabelnya.
+- Saran nama requestor di aplikasi TGA & `/tugas-tga` kini dari riwayat kegiatan (bukan unduhan seluruh daftar karyawan ke HP).
+- **Masih tersisa:** nama + departemen pada riwayat/laporan yang sudah tercatat (dipertahankan sesuai keputusan), kolom NIK lama pada transaksi ATK (opsional dikosongkan, SQL 13 Bagian D), email/no. HP requestor pada fitur tertentu, dan backup lama (artifact 30 hari).
+- Status ini baru berlaku setelah `supabase/13_hapus_data_karyawan.sql` dijalankan di produksi (setelah deploy). Penilaian internal, bukan audit independen.

@@ -17,7 +17,7 @@ Option Explicit
 '   SyncToCikops        -> TARIK lalu KIRIM semuanya (disarankan)
 '   TarikDariCikops     -> hanya TARIK transaksi dari CIKOPS
 '   SyncStokOnly / SyncPermintaanOnly / SyncRestockOnly -> seperti dulu
-'   SyncKaryawanOnly    -> kirim sheet MasterDataKaryawan ke DAFTAR KARYAWAN ATK di CIKOPS (sekali-sekali; Excel = sumber, departemen di CIKOPS ikut diperbarui)
+'   SyncKaryawanOnly    -> (DINONAKTIFKAN) dulu mengirim sheet MasterDataKaryawan ke CIKOPS (sekali-sekali; Excel = sumber, departemen di CIKOPS ikut diperbarui)
 '
 ' CARA PASANG / UPDATE:
 '   1. Alt+F11 -> hapus modul modSyncCikops yang lama
@@ -162,23 +162,10 @@ End Sub
 
 
 Public Sub SyncKaryawanOnly()
-    On Error GoTo ErrHandler
-    Application.ScreenUpdating = False
-    Application.StatusBar = "Mengirim Data Karyawan ke CIKOPS..."
-    Dim nKar As Long
-    nKar = SyncKaryawan()
-    Application.StatusBar = False
-    Application.ScreenUpdating = True
-    If nKar >= 0 Then
-        MsgBox "Sinkron Data Karyawan selesai." & vbCrLf & vbCrLf & _
-               "Karyawan dikirim ke daftar karyawan ATK CIKOPS: " & nKar & " orang" & vbCrLf & _
-               "(yang sudah ada diperbarui sesuai Excel; Master Karyawan modul lain tidak tersentuh)", vbInformation, "Sinkron Karyawan"
-    End If
-    Exit Sub
-ErrHandler:
-    Application.StatusBar = False
-    Application.ScreenUpdating = True
-    MsgBox "Gagal sinkron karyawan: " & Err.Description, vbCritical, "Sinkron Karyawan - Error"
+    ' DINONAKTIFKAN: CIKOPS tidak lagi menyimpan daftar karyawan (nama + departemen diketik manual di tiap form).
+    MsgBox "Pengiriman Data Karyawan ke CIKOPS sudah tidak dipakai." & vbCrLf & vbCrLf & _
+           "CIKOPS tidak lagi menyimpan daftar karyawan. Sheet MasterDataKaryawan tetap boleh dipakai di Excel ini, tetapi tidak dikirim.", _
+           vbInformation, "Sinkron Karyawan - Dinonaktifkan"
 End Sub
 
 ' ============================================================
