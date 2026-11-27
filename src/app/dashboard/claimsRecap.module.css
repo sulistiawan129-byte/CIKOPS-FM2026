@@ -1,0 +1,35 @@
+/* Rekap klaim per driver (bulanan / tahunan) */
+.controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+.ctl { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ctl > span { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--t3); }
+.mode { display: inline-flex; padding: 3px; gap: 2px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border2); height: 38px; box-sizing: border-box; }
+.mode button { border: 0; background: transparent; color: var(--t3); font: inherit; font-size: 13.5px; font-weight: 700; padding: 0 16px; border-radius: 9px; cursor: pointer; }
+.mode button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+.mode button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+.kpis { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)); gap: 12px; padding: 16px; }
+@media (max-width: 980px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpiMain { grid-column: 1 / -1; } }
+.kpi { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--surface); min-width: 0; }
+.kpiMain { background: var(--brand); border-color: var(--brand); color: #fff; }
+.kpiLbl { display: block; font-size: 12px; font-weight: 700; letter-spacing: .03em; color: var(--t3); }
+.kpiMain .kpiLbl { color: rgba(255,255,255,.85); }
+.kpiVal { display: block; margin-top: 4px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 800; color: var(--t1); overflow-wrap: anywhere; }
+.kpiMain .kpiVal { color: #fff; font-size: 26px; }
+.kpiSub { display: block; margin-top: 2px; font-size: 12px; color: var(--t3); }
+.kpiMain .kpiSub { color: rgba(255,255,255,.85); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+
+.subHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; padding: 14px 16px 8px; }
+.subHead h4 { margin: 0; font-size: 14px; font-weight: 800; color: var(--t1); }
+.subHead small { color: var(--t3); font-size: 12.5px; }
+
+.matrix { min-width: 1060px; }
+.matrix th, .matrix td { padding: 9px 10px !important; font-size: 12.5px !important; }
+.matrix td:first-child, .matrix th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 150px; }
+.matrix th:first-child, .matrix tfoot td:first-child { background: var(--bg2); }
+.zero { color: var(--t3); opacity: .55; }
+.driverLink { border: 0; background: transparent; padding: 0; font: inherit; font-weight: 800; color: var(--t1); cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--border2); text-underline-offset: 3px; }
+.driverLink:hover { color: var(--brand); text-decoration-color: var(--brand); }
+.driverLink:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+.peak { background: color-mix(in srgb, var(--brand) 10%, transparent); font-weight: 800; color: var(--t1); }
+.note { margin: 0; padding: 10px 16px 14px; font-size: 12.5px; color: var(--t3); }

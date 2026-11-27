@@ -17,6 +17,7 @@ import { ModuleHeader } from "./ModuleShell";
 import { todayStr, useIsMobile, useCountUp, formatDateLabel, fmtRp, evalExpr, monthWeekBoundaries, PLANT_COLOR } from "./dashboardShared";
 import { OpFundTab } from "./OpFundTab";
 import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
+import { ClaimsRecap } from "./ClaimsRecap";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 import { plantShort } from "@/lib/brand";
 import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
@@ -139,7 +140,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const [driverUserIds, setDriverUserIds] = useState<string[]>([]);
   const [exportingRecap, setExportingRecap] = useState(false);
   const [exportingWeeklyRecap, setExportingWeeklyRecap] = useState<"excel" | "pdf" | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "weekly" | "wreath" | "requests">("list");
+  const [viewMode, setViewMode] = useState<"list" | "weekly" | "recap" | "wreath" | "requests">("list");
   // ── Self-Claim: pengajuan dari aplikasi driver ──
   const [requests, setRequests] = useState<ClaimRequest[]>([]);
   const [requestsErr, setRequestsErr] = useState<string | null>(null);
@@ -544,6 +545,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         options={[
           { key: "list", label: en ? "Claims" : "Daftar klaim" },
           { key: "weekly", label: en ? "Weekly recap" : "Rekap mingguan" },
+          { key: "recap", label: en ? "Driver recap (monthly / yearly)" : "Rekap per driver (bulanan / tahunan)", icon: <span aria-hidden="true">📊</span> },
           { key: "requests", label: `${en ? "Driver requests" : "Pengajuan driver"}${pendingRequests ? ` (${pendingRequests})` : ""}`, icon: <span aria-hidden="true">📲</span> },
           { key: "wreath", label: en ? "Condolence wreaths" : "Karangan bunga duka cita", icon: <span aria-hidden="true">💐</span> },
         ]}
@@ -643,6 +645,8 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
           )}
         </>
       )}
+
+      {viewMode === "recap" && <ClaimsRecap claims={claims} drivers={drivers} plantF={plantF} lang={lang} />}
 
       {viewMode === "weekly" && (
         <div className={cs.panel}>

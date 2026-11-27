@@ -998,6 +998,22 @@ OneSignal / APK Median sudah tidak dipakai. Driver yang masih memakai APK Median
 **CIKOPS Driver** (GitHub Actions di atas), lalu Profil → Notifikasi → **Aktifkan** supaya tetap
 mendapat notifikasi tugas.
 
+## Rekap klaim per driver (bulanan & tahunan)
+
+Menu **Finance → Klaim → tab "Rekap per driver (bulanan / tahunan)"**. Menjumlahkan klaim tiap driver per kategori:
+**Gasoline + Toll + Parking + Other = Total**. Bulan dan tahun mengikuti **tanggal periode** klaim (sama seperti rekap mingguan).
+
+| Pilihan | Hasil |
+|---|---|
+| **Bulanan** + Semua driver | Satu baris per driver untuk bulan itu (terurut dari total terbesar), plus total keseluruhan. |
+| **Bulanan** + satu driver | Angka driver itu untuk bulan tersebut. |
+| **Tahunan** + Semua driver | Matriks driver × Jan–Des (total per bulan, bulan tertinggi ditandai) + rincian kategori setahun. |
+| **Tahunan** + satu driver | 12 baris bulan × kategori — mis. "Boby, Januari = bensin + tol + parkir + lainnya = total", dengan total setahun di bawah. |
+
+Di atas tabel ada ringkasan: total periode dan porsi tiap kategori. Mengetuk nama driver di tabel bulanan membuka rincian setahunnya.
+Filter **plant** di atas halaman Klaim ikut berlaku. **Excel** dan **PDF**: judul + periode + cakupan, angka berformat ribuan,
+baris total, nomor halaman; rekap tahunan semua driver dicetak landscape. Pengajuan driver yang belum diverifikasi tidak ikut dihitung.
+
 ## Self-Claim driver
 Driver mengajukan klaim sendiri dari aplikasi; admin tidak perlu mengetik ulang, cukup
 memeriksa dan memverifikasi.
@@ -1263,15 +1279,11 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
    internet putus layar tetap menampilkan menu terakhir. Minggu yang belum diisi menampilkan layar "Menu minggu ini segera hadir".
 7. **Isi menu** sebelum Senin: Dashboard → Fasilitas → Kantin → Menu TV (bisa isi massal untuk beberapa minggu sekaligus).
 
-## Memilih karyawan: kotak pencarian
+## Mengisi nama: kotak isian dengan saran
 
-Semua pemilihan karyawan memakai **kotak pencarian** (bukan daftar panjang), supaya nyaman di HP: ketik sebagian nama, NIK, atau departemen
-(beberapa kata boleh, urutannya bebas, mis. "budi fin"), lalu ketuk hasilnya. Dipakai di: Penugasan Driver (Requestor), TGA (penugasan &
-ubah pekerjaan), ATK (nama pemohon), dan Receptionist (requestor wifi, penerima/pengirim barang, PIC booking). Di Penugasan Driver hanya
-bisa memilih dari daftar karyawan; di tempat lain nama di luar data karyawan (mis. tamu) tetap boleh diketik.
-
-> Batas Supabase **Max rows** (Project Settings → API) menentukan berapa karyawan yang dimuat sekali ambil (bawaan 1000). Jumlah karyawan
-> sekarang 1500 → pastikan **Max rows ≥ jumlah karyawan** (disarankan 5000). Bila suatu saat melewatinya, nama di ujung daftar tidak muncul.
+Tidak ada master/daftar karyawan (lihat bab **Data karyawan: input manual**). Nama + departemen **diketik manual**; nama yang pernah
+dipakai di modul itu muncul sebagai **saran** (dari riwayat modul tersebut) saat mengetik. Dipakai di: Penugasan Driver (Requestor), TGA
+(penugasan & ubah pekerjaan), ID Card (penerima/PIC), dan Receptionist (buku alamat dari kunjungan sebelumnya).
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
