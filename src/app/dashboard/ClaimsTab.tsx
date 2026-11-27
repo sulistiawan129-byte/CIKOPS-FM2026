@@ -18,6 +18,7 @@ import { todayStr, useIsMobile, useCountUp, formatDateLabel, fmtRp, evalExpr, mo
 import { OpFundTab } from "./OpFundTab";
 import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
 import { ClaimsRecap } from "./ClaimsRecap";
+import { ClaimsImport } from "./ClaimsImport";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 import { plantShort } from "@/lib/brand";
 import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
@@ -152,6 +153,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const pendingRequests = requests.filter((r) => r.status === "menunggu").length;
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ name: string; total: number; edited?: boolean } | null>(null);
+  const [showImport, setShowImport] = useState(false);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(null), 6000);
@@ -587,6 +589,11 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
                 ⬇ {exportingRecap ? "..." : L("Export Tanda Terima", "Export Receipt")}
               </button>
             )}
+            {canReview && (
+              <button className={cs.btn} onClick={() => setShowImport(true)} title={en ? "Import old claim data from Excel" : "Impor data klaim lama dari Excel"}>
+                ⬆ {en ? "Import old data" : "Impor data lama"}
+              </button>
+            )}
             <button className={cs.primary} onClick={openAdd}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
               {en ? "New claim" : "Buat klaim"}
@@ -796,6 +803,8 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
           </div>
         </ModalPortal>
       )}
+
+      {showImport && <ClaimsImport lang={lang} myProfile={myProfile} onClose={() => setShowImport(false)} onImported={() => { load(); }} />}
 
       {confirmDelete && (
         <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>

@@ -1014,6 +1014,21 @@ Di atas tabel ada ringkasan: total periode dan porsi tiap kategori. Mengetuk nam
 Filter **plant** di atas halaman Klaim ikut berlaku. **Excel** dan **PDF**: judul + periode + cakupan, angka berformat ribuan,
 baris total, nomor halaman; rekap tahunan semua driver dicetak landscape. Pengajuan driver yang belum diverifikasi tidak ikut dihitung.
 
+### Impor data klaim lama (dari Excel)
+
+Finance → Klaim → tombol **Impor data lama** (hanya Master Admin & Admin GA CIK). Untuk memasukkan riwayat klaim yang selama ini dicatat di Excel.
+
+1. **Tempel** seluruh tabel dari Excel (kolom: *Week, Tanggal Pengajuan, Periode Klaim, Nama Driver, Jenis Klaim, Nominal, Keterangan*; baris judul boleh ikut), atau pilih file **.xlsx / .csv**.
+2. **Cek pratinjau**: jumlah klaim, total nominal, **ringkasan per bulan** (cocokkan dengan total di Excel), dan baris yang tidak terbaca.
+3. **Cocokkan nama driver**: nama di data dipasangkan otomatis dengan driver di sistem ("mirip — cek" bila ejaan sedikit berbeda, mis. Bobby/Boby). Ubah lewat daftar bila perlu; pilih *(lewati baris ini)* untuk tidak mengimpor.
+4. Pilih **bulan laporan mengikuti**: tanggal mulai periode (bawaan), tanggal akhir periode, atau tanggal pengajuan. Ini menentukan masuk bulan mana klaim yang periodenya melintasi dua bulan (mis. "29 Mei - 4 Juni").
+5. **Impor ke sistem.**
+
+Aturan: satu baris = satu item (satu lembar nota); baris dengan driver + tanggal pengajuan + periode yang sama digabung jadi satu klaim.
+Jenis klaim: Toll, Parkir→Parking, Gasoline tetap; selain itu (Other, Nitrogen, dst.) masuk **Other** (nama aslinya dicatat di keterangan).
+Setiap klaim hasil impor memiliki **penanda** di awal catatan (mis. `[IMPOR-2025]`). Mengimpor ulang dengan penanda yang sama **mengganti** hasil sebelumnya,
+dan tombol **Batalkan impor** menghapus semuanya tanpa menyentuh klaim lain. Tahun penanda diisi otomatis dari data dan bisa diubah.
+
 ## Self-Claim driver
 Driver mengajukan klaim sendiri dari aplikasi; admin tidak perlu mengetik ulang, cukup
 memeriksa dan memverifikasi.
