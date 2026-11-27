@@ -3,14 +3,15 @@
 /* REKAP KLAIM PER DRIVER — bulanan & tahunan (tab di menu Klaim).
    Per driver: Gasoline + Toll + Parking + Other = Total. Bulan/tahun mengikuti tanggal periode klaim. */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import cs from "./claims.module.css";
 import rs from "./claimsRecap.module.css";
 import { RecapBar, catLabel } from "./ClaimsUI";
 import { fmtRp } from "./dashboardShared";
+import { getClaims, getClaimYearRange } from "@/lib/api";
 import type { Claim, Driver, Plant } from "@/lib/types";
 import {
-  monthByDriver, yearByDriver, yearsIn, monthName, monthShort, monthDoc, yearDoc, yearDriverDoc, exportRecapExcel, exportRecapPdf,
+  monthByDriver, yearByDriver, monthName, monthShort, monthDoc, yearDoc, yearDriverDoc, exportRecapExcel, exportRecapPdf,
   type Cat, type DocLabels, type RecapDoc, type Totals,
 } from "@/lib/driverClaimRecap";
 import { plantShort } from "@/lib/brand";
@@ -21,28 +22,66 @@ const CATS: Cat[] = ["gasoline", "toll", "parking", "others"];
 
 const nz = (n: number) => (n === 0 ? <span className={rs.zero}>–</span> : fmtRp(n));
 
-export function ClaimsRecap({ claims: rawClaims, drivers, plantF, lang }: { claims: Claim[]; drivers: Driver[]; plantF: Plant | null; lang: string }) {
+export function ClaimsRecap({ version, drivers, plantF, lang }: { version: number; drivers: Driver[]; plantF: Plant | null; lang: string }) {
   const en = lang === "en";
   const L = en ? "en" : "id";
+
+  // Data diambil PER TAHUN yang dipilih (bukan seluruh riwayat), lalu di-cache selama halaman terbuka.
+  const [years, setYears] = useState<number[]>([new Date().getFullYear()]);
+  const [mode, setMode] = useState<"month" | "year">("month");
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [driverId, setDriverId] = useState("all");
+  const [rawClaims, setRawClaims] = useState<Claim[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
+  const cache = useRef(new Map<string, Claim[]>());
+  const started = useRef(false);
+  const touched = useRef(false); // pengguna sudah memilih bulan sendiri → jangan loncat otomatis
+
+  // Awal: tahun terbaru yang punya klaim + bulan terbaru di tahun itu
+  useEffect(() => {
+    let alive = true;
+    cache.current.clear();
+    (async () => {
+      try {
+        const r = await getClaimYearRange(plantF);
+        if (!alive) return;
+        if (r) {
+          setYears(Array.from({ length: r.max - r.min + 1 }, (_, i) => r.max - i));
+          if (!started.current) { setYear(r.max); started.current = true; }
+        }
+      } catch { /* pilihan tahun tetap tahun berjalan */ }
+    })();
+    return () => { alive = false; };
+  }, [plantF, version]);
+
+  useEffect(() => {
+    let alive = true;
+    const key = `${plantF ?? "all"}|${year}|${version}`;
+    const hit = cache.current.get(key);
+    if (hit) { setRawClaims(hit); setLoading(false); return; }
+    setLoading(true); setLoadErr("");
+    getClaims(plantF, { from: `${year}-01-01`, to: `${year}-12-31` })
+      .then((list) => {
+        if (!alive) return;
+        cache.current.set(key, list);
+        setRawClaims(list);
+        // pertama kali: loncat ke bulan terbaru yang punya klaim di tahun ini
+        const last = list.reduce((m, c) => (String(c.periodDate) > m ? String(c.periodDate) : m), "");
+        if (last && !touched.current) setMonth(Number(last.slice(5, 7)) - 1);
+      })
+      .catch((e) => { if (alive) setLoadErr(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [plantF, year, version]);
+
   // Nama driver: dari klaim; bila kosong, ambil dari daftar driver (berdasarkan id)
   const claims = useMemo(() => {
     const names = new Map(drivers.map((d) => [d.id, d.nama]));
     return rawClaims.map((c) => (c.driverName ? c : { ...c, driverName: names.get(c.driver_id) ?? "" }));
   }, [rawClaims, drivers]);
-  const years = useMemo(() => yearsIn(claims), [claims]);
 
-  // Awal: periode terbaru yang punya klaim (supaya tidak langsung kosong)
-  const latest = useMemo(() => {
-    let best = "";
-    for (const c of claims) if ((!plantF || (c.plant ?? "CIK") === plantF) && String(c.periodDate) > best) best = String(c.periodDate);
-    const now = new Date();
-    return best ? { y: Number(best.slice(0, 4)), m: Number(best.slice(5, 7)) - 1 } : { y: now.getFullYear(), m: now.getMonth() };
-  }, [claims, plantF]);
-
-  const [mode, setMode] = useState<"month" | "year">("month");
-  const [year, setYear] = useState(latest.y);
-  const [month, setMonth] = useState(latest.m);
-  const [driverId, setDriverId] = useState("all");
   const [busy, setBusy] = useState<"excel" | "pdf" | null>(null);
 
   const driverOptions = useMemo(() => {
@@ -104,14 +143,14 @@ export function ClaimsRecap({ claims: rawClaims, drivers, plantF, lang }: { clai
         </div>
         <label className={rs.ctl}>
           <span>{en ? "Year" : "Tahun"}</span>
-          <select className={cs.select} value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select className={cs.select} value={year} onChange={(e) => { touched.current = true; setYear(Number(e.target.value)); }}>
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </label>
         {mode === "month" && (
           <label className={rs.ctl}>
             <span>{en ? "Month" : "Bulan"}</span>
-            <select className={cs.select} value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+            <select className={cs.select} value={month} onChange={(e) => { touched.current = true; setMonth(Number(e.target.value)); }}>
               {Array.from({ length: 12 }, (_, i) => <option key={i} value={i}>{monthName(i, L)}</option>)}
             </select>
           </label>
@@ -125,7 +164,16 @@ export function ClaimsRecap({ claims: rawClaims, drivers, plantF, lang }: { clai
         </label>
       </div>
 
-      {empty ? (
+      {loadErr ? (
+        <div className={cs.empty} style={{ border: 0 }}>
+          <b>{en ? "Failed to load claims" : "Gagal memuat data klaim"}</b>
+          <span>{loadErr}</span>
+        </div>
+      ) : loading ? (
+        <div className={cs.empty} style={{ border: 0 }}>
+          <span>{en ? `Loading ${year}…` : `Memuat data ${year}…`}</span>
+        </div>
+      ) : empty ? (
         <div className={cs.empty} style={{ border: 0 }}>
           <span className={cs.emptyIc} aria-hidden="true">📊</span>
           <b>{en ? `No claims for ${periodLabel}` : `Belum ada klaim untuk ${periodLabel}`}</b>

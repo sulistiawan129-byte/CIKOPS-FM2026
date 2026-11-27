@@ -73,7 +73,7 @@ export async function buildMgmtReport(p: {
       const prevTasks = allTasks.filter((t) => inR(t.tanggal, prev.from, prev.to));
       out.push(noted(fleetTrend(computeFleet({ from: p.from, to: to, tasks, prevTasks, vehicles, gateLogs, showPlants }), months, allTasks), key, A));
     } else if (key === "claims") {
-      const claims = await safe(() => getClaims(p.plant), []);
+      const claims = await safe(() => getClaims(p.plant, { from: winFrom, to }), []);
       use();
       const A = assess(claims.map((c) => c.periodDate || c.submissionDate), claims.map((c) => c.submittedAt || c.submissionDate));
       out.push(noted(claimsTrend(computeClaims({ from: p.from, to: to, claims, showPlants }), months, claims), key, A));
