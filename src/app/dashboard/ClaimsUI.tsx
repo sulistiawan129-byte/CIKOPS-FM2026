@@ -283,6 +283,7 @@ export function ClaimCard({
 
       <div className={styles.expand} data-open={open}>
         <div className={styles.expandInner}>
+          {open && (
           <div className={styles.slip}>
             <div className={styles.slipHead}>
               <span>{weekText}</span>
@@ -303,6 +304,7 @@ export function ClaimCard({
               {lang === "en" ? "Edit claim" : "Edit klaim"}
             </button>
           </div>
+          )}
         </div>
       </div>
     </article>

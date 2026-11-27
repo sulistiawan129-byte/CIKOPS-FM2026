@@ -769,13 +769,13 @@ interface ClaimRow {
   driver_id: string;
   submission_date: string;
   period_date: string;
-  items: ClaimItem[];
+  items?: ClaimItem[];
   total: number;
   status: string;
   note: string | null;
   submitted_at: string;
   plant: string;
-  drivers: { nama: string; email: string | null } | null;
+  drivers?: { nama: string; email: string | null } | null;
 }
 
 function mapClaimRow(row: ClaimRow): Claim {
@@ -841,18 +841,55 @@ export function subscribeToDriverClaims(driverId: string, onChange: () => void) 
   return () => { supabase.removeChannel(channel); };
 }
 
-export async function getClaims(plant?: Plant | null): Promise<Claim[]> {
-  let q = supabase
-    .from("claims")
-    .select(`
-      id, driver_id, period_date, submission_date, items, total, status, note, submitted_at, plant,
-      drivers ( nama, email )
-    `)
-    .order("submission_date", { ascending: false });
-  if (plant) q = q.eq("plant", plant);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data as unknown as ClaimRow[] ?? []).map(mapClaimRow);
+/** Opsi pengambilan klaim. Tanpa opsi = SEMUA klaim (berat bila riwayat panjang) — pakai batas tanggal bila bisa.
+ *  field: tanggal yang dibatasi ("period" = tanggal periode klaim, "submission" = tanggal pengajuan).
+ *  lite : tanpa rincian item & nama driver (cukup untuk total) — jauh lebih ringan. */
+/** Tanggal (YYYY-MM-DD, waktu lokal) n hari sebelum hari ini — untuk membatasi jendela pemuatan klaim. */
+export function isoDaysAgo(n: number): string {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export interface ClaimsQuery { from?: string; to?: string; field?: "period" | "submission"; lite?: boolean }
+
+const CLAIM_SELECT_FULL = "id, driver_id, period_date, submission_date, items, total, status, note, submitted_at, plant, drivers ( nama, email )";
+const CLAIM_SELECT_LITE = "id, driver_id, period_date, submission_date, total, status, note, submitted_at, plant";
+
+export async function getClaims(plant?: Plant | null, q: ClaimsQuery = {}): Promise<Claim[]> {
+  const col = q.field === "submission" ? "submission_date" : "period_date";
+  const PAGE = 1000; // batas baris per permintaan di Supabase — diambil bertahap supaya tidak terpotong diam-diam
+  const out: ClaimRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let req = supabase
+      .from("claims")
+      .select(q.lite ? CLAIM_SELECT_LITE : CLAIM_SELECT_FULL)
+      .order("submission_date", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (plant) req = req.eq("plant", plant);
+    if (q.from) req = req.gte(col, q.from);
+    if (q.to) req = req.lte(col, q.to);
+    const { data, error } = await req;
+    if (error) throw error;
+    const rows = (data ?? []) as unknown as ClaimRow[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out.map(mapClaimRow);
+}
+
+/** Tahun terawal & terbaru yang punya klaim (dua permintaan kecil) — untuk pilihan tahun di rekap. */
+export async function getClaimYearRange(plant?: Plant | null): Promise<{ min: number; max: number } | null> {
+  const one = async (asc: boolean) => {
+    let req = supabase.from("claims").select("period_date").order("period_date", { ascending: asc }).limit(1);
+    if (plant) req = req.eq("plant", plant);
+    const { data, error } = await req;
+    if (error) throw error;
+    const d = (data?.[0] as { period_date?: string } | undefined)?.period_date;
+    return d ? Number(String(d).slice(0, 4)) : null;
+  };
+  const [min, max] = await Promise.all([one(true), one(false)]);
+  return min && max ? { min, max } : null;
 }
 
 export interface AddClaimInput {

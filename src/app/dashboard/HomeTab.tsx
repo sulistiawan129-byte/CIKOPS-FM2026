@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import styles from "./dashboard.module.css";
 import { OverviewBoard, type OverviewData } from "./OverviewUI";
 import hm from "./home.module.css";
-import { canAccessTab, isPrbOnly, getDrivers, type MyProfile, getCanteenReportsForMonth, getTasksByRange, getVehicles, getAllVehiclesFull, getClaims, getVehicleGateLogs, withOrigins, getAnnouncements, addAnnouncement, getOvertimes, getCurrentKantong, getDriverTiers, getGasStations } from "@/lib/api";
+import { canAccessTab, isPrbOnly, getDrivers, type MyProfile, getCanteenReportsForMonth, getTasksByRange, getVehicles, getAllVehiclesFull, getClaims, isoDaysAgo, getVehicleGateLogs, withOrigins, getAnnouncements, addAnnouncement, getOvertimes, getCurrentKantong, getDriverTiers, getGasStations } from "@/lib/api";
 import type { Claim, Overtime, Kantong, DriverTier, GasStation, CanteenReport, VehicleGateLog, Announcement } from "@/lib/types";
 import type { Driver, TaskDetail, Vehicle } from "@/lib/types";
 import { plantLocation, isNonAsset } from "@/lib/types";
@@ -250,7 +250,7 @@ export function HomeTab({
         // Scope plant akun (CIK/PRB) berlaku untuk semua angka; akun tanpa scope melihat gabungan kedua plant.
         const sc = myProfile?.plantScope ?? null;
         const [claims, tasksToday, canteenMonth, kantongCik, kantongPrb, vehicles, drivers] = await Promise.all([
-          getClaims(sc),
+          getClaims(sc, { from: mondayStr, to: todayS, field: "submission", lite: true }),   // hanya pekan ini, tanpa rincian item
           getTasksByRange(todayS, todayS, sc),
           getCanteenReportsForMonth(monthStr),
           !sc || sc === "CIK" ? getCurrentKantong("CIK").catch(() => null) : Promise.resolve(null),
@@ -640,7 +640,7 @@ export function OverviewTab({ setActiveTab, myProfile }: { setActiveTab: (t: Das
       try {
         const [v, c, ot, d, kCik, kPrb, t, g, tt, canteen, lockers] = await Promise.all([
           getAllVehiclesFull(myProfile?.plantScope ?? null),
-          getClaims(myProfile?.plantScope ?? null),
+          getClaims(myProfile?.plantScope ?? null, { from: isoDaysAgo(130) }),   // ringkasan hanya butuh ± 2 bulan terakhir
           getOvertimes(myProfile?.plantScope ?? null),
           getDrivers(myProfile?.plantScope ?? null),
           !myProfile?.plantScope || myProfile.plantScope === "CIK" ? getCurrentKantong("CIK") : Promise.resolve(null),

@@ -7,7 +7,7 @@ import { ModalPortal } from "@/components/ModalPortal";
 import { ReportExportButtons, LanguagePickerModal, useExportLanguagePicker } from "@/components/ReportControls";
 import { exportGenericCsv, exportGenericExcel, exportGenericPdf } from "@/lib/reportEngine";
 import type { ReportColumn } from "@/lib/reportEngine";
-import { hasTabPermission, getDrivers, type MyProfile, getClaims, getCurrentKantong, getKantongHistory, updateKantongBudget, resetKantong, createKantong, getDriverTiers, addDriverTier, updateDriverTier, deleteDriverTier, setDriverTier } from "@/lib/api";
+import { hasTabPermission, getDrivers, type MyProfile, getClaims, isoDaysAgo, getCurrentKantong, getKantongHistory, updateKantongBudget, resetKantong, createKantong, getDriverTiers, addDriverTier, updateDriverTier, deleteDriverTier, setDriverTier } from "@/lib/api";
 import type { Claim, Plant, Kantong, DriverTier } from "@/lib/types";
 import type { Driver } from "@/lib/types";
 import { useLang } from "@/lib/providers";
@@ -372,7 +372,7 @@ function ForecastCard({ plant }: { plant: Plant }) {
     setLoading(true);
     (async () => {
       try {
-        const all = await getClaims(plant);
+        const all = await getClaims(plant, { from: isoDaysAgo(130), lite: true });   // perkiraan memakai 3 bulan terakhir
         if (!cancelled) setClaims(all);
       } catch {
         if (!cancelled) setClaims([]);

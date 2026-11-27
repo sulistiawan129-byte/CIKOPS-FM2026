@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import cs from "./claims.module.css";
 import { ClaimsHero, ClaimCard, WeekHeader, ViewSwitch, PeriodSwitch, RecapBar, ClaimForm, WreathCard, CLAIM_CATS, catLabel } from "./ClaimsUI";
 import { ModalPortal } from "@/components/ModalPortal";
-import { sendPushToDriver, getDrivers, type MyProfile, getClaims, addClaim, deleteClaim, updateClaim, getWreaths, addWreath, setWreathClaimed, deleteWreath, sendClaimNotificationEmails, getAppSetting } from "@/lib/api";
+import { sendPushToDriver, getDrivers, type MyProfile, getClaims, isoDaysAgo, addClaim, deleteClaim, updateClaim, getWreaths, addWreath, setWreathClaimed, deleteWreath, sendClaimNotificationEmails, getAppSetting } from "@/lib/api";
 import type { Claim, ClaimItem, Plant, Wreath } from "@/lib/types";
 import { exportTandaTerima } from "@/lib/tandaTerima";
 import { buildRincianRows } from "@/lib/claimRecap";
@@ -24,6 +24,9 @@ import { plantShort } from "@/lib/brand";
 import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
 
 import { loc , L} from "@/lib/i18n";
+/** Jumlah hari ke belakang yang dimuat awalnya di daftar klaim. */
+const CLAIM_WINDOW_DAYS = 180;
+
 /** Which of the month's 4 work-weeks (1–4) a date falls into — see
  *  monthWeekBoundaries() above for the exact rule. */
 export function weekOfMonth(dateStr: string): number {
@@ -154,6 +157,10 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ name: string; total: number; edited?: boolean } | null>(null);
   const [showImport, setShowImport] = useState(false);
+  // Riwayat panjang membuat halaman berat: awalnya hanya klaim N hari terakhir (menurut tanggal periode); "Muat semua riwayat" mengambil semuanya.
+  const [loadAll, setLoadAll] = useState(false);
+  const [recapVersion, setRecapVersion] = useState(0);
+  const [visibleN, setVisibleN] = useState(30);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(null), 6000);
@@ -254,7 +261,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     setLoading(true);
     setError(null);
     try {
-      const [c, d, du] = await Promise.all([getClaims(myProfile?.plantScope ?? null), getDrivers(myProfile?.plantScope ?? null), getAppSetting("driver_user_ids")]);
+      const [c, d, du] = await Promise.all([getClaims(myProfile?.plantScope ?? null, loadAll ? {} : { from: isoDaysAgo(CLAIM_WINDOW_DAYS) }), getDrivers(myProfile?.plantScope ?? null), getAppSetting("driver_user_ids")]);
       setClaims(c);
       setDrivers(d);
       setDriverUserIds(du ? du.split(",").filter(Boolean) : []);
@@ -263,7 +270,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadAll]);
 
   useEffect(() => {
     load();
@@ -497,11 +504,12 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
 
   const en = lang === "en";
   const periodLabel = weeklyRecapPeriodLabel();
-  const typeOrder = [...CLAIM_CATS as readonly string[], ...Array.from(new Set(filtered.flatMap((c) => c.items.map((i) => i.type)))).filter((x) => !(CLAIM_CATS as readonly string[]).includes(x))];
-  const byType = typeOrder.map((type) => ({
-    type,
-    amount: filtered.reduce((s, c) => s + c.items.filter((i) => i.type === type).reduce((a, i) => a + i.total, 0), 0),
-  }));
+  const { typeOrder, byType } = useMemo(() => {
+    const order = [...CLAIM_CATS as readonly string[], ...Array.from(new Set(filtered.flatMap((c) => c.items.map((i) => i.type)))).filter((x) => !(CLAIM_CATS as readonly string[]).includes(x))];
+    const sums = new Map<string, number>();
+    for (const c of filtered) for (const i of c.items) sums.set(i.type, (sums.get(i.type) ?? 0) + i.total);
+    return { typeOrder: order, byType: order.map((type) => ({ type, amount: sums.get(type) ?? 0 })) };
+  }, [filtered]);
   const typeFiltered = typeFilter ? filtered.filter((c) => c.items.some((i) => i.type === typeFilter)) : filtered;
   const groups = useMemo(() => {
     const sorted = typeFiltered.slice().sort((a, b) => (a.periodDate < b.periodDate ? 1 : a.periodDate > b.periodDate ? -1 : (a.submittedAt < b.submittedAt ? 1 : -1)));
@@ -515,6 +523,19 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
     }
     return [...map.entries()];
   }, [typeFiltered, lang]);
+  // Hanya sebagian kartu yang digambar sekaligus (ratusan kartu membuat halaman berat); sisanya lewat tombol "Tampilkan lebih banyak".
+  const { pagedGroups, hiddenCount } = useMemo(() => {
+    let left = visibleN;
+    const out: [string, { label: string; items: Claim[]; total: number; n: number }][] = [];
+    for (const [k, g] of groups) {
+      if (left <= 0) break;
+      const items = g.items.slice(0, left);
+      left -= items.length;
+      out.push([k, { label: g.label, items, total: g.total, n: g.items.length }]);
+    }
+    return { pagedGroups: out, hiddenCount: Math.max(0, typeFiltered.length - visibleN) };
+  }, [groups, visibleN, typeFiltered.length]);
+  useEffect(() => { setVisibleN(30); }, [driverFilter, plantF, periodMode, filterDate, typeFilter, loadAll]);
   let formWeek = "";
   try { formWeek = periodDate ? weekRangeOf(periodDate, lang).label : ""; } catch { formWeek = ""; }
   const driverOptions = drivers.map((d) => ({ id: d.id, nama: d.nama }));
@@ -552,6 +573,19 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
           { key: "wreath", label: en ? "Condolence wreaths" : "Karangan bunga duka cita", icon: <span aria-hidden="true">💐</span> },
         ]}
       />
+
+      {(viewMode === "list" || viewMode === "weekly") && !loading && (
+        <div className={cs.notice} style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <span>
+            {loadAll
+              ? (en ? `Showing the full history (${claims.length} claims).` : `Menampilkan seluruh riwayat (${claims.length} klaim).`)
+              : (en ? `Showing claims from the last ${CLAIM_WINDOW_DAYS} days (${claims.length} claims) to keep the page fast.` : `Menampilkan klaim ${CLAIM_WINDOW_DAYS} hari terakhir (${claims.length} klaim) supaya halaman tetap cepat.`)}
+          </span>
+          <button type="button" className={cs.btn} style={{ height: 34 }} onClick={() => setLoadAll((v) => !v)}>
+            {loadAll ? (en ? `Back to ${CLAIM_WINDOW_DAYS} days` : `Kembali ke ${CLAIM_WINDOW_DAYS} hari`) : (en ? "Load full history" : "Muat semua riwayat")}
+          </button>
+        </div>
+      )}
 
       {viewMode === "requests" && (
         <ClaimRequestsPanel lang={lang} requests={requests} error={requestsErr} canReview={canReview}
@@ -630,9 +664,9 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
             </div>
           ) : (
             <div className={cs.list}>
-              {groups.map(([key, g]) => (
+              {pagedGroups.map(([key, g]) => (
                 <div key={key} style={{ display: "contents" }}>
-                  <WeekHeader label={g.label} count={g.items.length} total={g.total} lang={lang} />
+                  <WeekHeader label={g.label} count={g.n} total={g.total} lang={lang} />
                   {g.items.map((c) => (
                     <ClaimCard
                       key={c.id}
@@ -648,12 +682,17 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
                   ))}
                 </div>
               ))}
+              {hiddenCount > 0 && (
+                <button type="button" className={cs.btn} style={{ height: 44, justifySelf: "center", margin: "6px auto 2px" }} onClick={() => setVisibleN((n) => n + 40)}>
+                  {en ? `Show more (${hiddenCount} left)` : `Tampilkan lebih banyak (${hiddenCount} lagi)`}
+                </button>
+              )}
             </div>
           )}
         </>
       )}
 
-      {viewMode === "recap" && <ClaimsRecap claims={claims} drivers={drivers} plantF={plantF} lang={lang} />}
+      {viewMode === "recap" && <ClaimsRecap version={recapVersion} drivers={drivers} plantF={plantF} lang={lang} />}
 
       {viewMode === "weekly" && (
         <div className={cs.panel}>
@@ -804,7 +843,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         </ModalPortal>
       )}
 
-      {showImport && <ClaimsImport lang={lang} myProfile={myProfile} onClose={() => setShowImport(false)} onImported={() => { load(); }} />}
+      {showImport && <ClaimsImport lang={lang} myProfile={myProfile} onClose={() => setShowImport(false)} onImported={() => { setRecapVersion((v) => v + 1); load(); }} />}
 
       {confirmDelete && (
         <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>

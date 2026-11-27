@@ -18,6 +18,7 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/10_kunci_loker_karyawan.sql` | (Dibatalkan oleh 13) Modul **Kunci Loker Karyawan**: tabel `locker_keys` + riwayat otomatis `locker_key_logs`, fungsi pinjam/kembalikan kunci serep & impor Excel. Hak akses hanya Master Admin & Admin GA (tabel berisi nama & NIK) | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang. Data awal diisi dari aplikasi (Impor Excel) |
 | `supabase/11_idcard.sql` | Modul **ID Card** (kartu akses Temporary / Contractor / Outsourcing): tabel pengajuan, kartu, penyerahan, penghitung nomor harian, desain kartu, riwayat per kartu + fungsi (nomor dibuat atomik oleh database). Hak akses: Master Admin, Admin GA CIK, Admin / SPV Security | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang |
 | `supabase/12_idcard_transporter.sql` | Jenis kartu ke-4 **Transporter**: nomor urut polos (1, 2, 3 …), desain kartu terpisah | **Jalankan sekali SESUDAH `11_idcard.sql`** di Supabase SQL Editor. Aman diulang |
+| `supabase/14_indeks_klaim.sql` | Indeks tabel `claims` (tanggal periode, tanggal pengajuan, driver, plant) agar daftar klaim, rekap per driver, dan Beranda tetap cepat saat riwayat bertambah (mis. setelah impor data 2025) | **Jalankan sekali di Supabase SQL Editor** (bisa kapan saja, tidak mengubah data). Aman diulang |
 | `supabase/13_hapus_data_karyawan.sql` | **Hapus data karyawan** dari Supabase (employees, atk_employees, Gift, Kunci Loker) dan ganti saran requestor TGA ke riwayat. Laporan/riwayat dipertahankan | **Backup dulu → deploy aplikasi terbaru → jalankan.** Penghapusan permanen; lihat bab "Data karyawan: input manual". Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -1013,6 +1014,13 @@ Menu **Finance → Klaim → tab "Rekap per driver (bulanan / tahunan)"**. Menju
 Di atas tabel ada ringkasan: total periode dan porsi tiap kategori. Mengetuk nama driver di tabel bulanan membuka rincian setahunnya.
 Filter **plant** di atas halaman Klaim ikut berlaku. **Excel** dan **PDF**: judul + periode + cakupan, angka berformat ribuan,
 baris total, nomor halaman; rekap tahunan semua driver dicetak landscape. Pengajuan driver yang belum diverifikasi tidak ikut dihitung.
+
+### Kecepatan halaman Klaim
+
+Supaya tetap ringan walau riwayat bertahun-tahun, halaman Klaim hanya memuat **180 hari terakhir** (ada banner + tombol **Muat semua riwayat**).
+Kartu klaim ditampilkan 30 per halaman (**Tampilkan lebih banyak**), dan rincian nota baru digambar saat kartu dibuka.
+**Rekap per driver** mengambil data **per tahun** yang dipilih, jadi riwayat lama tetap bisa direkap tanpa membebani daftar.
+Beranda & Dana Operasional hanya memuat beberapa bulan terakhir. Jalankan `supabase/14_indeks_klaim.sql` sekali di Supabase agar pencarian tanggal cepat.
 
 ### Impor data klaim lama (dari Excel)
 
