@@ -17,6 +17,8 @@ import { ModuleHeader } from "./ModuleShell";
 import { todayStr, useIsMobile, useCountUp, formatDateLabel, fmtRp, evalExpr, monthWeekBoundaries, PLANT_COLOR } from "./dashboardShared";
 import { OpFundTab } from "./OpFundTab";
 import { ClaimRequestsPanel } from "./ClaimRequestsPanel";
+import { ClaimsRecap } from "./ClaimsRecap";
+import { ClaimsImport } from "./ClaimsImport";
 import { approveClaimRequest, getClaimRequests, rejectClaimRequest, subscribeClaimRequests, type ClaimRequest } from "@/lib/claims/driverClaims";
 import { plantShort } from "@/lib/brand";
 import { PlantSwitch, effectivePlant, type PlantSel } from "@/components/PlantSwitch";
@@ -139,7 +141,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const [driverUserIds, setDriverUserIds] = useState<string[]>([]);
   const [exportingRecap, setExportingRecap] = useState(false);
   const [exportingWeeklyRecap, setExportingWeeklyRecap] = useState<"excel" | "pdf" | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "weekly" | "wreath" | "requests">("list");
+  const [viewMode, setViewMode] = useState<"list" | "weekly" | "recap" | "wreath" | "requests">("list");
   // ── Self-Claim: pengajuan dari aplikasi driver ──
   const [requests, setRequests] = useState<ClaimRequest[]>([]);
   const [requestsErr, setRequestsErr] = useState<string | null>(null);
@@ -151,6 +153,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
   const pendingRequests = requests.filter((r) => r.status === "menunggu").length;
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ name: string; total: number; edited?: boolean } | null>(null);
+  const [showImport, setShowImport] = useState(false);
   useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(null), 6000);
@@ -544,6 +547,7 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
         options={[
           { key: "list", label: en ? "Claims" : "Daftar klaim" },
           { key: "weekly", label: en ? "Weekly recap" : "Rekap mingguan" },
+          { key: "recap", label: en ? "Driver recap (monthly / yearly)" : "Rekap per driver (bulanan / tahunan)", icon: <span aria-hidden="true">📊</span> },
           { key: "requests", label: `${en ? "Driver requests" : "Pengajuan driver"}${pendingRequests ? ` (${pendingRequests})` : ""}`, icon: <span aria-hidden="true">📲</span> },
           { key: "wreath", label: en ? "Condolence wreaths" : "Karangan bunga duka cita", icon: <span aria-hidden="true">💐</span> },
         ]}
@@ -583,6 +587,11 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
             {periodMode === "week" && filtered.length > 0 && (
               <button className={`${cs.btn} ${cs.btnGreen}`} onClick={handleExportRecap} disabled={exportingRecap} title={en ? "Export official Finance recap format (CSV)" : "Export format rekap resmi Finance (CSV)"}>
                 ⬇ {exportingRecap ? "..." : L("Export Tanda Terima", "Export Receipt")}
+              </button>
+            )}
+            {canReview && (
+              <button className={cs.btn} onClick={() => setShowImport(true)} title={en ? "Import old claim data from Excel" : "Impor data klaim lama dari Excel"}>
+                ⬆ {en ? "Import old data" : "Impor data lama"}
               </button>
             )}
             <button className={cs.primary} onClick={openAdd}>
@@ -643,6 +652,8 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
           )}
         </>
       )}
+
+      {viewMode === "recap" && <ClaimsRecap claims={claims} drivers={drivers} plantF={plantF} lang={lang} />}
 
       {viewMode === "weekly" && (
         <div className={cs.panel}>
@@ -792,6 +803,8 @@ export function ClaimsTab({ myProfile = null }: { myProfile?: MyProfile | null }
           </div>
         </ModalPortal>
       )}
+
+      {showImport && <ClaimsImport lang={lang} myProfile={myProfile} onClose={() => setShowImport(false)} onImported={() => { load(); }} />}
 
       {confirmDelete && (
         <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={380}>

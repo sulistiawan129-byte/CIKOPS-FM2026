@@ -998,6 +998,37 @@ OneSignal / APK Median sudah tidak dipakai. Driver yang masih memakai APK Median
 **CIKOPS Driver** (GitHub Actions di atas), lalu Profil → Notifikasi → **Aktifkan** supaya tetap
 mendapat notifikasi tugas.
 
+## Rekap klaim per driver (bulanan & tahunan)
+
+Menu **Finance → Klaim → tab "Rekap per driver (bulanan / tahunan)"**. Menjumlahkan klaim tiap driver per kategori:
+**Gasoline + Toll + Parking + Other = Total**. Bulan dan tahun mengikuti **tanggal periode** klaim (sama seperti rekap mingguan).
+
+| Pilihan | Hasil |
+|---|---|
+| **Bulanan** + Semua driver | Satu baris per driver untuk bulan itu (terurut dari total terbesar), plus total keseluruhan. |
+| **Bulanan** + satu driver | Angka driver itu untuk bulan tersebut. |
+| **Tahunan** + Semua driver | Matriks driver × Jan–Des (total per bulan, bulan tertinggi ditandai) + rincian kategori setahun. |
+| **Tahunan** + satu driver | 12 baris bulan × kategori — mis. "Boby, Januari = bensin + tol + parkir + lainnya = total", dengan total setahun di bawah. |
+
+Di atas tabel ada ringkasan: total periode dan porsi tiap kategori. Mengetuk nama driver di tabel bulanan membuka rincian setahunnya.
+Filter **plant** di atas halaman Klaim ikut berlaku. **Excel** dan **PDF**: judul + periode + cakupan, angka berformat ribuan,
+baris total, nomor halaman; rekap tahunan semua driver dicetak landscape. Pengajuan driver yang belum diverifikasi tidak ikut dihitung.
+
+### Impor data klaim lama (dari Excel)
+
+Finance → Klaim → tombol **Impor data lama** (hanya Master Admin & Admin GA CIK). Untuk memasukkan riwayat klaim yang selama ini dicatat di Excel.
+
+1. **Tempel** seluruh tabel dari Excel (kolom: *Week, Tanggal Pengajuan, Periode Klaim, Nama Driver, Jenis Klaim, Nominal, Keterangan*; baris judul boleh ikut), atau pilih file **.xlsx / .csv**.
+2. **Cek pratinjau**: jumlah klaim, total nominal, **ringkasan per bulan** (cocokkan dengan total di Excel), dan baris yang tidak terbaca.
+3. **Cocokkan nama driver**: nama di data dipasangkan otomatis dengan driver di sistem ("mirip — cek" bila ejaan sedikit berbeda, mis. Bobby/Boby). Ubah lewat daftar bila perlu; pilih *(lewati baris ini)* untuk tidak mengimpor.
+4. Pilih **bulan laporan mengikuti**: tanggal mulai periode (bawaan), tanggal akhir periode, atau tanggal pengajuan. Ini menentukan masuk bulan mana klaim yang periodenya melintasi dua bulan (mis. "29 Mei - 4 Juni").
+5. **Impor ke sistem.**
+
+Aturan: satu baris = satu item (satu lembar nota); baris dengan driver + tanggal pengajuan + periode yang sama digabung jadi satu klaim.
+Jenis klaim: Toll, Parkir→Parking, Gasoline tetap; selain itu (Other, Nitrogen, dst.) masuk **Other** (nama aslinya dicatat di keterangan).
+Setiap klaim hasil impor memiliki **penanda** di awal catatan (mis. `[IMPOR-2025]`). Mengimpor ulang dengan penanda yang sama **mengganti** hasil sebelumnya,
+dan tombol **Batalkan impor** menghapus semuanya tanpa menyentuh klaim lain. Tahun penanda diisi otomatis dari data dan bisa diubah.
+
 ## Self-Claim driver
 Driver mengajukan klaim sendiri dari aplikasi; admin tidak perlu mengetik ulang, cukup
 memeriksa dan memverifikasi.
@@ -1263,15 +1294,11 @@ Hari ini otomatis disorot. Slide Menu Hari Ini menampilkan hidangan hari berjala
    internet putus layar tetap menampilkan menu terakhir. Minggu yang belum diisi menampilkan layar "Menu minggu ini segera hadir".
 7. **Isi menu** sebelum Senin: Dashboard → Fasilitas → Kantin → Menu TV (bisa isi massal untuk beberapa minggu sekaligus).
 
-## Memilih karyawan: kotak pencarian
+## Mengisi nama: kotak isian dengan saran
 
-Semua pemilihan karyawan memakai **kotak pencarian** (bukan daftar panjang), supaya nyaman di HP: ketik sebagian nama, NIK, atau departemen
-(beberapa kata boleh, urutannya bebas, mis. "budi fin"), lalu ketuk hasilnya. Dipakai di: Penugasan Driver (Requestor), TGA (penugasan &
-ubah pekerjaan), ATK (nama pemohon), dan Receptionist (requestor wifi, penerima/pengirim barang, PIC booking). Di Penugasan Driver hanya
-bisa memilih dari daftar karyawan; di tempat lain nama di luar data karyawan (mis. tamu) tetap boleh diketik.
-
-> Batas Supabase **Max rows** (Project Settings → API) menentukan berapa karyawan yang dimuat sekali ambil (bawaan 1000). Jumlah karyawan
-> sekarang 1500 → pastikan **Max rows ≥ jumlah karyawan** (disarankan 5000). Bila suatu saat melewatinya, nama di ujung daftar tidak muncul.
+Tidak ada master/daftar karyawan (lihat bab **Data karyawan: input manual**). Nama + departemen **diketik manual**; nama yang pernah
+dipakai di modul itu muncul sebagai **saran** (dari riwayat modul tersebut) saat mengetik. Dipakai di: Penugasan Driver (Requestor), TGA
+(penugasan & ubah pekerjaan), ID Card (penerima/PIC), dan Receptionist (buku alamat dari kunjungan sebelumnya).
 
 ## Backup & pemulihan
 Supabase paket Free tidak menyediakan backup yang bisa dipulihkan sendiri (paket Pro
