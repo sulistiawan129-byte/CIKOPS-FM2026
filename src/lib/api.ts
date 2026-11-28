@@ -719,6 +719,11 @@ export type VehicleInput = Omit<Vehicle, "id">;
 
 const KATEGORI_SQL_MSG = () => L("Kategori kendaraan belum ada di database — jalankan supabase/08_kategori_kendaraan_gate_manual.sql di Supabase SQL Editor dulu.", "The vehicle category column is missing — run supabase/08_kategori_kendaraan_gate_manual.sql in the Supabase SQL Editor first.");
 
+/** Kolom data dokumen kendaraan (SQL 15) belum ada di database. */
+const isMissingDocCols = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === "42703" || e.code === "PGRST204") && /no_rangka|no_mesin|no_uji|jenis_kendaraan/i.test(e.message ?? "");
+const DOCCOLS_SQL_MSG = () => L("Kolom data kendaraan (no. rangka, no. mesin, no. uji) belum ada di database — jalankan supabase/15_data_dokumen_kendaraan.sql di Supabase SQL Editor dulu.", "The vehicle document columns (chassis, engine, test numbers) are missing — run supabase/15_data_dokumen_kendaraan.sql in the Supabase SQL Editor first.");
+
 export async function addVehicle(input: VehicleInput): Promise<Vehicle> {
   // aset GA = nilai bawaan database; kolom baru hanya dikirim bila perlu (aplikasi tetap jalan sebelum SQL 08 dijalankan)
   const payload: Record<string, unknown> = { ...input };
@@ -729,6 +734,7 @@ export async function addVehicle(input: VehicleInput): Promise<Vehicle> {
     .insert(payload)
     .select()
     .single();
+  if (isMissingDocCols(error)) throw new Error(DOCCOLS_SQL_MSG());
   if (isMissingKategoriColumn(error)) throw new Error(KATEGORI_SQL_MSG());
   if (error) throw error;
   return data;
@@ -741,6 +747,7 @@ export async function updateVehicle(
   const payload: Record<string, unknown> = { ...input };
   if (payload.kategori === undefined) delete payload.kategori;
   const { data: updated, error } = await supabase.from("vehicles").update(payload).eq("id", id).select("id");
+  if (isMissingDocCols(error)) throw new Error(DOCCOLS_SQL_MSG());
   if (isMissingKategoriColumn(error)) throw new Error(KATEGORI_SQL_MSG());
   if (!error && !updated?.length) throw noChangeError();
   if (error) throw error;
@@ -2163,7 +2170,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_ga_cik: {
     id: "Admin GA CIK", en: "GA Admin CIK", descId: "Fleet CIK, finance, fasilitas, receptionist, master data", descEn: "Fleet CIK, finance, facility, receptionist, master data",
-    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "idcard", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
+    tabs: ["tasks", "vehicles", "gate", "gasstations", "claims", "opfund", "driverbudget", "locker", "idcard", "logbook", "printer", "employeerequests", "atk", "receptionist", "calendar", "reports", "masterdata", "accounts"],
     home: true, plant: "CIK", reports: ["fleet", "claims", "atk", "receptionist"], calendarTasks: true,
   },
   admin_ga_prb: {
@@ -2176,7 +2183,7 @@ export const ROLE_INFO: Record<StaffRole, RoleInfo> = {
   },
   admin_security: {
     id: "Admin / SPV Security", en: "Security Admin / SPV", descId: "Modul Security", descEn: "Security module",
-    tabs: ["security", "idcard", "reports", "accounts"], home: false, plant: null, reports: ["security"], calendarTasks: false,
+    tabs: ["security", "idcard", "logbook", "reports", "accounts"], home: false, plant: null, reports: ["security"], calendarTasks: false,
   },
   receptionist: {
     id: "Receptionist", en: "Receptionist", descId: "Modul Receptionist & kalender kunjungan", descEn: "Receptionist module & visit calendar",

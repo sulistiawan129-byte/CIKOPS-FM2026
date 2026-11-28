@@ -40,6 +40,11 @@ export interface Vehicle {
   kategori?: VehicleKategori;
   /** true = didaftarkan otomatis dari input manual Security di /gate, belum diverifikasi GA (aktif=false). */
   from_gate?: boolean;
+  /** Data dokumen kendaraan (SQL 15) — dipakai Surat Kuasa STNK / KIR */
+  jenis_kendaraan?: string | null;   // jenis menurut STNK, mis. "Mobil Barang"
+  no_rangka?: string | null;
+  no_mesin?: string | null;
+  no_uji?: string | null;            // nomor uji KIR
 }
 
 export type VehicleKategori = "asset_ga" | "non_asset";

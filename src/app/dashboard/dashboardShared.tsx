@@ -32,6 +32,7 @@ export type DashboardTab =
   | "canteen"
   | "locker"
   | "idcard"
+  | "logbook"
   | "printer"
   | "employeerequests"
   | "atk"
@@ -94,6 +95,7 @@ export const NAV_GROUPS: NavGroup[] = [
     tabs: [
       { id: "security", icon: "🛡️", labelId: "Laporan Security", labelEn: "Security Report", descId: "Input bulanan kendaraan, transporter, kejadian, patroli", descEn: "Monthly vehicles, transporters, incidents, patrol" },
       { id: "idcard", icon: "🪪", labelId: "ID Card", labelEn: "ID Card", descId: "Kartu akses Temporary, Contractor & Outsourcing: pengajuan, cetak, penyerahan", descEn: "Temporary, Contractor & Outsourcing access cards: requests, printing, hand-over" },
+      { id: "logbook", icon: "📒", labelId: "Logbook Gate MDC", labelEn: "MDC Gate Logbook", descId: "Catatan keluar-masuk MDC ⇄ FFI dari form publik — realtime", descEn: "MDC ⇄ FFI in/out entries from the public form — realtime" },
     ],
   },
   {

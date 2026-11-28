@@ -19,6 +19,8 @@ Supabase/Vercel (bab terakhir). Riwayat perubahan ada di `git log`.
 | `supabase/11_idcard.sql` | Modul **ID Card** (kartu akses Temporary / Contractor / Outsourcing): tabel pengajuan, kartu, penyerahan, penghitung nomor harian, desain kartu, riwayat per kartu + fungsi (nomor dibuat atomik oleh database). Hak akses: Master Admin, Admin GA CIK, Admin / SPV Security | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang |
 | `supabase/12_idcard_transporter.sql` | Jenis kartu ke-4 **Transporter**: nomor urut polos (1, 2, 3 …), desain kartu terpisah | **Jalankan sekali SESUDAH `11_idcard.sql`** di Supabase SQL Editor. Aman diulang |
 | `supabase/14_indeks_klaim.sql` | Indeks tabel `claims` (tanggal periode, tanggal pengajuan, driver, plant) agar daftar klaim, rekap per driver, dan Beranda tetap cepat saat riwayat bertambah (mis. setelah impor data 2025) | **Jalankan sekali di Supabase SQL Editor** (bisa kapan saja, tidak mengubah data). Aman diulang |
+| `supabase/15_data_dokumen_kendaraan.sql` | Kolom **jenis (STNK), no. rangka, no. mesin, no. uji KIR** pada kendaraan + tabel **riwayat Surat Kuasa** (`surat_kuasa_log`) | **Jalankan sekali di Supabase SQL Editor** (bisa sebelum/sesudah deploy). Aman diulang |
+| `supabase/16_logbook_gate_mdc.sql` | **Logbook Gate MDC ⇄ FFI**: tabel `logbook_gate`, fungsi `logbook_submit` (satu-satunya jalan masuk dari form publik), hak akses Security / Admin GA CIK / Master, realtime | **Jalankan sekali di Supabase SQL Editor**, sesudah `02_peran_keamanan.sql`. Aman diulang |
 | `supabase/13_hapus_data_karyawan.sql` | **Hapus data karyawan** dari Supabase (employees, atk_employees, Gift, Kunci Loker) dan ganti saran requestor TGA ke riwayat. Laporan/riwayat dipertahankan | **Backup dulu → deploy aplikasi terbaru → jalankan.** Penghapusan permanen; lihat bab "Data karyawan: input manual". Aman diulang |
 | `supabase/cek_audit_keamanan.sql` | Pemeriksaan keamanan, hanya membaca | Sebelum & sesudah `02_peran_keamanan.sql`, dan sesudah pindah akun |
 
@@ -595,6 +597,36 @@ saat mengajukan klaim. Tidak perlu SQL atau pengaturan — langsung aktif di apl
 - Isi tiap form: Judul *FORM PARKIR & TOLL MANUAL*, **Tanggal Trx**, **Jenis Trx** (kotak centang Parkir / Toll), **Nominal** (Rp), **Lokasi**, **Jam** (WIB), dan catatan *Harap Lampirkan Bukti Transaksi*.
 - PDF dibuat di HP (tanpa internet setelah aplikasi terbuka). Bila unduhan otomatis diblokir, PDF dibuka di tab baru.
 - Teks dan tata letak ada di `src/lib/driverForms.ts` bila perlu diubah (mis. judul, atau menambah baris Nama Driver / Plat).
+
+---
+
+## Surat Kuasa STNK & KIR (Fleet → Armada)
+
+Tombol **📄 Surat Kuasa** di atas halaman Armada (atau tombol **Surat kuasa** pada kartu/baris kendaraan) membuat surat kuasa **perpanjangan STNK** atau **KIR / uji kendaraan**
+dalam bentuk **PDF A4** untuk dicetak di **kertas ber-kop** perusahaan. Format mengikuti surat GA yang sudah dipakai.
+
+1. Pilih **jenis surat** (STNK / KIR), lalu **kendaraan** dari Armada — merk/tipe, no. polisi, tahun, warna, no. rangka, no. mesin, no. uji terisi otomatis dan masih bisa diubah.
+2. Isi **pemberi kuasa** (nama, jabatan), **penerima kuasa** (nama, alamat), kota & **tanggal surat**.
+3. **Ruang kop di atas** (bawaan 45 mm) menjaga bagian atas kertas tetap kosong untuk kop. Pilih "Tanpa ruang" bila memakai kertas polos.
+4. **Lihat & cetak** membuka PDF di tab baru; **PDF** mengunduhnya. **Tanda tangan tidak dicetak** (dibubuhkan basah); isian yang dikosongkan tercetak sebagai garis titik-titik.
+
+**Default & riwayat.** Setiap surat yang berhasil dibuat otomatis dicatat di tab **Riwayat** (tanggal, jenis, kendaraan, penerima kuasa, pembuat). Isian surat terakhir (pemberi, penerima, kota, ruang kop)
+menjadi **default surat berikutnya**, dibagi ke semua admin Fleet — jadi cukup mengganti kendaraan dan tanggal. Di Riwayat ada **↻ Pakai lagi** (isi ulang form dari surat lama, tanggal hari ini) dan **⬇ PDF** (cetak ulang persis).
+Centang *Simpan perubahan data ke Armada* agar no. rangka / mesin / uji yang baru diketik tersimpan di data kendaraan (bisa juga diisi lewat **Ubah kendaraan → Data dokumen**).
+Teks surat ada di `src/lib/suratKuasa.ts` bila perlu diubah. Butuh `supabase/15_data_dokumen_kendaraan.sql`.
+
+---
+
+## Logbook Gate MDC ⇄ FFI (Security → Logbook Gate MDC)
+
+Form publik **`/logbook`** (tanpa login, cocok dicetak sebagai QR di gate) untuk mencatat **siapa yang lewat antara area MDC dan FFI**. Sekali isi, **tanpa NIK, tanpa check-in/check-out**.
+
+- **Isian:** Arah (MDC → FFI / FFI → MDC) · Tanggal & jam (otomatis, WIB) · Karyawan / Guest · Nama lengkap · Departemen (karyawan) atau Perusahaan/Instansi (guest) · Tujuan/Keperluan (pilihan, atau *Lainnya* → ketik sendiri).
+- Setelah **Catat**, muncul layar **Tercatat** dengan nomor `LB-DDMMYY-001`. Saran nama hanya diambil dari **perangkat itu sendiri** (bukan dari data bersama), jadi tidak ada daftar nama yang bisa dibaca publik.
+- **Dashboard:** Security → **Logbook Gate MDC** (akun Master, Admin GA CIK, Admin/SPV Security). Entri baru muncul **realtime**; ada ringkasan (total, per arah, karyawan vs guest), filter tanggal/arah/tipe/cari, ekspor **Excel & PDF**, hapus entri salah input, dan **Link & QR form** untuk dicetak.
+- **Keamanan:** pengunjung hanya bisa **menambah** lewat fungsi `logbook_submit` (validasi panjang & isi, pengaman dobel-klik/spam); tidak bisa membaca atau mengubah daftar.
+- **Foto header:** taruh foto pabrik sebagai `public/logbook-hero.jpg` (bebas ukuran, disarankan lebar ≥ 880 px) — otomatis tampil penuh. Bila belum ada, tampil ilustrasi pabrik.
+- Butuh `supabase/16_logbook_gate_mdc.sql`.
 
 ---
 

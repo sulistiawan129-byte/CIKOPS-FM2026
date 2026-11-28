@@ -9,6 +9,7 @@
 import { addDays, isoDow, monthStart, rng, todayWib, uuid, wibIso, type MockDB, type Row } from "./core";
 import { SAMPLE_DAYS, SAMPLE_STAPLES, mondayOf } from "../canteenMenu";
 import { createHandoverCore, createRequestCore } from "./rpc/idcard";
+import { addLogbookCore } from "./rpc/logbook";
 
 /* ── kosakata (sama persis dengan SQL) ── */
 const DEPTS = ["Produksi", "Quality Assurance", "Engineering", "HR & GA", "Finance & Accounting", "Supply Chain", "Marketing", "IT", "HSE", "R&D", "Procurement", "Warehouse"];
@@ -151,6 +152,8 @@ export function buildSeed(): MockDB {
       stnk_date: addDays(today, i === 2 ? 6 : i === 7 ? 20 : i === 12 ? -3 : 60 + i * 23),
       kir_date: addDays(today, i === 3 ? 12 : i === 9 ? 4 : 90 + i * 17),
       service_date: addDays(today, i === 5 ? 2 : i === 14 ? 9 : 25 + i * 11),
+      jenis_kendaraan: ["Daihatsu Gran Max Box", "Mitsubishi L300 Pick Up", "Isuzu Elf"].includes(VJENIS[i - 1]) ? "Mobil Barang" : "Mobil Penumpang",
+      no_rangka: `MHK${String(1000000 + i * 7919).padStart(7, "0")}DK0${42300 + i}`, no_mesin: `3NR${String(52000 + i * 37)}`, no_uji: `BKS${761600 + i * 13}`,
       created_at: ago(24 * 90), updated_at: ago(24 * 30),
     };
     if (i <= 9) vh.default_driver_id = drv[i - 1].id;
@@ -355,6 +358,23 @@ export function buildSeed(): MockDB {
       };
       if (intern) row.end_date = addDays(today, 45);
       put("lockers", row);
+    }
+  }
+
+  /* ════ Logbook Gate MDC ⇄ FFI ════ */
+  {
+    const KARY: [string, string, string][] = [["Budi Santoso", "Produksi", "Antar / ambil barang"], ["Siti Rahmawati", "Quality Assurance", "Rapat"], ["Agus Prasetyo", "Warehouse", "Antar / ambil barang"],
+      ["Dewi Lestari", "HR & GA", "Urusan pekerjaan"], ["Rudi Hartono", "Maintenance", "Inspeksi / audit"], ["Nina Marlina", "Supply Chain", "Rapat"]];
+    const GUEST: [string, string, string][] = [["Bambang Wijaya", "PT Mitra Logistik", "Survei lokasi gudang"], ["Lina Kusuma", "PT Sentosa Cleaning Service", "Servis / vendor"], ["Hendro Saputra", "PT Karya Mandiri Teknik", "Meeting"]];
+    const HM = ["07:42", "08:05", "08:31", "09:10", "09:48", "10:15", "11:02", "12:20", "13:05", "13:40", "14:12", "15:30"];
+    for (let d = 4; d >= 0; d--) {
+      const day = addDays(today, -d);
+      const n = d === 0 ? 7 : 9 + (d % 3);
+      for (let i = 0; i < n; i++) {
+        const guest = i % 4 === 3;
+        const [nama, asal, kep] = guest ? GUEST[(i + d) % GUEST.length] : KARY[(i + d) % KARY.length];
+        addLogbookCore(db, { tanggal: day, jam: HM[i % HM.length], arah: (i + d) % 3 === 0 ? "ffi_mdc" : "mdc_ffi", tipe: guest ? "guest" : "karyawan", nama, asal, keperluan: kep });
+      }
     }
   }
 
@@ -700,7 +720,7 @@ export function buildSeed(): MockDB {
     "ga_jobs", "ga_manpower", "ga_plan", "ga_plan_resets", "ga_sync_config", "ga_tga", "gas_stations",
     "job_types", "kantong", "lockers", "overtime", "printer_requests", "printers", "profiles", "push_subscriptions", "rcp_contacts", "rcp_counters", "rcp_parcels",
     "rcp_room_bookings", "rcp_settings", "rcp_visitors", "rcp_wifi_accounts", "rcp_wifi_grants", "security_config", "security_monthly", "tasks", "tga_activities",
-    "tga_assign_config", "tga_counters", "tga_sessions", "tga_users", "vehicle_doc_notifications", "vehicle_gate_logs", "vehicles", "auth_users",
+    "tga_assign_config", "tga_counters", "tga_sessions", "tga_users", "vehicle_doc_notifications", "vehicle_gate_logs", "vehicles", "auth_users", "surat_kuasa_log", "logbook_gate",
   ]) T(t);
 
   return db;

@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import styles from "./dashboard.module.css";
 import { GateLogPanel } from "./GateUI";
 import { ModalPortal } from "@/components/ModalPortal";
+import { SuratKuasaModal } from "./SuratKuasaModal";
 import { getDrivers, type MyProfile, getAllVehiclesFull, addVehicle, updateVehicle, deleteVehicle, getVehicleGateLogs, deleteGateLog, forceCloseGateLog } from "@/lib/api";
 import type { Plant, VehicleGateLog, VehicleKategori } from "@/lib/types";
 import { vehicleKategoriOf, isNonAsset } from "@/lib/types";
@@ -36,6 +37,10 @@ type VehicleFormState = {
   default_driver_id: string;
   plant: Plant;
   kategori: VehicleKategori;
+  jenis_kendaraan: string;
+  no_rangka: string;
+  no_mesin: string;
+  no_uji: string;
 };
 
 const BLANK_VEHICLE_FORM: VehicleFormState = {
@@ -53,6 +58,10 @@ const BLANK_VEHICLE_FORM: VehicleFormState = {
   default_driver_id: "",
   plant: "CIK",
   kategori: "asset_ga",
+  jenis_kendaraan: "",
+  no_rangka: "",
+  no_mesin: "",
+  no_uji: "",
 };
 
 /* ── GATE LOG — modul sendiri (dulu tab di dalam Armada) ── */
@@ -200,6 +209,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [sk, setSk] = useState<{ id: string | null } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [form, setForm] = useState<VehicleFormState>(BLANK_VEHICLE_FORM);
@@ -265,6 +275,10 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       default_driver_id: v.default_driver_id || "",
       plant: v.plant || "CIK",
       kategori: vehicleKategoriOf(v),
+      jenis_kendaraan: v.jenis_kendaraan || "",
+      no_rangka: v.no_rangka || "",
+      no_mesin: v.no_mesin || "",
+      no_uji: v.no_uji || "",
     });
     setShowForm(true);
   }
@@ -289,6 +303,10 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
       default_driver_id: form.default_driver_id || null,
       plant: myProfile?.plantScope ?? form.plant,
       kategori: form.kategori,
+      // data dokumen (SQL 15): hanya dikirim bila terisi / sebelumnya terisi, agar tetap jalan sebelum SQL 15 dijalankan
+      ...Object.fromEntries((["jenis_kendaraan", "no_rangka", "no_mesin", "no_uji"] as const)
+        .filter((k) => form[k].trim() !== "" || !!editing?.[k])
+        .map((k) => [k, form[k].trim() || null])),
       // kendaraan dari gate yang dilengkapi & diaktifkan GA = sudah terverifikasi
       ...(editing?.from_gate && form.aktif ? { from_gate: false } : {}),
     };
@@ -397,7 +415,10 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
         title={L("Armada Kendaraan", "Vehicle Fleet")}
         desc={L("Status armada, driver tetap, dan jadwal KIR, service, serta STNK — kendaraan yang perlu perhatian otomatis naik ke atas.",
           "Fleet status, assigned drivers, and KIR, service and STNK schedules — vehicles needing attention float to the top.")}
-        actions={<button type="button" className={vh.primary} onClick={openAdd}>+ {L("Tambah kendaraan", "Add vehicle")}</button>}
+        actions={<>
+          <button type="button" className={vh.btn} onClick={() => setSk({ id: null })} title={L("Surat kuasa perpanjangan STNK / KIR (PDF A4)", "Power of attorney for STNK renewal / KIR (A4 PDF)")}>📄 {L("Surat Kuasa", "Power of Attorney")}</button>
+          <button type="button" className={vh.primary} onClick={openAdd}>+ {L("Tambah kendaraan", "Add vehicle")}</button>
+        </>}
       />
 
       {error && <div className={vh.err}>{error}</div>}
@@ -525,6 +546,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                   <button type="button" className={vh.linkBtn} onClick={() => setOpenId(open ? null : v.id)}>{open ? L("Tutup detail", "Hide details") : L("Detail dokumen", "Document details")}</button>
                   <span className={vh.grow} />
                   {v.from_gate && <button type="button" className={vh.btn} onClick={() => verifyGateVehicle(v)} title={L("Jadikan mobil perusahaan non-aset yang aktif (bisa dipakai di penugasan)", "Make it an active non-asset company car (usable in assignments)")}>✔ {L("Verifikasi", "Verify")}</button>}
+                  <button type="button" className={vh.btn} onClick={() => setSk({ id: v.id })} title={L("Buat surat kuasa STNK / KIR", "Create STNK / KIR power of attorney")}>📄 {L("Surat kuasa", "Letter")}</button>
                   <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️ {t.actionEdit}</button>
                   {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
                 </div>
@@ -550,6 +572,7 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
                   {docs.map((d) => <td key={d.key}><span className={`${vh.pill} ${vh["pl_" + d.level]}`}>{d.level === "none" ? "—" : dueText(d)}</span></td>)}
                   <td className={vh.rowAct}>
                     {v.from_gate && <button type="button" className={vh.btn} onClick={() => verifyGateVehicle(v)}>✔</button>}
+                    <button type="button" className={vh.btn} onClick={() => setSk({ id: v.id })} aria-label={L("Surat kuasa", "Power of attorney")} title={L("Surat kuasa STNK / KIR", "STNK / KIR power of attorney")}>📄</button>
                     <button type="button" className={vh.btn} onClick={() => openEdit(v)}>✏️</button>
                     {isAdmin && <button type="button" className={vh.iconDanger} onClick={() => setConfirmDelete(v)} aria-label={L("Hapus", "Delete")}>🗑️</button>}
                   </td>
@@ -660,6 +683,28 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
               </div>
 
               <div style={{ marginTop: 16, padding: 14, background: "var(--bg2)", borderRadius: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.07em" }}>🪪 {L("Data dokumen (untuk Surat Kuasa)", "Document data (for power of attorney)")}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label>{L("Jenis (menurut STNK)", "Type (per STNK)")}</label>
+                    <input className={styles.formInput} value={form.jenis_kendaraan} onChange={(e) => setForm({ ...form, jenis_kendaraan: e.target.value })} placeholder="Mobil Barang" />
+                  </div>
+                  <div>
+                    <label>{L("No. Uji KIR", "KIR test no.")}</label>
+                    <input className={styles.formInput} value={form.no_uji} onChange={(e) => setForm({ ...form, no_uji: e.target.value.toUpperCase() })} placeholder="JKT761681" />
+                  </div>
+                  <div>
+                    <label>{L("Nomor rangka", "Chassis no.")}</label>
+                    <input className={styles.formInput} value={form.no_rangka} onChange={(e) => setForm({ ...form, no_rangka: e.target.value.toUpperCase() })} />
+                  </div>
+                  <div>
+                    <label>{L("Nomor mesin", "Engine no.")}</label>
+                    <input className={styles.formInput} value={form.no_mesin} onChange={(e) => setForm({ ...form, no_mesin: e.target.value.toUpperCase() })} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16, padding: 14, background: "var(--bg2)", borderRadius: 12 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.07em" }}>📋 {lang === "en" ? "Document Schedule" : "Jadwal Dokumen"}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -697,6 +742,8 @@ export function VehiclesTab({ myProfile }: { myProfile: MyProfile | null }) {
           </div>
         </ModalPortal>
       )}
+
+      {sk && <SuratKuasaModal vehicles={vehicles} initialVehicleId={sk.id} onClose={() => setSk(null)} onSaved={() => { void load(); }} />}
 
       {confirmDelete && (
         <ModalPortal onOverlayClick={() => setConfirmDelete(null)} maxWidth={360}>
