@@ -1,15 +1,16 @@
 # Label Loker (24 label / A4)
 
 Modul `modLokerLabel.bas` membuat label kecil untuk tiap loker dari sheet **Master**
-lalu menyimpannya sebagai PDF. Satu halaman A4 = 3 kolom x 8 baris = 24 label
-(63,5 x 33,9 mm, cocok untuk kertas stiker 3x8 seperti Avery L7159 / sejenis).
+lalu menyimpannya sebagai PDF. Satu halaman A4 = 3 kolom x 8 baris = 24 label,
+dengan jarak potong 4 mm antar label dan garis tepi tipis sebagai panduan gunting
+(hasil cetak tiap label kira-kira 56 x 29 mm).
 
 Isi label:
 
 | Bagian | Sumber kolom Master |
 |---|---|
 | Strip atas `BLOK BS / SLOT 3` | BLOK, NO.SLOT KUNCI |
-| Angka besar "NOMOR LOKER (HOOK)" | NO.URUT PINTU |
+| Angka besar "NOMOR LOKER" | NO.URUT PINTU |
 | `NO. KUNCI : 123` | NO.KUNCI |
 
 ## Pasang
@@ -62,7 +63,6 @@ Klik **LABEL** (atau Alt+F8 -> `LK_CetakLabel`; `LK_CetakLabelBlok` = langsung p
 3. Isi posisi awal (1-24) - berguna kalau lembar stiker sudah terpakai sebagian.
 4. Pilih lokasi simpan PDF. PDF langsung terbuka.
 
-Saat mencetak, pilih **Actual size / 100%** (bukan *Fit to page*).
-Ukuran label, margin, dan tinggi tiap baris bisa diubah lewat konstanta di bagian
-atas `modLokerLabel.bas` kalau kertas stiker berbeda. Lakukan satu kali cetak uji di
-kertas biasa lalu tumpuk dengan lembar stiker untuk cek posisinya.
+Saat mencetak, pilih **Actual size / 100%** (bukan *Fit to page*), lalu gunting di
+jarak antar label. Ukuran label, jarak potong, margin dan skala cetak (`ZOOM_CETAK`)
+bisa diubah lewat konstanta di bagian atas `modLokerLabel.bas`.

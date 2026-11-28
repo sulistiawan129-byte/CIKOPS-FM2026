@@ -6,13 +6,15 @@ Option Explicit
 '
 ' Isi tiap label (diambil dari sheet Master):
 '   - strip atas  : BLOK xx  /  SLOT xx
-'   - angka besar : NOMOR LOKER (HOOK)  = kolom NO.URUT PINTU
+'   - angka besar : NOMOR LOKER         = kolom NO.URUT PINTU
 '   - baris bawah : NO. KUNCI : xx
 '
-' Ukuran mengikuti kertas stiker 3 x 8 (mis. Avery L7159 / sejenis):
-'   label 63,5 x 33,9 mm, jarak antar kolom 2,5 mm,
-'   margin kiri 6,4 mm, margin atas 13,1 mm.
-'   Kalau kertas stiker Anda berbeda, ubah konstanta di bawah.
+' Layout A4: 3 kolom x 8 baris = 24 label, dengan jarak potong
+' 4 mm antar label (kanan-kiri dan atas-bawah) dan garis tepi
+' tipis sebagai panduan gunting. Dicetak pada skala ZOOM_CETAK %
+' dan diletakkan di tengah kertas, supaya 3 kolom selalu muat di
+' 1 halaman di printer mana pun. Ukuran bisa diubah lewat
+' konstanta di bawah.
 '
 ' CARA PAKAI:
 '   1. Import modul ini (Alt+F11 -> File -> Import File).
@@ -36,12 +38,14 @@ Private Const N_KOL As Long = 3            ' label per baris
 Private Const N_BRS As Long = 8            ' baris label per halaman
 Private Const PER_HAL As Long = 24         ' = N_KOL * N_BRS
 Private Const R_PER As Long = 4            ' baris sel per label
+Private Const R_BLK As Long = 5            ' = R_PER + 1 baris jarak potong
 
-Private Const LBL_W As Double = 63.5       ' lebar label (mm)
-Private Const LBL_H As Double = 33.9       ' tinggi label (mm)
-Private Const GAP_X As Double = 2.5        ' jarak antar kolom label (mm)
-Private Const MRG_L As Double = 6.4        ' margin kiri kertas (mm)
-Private Const MRG_T As Double = 13.1       ' margin atas kertas (mm)
+Private Const LBL_W As Double = 62         ' lebar label (mm, sebelum skala)
+Private Const LBL_H As Double = 32         ' tinggi label (mm, sebelum skala)
+Private Const GAP_X As Double = 4          ' jarak potong antar kolom (mm)
+Private Const GAP_Y As Double = 4          ' jarak potong antar baris (mm)
+Private Const MRG As Double = 5            ' margin kertas (mm)
+Private Const ZOOM_CETAK As Long = 90      ' skala cetak (%) - cadangan supaya pasti muat
 Private Const GARIS_POTONG As Boolean = True   ' garis tipis di tepi label
 
 Private Const UI_FONT As String = "Segoe UI"
@@ -49,7 +53,7 @@ Private Const UI_FONT As String = "Segoe UI"
 
 ' tinggi 4 baris di dalam label (mm), jumlahnya harus = LBL_H
 Private Function TinggiBaris() As Variant
-    TinggiBaris = Array(7.5, 4.5, 14, 7.9)
+    TinggiBaris = Array(7, 4, 13.5, 7.5)
 End Function
 
 Private Function Mm(v As Double) As Double
@@ -354,7 +358,7 @@ Private Sub BuatPdf(baris As Variant, offset As Long, fname As String)
     For k = 0 To n - 1
         rw = baris(LBound(baris) + k)
         pos = k + offset
-        r = (pos \ PER_HAL) * (N_BRS * R_PER) + ((pos Mod PER_HAL) \ N_KOL) * R_PER + 1
+        r = (pos \ PER_HAL) * (N_BRS * R_BLK) + ((pos Mod PER_HAL) \ N_KOL) * R_BLK + 1
         c = (pos Mod N_KOL) * 2 + 1
 
         blok = Nilai(wm, rw, cB)
@@ -375,8 +379,8 @@ Private Sub BuatPdf(baris As Variant, offset As Long, fname As String)
     Application.ScreenUpdating = True
     LK_FokusCari
     MsgBox n & " label (" & pages & " halaman A4) disimpan ke:" & vbCrLf & fname & vbCrLf & vbCrLf & _
-           "Saat mencetak PDF, pilih ukuran ""Actual size / 100%"" (jangan ""Fit"")" & vbCrLf & _
-           "supaya pas dengan kertas stiker.", vbInformation, "Cetak Label Loker"
+           "Cetak PDF dengan ukuran ""Actual size / 100%""," & vbCrLf & _
+           "lalu gunting di jarak antar label (ikuti garis tepi).", vbInformation, "Cetak Label Loker"
     Exit Sub
 
 Gagal:
@@ -412,19 +416,26 @@ Private Sub LebarPt(ws As Worksheet, c As Long, pts As Double)
     Next i
 End Sub
 
-' tinggi baris per halaman, juga dikompensasi kumulatif
+' tinggi baris per halaman (4 baris label + 1 baris jarak potong),
+' dikompensasi kumulatif supaya pembulatan tidak menumpuk
 Private Sub AturBaris(ws As Worksheet, pages As Long)
     Dim tb As Variant, acc(0 To R_PER) As Double, i As Long, p As Long, lr As Long
-    Dim baseRow As Long, top0 As Double, akhir As Double, h As Double
+    Dim baseRow As Long, top0 As Double, akhir As Double, h As Double, sb As Long
     tb = TinggiBaris()
     For i = 1 To R_PER
         acc(i) = acc(i - 1) + tb(i - 1)
     Next i
     For p = 0 To pages - 1
-        baseRow = p * N_BRS * R_PER
+        baseRow = p * N_BRS * R_BLK
         top0 = ws.Rows(baseRow + 1).Top
-        For lr = 0 To N_BRS * R_PER - 1
-            akhir = (lr \ R_PER) * LBL_H + acc((lr Mod R_PER) + 1)
+        For lr = 0 To N_BRS * R_BLK - 1
+            sb = lr Mod R_BLK
+            akhir = (lr \ R_BLK) * (LBL_H + GAP_Y)
+            If sb < R_PER Then
+                akhir = akhir + acc(sb + 1)
+            Else
+                akhir = akhir + LBL_H + GAP_Y
+            End If
             h = Mm(akhir) - (ws.Rows(baseRow + lr + 1).Top - top0)
             If h < 1 Then h = 1
             If h > 409 Then h = 409
@@ -455,7 +466,7 @@ Private Sub IsiLabel(ws As Worksheet, r As Long, c As Long, teksAtas As String, 
 
     ' keterangan kecil
     With ws.Cells(r + 1, c)
-        .Value = "NOMOR LOKER (HOOK)"
+        .Value = "NOMOR LOKER"
         .Font.Size = 6.5
         .Font.Bold = True
         .Font.Color = RGB(91, 107, 133)
@@ -487,22 +498,22 @@ End Sub
 
 Private Sub AturHalaman(ws As Worksheet, pages As Long)
     Dim p As Long, tinggi As Long
-    tinggi = pages * N_BRS * R_PER
+    tinggi = pages * N_BRS * R_BLK
     SetPrintComm False
     With ws.PageSetup
         .PaperSize = xlPaperA4
         .Orientation = xlPortrait
-        .Zoom = 100
-        .LeftMargin = Mm(MRG_L)
-        .TopMargin = Mm(MRG_T)
-        .RightMargin = Mm(3)
-        .BottomMargin = Mm(3)
+        .Zoom = ZOOM_CETAK
+        .LeftMargin = Mm(MRG)
+        .TopMargin = Mm(MRG)
+        .RightMargin = Mm(MRG)
+        .BottomMargin = Mm(MRG)
         .HeaderMargin = 0
         .FooterMargin = 0
         .CenterHeader = ""
         .CenterFooter = ""
-        .CenterHorizontally = False
-        .CenterVertically = False
+        .CenterHorizontally = True
+        .CenterVertically = True
         .PrintGridlines = False
         .PrintHeadings = False
         .BlackAndWhite = False
@@ -510,7 +521,7 @@ Private Sub AturHalaman(ws As Worksheet, pages As Long)
     End With
     SetPrintComm True
     For p = 1 To pages - 1
-        ws.HPageBreaks.Add Before:=ws.Rows(p * N_BRS * R_PER + 1)
+        ws.HPageBreaks.Add Before:=ws.Rows(p * N_BRS * R_BLK + 1)
     Next p
 End Sub
 
