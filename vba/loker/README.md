@@ -66,3 +66,22 @@ Klik **LABEL** (atau Alt+F8 -> `LK_CetakLabel`; `LK_CetakLabelBlok` = langsung p
 Saat mencetak, pilih **Actual size / 100%** (bukan *Fit to page*), lalu gunting di
 jarak antar label. Ukuran label, jarak potong, margin dan skala cetak (`ZOOM_CETAK`)
 bisa diubah lewat konstanta di bagian atas `modLokerLabel.bas`.
+
+## Label induk BLOK (4 per A4)
+
+Label besar untuk ditempel di tiap blok loker (desain: `docs/preview-label-blok/opsi-B.png`).
+Satu lembar A4 dibagi 4 (kira-kira 10 x 14 cm per label), dengan garis potong putus-putus.
+
+Isi label: `LOKER KARYAWAN` / `PLANT CIKARANG`, tulisan kecil `BLOK`, **kode blok sangat besar**
+(ukuran huruf menyesuaikan panjang nama blok), ringkasan `24 loker - Slot 101-112 - Hook 1-24`
+(dihitung otomatis dari Master), lalu footer:
+
+> Jika **kunci loker hilang atau rusak**, silakan hubungi **Facility Management Department**.
+> FM DEPT. - PT FRISIAN FLAG INDONESIA
+
+Cara pakai: klik **LABEL** -> pilih **NO** (label induk blok), atau Alt+F8 -> `LK_CetakLabelIndukBlok`.
+Ketik blok yang mau dicetak (`AA, BS` atau `SEMUA`), simpan PDF.
+
+Bisa diatur lewat konstanta `LB_...` di `modLokerLabel.bas`:
+`LB_SUBJUDUL` (isi `""` untuk menghilangkan "PLANT CIKARANG"), `LB_TULIS_BLOK` (tulisan kecil "BLOK"),
+`LB_RINGKASAN` (baris jumlah loker / slot / hook), `LB_FONT_BESAR` (font kode blok).
