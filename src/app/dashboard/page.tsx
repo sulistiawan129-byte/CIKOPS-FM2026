@@ -12,6 +12,7 @@ import { computeStats, plantLocation } from "@/lib/types";
 import { useLang, useTheme } from "@/lib/providers";
 import LockerTab from "./LockerTab";
 import IdCardTab from "./IdCardTab";
+import LogbookTab from "./LogbookTab";
 import CanteenTab from "./CanteenTab";
 import MgmtReportTab from "./MgmtReportTab";
 import SecurityTab from "./SecurityTab";
@@ -682,6 +683,7 @@ const [masterDataInitialSub, setMasterDataInitialSub] = useState<"drivers" | "jo
           {activeTab === "canteen" && <CanteenTab />}
           {activeTab === "locker" && <LockerTab />}
           {activeTab === "idcard" && <IdCardTab myProfile={myProfile} />}
+          {activeTab === "logbook" && <LogbookTab myProfile={myProfile} />}
           {activeTab === "printer" && <PrinterTab />}
           {activeTab === "employeerequests" && <EmployeeRequestsTab />}
           {activeTab === "atk" && <AtkTab myProfile={myProfile} />}

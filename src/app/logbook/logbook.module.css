@@ -1,0 +1,44 @@
+/* Form publik Logbook Gate MDC ⇄ FFI — gaya "Loan Form" (header biru, hero, kartu judul, isian putih) */
+.page { min-height: 100dvh; background: #f1f3f7; display: flex; justify-content: center; padding: 12px 12px 56px; font-family: var(--font-exec-body, Inter), system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2633; }
+.card { width: 100%; max-width: 440px; align-self: flex-start; border-radius: 18px; overflow: hidden; background: #e6ecef; box-shadow: 0 14px 34px -14px rgba(30, 45, 90, .45); }
+
+.bar { background: #34499c; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; color: #fff; }
+.logo { width: 26px; height: 26px; border-radius: 6px; background: #f28c1e; position: relative; flex: none; }
+.logo::after { content: ""; position: absolute; left: 5px; top: 5px; width: 9px; height: 9px; background: #fff; border-radius: 2px; }
+.barTitle { font-size: 16px; font-weight: 500; flex: 1; min-width: 0; }
+.chip { font-size: 12px; font-weight: 500; background: rgba(255, 255, 255, .18); border-radius: 999px; padding: 5px 11px; white-space: nowrap; }
+
+/* Hero: letakkan foto pabrik di public/logbook-hero.jpg → otomatis tampil penuh; bila belum ada, ilustrasi di bawahnya yang tampil. */
+.hero { height: 190px; position: relative; overflow: hidden; background-color: #dfe9f6;
+  background-image: url(/logbook-hero.jpg), url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 440 190' preserveAspectRatio='xMidYMax slice'%3E%3Cdefs%3E%3ClinearGradient id='s' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23b9d3f2'/%3E%3Cstop offset='1' stop-color='%23eef4fb'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='440' height='190' fill='url(%23s)'/%3E%3Ccircle cx='350' cy='52' r='22' fill='%23fff' opacity='.7'/%3E%3Cg fill='%23fff' opacity='.85'%3E%3Cellipse cx='80' cy='40' rx='40' ry='9'/%3E%3Cellipse cx='110' cy='34' rx='26' ry='8'/%3E%3Cellipse cx='250' cy='64' rx='34' ry='7'/%3E%3C/g%3E%3Cg fill='%2391a9d6'%3E%3Crect x='0' y='122' width='440' height='68'/%3E%3Crect x='24' y='96' width='70' height='40'/%3E%3Crect x='300' y='88' width='64' height='50'/%3E%3C/g%3E%3Cg fill='%236f89c4'%3E%3Crect x='96' y='84' width='150' height='70'/%3E%3Cpath d='M96 84l25-18 25 18 25-18 25 18 25-18 25 18z'/%3E%3Crect x='252' y='60' width='26' height='94'/%3E%3Cellipse cx='265' cy='60' rx='13' ry='6'/%3E%3Crect x='386' y='70' width='30' height='84'/%3E%3Cellipse cx='401' cy='70' rx='15' ry='6'/%3E%3C/g%3E%3Cg fill='%2334499c'%3E%3Crect x='0' y='150' width='440' height='40'/%3E%3Crect x='44' y='110' width='9' height='42'/%3E%3Crect x='62' y='120' width='9' height='32'/%3E%3C/g%3E%3Cg fill='%23fff' opacity='.8'%3E%3Crect x='108' y='108' width='14' height='9'/%3E%3Crect x='132' y='108' width='14' height='9'/%3E%3Crect x='156' y='108' width='14' height='9'/%3E%3Crect x='180' y='108' width='14' height='9'/%3E%3Crect x='204' y='108' width='14' height='9'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: cover; background-position: center; background-repeat: no-repeat; }
+
+.title { margin: -48px 18px 0; position: relative; background: #34499c; color: #fff; text-align: center; padding: 18px 16px 16px; border-radius: 3px; }
+.title h1 { margin: 0; font-family: inherit; letter-spacing: 0; font-size: 19px; font-weight: 500; line-height: 1.3; }
+.title p { margin: 6px 0 0; font-size: 12.5px; opacity: .95; }
+
+.body { padding: 22px 18px 22px; display: flex; flex-direction: column; gap: 16px; }
+.field label, .lbl { display: block; font-size: 13px; color: #2a3442; margin-bottom: 8px; }
+.field label span { color: #5b6877; }
+.wrap { position: relative; }
+.ctl { width: 100%; height: 48px; box-sizing: border-box; border: 1px solid #d3dae2; border-radius: 6px; background: #fff; padding: 0 14px; font: inherit; font-size: 15px; color: #1c2633; text-transform: none; }
+select.ctl { appearance: none; -webkit-appearance: none; padding-right: 42px; }
+.wrap svg { position: absolute; right: 13px; top: 15px; pointer-events: none; }
+.ctl:focus-visible, .btn:focus-visible, .seg button:focus-visible { outline: 3px solid #8fa2e8; outline-offset: 2px; }
+.ctl.on { border-color: #34499c; box-shadow: 0 0 0 3px rgba(52, 73, 156, .15); }
+.ro { background: #fafbfc; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.seg button { height: 48px; border-radius: 6px; border: 1px solid #d3dae2; background: #fff; font: inherit; font-size: 15px; color: #2a3442; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #34499c; border-color: #34499c; color: #fff; font-weight: 500; }
+
+.btn { margin-top: 4px; height: 48px; border-radius: 6px; border: 0; background: #34499c; color: #fff; font: inherit; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; width: 100%; }
+.btn:disabled { opacity: .55; cursor: default; }
+.note { text-align: center; font-size: 12px; color: #5b6877; margin-top: -4px; }
+.err { padding: 10px 12px; border-radius: 6px; border: 1px solid #e5484d; background: #fff4f4; color: #8a1f23; font-size: 13.5px; }
+
+.rcpt { height: 48px; box-sizing: border-box; border: 1px solid #d3dae2; border-radius: 6px; background: #fff; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; min-width: 0; }
+.rcpt b { font-weight: 600; }
+.rcpt em { font-style: normal; font-size: 13px; font-weight: 600; color: #34499c; white-space: nowrap; }
+.rcptV { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ok { width: 44px; height: 44px; border-radius: 999px; background: #f28c1e; color: #fff; display: grid; place-items: center; margin: 0 auto 8px; }

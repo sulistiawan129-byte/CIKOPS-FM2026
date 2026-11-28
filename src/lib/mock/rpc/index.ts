@@ -4,5 +4,6 @@ import { FLEET } from "./fleet";
 import { FACILITY } from "./facility";
 import { FIELD } from "./field";
 import { IDCARD } from "./idcard";
+import { LOGBOOK } from "./logbook";
 
-export const RPC: Record<string, RpcHandler> = { ...FLEET, ...FACILITY, ...FIELD, ...IDCARD };
+export const RPC: Record<string, RpcHandler> = { ...FLEET, ...FACILITY, ...FIELD, ...IDCARD, ...LOGBOOK };
