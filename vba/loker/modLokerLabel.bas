@@ -52,6 +52,16 @@ Private Const GARIS_POTONG As Boolean = True   ' garis tipis di tepi label
 
 Private Const UI_FONT As String = "Segoe UI"
 
+' --- label induk BLOK (4 per A4) ---
+Private Const LB_JUDUL As String = "LOKER KARYAWAN"
+Private Const LB_SUBJUDUL As String = "PLANT CIKARANG"     ' isi "" untuk menghilangkan
+Private Const LB_TULIS_BLOK As Boolean = True               ' tulisan kecil "BLOK" di atas kode
+Private Const LB_RINGKASAN As Boolean = True                ' baris "24 loker - Slot - Hook"
+Private Const LB_FONT_BESAR As String = "Segoe UI Black"
+Private Const LB_PFX As String = "LK_LB_"                   ' nama sheet sementara
+Private Const LB_MRG As Double = 5        ' margin kertas (mm)
+Private Const LB_GAP As Double = 3        ' jarak dari garis potong ke bingkai (mm)
+
 
 ' tinggi 4 baris di dalam label (mm), jumlahnya harus = LBL_H
 Private Function TinggiBaris() As Variant
@@ -573,15 +583,7 @@ End Sub
 ' "fit to 1 page") supaya selalu pas 1 lembar A4 di printer mana pun.
 ' ============================================================
 
-Private Const LB_JUDUL As String = "LOKER KARYAWAN"
-Private Const LB_SUBJUDUL As String = "PLANT CIKARANG"     ' isi "" untuk menghilangkan
-Private Const LB_TULIS_BLOK As Boolean = True               ' tulisan kecil "BLOK" di atas kode
-Private Const LB_RINGKASAN As Boolean = True                ' baris "24 loker - Slot - Hook"
-Private Const LB_FONT_BESAR As String = "Segoe UI Black"
-Private Const LB_PFX As String = "LK_LB_"                   ' nama sheet sementara
 
-Private Const LB_MRG As Double = 5        ' margin kertas (mm)
-Private Const LB_GAP As Double = 3        ' jarak dari garis potong ke bingkai (mm)
 
 Public Sub LK_CetakLabelIndukBlok()
     Dim wm As Worksheet, cB As Long, cS As Long, cP As Long, cK As Long, cN As Long
