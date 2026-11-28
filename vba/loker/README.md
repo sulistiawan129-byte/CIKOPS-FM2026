@@ -51,12 +51,16 @@ End Function
 
 ## Pakai
 
-Klik **LABEL** (atau Alt+F8 -> `LK_CetakLabel`):
+Klik **LABEL** (atau Alt+F8 -> `LK_CetakLabel`; `LK_CetakLabelBlok` = langsung pilih blok):
 
-1. Pilih **YES** = hanya hasil pencarian yang sedang tampil (pakai filter/cari dulu,
-   mis. ketik `BS` mode BLOK), atau **NO** = semua loker di Master.
-2. Isi posisi awal (1-24) - berguna kalau lembar stiker sudah terpakai sebagian.
-3. Pilih lokasi simpan PDF. PDF langsung terbuka.
+1. Pilih **YES** = hanya hasil pencarian yang sedang tampil, atau **NO** = pilih blok.
+   (Kalau belum ada hasil pencarian, langsung ke pilihan blok.)
+2. **Pilih blok**: muncul daftar blok + jumlah lokernya, mis. `BS (24),  BT (30),  C (18)`.
+   Ketik blok yang mau dicetak dipisah koma, mis. `BS, C`, atau `SEMUA`.
+   Label diurutkan per blok sesuai urutan yang diketik, lalu Slot > Pintu > No. kunci,
+   jadi tiap blok rapi berurutan di lembar stiker.
+3. Isi posisi awal (1-24) - berguna kalau lembar stiker sudah terpakai sebagian.
+4. Pilih lokasi simpan PDF. PDF langsung terbuka.
 
 Saat mencetak, pilih **Actual size / 100%** (bukan *Fit to page*).
 Ukuran label, margin, dan tinggi tiap baris bisa diubah lewat konstanta di bagian

@@ -19,8 +19,12 @@ Option Explicit
 '   2. Tambahkan fungsi LK_BarisHasil ke modLokerSearch (lihat
 '      vba/loker/README.md), lalu Debug -> Compile.
 '   3. Jalankan LK_CetakLabel (Alt+F8, atau tombol LABEL di dashboard).
-'   4. Pilih: hasil pencarian saat ini / semua data Master,
+'   4. Pilih: hasil pencarian saat ini, atau pilih BLOK
+'      (satu / beberapa blok dipisah koma, atau SEMUA),
 '      pilih posisi awal label, lalu simpan PDF.
+'   LK_CetakLabelBlok = langsung ke pilihan blok.
+'   Label diurutkan per blok (sesuai urutan yang diketik),
+'   lalu Slot > Pintu > No. kunci.
 '
 ' Sheet LK_Label (tersembunyi) menyimpan layout terakhir; boleh
 ' ditampilkan (Unhide) dan dicetak langsung ke printer.
@@ -57,8 +61,7 @@ End Function
 ' MACRO UTAMA
 ' ============================================================
 Public Sub LK_CetakLabel()
-    Dim hasil As Variant, baris As Variant, nHasil As Long, n As Long
-    Dim jawab As VbMsgBoxResult, v As Variant, posAwal As Long, fname As Variant, dflt As String
+    Dim hasil As Variant, nHasil As Long, jawab As VbMsgBoxResult
 
     hasil = LK_BarisHasil()
     If IsArray(hasil) Then nHasil = UBound(hasil) - LBound(hasil) + 1
@@ -66,19 +69,29 @@ Public Sub LK_CetakLabel()
     If nHasil > 0 Then
         jawab = MsgBox("Buat label loker untuk:" & vbCrLf & vbCrLf & _
                        "YA / YES" & vbTab & "= hasil pencarian saat ini (" & nHasil & " loker)" & vbCrLf & _
-                       "TIDAK / NO" & vbTab & "= semua loker di sheet Master" & vbCrLf & _
+                       "TIDAK / NO" & vbTab & "= pilih BLOK (bisa beberapa blok / semua)" & vbCrLf & _
                        "BATAL / CANCEL" & vbTab & "= batal", _
                        vbQuestion + vbYesNoCancel, "Cetak Label Loker")
         If jawab = vbCancel Then Exit Sub
-    Else
-        jawab = vbNo
+        If jawab = vbYes Then
+            LanjutCetak hasil
+            Exit Sub
+        End If
     End If
+    LK_CetakLabelBlok
+End Sub
 
-    If jawab = vbYes Then
-        baris = hasil
-    Else
-        baris = SemuaBaris()
-    End If
+' Cetak label per BLOK: pilih satu / beberapa blok, urut Blok > Slot > Pintu
+Public Sub LK_CetakLabelBlok()
+    Dim baris As Variant, batal As Boolean
+    baris = PilihBlok(batal)
+    If batal Then Exit Sub
+    LanjutCetak baris
+End Sub
+
+Private Sub LanjutCetak(baris As Variant)
+    Dim n As Long, v As Variant, posAwal As Long, fname As Variant, dflt As String
+
     If Not IsArray(baris) Then
         MsgBox "Tidak ada data loker untuk dibuat label.", vbInformation, "Cetak Label Loker"
         Exit Sub
@@ -149,25 +162,155 @@ Private Function Nilai(wm As Worksheet, r As Long, c As Long) As String
     Nilai = Trim$(CStr(v))
 End Function
 
-' semua baris Master yang berisi data (nomor baris sheet)
-Private Function SemuaBaris() As Variant
+' Pilih blok yang mau dicetak. Hasil: nomor baris Master,
+' urut sesuai urutan blok yang diketik, lalu Slot > Pintu > Kunci.
+Private Function PilihBlok(batal As Boolean) As Variant
     Dim wm As Worksheet, cB As Long, cS As Long, cP As Long, cK As Long, cN As Long
-    Dim r As Long, lastRow As Long, n As Long, a() As Long
+    Dim r As Long, lastRow As Long, i As Long, j As Long, n As Long, b As String
+    Dim dic As Object, pakai As Object, kunci As Variant, col As Collection
+    Dim daftar As String, s As String, tok As Variant, salah As String
+    Dim pilih() As String, nPilih As Long, a() As Long, nA As Long
+    Dim rr() As Long, ky() As String, tmpR As Long, tmpK As String
+
+    batal = True
     Set wm = AmbilSheet(MASTER_SHEET)
-    If wm Is Nothing Then Exit Function
-    If Not KolomMaster(wm, cB, cS, cP, cK, cN) Then Exit Function
+    If wm Is Nothing Then
+        MsgBox "Sheet """ & MASTER_SHEET & """ tidak ditemukan.", vbExclamation, "Cetak Label Loker"
+        Exit Function
+    End If
+    If Not KolomMaster(wm, cB, cS, cP, cK, cN) Then
+        MsgBox "Judul kolom di sheet Master tidak lengkap (minimal BLOK dan NO.KUNCI).", vbExclamation, "Cetak Label Loker"
+        Exit Function
+    End If
     lastRow = wm.UsedRange.Row + wm.UsedRange.Rows.Count - 1
-    If lastRow < 2 Then Exit Function
-    ReDim a(1 To lastRow)
+
+    ' kelompokkan baris per blok
+    Set dic = CreateObject("Scripting.Dictionary")
+    dic.CompareMode = 1
     For r = 2 To lastRow
         If Nilai(wm, r, cB) <> "" Or Nilai(wm, r, cN) <> "" Or Nilai(wm, r, cK) <> "" Then
-            n = n + 1
-            a(n) = r
+            b = UCase$(Nilai(wm, r, cB))
+            If b = "" Then b = "-"
+            If Not dic.Exists(b) Then dic.Add b, New Collection
+            dic(b).Add r
         End If
     Next r
-    If n = 0 Then Exit Function
-    ReDim Preserve a(1 To n)
-    SemuaBaris = a
+    If dic.Count = 0 Then
+        MsgBox "Tidak ada data loker di sheet Master.", vbInformation, "Cetak Label Loker"
+        Exit Function
+    End If
+
+    ' daftar blok (urut) untuk ditampilkan
+    kunci = dic.Keys
+    For i = 1 To UBound(kunci)
+        tmpK = kunci(i)
+        j = i - 1
+        Do While j >= 0
+            If Banding(CStr(kunci(j)), tmpK) <= 0 Then Exit Do
+            kunci(j + 1) = kunci(j)
+            j = j - 1
+        Loop
+        kunci(j + 1) = tmpK
+    Next i
+    For i = 0 To UBound(kunci)
+        If Len(daftar) > 650 Then
+            daftar = daftar & ", ..."
+            Exit For
+        End If
+        If i > 0 Then daftar = daftar & IIf(i Mod 6 = 0, "," & vbCrLf, ",  ")
+        daftar = daftar & kunci(i) & " (" & dic(kunci(i)).Count & ")"
+    Next i
+
+    s = VBA.InputBox("Blok yang tersedia (jumlah loker):" & vbCrLf & daftar & vbCrLf & vbCrLf & _
+                     "Ketik blok yang mau dicetak, pisahkan dengan koma." & vbCrLf & _
+                     "Contoh:  BS, BT, C" & vbCrLf & _
+                     "Ketik SEMUA untuk semua blok.", "Cetak Label per Blok", "SEMUA")
+    If StrPtr(s) = 0 Then Exit Function          ' tombol Cancel
+    s = UCase$(Trim$(Replace(s, ";", ",")))
+
+    ReDim pilih(0 To dic.Count - 1)
+    If s = "" Or s = "SEMUA" Or s = "*" Then
+        For i = 0 To UBound(kunci)
+            pilih(i) = kunci(i)
+        Next i
+        nPilih = dic.Count
+    Else
+        Set pakai = CreateObject("Scripting.Dictionary")
+        pakai.CompareMode = 1
+        For Each tok In Split(s, ",")
+            tok = Trim$(CStr(tok))
+            If tok <> "" Then
+                If dic.Exists(tok) Then
+                    If Not pakai.Exists(tok) Then
+                        pakai.Add tok, 1
+                        pilih(nPilih) = tok
+                        nPilih = nPilih + 1
+                    End If
+                Else
+                    If salah <> "" Then salah = salah & ", "
+                    salah = salah & tok
+                End If
+            End If
+        Next tok
+        If nPilih = 0 Then
+            MsgBox "Blok tidak ditemukan: " & salah, vbExclamation, "Cetak Label per Blok"
+            Exit Function
+        End If
+        If salah <> "" Then
+            If MsgBox("Blok ini tidak ada di Master dan dilewati: " & salah & vbCrLf & vbCrLf & _
+                      "Lanjut cetak blok lainnya?", vbQuestion + vbOKCancel, "Cetak Label per Blok") <> vbOK Then Exit Function
+        End If
+    End If
+
+    ' gabungkan baris tiap blok, urut Slot > Pintu > Kunci
+    For i = 0 To nPilih - 1
+        n = n + dic(pilih(i)).Count
+    Next i
+    ReDim a(1 To n)
+    For i = 0 To nPilih - 1
+        Set col = dic(pilih(i))
+        ReDim rr(1 To col.Count)
+        ReDim ky(1 To col.Count)
+        For j = 1 To col.Count
+            rr(j) = col(j)
+            ky(j) = KunciUrut(wm, rr(j), cS, cP, cK)
+        Next j
+        For j = 2 To col.Count
+            tmpR = rr(j): tmpK = ky(j)
+            r = j - 1
+            Do While r >= 1
+                If StrComp(ky(r), tmpK, vbBinaryCompare) <= 0 Then Exit Do
+                rr(r + 1) = rr(r): ky(r + 1) = ky(r)
+                r = r - 1
+            Loop
+            rr(r + 1) = tmpR: ky(r + 1) = tmpK
+        Next j
+        For j = 1 To col.Count
+            nA = nA + 1
+            a(nA) = rr(j)
+        Next j
+    Next i
+    batal = False
+    PilihBlok = a
+End Function
+
+' kunci urut gabungan Slot|Pintu|Kunci; angka di-pad supaya 2 < 10
+Private Function KunciUrut(wm As Worksheet, r As Long, cS As Long, cP As Long, cK As Long) As String
+    KunciUrut = Pad(Nilai(wm, r, cS)) & "|" & Pad(Nilai(wm, r, cP)) & "|" & Pad(Nilai(wm, r, cK))
+End Function
+
+Private Function Pad(t As String) As String
+    If t = "" Then
+        Pad = "~"                                ' kosong di urutan akhir
+    ElseIf IsNumeric(t) Then
+        Pad = "0" & Format$(CDbl(t), "000000000000.000")
+    Else
+        Pad = "1" & UCase$(t)
+    End If
+End Function
+
+Private Function Banding(x As String, y As String) As Long
+    Banding = StrComp(Pad(x), Pad(y), vbBinaryCompare)
 End Function
 
 
